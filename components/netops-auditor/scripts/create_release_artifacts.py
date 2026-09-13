@@ -22,6 +22,7 @@ _VERSION_PATTERN = re.compile(
 )
 EXACT = {
     "CHANGELOG.md", "LICENSE", "README.md", "pyproject.toml", "requirements-mcp.txt",
+    "requirements-release.in", "requirements-release.lock", "sbom.cdx.json",
 }
 RECURSIVE_FILE_RULES = {
     "docs": frozenset({".md"}),
@@ -32,6 +33,7 @@ RECURSIVE_FILE_RULES = {
 EXECUTABLE = {
     "scripts/check_gates.py",
     "scripts/create_release_artifacts.py",
+    "scripts/generate_sbom.py",
 }
 
 

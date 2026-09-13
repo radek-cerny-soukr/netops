@@ -1041,8 +1041,9 @@ RESERVED_POLICY_KEY = "_egress"
 TARGET_POLICY_KEYS = {
     "account_role", "ssh_platform", "enabled_queries", "read_inventory",
     "sftp_roots", "fortios_output_standard_verified",
-    "rate_limit", "egress",
+    "legacy_ssh", "rate_limit", "egress",
 }
+LEGACY_SSH_PROFILES = ("rsa-sha1",)
 EGRESS_KEYS = {
     "addresses", "tcp_ports", "udp_ports", "tcp_port_ranges", "udp_port_ranges",
     "allow_icmp", "allow_dns", "tls_server_names",
@@ -1435,6 +1436,11 @@ class Proxy:
         roots = value.get("sftp_roots", [])
         inventory = value.get("read_inventory", {})
         verified = value.get("fortios_output_standard_verified", False)
+        legacy_ssh = value.get("legacy_ssh")
+        if legacy_ssh is not None and (
+            not isinstance(legacy_ssh, str) or legacy_ssh not in LEGACY_SSH_PROFILES
+        ):
+            raise PolicySchemaError()
         rate = value.get("rate_limit", {
             "requests": DEFAULT_RATE_REQUESTS,
             "window_seconds": DEFAULT_RATE_WINDOW_SECONDS,
@@ -1494,6 +1500,7 @@ class Proxy:
             "fortios_output_standard_verified": verified,
             "ssh_platform": normalized_platform,
             "enabled_queries": list(queries),
+            "legacy_ssh": legacy_ssh,
             "rate_limit": {"requests": requests, "window_seconds": window},
             "egress": egress,
         }
@@ -1897,6 +1904,7 @@ class Proxy:
             "ok": True, "target": alias, "account_role": policy["account_role"],
             "ssh_platform": policy["ssh_platform"],
             "enabled_queries": list(policy["enabled_queries"]),
+            "legacy_ssh": policy["legacy_ssh"],
             "egress": dict(policy["egress"]),
             "read_inventory": {key: list(items) for key, items in policy["read_inventory"].items()},
             "sftp_roots": list(policy["sftp_roots"]),

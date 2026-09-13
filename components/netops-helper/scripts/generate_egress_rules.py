@@ -19,6 +19,7 @@ import sys
 SOURCE_ROOT = Path(__file__).resolve().parents[1] / "src"
 if str(SOURCE_ROOT) not in sys.path:
     sys.path.insert(0, str(SOURCE_ROOT))
+from netops_helper.auth import LEGACY_SSH_PROFILES
 from netops_helper.read_policy import (
     PLATFORM_MAP,
     READ_QUERIES,
@@ -53,7 +54,7 @@ SAFE_DNS_LABEL = re.compile(r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?")
 TARGET_POLICY_KEYS = {
     "account_role", "ssh_platform", "enabled_queries", "read_inventory",
     "sftp_roots", "fortios_output_standard_verified",
-    "rate_limit", "egress",
+    "legacy_ssh", "rate_limit", "egress",
 }
 REQUIRED_TARGET_POLICY_KEYS = {
     "account_role", "ssh_platform", "enabled_queries", "egress",
@@ -303,6 +304,11 @@ def _normalize_target(
     verified = entry.get("fortios_output_standard_verified", False)
     if not isinstance(verified, bool):
         raise EgressContractError("FortiOS output verification flag must be boolean")
+    legacy_ssh = entry.get("legacy_ssh")
+    if legacy_ssh is not None and (
+        not isinstance(legacy_ssh, str) or legacy_ssh not in LEGACY_SSH_PROFILES
+    ):
+        raise EgressContractError("legacy SSH profile is invalid")
     rate = entry.get("rate_limit", {"requests": 30, "window_seconds": 60})
     if not isinstance(rate, dict) or set(rate) != {"requests", "window_seconds"}:
         raise EgressContractError("rate limit is invalid")

@@ -58,7 +58,8 @@ A future Phase 2 may consider configuration or other body reads only under a sep
 - The container runs non-root with a read-only root filesystem, no Linux capabilities, `no-new-privileges`, resource limits, and no Docker socket.
 - Every target must declare `account_role: "read-only"`; the operator must separately verify the actual device-side role over the same access path.
 - Every request is checked against exact target policy and per-tool egress scope before credentials are forwarded.
-- FortiOS sessions use a no-paging-write driver, require preverified `output standard`, and reject SHA-1 KEX-only targets.
+- FortiOS sessions use a no-paging-write driver and require preverified `output standard`.
+- SSH and SFTP refuse the `ssh-rsa` host key algorithm and SHA-1 key exchange for every target. A target which offers only `ssh-rsa` needs the named per-target exception `legacy_ssh: "rsa-sha1"`; there is no global switch and no algorithm list in configuration. See [Legacy SSH algorithms](docs/configuration.md#legacy-ssh-algorithms).
 - SSH and SFTP require pre-enrolled host keys; only entries matching the selected target are injected into the container.
 - The client supplies query names and typed parameters, never raw commands.
 - Inventory-bound slots prevent device output from becoming a new command argument or expanding target scope.

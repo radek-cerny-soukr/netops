@@ -26,9 +26,12 @@ from typing import Any, Iterator
 from icmplib import ping
 from netmiko import ConnectHandler
 from netmiko.fortinet.fortinet_ssh import FortinetSSH
+from paramiko.ssh_exception import IncompatiblePeer
 
 from .audit import AuditPostOperationError, AuditPreflightError, record
-from .auth import EgressScopeError, TargetAuth
+from .auth import (
+    LEGACY_SSH_PROFILES, EgressScopeError, LegacySshProfileRequired, TargetAuth,
+)
 from .read_policy import READ_QUERIES, normalize_platform, render_read_query
 from .sanitize import digest_text, redact
 
@@ -38,6 +41,32 @@ _WEAK_SSH_KEX = [
     "diffie-hellman-group14-sha1",
     "diffie-hellman-group-exchange-sha1",
 ]
+_LEGACY_SSH_HOST_KEY_ALGS = ("ssh-rsa",)
+_SSH_LEGACY_PROFILES: dict[str | None, tuple[str, ...]] = {
+    None: (),
+    "rsa-sha1": _LEGACY_SSH_HOST_KEY_ALGS,
+}
+_ASYNCSSH_KEX_ALGS = "-diffie-hellman-group1-sha1,diffie-hellman-group14-sha1,diffie-hellman-group-exchange-sha1"
+_ASYNCSSH_HOST_KEY_ALGS: dict[str | None, str] = {
+    None: "-ssh-rsa",
+    "rsa-sha1": "+ssh-rsa",
+}
+if (
+    set(_SSH_LEGACY_PROFILES) != {None, *LEGACY_SSH_PROFILES}
+    or set(_ASYNCSSH_HOST_KEY_ALGS) != set(_SSH_LEGACY_PROFILES)
+    or _SSH_LEGACY_PROFILES[None]
+    or any(
+        set(enabled) - set(_LEGACY_SSH_HOST_KEY_ALGS)
+        for enabled in _SSH_LEGACY_PROFILES.values()
+    )
+    or any(
+        _ASYNCSSH_HOST_KEY_ALGS[profile]
+        != ("+" if enabled else "-") + ",".join(_LEGACY_SSH_HOST_KEY_ALGS)
+        for profile, enabled in _SSH_LEGACY_PROFILES.items()
+    )
+    or _ASYNCSSH_KEX_ALGS != "-" + ",".join(_WEAK_SSH_KEX)
+):
+    raise RuntimeError("SSH legacy profile mapping is incomplete or invalid")
 _NETMIKO_DEVICE_TYPES = {
     "linux": "linux",
     "fortinet": "fortinet",
@@ -121,6 +150,35 @@ def _open_verified_socket(auth: TargetAuth, timeout: float = 10.0) -> socket.soc
     return socket.create_connection((address, auth.port), timeout=timeout)
 
 
+def _disabled_ssh_algorithms(auth: TargetAuth) -> dict[str, list[str]]:
+    enabled = _SSH_LEGACY_PROFILES[auth.legacy_ssh]
+    return {
+        "keys": [name for name in _LEGACY_SSH_HOST_KEY_ALGS if name not in enabled],
+        "kex": list(_WEAK_SSH_KEX),
+    }
+
+
+def _legacy_ssh_required(auth: TargetAuth) -> LegacySshProfileRequired:
+    names = ", ".join(_disabled_ssh_algorithms(auth)["keys"])
+    return LegacySshProfileRequired(
+        f'target "{auth.alias}" offers no SSH host key or key exchange algorithm '
+        f"enabled by default; for a target which offers only {names} host keys set "
+        f'"legacy_ssh": "rsa-sha1" in its target-policy.json entry, which allows them '
+        f"for that target alone. SHA-1 key exchange has no profile and stays disabled."
+    )
+
+
+def _caused_by(exc: BaseException, expected: type[BaseException]) -> bool:
+    seen: set[int] = set()
+    current: BaseException | None = exc
+    while current is not None and id(current) not in seen:
+        seen.add(id(current))
+        if isinstance(current, expected):
+            return True
+        current = current.__cause__ or current.__context__
+    return False
+
+
 @contextmanager
 def netmiko_connection(auth: TargetAuth, platform: str) -> Iterator[Any]:
     normalized = normalize_platform(platform)
@@ -130,11 +188,6 @@ def netmiko_connection(auth: TargetAuth, platform: str) -> Iterator[Any]:
     with _known_hosts_file(auth) as known_hosts_path:
         connection_factory = (
             ReadOnlyFortinetSSH if normalized == "fortinet" else ConnectHandler
-        )
-        extra = (
-            {"disabled_algorithms": {"kex": _WEAK_SSH_KEX}}
-            if normalized == "fortinet"
-            else {}
         )
         try:
             connection = connection_factory(
@@ -152,10 +205,12 @@ def netmiko_connection(auth: TargetAuth, platform: str) -> Iterator[Any]:
                 system_host_keys=False,
                 alt_host_keys=True,
                 alt_key_file=known_hosts_path,
-                **extra,
+                disabled_algorithms=_disabled_ssh_algorithms(auth),
             )
-        except BaseException:
+        except BaseException as exc:
             sock.close()
+            if auth.legacy_ssh is None and _caused_by(exc, IncompatiblePeer):
+                raise _legacy_ssh_required(auth) from exc
             raise
         try:
             yield connection
@@ -262,9 +317,12 @@ def _audit_device_call(function: Any) -> Any:
     def preflight(auth: TargetAuth, arguments: dict[str, Any]) -> str:
         try:
             operation_id = f"op_{secrets.token_hex(16)}"
+            fields = _audit_fields(arguments, {})
+            if auth.legacy_ssh is not None:
+                fields["legacy_ssh"] = auth.legacy_ssh
             record(
                 event, operation_id=operation_id, target=auth.alias, status="started",
-                **_audit_fields(arguments, {}),
+                **fields,
             )
         except Exception as exc:
             raise AuditPreflightError(
@@ -281,6 +339,8 @@ def _audit_device_call(function: Any) -> Any:
         detail: str | None = None,
     ) -> None:
         fields = _audit_fields(arguments, result or {})
+        if auth.legacy_ssh is not None:
+            fields["legacy_ssh"] = auth.legacy_ssh
         if detail is not None:
             fields["detail"] = detail
         try:
@@ -571,22 +631,29 @@ async def _sftp_client(auth: TargetAuth):
 
     sock = await asyncio.to_thread(_open_verified_socket, auth)
     with _known_hosts_file(auth) as known_hosts_path:
-        async with asyncssh.connect(
-            auth.host,
-            port=auth.port,
-            sock=sock,
-            username=auth.login,
-            password=auth.password,
-            client_keys=[],
-            known_hosts=known_hosts_path,
-            config=None,
-            connect_timeout=10,
-            login_timeout=15,
-            keepalive_interval=15,
-            keepalive_count_max=2,
-        ) as connection:
-            async with connection.start_sftp_client(sftp_version=3) as sftp:
-                yield sftp
+        try:
+            async with asyncssh.connect(
+                auth.host,
+                port=auth.port,
+                sock=sock,
+                username=auth.login,
+                password=auth.password,
+                client_keys=[],
+                known_hosts=known_hosts_path,
+                server_host_key_algs=_ASYNCSSH_HOST_KEY_ALGS[auth.legacy_ssh],
+                kex_algs=_ASYNCSSH_KEX_ALGS,
+                config=None,
+                connect_timeout=10,
+                login_timeout=15,
+                keepalive_interval=15,
+                keepalive_count_max=2,
+            ) as connection:
+                async with connection.start_sftp_client(sftp_version=3) as sftp:
+                    yield sftp
+        except asyncssh.KeyExchangeFailed as exc:
+            if auth.legacy_ssh is None:
+                raise _legacy_ssh_required(auth) from exc
+            raise
 
 
 @_audit_device_call

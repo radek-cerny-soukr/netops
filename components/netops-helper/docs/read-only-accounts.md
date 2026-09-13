@@ -24,7 +24,7 @@ The local `account_role: "read-only"` field records an operator assertion. The p
 
 Use a dedicated administrator bound to a reviewed read-only access profile, with administrative domain/VDOM scope restricted where applicable. Do not assume that a profile described as read-only excludes every diagnostic, execute, backup, or secret-bearing operation; test explicit denial of those families.
 
-Before enrollment, a separate administrator must persistently set console output to `standard` in the applicable global context and verify the effective setting. Only then set `fortios_output_standard_verified: true`. NetOps Helper's FortiOS driver deliberately skips Netmiko paging setup and cleanup so it never enters configuration merely to change or restore paging. It also rejects SHA-1-only KEX. Verify both the exact wire session and target AAA log in a controlled test environment.
+Before enrollment, a separate administrator must persistently set console output to `standard` in the applicable global context and verify the effective setting. Only then set `fortios_output_standard_verified: true`. NetOps Helper's FortiOS driver deliberately skips Netmiko paging setup and cleanup so it never enters configuration merely to change or restore paging. SHA-1 key exchange and the `ssh-rsa` host key algorithm are refused for every platform, not only FortiOS. Verify both the exact wire session and target AAA log in a controlled test environment.
 
 ### Extreme Switch Engine / ExtremeXOS
 

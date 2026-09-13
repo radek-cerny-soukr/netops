@@ -57,7 +57,9 @@ EXIT_ERROR = 2
 
 COLLECTION_KEY = "collection"
 
-COLLECTION_KEYS = ("channel", "source", "profile", "snapshot_sha256")
+COLLECTION_KEYS = ("channel", "source", "profile", "snapshot_sha256", "legacy_ssh")
+
+LEGACY_NONE = "none"
 
 COMPLETENESS_RULE = "%s.snapshot.incomplete"
 
@@ -510,6 +512,7 @@ def _gathered(record, credential, profile) -> tuple:
         credential=credential,
         profile=profile,
         host_key_fingerprint=record.host_key_fingerprint,
+        legacy_ssh=record.legacy_ssh,
     )
     return snapshot, tuple(events)
 
@@ -535,7 +538,9 @@ def _collected(args, record, credential, profile) -> tuple:
 
 def _completeness(record, snapshot):
     try:
-        missing = collect.missing_sections(snapshot.text, record.required_sections)
+        missing = collect.missing_sections(
+            snapshot.text, record.required_sections, snapshot.platform
+        )
         item = collect.completeness_finding(record.name, missing)
     except collect.CollectError as error:
         raise Failure("completeness: %s" % error)
@@ -579,12 +584,13 @@ def _recorded(args, record, snapshot, rules_version, findings, events) -> tuple:
     return previous, baseline, accepted
 
 
-def _collection(snapshot) -> dict:
+def _collection(snapshot, record) -> dict:
     return {
         "channel": snapshot.channel,
         "source": snapshot.source,
         "profile": snapshot.profile,
         "snapshot_sha256": snapshot.sha256,
+        "legacy_ssh": record.legacy_ssh if record.legacy_ssh else LEGACY_NONE,
     }
 
 
@@ -609,7 +615,7 @@ def _command_collect(args) -> int:
     report = _report(
         args.tenant, record.name, platform, snapshot.sha256, rules_version, findings, result
     )
-    report[COLLECTION_KEY] = _collection(snapshot)
+    report[COLLECTION_KEY] = _collection(snapshot, record)
     sys.stdout.write(_render(report, args.as_json, _text_report))
     if accepted is not None:
         sys.stderr.write("baseline: accepted %d of %d findings\n" % (accepted, len(findings)))

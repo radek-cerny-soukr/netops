@@ -80,7 +80,7 @@ The egress generator reads `NETOPS_MASTER_ALIAS` independently. When a non-defau
 Each target permits only these keys:
 
 - `account_role`, `ssh_platform`, `enabled_queries`, `read_inventory`, and `sftp_roots`;
-- `fortios_output_standard_verified`, `rate_limit`, and `egress`.
+- `fortios_output_standard_verified`, `legacy_ssh`, `rate_limit`, and `egress`.
 
 Unknown keys fail closed. `account_role`, `ssh_platform`, `enabled_queries`, and the exact `egress` object are mandatory. An old-format policy is not interpreted as unrestricted access. Version 0.2.0 removes `https_get`; the legacy `https_endpoints` key is therefore rejected as an unknown field and must be deleted during upgrade. Set `ssh_platform: null` and `enabled_queries: []` to disable SSH reads.
 
@@ -98,7 +98,7 @@ Call `target_scope(target)` for one returned alias. The proxy handles this local
 - all enrolled interface, service, address, and switch inventory values;
 - exact SFTP metadata/listing roots;
 - full per-tool egress policy, including enrolled IPv4 addresses, ports/ranges, DNS/ICMP permission, and TLS server names;
-- rate state plus boolean SNMP and device host-key enrollment status.
+- rate state, the enrolled legacy SSH profile, plus boolean SNMP and device host-key enrollment status.
 
 It does not return the vault's `host` field, login, password, SNMP community, or host-key contents. This is not anonymity: a literal target address normally appears in `egress.addresses`, and hostname targets expose their enrolled IPv4 results. Roots, inventory names, and TLS names may also reveal topology. Keep `target_scope` available only inside the dedicated operational session and do not publish its output.
 
@@ -160,6 +160,44 @@ Each proxy process enforces a per-alias sliding window before forwarding; two va
 A valid `ssh_read` continuation with integer `offset > 0` does not consume another device rate slot because it must use an existing in-memory SSH snapshot. Every other device call consumes a slot. Expired or missing continuation state fails and must restart at offset 0.
 
 An offset-0 SSH read captures at most 2 MB after sanitization. Output exceeding the capture limit fails rather than silently truncating. A retained SSH snapshot lasts at most 120 seconds, up to eight entries per process; the last page discards it. No other Phase-1 tool has a body snapshot or continuation path.
+
+### Legacy SSH algorithms
+
+Since the release which introduces this field, the SSH and SFTP transports refuse the `ssh-rsa` host key algorithm and SHA-1 key exchange for **every** platform. Both were silently available to every target up to and including 0.2.3, where only FortiOS targets rejected SHA-1 key exchange. This is a behaviour change: a target which offers no algorithm outside that default stops being reachable until the exception below is enrolled for it.
+
+`ssh-rsa` means an RSA host key signed with SHA-1. It is not the same as having an RSA host key: a target which offers `rsa-sha2-256` or `rsa-sha2-512` keeps working with its existing `ssh-rsa` known-hosts entry and needs no exception, because the entry names the key, not the signature algorithm. Only a target which offers nothing but `ssh-rsa`, typically an old switch or an unpatched appliance, is affected.
+
+The exception is named per target, in that target's policy entry, and nowhere else:
+
+```json
+"device-alias": {
+  "account_role": "read-only",
+  "legacy_ssh": "rsa-sha1"
+}
+```
+
+`legacy_ssh` accepts exactly `null` (the default, modern algorithms only) or the string `"rsa-sha1"`. `"rsa-sha1"` re-enables the `ssh-rsa` host key algorithm for that one target and nothing else. Any other value, including an algorithm name, fails closed in the proxy, in the egress generator, and in the server's authentication envelope.
+
+There is deliberately no global switch and no list of algorithm names in configuration. A named profile expands to a fixed algorithm set written in the code, so a policy file can never widen the cryptography of a connection beyond what the component already ships and reviewed. Enabling SHA-1 for one target must not enable it for the others, which a global option or an inherited default could not guarantee.
+
+SHA-1 key exchange has no profile at all and stays disabled for every target. If a device needs it, it is out of scope for this component.
+
+One profile governs both transports. `ssh_read` (Netmiko/Paramiko) and `sftp_stat` (asyncssh) read the same field, so a target cannot be reachable over one and unreachable over the other.
+
+An enrolled exception is visible at runtime, not only in the policy file: `target_scope` returns `legacy_ssh` for the alias, and every audit record for a device call on that target carries `"legacy_ssh":"rsa-sha1"`. Records for targets without the exception stay unchanged and carry no such field.
+
+When a target needs the exception and does not have it, the tool result names it:
+
+```text
+LegacySshProfileRequired: target "device-alias" offers no SSH host key or key exchange
+algorithm enabled by default; for a target which offers only ssh-rsa host keys set
+"legacy_ssh": "rsa-sha1" in its target-policy.json entry, which allows them for that
+target alone. SHA-1 key exchange has no profile and stays disabled.
+```
+
+That message replaces the underlying library error, which reports a host key mismatch as a connection timeout and names no remedy. It is raised only when the library proves the algorithm sets do not intersect; an unrelated timeout, an authentication failure, or a wrong host key keeps its own error.
+
+On the SFTP path the message depends on which side reports first. Measured against a device which offers only `ssh-rsa`, the device closed the connection before asyncssh evaluated the offer, so the result was `ConnectionLost: Connection lost` with no algorithm detail. Read an opaque SFTP connection failure against an old target as the same cause and apply the same fix; `ssh_read` against the same target names it explicitly.
 
 ## Host keys
 

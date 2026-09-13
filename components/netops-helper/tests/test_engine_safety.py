@@ -4,16 +4,20 @@ import asyncio
 from contextlib import contextmanager
 from dataclasses import replace
 import ipaddress
+import json
 import re
 import sys
 import types
 
 import pytest
 
+import netops_helper.audit as audit
 from netops_helper.audit import AuditPostOperationError, AuditPreflightError
+from paramiko.ssh_exception import IncompatiblePeer
+
 from netops_helper.auth import (
-    AuthenticationMaterialError, EgressPolicy, EgressScopeError,
-    PolicyScopeError, TargetAuth,
+    LEGACY_SSH_PROFILES, AuthenticationMaterialError, EgressPolicy, EgressScopeError,
+    LegacySshProfileRequired, PolicyScopeError, TargetAuth,
 )
 import netops_helper.engine as engine
 from netops_helper.read_policy import READ_QUERIES
@@ -22,7 +26,7 @@ from netops_helper.read_policy import READ_QUERIES
 TEST_ADDRESS = str(ipaddress.IPv4Address((192 << 24) | (2 << 8) | 20))
 
 
-def auth(*, fortios_verified: bool = True) -> TargetAuth:
+def auth(*, fortios_verified: bool = True, legacy_ssh: str | None = None) -> TargetAuth:
     return TargetAuth(
         alias="device-a",
         host=TEST_ADDRESS,
@@ -43,6 +47,7 @@ def auth(*, fortios_verified: bool = True) -> TargetAuth:
             tcp_port_ranges=((50_000, 50_010),),
             allow_icmp=True,
         ),
+        legacy_ssh=legacy_ssh,
     )
 
 
@@ -154,6 +159,7 @@ def test_fortios_connection_uses_read_only_driver_and_disables_sha1_kex(monkeypa
     assert captured["device_type"] == "fortinet"
     assert captured["disabled_algorithms"]["kex"] == engine._WEAK_SSH_KEX
     assert all(name.endswith("sha1") for name in engine._WEAK_SSH_KEX)
+    assert captured["disabled_algorithms"]["keys"] == ["ssh-rsa"]
     assert captured["disconnected"] is True
 
 
@@ -197,7 +203,9 @@ def test_canonical_platform_uses_expected_netmiko_device_type(
     with engine.netmiko_connection(auth(), platform):
         pass
     assert captured["device_type"] == expected_device_type
-    assert "disabled_algorithms" not in captured
+    assert captured["disabled_algorithms"] == {
+        "keys": ["ssh-rsa"], "kex": engine._WEAK_SSH_KEX,
+    }
     assert captured["disconnected"] is True
 
 
@@ -535,3 +543,148 @@ def test_snmp_backend_receives_only_the_separate_community(monkeypatch) -> None:
         "transport_created": True,
         "closed": True,
     }
+
+
+def _fake_asyncssh(captured: dict, error: Exception | None = None):
+    module = types.ModuleType("asyncssh")
+
+    class KeyExchangeFailed(Exception):
+        pass
+
+    class FakeSftp:
+        async def __aenter__(self):
+            return "sftp-client"
+
+        async def __aexit__(self, *args):
+            return False
+
+    class FakeConnection:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *args):
+            return False
+
+        def start_sftp_client(self, sftp_version=None):
+            captured["sftp_version"] = sftp_version
+            return FakeSftp()
+
+    def connect(host, **kwargs):
+        captured["host"] = host
+        captured.update(kwargs)
+        if error is not None:
+            raise error
+        return FakeConnection()
+
+    module.connect = connect
+    module.KeyExchangeFailed = KeyExchangeFailed
+    return module
+
+
+def _open_sftp(target: TargetAuth, monkeypatch, module) -> str:
+    monkeypatch.setitem(sys.modules, "asyncssh", module)
+    monkeypatch.setattr(engine, "_open_verified_socket", lambda item: FakeSocket())
+
+    async def run() -> str:
+        async with engine._sftp_client(target) as sftp:
+            return sftp
+
+    return asyncio.run(run())
+
+
+def test_legacy_profile_is_the_only_way_to_reenable_the_sha1_host_key(monkeypatch) -> None:
+    captured = {}
+
+    class FakeConnection:
+        def __init__(self, **kwargs):
+            captured.update(kwargs)
+
+        def disconnect(self):
+            captured["disconnected"] = True
+
+    monkeypatch.setattr(engine, "ConnectHandler", FakeConnection)
+    monkeypatch.setattr(engine, "_open_verified_socket", lambda target: FakeSocket())
+    with engine.netmiko_connection(auth(legacy_ssh="rsa-sha1"), "linux"):
+        pass
+    assert captured["disabled_algorithms"] == {"keys": [], "kex": engine._WEAK_SSH_KEX}
+
+
+def test_legacy_ssh_profile_tables_share_one_vocabulary() -> None:
+    assert LEGACY_SSH_PROFILES == ("rsa-sha1",)
+    assert set(engine._SSH_LEGACY_PROFILES) == {None, *LEGACY_SSH_PROFILES}
+    assert set(engine._ASYNCSSH_HOST_KEY_ALGS) == set(engine._SSH_LEGACY_PROFILES)
+    assert engine._SSH_LEGACY_PROFILES[None] == ()
+    assert engine._SSH_LEGACY_PROFILES["rsa-sha1"] == engine._LEGACY_SSH_HOST_KEY_ALGS
+    assert engine._ASYNCSSH_HOST_KEY_ALGS[None] == "-ssh-rsa"
+    assert engine._ASYNCSSH_HOST_KEY_ALGS["rsa-sha1"] == "+ssh-rsa"
+    assert engine._ASYNCSSH_KEX_ALGS == "-" + ",".join(engine._WEAK_SSH_KEX)
+
+
+def test_host_key_negotiation_failure_names_the_target_and_the_profile(monkeypatch) -> None:
+    sock = FakeSocket()
+    monkeypatch.setattr(engine, "_open_verified_socket", lambda target: sock)
+
+    def wrapped_failure(**kwargs):
+        try:
+            raise IncompatiblePeer("Incompatible ssh peer (no acceptable host key)")
+        except IncompatiblePeer as exc:
+            raise OSError("A paramiko SSHException occurred") from exc
+
+    monkeypatch.setattr(engine, "ConnectHandler", wrapped_failure)
+    with pytest.raises(LegacySshProfileRequired) as failure:
+        with engine.netmiko_connection(auth(), "linux"):
+            pass
+    message = str(failure.value)
+    assert '"device-a"' in message
+    assert '"legacy_ssh": "rsa-sha1"' in message
+    assert "ssh-rsa" in message
+    assert sock.closed is True
+
+    with pytest.raises(OSError):
+        with engine.netmiko_connection(auth(legacy_ssh="rsa-sha1"), "linux"):
+            pass
+
+
+def test_sftp_transport_uses_the_same_profile_as_the_netmiko_path(monkeypatch) -> None:
+    captured = {}
+    assert _open_sftp(auth(), monkeypatch, _fake_asyncssh(captured)) == "sftp-client"
+    assert captured["server_host_key_algs"] == "-ssh-rsa"
+    assert captured["kex_algs"] == engine._ASYNCSSH_KEX_ALGS
+    assert captured["sftp_version"] == 3
+
+    legacy = {}
+    _open_sftp(auth(legacy_ssh="rsa-sha1"), monkeypatch, _fake_asyncssh(legacy))
+    assert legacy["server_host_key_algs"] == "+ssh-rsa"
+    assert legacy["kex_algs"] == engine._ASYNCSSH_KEX_ALGS
+
+
+def test_sftp_host_key_negotiation_failure_names_the_profile(monkeypatch) -> None:
+    module = _fake_asyncssh({})
+    failing = _fake_asyncssh({}, error=module.KeyExchangeFailed("no host key"))
+    failing.KeyExchangeFailed = module.KeyExchangeFailed
+    with pytest.raises(LegacySshProfileRequired) as failure:
+        _open_sftp(auth(), monkeypatch, failing)
+    assert '"legacy_ssh": "rsa-sha1"' in str(failure.value)
+
+    with pytest.raises(module.KeyExchangeFailed):
+        _open_sftp(auth(legacy_ssh="rsa-sha1"), monkeypatch, failing)
+
+
+def test_written_audit_log_shows_an_enrolled_legacy_profile(tmp_path, monkeypatch) -> None:
+    path = tmp_path / "audit.jsonl"
+    assert engine.record is audit.record
+    monkeypatch.setattr(audit, "AUDIT_PATH", path)
+    monkeypatch.setattr(
+        engine.socket, "create_connection",
+        lambda *args, **kwargs: (_ for _ in ()).throw(OSError("refused")),
+    )
+    engine.tcp_probe(auth(legacy_ssh="rsa-sha1"), 443, 1.0)
+    written = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()]
+    assert [item["status"] for item in written] == ["started", "failed"]
+    assert [item["legacy_ssh"] for item in written] == ["rsa-sha1", "rsa-sha1"]
+
+    path.unlink()
+    engine.tcp_probe(auth(), 443, 1.0)
+    plain = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()]
+    assert [item["status"] for item in plain] == ["started", "failed"]
+    assert all("legacy_ssh" not in item for item in plain)

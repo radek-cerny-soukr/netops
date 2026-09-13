@@ -17,6 +17,7 @@ DEVICE_FIELDS = (
     "required_sections",
     "tls_fingerprint",
     "host_key_fingerprint",
+    "legacy_ssh",
 )
 PLATFORMS = ("fortios", "exos")
 CHANNEL_FILE = "file"
@@ -33,6 +34,7 @@ HOST_KEY_DIGEST_LENGTH = 43
 HOST_KEY_CHARS = frozenset(
     "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
 )
+LEGACY_SSH_PROFILES = ("rsa-sha1",)
 SECRET_MARKERS = (
     "password",
     "passwd",
@@ -63,6 +65,7 @@ class Device:
     required_sections: tuple
     tls_fingerprint: str | None
     host_key_fingerprint: str | None
+    legacy_ssh: str | None
 
 
 def _normalized(name) -> str:
@@ -167,6 +170,25 @@ def _checked_host_key(where: str, channel: str, value):
     return value
 
 
+def _checked_legacy_ssh(where: str, channel: str, value):
+    if channel != CHANNEL_SSH:
+        if value is not None:
+            raise InventoryError(
+                "%s: legacy_ssh must be null for channel %s, got %r" % (where, channel, value)
+            )
+        return None
+    if value is None:
+        return None
+    if not isinstance(value, str) or value not in LEGACY_SSH_PROFILES:
+        raise InventoryError(
+            "%s: legacy_ssh must be null for a device that speaks current algorithms or name one"
+            " of the profiles %s for channel %s, a profile weakens the session for that device"
+            " alone, got %r"
+            % (where, ", ".join(LEGACY_SSH_PROFILES), CHANNEL_SSH, value)
+        )
+    return value
+
+
 def _device(index: int, item) -> Device:
     where = "device %d" % index
     if not isinstance(item, dict):
@@ -190,6 +212,7 @@ def _device(index: int, item) -> Device:
         required_sections=_checked_sections(where, item["required_sections"]),
         tls_fingerprint=_checked_tls_fingerprint(where, channel, item["tls_fingerprint"]),
         host_key_fingerprint=_checked_host_key(where, channel, item["host_key_fingerprint"]),
+        legacy_ssh=_checked_legacy_ssh(where, channel, item["legacy_ssh"]),
     )
 
 

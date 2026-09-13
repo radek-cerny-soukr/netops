@@ -833,11 +833,20 @@ def test_ssh_continuation_cache_uses_absolute_capture_ttl() -> None:
             pass
 
         fortinet_ssh_stub.FortinetSSH = StubFortinetSSH
+        paramiko_stub = types.ModuleType("paramiko")
+        paramiko_exceptions_stub = types.ModuleType("paramiko.ssh_exception")
+
+        class StubIncompatiblePeer(Exception):
+            pass
+
+        paramiko_exceptions_stub.IncompatiblePeer = StubIncompatiblePeer
         dependency_stubs = {
             "icmplib": icmplib_stub,
             "netmiko": netmiko_stub,
             "netmiko.fortinet": fortinet_stub,
             "netmiko.fortinet.fortinet_ssh": fortinet_ssh_stub,
+            "paramiko": paramiko_stub,
+            "paramiko.ssh_exception": paramiko_exceptions_stub,
         }
         for name, module in dependency_stubs.items():
             if name not in sys.modules:

@@ -35,12 +35,17 @@ class PolicyScopeError(AuthenticationContextError):
     error_code = "policy_scope"
 
 
+class LegacySshProfileRequired(PolicyScopeError):
+    """Raised when a target needs an explicitly enrolled legacy SSH profile."""
+
+
 class EgressScopeError(PolicyScopeError):
     """Raised when a requested destination or protocol is outside egress policy."""
 
     error_code = "egress_scope"
 
 
+LEGACY_SSH_PROFILES = ("rsa-sha1",)
 _ENVELOPE_KEYS = {
     "alias",
     "host",
@@ -55,6 +60,7 @@ _ENVELOPE_KEYS = {
     "snmp_community",
     "ssh_platform",
     "enabled_queries",
+    "legacy_ssh",
     "egress",
 }
 _EGRESS_KEYS = {
@@ -309,6 +315,14 @@ def _normalize_ssh_policy(
     return normalized_platform, normalized_queries
 
 
+def _normalize_legacy_ssh(value: object) -> str | None:
+    if value is None:
+        return None
+    if not isinstance(value, str) or value not in LEGACY_SSH_PROFILES:
+        raise ValueError("legacy_ssh must be null or a supported profile name")
+    return value
+
+
 @dataclass(frozen=True, slots=True)
 class TargetAuth:
     alias: str
@@ -325,6 +339,7 @@ class TargetAuth:
     ssh_platform: str | None = None
     enabled_queries: tuple[str, ...] = ()
     egress: EgressPolicy = field(default_factory=EgressPolicy)
+    legacy_ssh: str | None = None
 
     @classmethod
     def decode(cls, expected_alias: str, context: str) -> "TargetAuth":
@@ -370,6 +385,7 @@ class TargetAuth:
             ssh_platform, enabled_queries = _normalize_ssh_policy(
                 data["ssh_platform"], data["enabled_queries"],
             )
+            legacy_ssh = _normalize_legacy_ssh(data.get("legacy_ssh"))
             egress = _normalize_egress(data["egress"])
             read_inventory = _normalize_inventory(
                 data.get("read_inventory", {}),
@@ -421,6 +437,7 @@ class TargetAuth:
                 ssh_platform=ssh_platform,
                 enabled_queries=enabled_queries,
                 egress=egress,
+                legacy_ssh=legacy_ssh,
             )
         except (KeyError, TypeError, ValueError, UnicodeError) as exc:
             raise AuthenticationContextError("invalid ephemeral authentication context") from exc

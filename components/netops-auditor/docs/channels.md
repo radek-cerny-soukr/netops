@@ -18,6 +18,29 @@ Both device channels share the same rules:
 - the transport is injectable, so the test suite never touches the network,
 - the auditor never changes a device. Not a policy, not an interface, not even a console setting.
 
+## Three things are called a profile
+
+The word turns up on this page in three unrelated meanings, and mixing two of them up costs a
+collection:
+
+| what | where it lives | what it is |
+|---|---|---|
+| `--profile` | the command line of `collect` | on the `ssh` channel the **login name** of the session; on `file` and `fortios-rest` nothing but the label written into the report, defaulting to `unknown` |
+| an access profile | on the device, on the account or on the token | how much of the configuration comes back - the auditor neither sets it nor sees it |
+| `legacy_ssh` | the inventory entry | a named set of SSH algorithm options, expanded by the collector - see below |
+
+Only the first one is the auditor's. On the `ssh` channel it is mandatory, because the tool has no
+default login:
+
+```
+error: channel ssh logs in under an account, name it with --profile
+```
+
+and its value goes straight onto the command line of the client. Measured with `--profile audit-ro`
+against an entry whose `source` is `192.0.2.30`: the client is called as `audit-ro@192.0.2.30` and
+the report carries `collection-profile: audit-ro`. One string does two jobs, the login and the label
+of the run, so it is not a place to write a description.
+
 ## Channel `fortios-rest`
 
 ### What it does
@@ -25,10 +48,15 @@ Both device channels share the same rules:
 - Sends `POST https://<host>/api/v2/monitor/system/config/backup?scope=global` and takes the answer
   as the configuration text. The API token travels in the `Authorization: Bearer` header, never in
   the URL: a token in a query string ends up in the device log and in every proxy log on the way.
-- Verifies TLS on every call. There is no `verify=False`. Two paths are supported: a certificate
-  valid against the system CA store, or a pin on the sha256 fingerprint of the device certificate
-  from the inventory. With a pin the fingerprint is compared before the request is sent, so a
-  mismatch drops the connection with the token unused.
+- Never sends the token to an unverified peer - but the two ways it verifies are not the same
+  thing. **Without a pin** the call runs on the default context: the chain is validated against the
+  system CA store and the hostname is checked. **With a pin** in the inventory the context is opened
+  with `check_hostname = False` and `verify_mode = CERT_NONE`, so the chain is not validated at all;
+  the trust rests entirely on the sha256 of the certificate the device presented, which is compared
+  against the pin before the request is sent, so a mismatch drops the connection with the token
+  unused. A pin is not "TLS plus a fingerprint", it is a fingerprint **instead of** a chain.
+  Measured against a local server with a self-signed certificate: without a pin the connection ends
+  in `CERTIFICATE_VERIFY_FAILED`, with a pin it is established and the fingerprint decides.
 - Default timeout 30 s, applied to the connection and to reading the answer.
 
 ### What it does not do, and what it costs
@@ -77,6 +105,8 @@ until someone runs it against a device and writes the result here.
   `ClearAllForwardings=yes`, `ProxyCommand=none`, `PermitLocalCommand=no`, `ControlMaster=no`,
   `ControlPath=none`. `ssh` is a binary that can start other processes, so it is kept on a short
   leash. The child gets a minimal environment (`PATH`, `HOME`, `LC_ALL`) with no agent socket.
+- Adds the options of a named legacy profile, and only for the device whose inventory entry names
+  one - see below.
 - Verifies the host key against `host_key_fingerprint` from the inventory: the key is read with
   `ssh-keyscan`, its sha256 fingerprint is computed and compared with the pin, and only the matching
   key is written into a throwaway `known_hosts` that the session then uses with
@@ -86,6 +116,61 @@ until someone runs it against a device and writes the result here.
   `-i <path>`, and the directory is removed when the call ends, on every path.
 - Default timeout 120 s per command, about fifteen times the slowest dump measured (7.7 s). A
   collection runs at most three commands, so the wall clock is bounded by three timeouts.
+
+### Old algorithms, one device at a time
+
+Switches that are still in service offer a single host key algorithm, `ssh-rsa`, which is RSA with
+SHA-1. A current client refuses it and the collection ends before the credential is used:
+
+```
+Unable to negotiate with <host> port 22: no matching host key type found. Their offer: ssh-rsa
+```
+
+Turning SHA-1 back on for the whole tool to reach those boxes would be the wrong trade in an audit
+tool: every other device would silently accept it too. So the weakening is a field of the device
+entry in the inventory, `legacy_ssh`, and it is a **named profile**, not a list of algorithms:
+
+| `legacy_ssh` | what the collector adds behind the bound options |
+|---|---|
+| `null` | nothing, the session stays on current algorithms |
+| `"rsa-sha1"` | `-o HostKeyAlgorithms=+ssh-rsa -o PubkeyAcceptedAlgorithms=+ssh-rsa` |
+
+The profile name is a key into a table in the collector; the options themselves are written down in
+the source. No string from the inventory ever reaches `-o`, so an inventory file cannot smuggle an
+option into the command line of `ssh`. The field must be `null` for the `file` and `fortios-rest`
+channels, and a device that speaks current algorithms leaves it `null` as well - the inventory is
+fail-closed and refuses anything else, including a free-text algorithm list.
+
+The name says what it costs: `rsa-sha1` is SHA-1, for that device, for the host key and for the
+public key of the client. It is not a compatibility switch to set on a whole fleet. The full schema
+of the entry, and how the exception is written down, is in [`inventory.md`](inventory.md).
+
+The exception is visible in the run that used it: the collection report carries
+`collection-legacy_ssh` with the profile name, or `none` when the session ran on current algorithms.
+The channel event, which is what the database keeps, does not carry the profile today.
+
+Two details that measurement decided rather than reasoning:
+
+- **The host key scan needs nothing.** `ssh-keyscan` asks for its default key types
+  (`rsa`, `ecdsa`, `ed25519`), so it reads an `ssh-rsa` key from those switches and the pin is
+  verified the usual way. The profile is therefore not passed to the scan, only to `ssh`.
+- **Only the two options above.** With them the negotiation gets past the host key and on to
+  authentication; the key exchange picked `diffie-hellman-group16-sha512` and the negotiated cipher
+  was the OpenSSH `chacha20-poly1305`, so no legacy key exchange or cipher profile is needed. If a box
+  turns up that needs one, it gets its own named profile, measured first.
+
+### When the client fails, it says what it said
+
+`ssh` reports a failed negotiation on stderr and exits with 255. The collector used to answer with
+the exit code alone, which left an operator with `failed with exit code 255` and no way to see that
+a legacy profile was missing. The message now carries what the client wrote on stderr, cut to 200
+characters with control characters replaced. The answer itself - stdout - is still never logged, but
+a device that writes into stderr can put its words into the error message.
+
+When the client refused to negotiate and the device has no profile, the message also names the
+device and says how the exception is written down - the field, the profile names, and that there is
+no global switch. With a profile already named the remedy is not repeated, and it never appears for
+a failure that is not a negotiation, such as a rejected credential.
 
 ### Why `show` and not `show full-configuration`
 
@@ -195,9 +280,18 @@ When the device prints no prompt the cleaner does nothing and both hashes are eq
   an audit and a disqualification for a backup.
 - **The content depends on the profile of the account that logs in.** A weaker profile returns a
   quietly incomplete view, and the counts of `config` and `end` still match, so nothing looks wrong.
-- **EXOS can be collected, but not yet evaluated.** The auditor knows how to pull an EXOS
-  configuration and store the snapshot; there are no rules for EXOS. Do not read `platform: exos` in
-  the inventory as "EXOS is supported" - it is a snapshot, not an audit.
+- **An EXOS snapshot is out of reach of the CLI.** The channel knows how to pull an EXOS
+  configuration and store the snapshot, but `collect` stops on the platform before it opens a
+  session, because there is no rule catalogue to evaluate against:
+
+  ```
+  error: device sw-a.example.invalid runs platform exos, the auditor holds no rule catalog for it
+  ```
+
+  Exit code 2, and no credential was read. Today an EXOS snapshot is reachable from the library only,
+  through `collect.collect_ssh()`. The completeness of an EXOS snapshot is measured - by the module
+  headers this page describes further down; what is missing is the rule catalogue. Do not read
+  `platform: exos` in the inventory as "EXOS is supported" - it is a snapshot, not an audit.
 - **Unverified:** the behaviour when FortiOS reports `output: more`. Switching a production device
   to the pager would have been a write, so the refusal path was proven in tests, not on a device.
 - **Unverified:** whether an EXOS switch prints its prompt into a one-shot answer the way FortiOS
@@ -230,10 +324,9 @@ All measurements are from 12 September 2026 and were read-only; nothing was chan
 
 | device | software | pager preflight | configuration dump | note |
 |---|---|---|---|---|
-| FortiGate 60F (lab) | FortiOS v8.0.0 build0167 (GA.F) | `get system console` -> `output: standard` | `show full-configuration` - 2,421 sections, 3.9 s | FortiSwitch behind it (29 x `edit` in `switch-controller managed-switch`) and a FortiAP (1 x `wireless-controller wtp`) |
-| FortiGate 80F (production) | FortiOS v8.0.0 build0167 (GA.F) | `output: standard` | `show` - 20,521 lines, 2,163 sections, no keys; `show full-configuration` - 57,258 lines, 2,525 sections, 6.6 s | no Fabric |
-| Extreme X440-G2-12p SW2 | ExtremeXOS 33.7.1.6 | `disable cli paging` | `show configuration` - 2.3 s | |
-| Extreme X440-G2-12p SW3 | ExtremeXOS 33.7.1.6 | `disable cli paging` | `show configuration` - 1.7 s | |
+| FortiGate 60F | FortiOS v8.0.0 build0167 (GA.F) | `get system console` -> `output: standard` | `show full-configuration` - 2,421 sections, 3.9 s | FortiSwitch behind it (29 x `edit` in `switch-controller managed-switch`) and a FortiAP (1 x `wireless-controller wtp`) |
+| FortiGate 80F | FortiOS v8.0.0 build0167 (GA.F) | `output: standard` | `show` - 20,521 lines, 2,163 sections, no keys; `show full-configuration` - 57,258 lines, 2,525 sections, 6.6 s | no Fabric |
+| Extreme X440-G2-12p (two units) | ExtremeXOS 33.7.1.6 | `disable cli paging` | `show configuration` - 1.7 s and 2.3 s | both offer only `ssh-rsa`, both need `legacy_ssh: "rsa-sha1"` |
 
 Beyond the interactive sessions, the channel was also verified as a **one-shot run against the
 FortiGate 80F**: a command handed to `ssh` with no PTY, key authentication, full dump in 7.7 s, with
@@ -253,6 +346,30 @@ Reads a configuration snapshot from a local file. No credential, no fingerprint,
 the channel for a dump that somebody else collected, and the only channel that says nothing about
 the device being reachable or about the moment the configuration was true.
 
+## What "a complete view" means, per platform
+
+`required_sections` of an inventory entry says which sections a snapshot must hold, and `collect`
+measures it once the snapshot is taken. A section is recognized by the header its platform writes
+around it, and the platform of the entry decides which header that is - nothing is guessed from the
+text of the dump:
+
+| platform | how a dump opens a section | measured on |
+|---|---|---|
+| `fortios` | `config <section>` | FortiOS v8.0.0 build0167, the `show` dump measured in [Tested against](#tested-against) |
+| `exos` | `# Module <section> configuration.` | ExtremeXOS 33.7.1.6, `show configuration` - 49 module headers, the same set on both units |
+
+The two are not one shape with a different keyword. An EXOS configuration is a flat list of commands
+- `create ...`, `configure ...`, `enable ...` - not a tree of `config` and `end`; what divides it into
+modules is a single comment header per module. A check that looked for `config ` in every dump
+therefore found nothing on EXOS, because no EXOS line begins with it (`configure ` is a different
+word), and every section such an entry asked for came back missing. Measured again with the header of
+the platform: 49 of 49 present.
+
+A missing section is one finding, `<platform>.snapshot.incomplete`, class `fakt`, severity high. It
+carries the names and the count, and nothing else - never a line of configuration. It is a presence
+check: an empty section counts as present, because the question is whether the dump reaches that far,
+not what stands inside.
+
 ## Choosing a channel
 
 - `fortios-rest` if you want the configuration in a machine-readable shape from the API, you accept
@@ -262,7 +379,8 @@ the device being reachable or about the moment the configuration was true.
 - `ssh` if you want a stable diff over an unchanged device and the smallest possible amount of
   secrets inside the tool, and you can live with a console that has to be set to standard output
   and with a dump that cannot restore the device. Pin the host key fingerprint. It is also the only
-  channel for EXOS - which today means a stored snapshot, not an audit.
+  channel that speaks EXOS at all - and only from the library, because `collect` refuses an `exos`
+  device.
 - `file` if the collection happens somewhere else entirely.
 
 Neither remote channel is a fallback for the other. Pick one per device and pin it.

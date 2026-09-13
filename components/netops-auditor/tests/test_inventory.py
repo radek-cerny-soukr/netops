@@ -2,11 +2,13 @@ import json
 
 import pytest
 
+from netops_auditor.collect import LEGACY_SSH_OPTIONS
 from netops_auditor.inventory import (
     CHANNELS,
     CONSUMERS,
     DEVICE_FIELDS,
     DOCUMENT_FIELDS,
+    LEGACY_SSH_PROFILES,
     PLATFORMS,
     ROLES,
     Device,
@@ -71,6 +73,7 @@ def item(
     required_sections=SECTIONS,
     tls_fingerprint=None,
     host_key_fingerprint=None,
+    legacy_ssh=None,
 ):
     return {
         "name": name,
@@ -83,6 +86,7 @@ def item(
         "required_sections": required_sections,
         "tls_fingerprint": tls_fingerprint,
         "host_key_fingerprint": host_key_fingerprint,
+        "legacy_ssh": legacy_ssh,
     }
 
 
@@ -602,8 +606,8 @@ def test_rest_channel_forbids_a_host_key_fingerprint(tmp_path, fingerprint):
 
 
 def test_both_pins_are_required_fields(tmp_path):
-    assert DEVICE_FIELDS[-2:] == ("tls_fingerprint", "host_key_fingerprint")
-    for field in ("tls_fingerprint", "host_key_fingerprint"):
+    assert DEVICE_FIELDS[-3:] == ("tls_fingerprint", "host_key_fingerprint", "legacy_ssh")
+    for field in ("tls_fingerprint", "host_key_fingerprint", "legacy_ssh"):
         path = write(tmp_path, [without(field)])
         with pytest.raises(InventoryError, match="missing fields: %s" % field):
             load(path)
@@ -621,3 +625,60 @@ def test_pinned_devices_stay_immutable(tmp_path):
         loaded[0].tls_fingerprint = TLS_FINGERPRINT.replace("0", "1")
     with pytest.raises(AttributeError):
         loaded[1].host_key_fingerprint = HOST_KEY.replace("0", "1")
+
+
+@pytest.mark.parametrize("profile", LEGACY_SSH_PROFILES)
+def test_ssh_channel_takes_a_named_legacy_profile(tmp_path, profile):
+    loaded = load(write(tmp_path, [ssh_item(legacy_ssh=profile)]))
+    assert loaded[0].legacy_ssh == profile
+
+
+def test_ssh_channel_without_a_legacy_profile_stays_on_current_algorithms(tmp_path):
+    loaded = load(write(tmp_path, [ssh_item()]))
+    assert loaded[0].legacy_ssh is None
+
+
+@pytest.mark.parametrize(
+    "profile",
+    (
+        "ssh-rsa",
+        "HostKeyAlgorithms=+ssh-rsa",
+        "rsa-sha1,diffie-hellman-group14-sha1",
+        "RSA-SHA1",
+        "rsa_sha1",
+        " rsa-sha1",
+        "rsa-sha1 ",
+        "-oProxyCommand=touch /tmp/pwned",
+        1,
+        True,
+        [],
+        {},
+        ["rsa-sha1"],
+        "",
+        "   ",
+    ),
+)
+def test_legacy_ssh_takes_a_named_profile_and_never_free_text(tmp_path, profile):
+    path = write(tmp_path, [ssh_item(legacy_ssh=profile)])
+    with pytest.raises(InventoryError, match="legacy_ssh must be null for a device that speaks"):
+        load(path)
+
+
+@pytest.mark.parametrize("profile", LEGACY_SSH_PROFILES + ("ssh-rsa", "", 1, True, [], {}))
+def test_file_channel_forbids_a_legacy_profile(tmp_path, profile):
+    path = write(tmp_path, [item(legacy_ssh=profile)])
+    with pytest.raises(InventoryError, match="legacy_ssh must be null for channel file"):
+        load(path)
+
+
+@pytest.mark.parametrize("profile", LEGACY_SSH_PROFILES + ("ssh-rsa", "", 1, True, [], {}))
+def test_rest_channel_forbids_a_legacy_profile(tmp_path, profile):
+    path = write(tmp_path, [rest_item(legacy_ssh=profile)])
+    with pytest.raises(InventoryError, match="legacy_ssh must be null for channel fortios-rest"):
+        load(path)
+
+
+def test_every_legacy_profile_is_one_the_collector_can_expand():
+    assert LEGACY_SSH_PROFILES == tuple(sorted(LEGACY_SSH_OPTIONS))
+    for profile in LEGACY_SSH_PROFILES:
+        assert LEGACY_SSH_OPTIONS[profile]

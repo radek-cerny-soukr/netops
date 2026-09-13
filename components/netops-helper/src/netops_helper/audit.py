@@ -73,7 +73,7 @@ def record(event: str, **fields: Any) -> None:
         "operation_id", "target", "status", "query", "platform", "port", "count", "max_hops",
         "item_count", "offset", "max_bytes", "total_bytes", "returned_bytes",
         "path_sha256", "result_sha256", "use_tls", "use_basic_auth",
-        "plaintext_acknowledged", "pagination_source", "detail",
+        "plaintext_acknowledged", "pagination_source", "legacy_ssh", "detail",
     }
     payload = {
         "timestamp": datetime.now(timezone.utc).isoformat(),

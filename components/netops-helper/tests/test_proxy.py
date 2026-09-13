@@ -476,6 +476,25 @@ def test_helper_status_lists_only_valid_non_master_aliases_with_rate_state(
     assert result["structuredContent"]["invalid_target_count"] == 2
 
 
+def test_target_scope_reports_the_enrolled_legacy_ssh_profile(
+    tmp_path: Path, monkeypatch,
+) -> None:
+    _, _, policy = _paths(tmp_path, monkeypatch)
+    emitted = []
+    proxy = MODULE.Proxy()
+    monkeypatch.setattr(proxy, "_emit", emitted.append)
+    assert proxy.request(_tool_call(91, "target_scope", {"target": "device-a"})) is None
+    assert emitted[-1]["result"]["structuredContent"]["legacy_ssh"] is None
+
+    document = json.loads(policy.read_text())
+    document["device-a"]["legacy_ssh"] = "rsa-sha1"
+    policy.write_text(json.dumps(document))
+    enrolled = MODULE.Proxy()
+    monkeypatch.setattr(enrolled, "_emit", emitted.append)
+    assert enrolled.request(_tool_call(92, "target_scope", {"target": "device-a"})) is None
+    assert emitted[-1]["result"]["structuredContent"]["legacy_ssh"] == "rsa-sha1"
+
+
 def test_target_scope_is_local_non_secret_and_tools_list_advertises_it(
     tmp_path: Path, monkeypatch,
 ) -> None:

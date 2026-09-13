@@ -298,6 +298,46 @@ def test_gate_rejects_a_domain_outside_the_allowlist() -> None:
         assert any("holds a domain outside" in error for error in errors), errors
 
 
+def test_gate_rejects_an_address_that_ends_a_sentence() -> None:
+    for payload, marker in (
+        ("The management address is 10.0" + ".0.1.\n", "holds an address"),
+        ("The peer is fd12:3456" + ":789a::1.\n", "holds an IPv6 address"),
+        ("The mirror is operator-domain" + ".cz.\n", "holds a domain outside"),
+    ):
+        with tempfile.TemporaryDirectory() as directory:
+            root = _fixture(Path(directory))
+            notes = root / "components/demo/notes.md"
+            selector = root / "components/demo/scripts/create_release_artifacts.py"
+            selector.write_text(
+                selector.read_text(encoding="utf-8").replace(
+                    "root / 'scripts/check_demo.py']",
+                    "root / 'scripts/check_demo.py', root / 'notes.md']",
+                ),
+                encoding="utf-8",
+            )
+            notes.write_text("# poznamka\n\n" + payload, encoding="utf-8")
+            subprocess.run(["git", "-C", str(root), "add", "-A"], check=True)
+            errors = _gate_for(root).check(root)
+            assert any(marker in error for error in errors), (payload, errors)
+
+
+def test_gate_still_reads_a_version_as_a_version() -> None:
+    with tempfile.TemporaryDirectory() as directory:
+        root = _fixture(Path(directory))
+        notes = root / "components/demo/notes.md"
+        selector = root / "components/demo/scripts/create_release_artifacts.py"
+        selector.write_text(
+            selector.read_text(encoding="utf-8").replace(
+                "root / 'scripts/check_demo.py']",
+                "root / 'scripts/check_demo.py', root / 'notes.md']",
+            ),
+            encoding="utf-8",
+        )
+        notes.write_text("# poznamka\n\nBuild 1.2.3.4.5 and 33.7.1.6.\n", encoding="utf-8")
+        subprocess.run(["git", "-C", str(root), "add", "-A"], check=True)
+        assert _gate_for(root).check(root) == []
+
+
 def test_gate_rejects_key_material_under_every_pem_header() -> None:
     payload = "MII" + "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdef" * 2
     with tempfile.TemporaryDirectory() as directory:

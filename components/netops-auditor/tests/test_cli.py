@@ -674,6 +674,7 @@ def device_item(
     name=DEVICE,
     tls_fingerprint=None,
     host_key_fingerprint=None,
+    legacy_ssh=None,
 ):
     return {
         "name": name,
@@ -686,6 +687,7 @@ def device_item(
         "required_sections": list(sections),
         "tls_fingerprint": tls_fingerprint,
         "host_key_fingerprint": host_key_fingerprint,
+        "legacy_ssh": legacy_ssh,
     }
 
 
@@ -779,11 +781,11 @@ def database_text(path):
     return "\n".join(chunks)
 
 
-def snapshot_of(text, channel, source, profile):
+def snapshot_of(text, channel, source, profile, platform="fortios"):
     data = text.encode("utf-8")
     return Snapshot(
         device=DEVICE,
-        platform="fortios",
+        platform=platform,
         channel=channel,
         source=source,
         sha256=hashlib.sha256(data).hexdigest(),
@@ -853,6 +855,7 @@ def test_collect_report_carries_the_collection_header(tmp_path, capsys):
         "source": str(path),
         "profile": PROFILE,
         "snapshot_sha256": report["snapshot_sha256"],
+        "legacy_ssh": cli.LEGACY_NONE,
     }
     text_code, text_out, _ = gather(capsys, inventory_path, profile=PROFILE)
     assert text_code == 0
@@ -860,6 +863,7 @@ def test_collect_report_carries_the_collection_header(tmp_path, capsys):
     assert "collection-source: %s" % path in text_out
     assert "collection-profile: %s" % PROFILE in text_out
     assert "collection-snapshot_sha256: %s" % report["snapshot_sha256"] in text_out
+    assert "collection-legacy_ssh: %s" % cli.LEGACY_NONE in text_out
 
 
 def test_collect_profile_defaults_to_unknown(tmp_path, capsys):
@@ -893,6 +897,31 @@ def test_incomplete_view_is_the_only_finding(tmp_path, capsys):
     _, text_out, _ = gather(capsys, narrow)
     assert WAN_RULE not in text_out
     assert UTM_RULE not in text_out
+
+
+def test_a_section_written_with_its_header_is_an_error_not_a_finding(tmp_path, capsys):
+    path = write_config(tmp_path, dirty_text())
+    prefixed = file_inventory(
+        tmp_path, path, sections=("config system global",), name="prefixed.json"
+    )
+    code, out, err = gather(capsys, prefixed, as_json=True)
+    assert code == 2
+    assert out == ""
+    assert err.startswith("error: ")
+    assert "completeness:" in err
+    assert "'config system global'" in err
+    assert "'system global'" in err
+    assert INCOMPLETE_RULE not in err
+
+
+def test_completeness_measures_a_snapshot_with_the_platform_it_carries(tmp_path):
+    path = write_inventory(
+        tmp_path, [device_item(platform="exos", sections=("vlan",))], name="exos.json"
+    )
+    record = cli._inventory_record(path, DEVICE)
+    text = "#\n# Module vlan configuration.\n#\nconfigure vlan Mgmt tag 10\n"
+    snapshot = snapshot_of(text, "file", str(path), PROFILE, platform="exos")
+    assert cli._completeness(record, snapshot) is None
 
 
 def test_a_complete_view_lets_the_other_rules_run(tmp_path, capsys):
@@ -1157,6 +1186,7 @@ def test_the_ssh_channel_is_called_with_what_the_inventory_holds(tmp_path, capsy
             token=credential.use(),
             profile=profile,
             host_key=host_key_fingerprint,
+            legacy_ssh=rest.get("legacy_ssh", "not passed"),
         )
         snapshot = snapshot_of(text, "ssh", "%s@%s" % (login, host), profile)
         first = step_event("ssh", "%s@%s get system console" % (login, host))
@@ -1182,16 +1212,76 @@ def test_the_ssh_channel_is_called_with_what_the_inventory_holds(tmp_path, capsy
         "token": CANARY_TOKEN,
         "profile": PROFILE,
         "host_key": HOST_KEY,
+        "legacy_ssh": None,
     }
     report = json.loads(out)
     assert report["collection"]["channel"] == "ssh"
     assert report["collection"]["source"] == "%s@%s" % (PROFILE, SSH_HOST)
+    assert report["collection"]["legacy_ssh"] == cli.LEGACY_NONE
     with Store(database) as store:
         recorded = store.last_run(TENANT, DEVICE)
         events = store.channel_events_for_run(TENANT, recorded["id"])
     assert len(events) == 2
     assert [item["outcome"] for item in events] == ["ok", "ok"]
     assert CANARY_TOKEN not in database_text(database)
+
+
+def test_the_ssh_channel_carries_the_legacy_profile_of_that_one_device(tmp_path, capsys, monkeypatch):
+    text = clean_text()
+    inventory_path = write_inventory(tmp_path, [ssh_item(legacy_ssh="rsa-sha1")])
+    vault_path = write_vault(tmp_path)
+    seen = {}
+
+    def fake(device, platform, host, login, credential, profile, host_key_fingerprint, **rest):
+        seen.update(legacy_ssh=rest.get("legacy_ssh", "not passed"))
+        snapshot = snapshot_of(text, "ssh", "%s@%s" % (login, host), profile)
+        return snapshot, (event_of(snapshot, "%s@%s show" % (login, host)),)
+
+    monkeypatch.setattr(cli.collect, "collect_ssh", fake)
+    code, out, err = gather(
+        capsys, inventory_path, as_json=True, vault_path=vault_path, profile=PROFILE
+    )
+    assert code == 0
+    assert err == ""
+    assert seen == {"legacy_ssh": "rsa-sha1"}
+    report = json.loads(out)
+    assert report["collection"]["legacy_ssh"] == "rsa-sha1"
+    text_code, text_out, _ = gather(
+        capsys, inventory_path, vault_path=vault_path, profile=PROFILE
+    )
+    assert text_code == 0
+    assert "collection-legacy_ssh: rsa-sha1" in text_out
+
+
+@pytest.mark.parametrize("profile", ("ssh-rsa", "HostKeyAlgorithms=+ssh-rsa", "RSA-SHA1", ""))
+def test_collect_refuses_a_legacy_profile_the_inventory_does_not_know(
+    tmp_path, capsys, monkeypatch, profile
+):
+    inventory_path = write_inventory(tmp_path, [ssh_item(legacy_ssh=profile)])
+    vault_path = write_vault(tmp_path)
+    called = []
+
+    def fake(*args, **kwargs):
+        called.append(kwargs)
+        raise AssertionError("the collection must not start")
+
+    monkeypatch.setattr(cli.collect, "collect_ssh", fake)
+    code, out, err = gather(
+        capsys, inventory_path, as_json=True, vault_path=vault_path, profile=PROFILE
+    )
+    assert code == 2
+    assert out == ""
+    assert "legacy_ssh must be null for a device that speaks current algorithms" in err
+    assert called == []
+
+
+def test_a_legacy_profile_on_a_file_device_stops_the_collection(tmp_path, capsys):
+    path = write_config(tmp_path, clean_text())
+    inventory_path = write_inventory(tmp_path, [device_item(source=path, legacy_ssh="rsa-sha1")])
+    code, out, err = gather(capsys, inventory_path, as_json=True)
+    assert code == 2
+    assert out == ""
+    assert "legacy_ssh must be null for channel file" in err
 
 
 def test_the_rest_channel_is_called_with_the_pinned_fingerprint(tmp_path, capsys, monkeypatch):

@@ -48,6 +48,16 @@ SSH_OPTIONS = (
     "ControlMaster=no",
     "ControlPath=none",
 )
+LEGACY_SSH_OPTIONS = {
+    "rsa-sha1": ("HostKeyAlgorithms=+ssh-rsa", "PubkeyAcceptedAlgorithms=+ssh-rsa"),
+}
+SSH_ERROR_DETAIL_CHARS = 200
+NEGOTIATION_MARKER = "no matching"
+LEGACY_REMEDY = (
+    "; %s offers only algorithms this client refuses - if that is intended for this one device,"
+    " name the exception in its inventory entry as legacy_ssh, one of the profiles %s;"
+    " there is no global switch and no other entry is weakened by it"
+)
 HOST_KEY_PREFIX = "SHA256:"
 HOST_KEY_DIGEST_LENGTH = 43
 HOST_KEY_CHARS = frozenset(
@@ -398,6 +408,20 @@ def _checked_host_key(value) -> str:
     )
 
 
+def _checked_legacy_ssh(value) -> tuple:
+    if value is None:
+        return ()
+    options = LEGACY_SSH_OPTIONS.get(value) if isinstance(value, str) else None
+    if options is None:
+        raise CollectError(
+            "legacy_ssh must be None for a device that speaks current algorithms or name one of"
+            " the profiles %s, the options of a profile are written down in this module and never"
+            " taken from the inventory, got %r"
+            % (", ".join(sorted(LEGACY_SSH_OPTIONS)), value)
+        )
+    return options
+
+
 def _checked_login(value) -> str:
     login = _checked_text("login", value).strip()
     if login.startswith("-") or any(mark in login for mark in ("@", ":", "/", " ", "\t")):
@@ -501,9 +525,9 @@ def _env(workspace) -> dict:
     }
 
 
-def _argv(host, port, login, known_hosts, identity, command) -> list:
+def _argv(host, port, login, known_hosts, identity, command, legacy) -> list:
     argv = [SSH_BINARY, "-F", SSH_CONFIG_FILE]
-    for option in SSH_OPTIONS:
+    for option in SSH_OPTIONS + legacy:
         argv.extend(["-o", option])
     argv.extend(["-o", "UserKnownHostsFile=%s" % known_hosts])
     argv.extend(["-i", identity, "-p", str(port), "%s@%s" % (login, host), command])
@@ -584,7 +608,23 @@ def _field(text, name):
     return None
 
 
-def _ssh_step(run, argv, request, device, clock, seconds, env, required) -> tuple:
+def _said(result) -> str:
+    data = getattr(result, "stderr", None)
+    if not isinstance(data, (bytes, bytearray)):
+        return ""
+    readable = "".join(
+        character if character.isprintable() else " "
+        for character in bytes(data).decode("utf-8", "replace")
+    )
+    text = " ".join(readable.split())
+    if not text:
+        return ""
+    if len(text) > SSH_ERROR_DETAIL_CHARS:
+        text = text[:SSH_ERROR_DETAIL_CHARS] + "..."
+    return ", the client said: %s" % text
+
+
+def _ssh_step(run, argv, request, device, clock, seconds, env, required, target, legacy) -> tuple:
     started_at = _moment(clock)
 
     def failed(digest=EMPTY_SHA256, size=0):
@@ -606,8 +646,13 @@ def _ssh_step(run, argv, request, device, clock, seconds, env, required) -> tupl
     digest = hashlib.sha256(data).hexdigest()
     code = getattr(result, "returncode", None)
     if code != 0:
+        said = _said(result)
+        remedy = ""
+        if not legacy and NEGOTIATION_MARKER in said:
+            remedy = LEGACY_REMEDY % (target, ", ".join(sorted(LEGACY_SSH_OPTIONS)))
         raise CollectError(
-            "%s failed with exit code %s" % (request, code), failed(digest, len(data))
+            "%s failed with exit code %s%s%s" % (request, code, said, remedy),
+            failed(digest, len(data)),
         )
     if required and not data:
         raise CollectError("%s returned an empty answer" % request, failed(digest, len(data)))
@@ -624,6 +669,7 @@ def collect_ssh(
     credential,
     profile,
     host_key_fingerprint,
+    legacy_ssh=None,
     timeout=SSH_TIMEOUT_SECONDS,
     runner=None,
     now=None,
@@ -634,6 +680,7 @@ def collect_ssh(
     user = _checked_login(login)
     name, port = _ssh_target(host)
     pin = _checked_host_key(host_key_fingerprint)
+    legacy = _checked_legacy_ssh(legacy_ssh)
     seconds = _checked_timeout(timeout)
     _checked_credential(credential)
     run = _run if runner is None else runner
@@ -667,13 +714,15 @@ def collect_ssh(
             request = "%s %s" % (source, step.command)
             data, event = _ssh_step(
                 run,
-                _argv(name, port, user, known_hosts, identity, step.command),
+                _argv(name, port, user, known_hosts, identity, step.command, legacy),
                 request,
                 device,
                 clock,
                 seconds,
                 environment,
                 step.snapshot,
+                name,
+                legacy,
             )
             events.append(event)
             if step.field:
@@ -725,21 +774,58 @@ def collect_ssh(
     return snapshot, tuple(events)
 
 
+SECTION_HEADERS = {
+    PLATFORM_FORTIOS: ("config ", ""),
+    PLATFORM_EXOS: ("# Module ", " configuration."),
+}
+SECTION_PLATFORMS = tuple(SECTION_HEADERS)
+
+
 def _normalized(value: str) -> str:
     return " ".join(value.split())
 
 
-def missing_sections(text, required_sections) -> tuple:
+def _checked_header(value) -> tuple:
+    header = SECTION_HEADERS.get(value) if isinstance(value, str) else None
+    if header is None:
+        raise CollectError(
+            "the completeness check knows a section header for %s, got platform %r"
+            % (", ".join(SECTION_PLATFORMS), value)
+        )
+    return header
+
+
+def _section_name(line, prefix, suffix) -> str:
+    if not line.startswith(prefix):
+        return ""
+    name = line[len(prefix):]
+    if suffix and name.endswith(suffix):
+        name = name[: -len(suffix)]
+    return name.strip()
+
+
+def missing_sections(text, required_sections, platform) -> tuple:
     if not isinstance(text, str):
         raise CollectError("text must be a string, got %r" % (text,))
+    prefix, suffix = _checked_header(platform)
     present = set()
     for line in text.splitlines():
         normalized = _normalized(line)
-        if normalized.startswith("config "):
-            present.add(normalized[len("config "):])
+        if not normalized.endswith(suffix):
+            continue
+        name = _section_name(normalized, prefix, suffix)
+        if name:
+            present.add(name)
     missing, seen = [], set()
     for section in required_sections:
         key = _normalized(_checked_text("required section", section))
+        written = _section_name(key, prefix, suffix)
+        if written:
+            raise CollectError(
+                "required section %r is written the way platform %s opens a section in the dump"
+                " (%s<section>%s); the check needs the section alone, so write %r instead"
+                % (section, platform, prefix, suffix, written)
+            )
         if key in seen or key in present:
             continue
         seen.add(key)

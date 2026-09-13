@@ -77,6 +77,7 @@ def canonical_policy() -> dict[str, object]:
         },
         "sftp_roots": ["/safe"],
         "fortios_output_standard_verified": False,
+        "legacy_ssh": None,
         "rate_limit": {"requests": 30, "window_seconds": 60},
         "egress": {
             "addresses": ["192.0.2.10"],
@@ -190,6 +191,45 @@ class PolicyParityTests(unittest.TestCase):
 
     def test_canonical_policy_and_ftp_scope_are_accepted(self) -> None:
         self.assert_all_accept(canonical_record(), canonical_policy(), ftp=True)
+
+    def test_legacy_ssh_profile_is_accepted_by_every_validator(self) -> None:
+        record, policy = canonical_record(), canonical_policy()
+        policy["legacy_ssh"] = "rsa-sha1"
+        self.assert_all_accept(record, policy)
+        decoded = TargetAuth.decode(ALIAS, encode_envelope(record, policy))
+        self.assertEqual(decoded.legacy_ssh, "rsa-sha1")
+        self.assertEqual(
+            proxy_module.Proxy._validate_target_policy(policy)["legacy_ssh"],
+            "rsa-sha1",
+        )
+
+    def test_default_target_policy_has_no_legacy_ssh_profile(self) -> None:
+        record, policy = canonical_record(), canonical_policy()
+        del policy["legacy_ssh"]
+        self.assert_all_accept(record, policy)
+        self.assertIsNone(TargetAuth.decode(ALIAS, encode_envelope(record, policy)).legacy_ssh)
+        self.assertIsNone(
+            proxy_module.Proxy._validate_target_policy(policy)["legacy_ssh"],
+        )
+
+    def test_unknown_legacy_ssh_values_fail_closed_everywhere(self) -> None:
+        for value in (
+            "ssh-rsa", "rsa-sha1 ", "RSA-SHA1", "", True, 1, ["rsa-sha1"],
+            {"profile": "rsa-sha1"}, "diffie-hellman-group1-sha1",
+        ):
+            with self.subTest(value=value):
+                record, policy = canonical_record(), canonical_policy()
+                policy["legacy_ssh"] = value
+                self.assert_all_reject(record, policy)
+
+    def test_proxy_vocabulary_matches_the_engine_vocabulary(self) -> None:
+        from netops_helper.auth import LEGACY_SSH_PROFILES
+
+        self.assertEqual(tuple(proxy_module.LEGACY_SSH_PROFILES), LEGACY_SSH_PROFILES)
+        self.assertEqual(tuple(generator.LEGACY_SSH_PROFILES), LEGACY_SSH_PROFILES)
+        self.assertIn("legacy_ssh", proxy_module.TARGET_POLICY_KEYS)
+        self.assertIn("legacy_ssh", generator.TARGET_POLICY_KEYS)
+        self.assertNotIn("legacy_ssh", generator.REQUIRED_TARGET_POLICY_KEYS)
 
     def test_fortios_alias_has_canonical_fortinet_meaning(self) -> None:
         record, policy = canonical_record(), canonical_policy()

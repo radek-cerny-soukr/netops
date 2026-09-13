@@ -73,12 +73,12 @@ ALLOWED_LITERALS = frozenset(
     )
 )
 DOCUMENTATION_MAC_PREFIX = "00:00:5e:00:53:"
-IPV4_PATTERN = re.compile(r"(?<![0-9A-Za-z.])([0-9]{1,3}(?:\.[0-9]{1,3}){3})(?![0-9A-Za-z.])")
-IPV6_PATTERN = re.compile(r"(?<![0-9A-Za-z:.])([0-9A-Fa-f]{0,4}(?::[0-9A-Fa-f]{0,4}){2,7})(?![0-9A-Za-z:.])")
+IPV4_PATTERN = re.compile(r"(?<![0-9A-Za-z.])([0-9]{1,3}(?:\.[0-9]{1,3}){3})(?![0-9A-Za-z]|\.[0-9])")
+IPV6_PATTERN = re.compile(r"(?<![0-9A-Za-z:.])([0-9A-Fa-f]{0,4}(?::[0-9A-Fa-f]{0,4}){2,7})(?![0-9A-Za-z:]|\.[0-9])")
 DOMAIN_PATTERN = re.compile(
     r"(?<![0-9A-Za-z._-])"
     r"([0-9A-Za-z](?:[0-9A-Za-z-]*[0-9A-Za-z])?(?:\.[0-9A-Za-z](?:[0-9A-Za-z-]*[0-9A-Za-z])?)+)"
-    r"(?![0-9A-Za-z._-])"
+    r"(?![0-9A-Za-z_-]|\.[0-9A-Za-z])"
 )
 FILE_SUFFIXES = frozenset(
     (
@@ -97,6 +97,7 @@ KNOWN_TLDS = frozenset(
 )
 PRIVATE_MARKERS = (
     re.compile(r"/workspace(?:/|$)", re.IGNORECASE),
+    re.compile(r"/(?:work|out)(?:/|$)", re.IGNORECASE),
     re.compile(r"/home/[a-z0-9](?:[a-z0-9._-]{0,61}[a-z0-9])?(?:/|$)", re.IGNORECASE),
     re.compile(r"/Users/[A-Za-z0-9](?:[A-Za-z0-9._-]{0,61}[A-Za-z0-9])?(?:/|$)"),
     re.compile(r"[A-Za-z]:\\Users\\", re.IGNORECASE),

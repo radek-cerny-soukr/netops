@@ -24,6 +24,8 @@ PLATFORM = "fortios"
 PROFILE = "audit-readonly"
 MOMENT = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$")
 REQUIRED = ("system global", "system interface", "firewall policy", "firewall address")
+EXOS_PLATFORM = "exos"
+EXOS_REQUIRED = ("devmgr", "vlan", "stp", "poe")
 
 
 @dataclass(frozen=True)
@@ -67,6 +69,25 @@ def config_text(canary=False):
         "    next\n"
         "end\n"
     ) % description
+
+
+def exos_config_text():
+    return (
+        "#\n"
+        "# Module devmgr configuration.\n"
+        "#\n"
+        'configure snmp sysLocation "example-site"\n'
+        "configure timezone name UTC\n"
+        "#\n"
+        "# Module vlan configuration.\n"
+        "#\n"
+        'create vlan "Mgmt"\n'
+        "configure vlan Mgmt tag 10\n"
+        "#\n"
+        "# Module stp configuration.\n"
+        "#\n"
+        "disable stpd s0\n"
+    )
 
 
 def config_lines(text, minimum=12):
@@ -144,34 +165,95 @@ def test_failed_event_never_carries_the_configuration(tmp_path):
 
 def test_missing_sections_keeps_the_order_of_the_request():
     text = "config system global\nend\n"
-    assert missing_sections(text, REQUIRED) == ("system interface", "firewall policy", "firewall address")
+    assert missing_sections(text, REQUIRED, PLATFORM) == ("system interface", "firewall policy", "firewall address")
 
 
 def test_missing_sections_ignores_indentation():
     text = "        config firewall policy\n        end\n"
-    assert missing_sections(text, ("firewall policy",)) == ()
+    assert missing_sections(text, ("firewall policy",), PLATFORM) == ()
 
 
 def test_missing_sections_matches_the_whole_section_name():
     text = "config system interface\nend\n"
-    assert missing_sections(text, ("system",)) == ("system",)
-    assert missing_sections(text, ("system interface",)) == ()
+    assert missing_sections(text, ("system",), PLATFORM) == ("system",)
+    assert missing_sections(text, ("system interface",), PLATFORM) == ()
 
 
 def test_missing_sections_returns_nothing_for_a_complete_snapshot():
-    assert missing_sections(config_text(), REQUIRED) == ()
+    assert missing_sections(config_text(), REQUIRED, PLATFORM) == ()
 
 
 def test_missing_sections_reports_each_section_once():
     text = "config system global\nend\n"
-    assert missing_sections(text, ("firewall policy", "firewall policy")) == ("firewall policy",)
+    assert missing_sections(text, ("firewall policy", "firewall policy"), PLATFORM) == ("firewall policy",)
 
 
 def test_missing_sections_refuses_nonsense_input():
     with pytest.raises(CollectError):
-        missing_sections(config_text(), ("",))
+        missing_sections(config_text(), ("",), PLATFORM)
     with pytest.raises(CollectError):
-        missing_sections(None, REQUIRED)
+        missing_sections(None, REQUIRED, PLATFORM)
+
+
+def test_missing_sections_needs_a_platform_it_knows():
+    with pytest.raises(CollectError) as caught:
+        missing_sections(config_text(), REQUIRED, "junos")
+    assert "fortios, exos" in str(caught.value)
+    assert "'junos'" in str(caught.value)
+    with pytest.raises(CollectError):
+        missing_sections(config_text(), REQUIRED, None)
+
+
+def test_missing_sections_reads_the_module_headers_of_an_exos_dump():
+    text = exos_config_text()
+    assert missing_sections(text, ("devmgr", "vlan", "stp"), EXOS_PLATFORM) == ()
+    assert missing_sections(text, EXOS_REQUIRED, EXOS_PLATFORM) == ("poe",)
+
+
+def test_missing_sections_takes_only_the_header_line_on_exos():
+    text = exos_config_text()
+    assert missing_sections(text, ("Mgmt",), EXOS_PLATFORM) == ("Mgmt",)
+    assert missing_sections(text, ("stpd s0",), EXOS_PLATFORM) == ("stpd s0",)
+    assert missing_sections(text, ("configuration.",), EXOS_PLATFORM) == ("configuration.",)
+
+
+def test_missing_sections_needs_the_whole_header_on_exos():
+    text = exos_config_text() + "# Module poe\n"
+    assert missing_sections(text, ("poe",), EXOS_PLATFORM) == ("poe",)
+
+
+def test_missing_sections_measures_by_platform_and_does_not_guess():
+    assert missing_sections(exos_config_text(), ("vlan",), PLATFORM) == ("vlan",)
+    assert missing_sections(config_text(), ("system global",), EXOS_PLATFORM) == ("system global",)
+
+
+def test_missing_sections_refuses_a_section_written_as_a_fortios_header():
+    with pytest.raises(CollectError) as caught:
+        missing_sections(config_text(), ("config system global",), PLATFORM)
+    said = str(caught.value)
+    assert "'config system global'" in said
+    assert "config <section>" in said
+    assert "'system global'" in said
+
+
+def test_missing_sections_refuses_a_section_written_as_an_exos_header():
+    with pytest.raises(CollectError) as caught:
+        missing_sections(exos_config_text(), ("# Module vlan configuration.",), EXOS_PLATFORM)
+    said = str(caught.value)
+    assert "# Module <section> configuration." in said
+    assert "'vlan'" in said
+
+
+def test_missing_sections_refuses_a_half_written_exos_header():
+    with pytest.raises(CollectError) as caught:
+        missing_sections(exos_config_text(), ("# Module vlan",), EXOS_PLATFORM)
+    assert "'vlan'" in str(caught.value)
+
+
+def test_a_prefixed_section_is_refused_instead_of_reported_as_missing():
+    for platform, section in ((PLATFORM, "config firewall policy"), (EXOS_PLATFORM, "# Module vlan")):
+        with pytest.raises(CollectError):
+            missing_sections(config_text() + exos_config_text(), (section,), platform)
 
 
 def test_completeness_finding_has_the_shape_the_engine_takes():
@@ -201,7 +283,7 @@ def test_completeness_finding_evidence_carries_no_configuration(tmp_path):
     text = config_text(canary=True)
     path = write_config(tmp_path, text)
     snapshot, _ = collect_entry(entry(), path)
-    missing = missing_sections(snapshot.text, REQUIRED + ("vpn ipsec phase1-interface",))
+    missing = missing_sections(snapshot.text, REQUIRED + ("vpn ipsec phase1-interface",), snapshot.platform)
     finding = completeness_finding(DEVICE, missing)
     assert finding["evidence"]["missing_count"] == 1
     assert CANARY not in repr(finding)
@@ -211,7 +293,7 @@ def test_completeness_finding_evidence_carries_no_configuration(tmp_path):
 
 def test_completeness_finding_is_none_when_nothing_is_missing():
     assert completeness_finding(DEVICE, ()) is None
-    assert completeness_finding(DEVICE, missing_sections(config_text(), REQUIRED)) is None
+    assert completeness_finding(DEVICE, missing_sections(config_text(), REQUIRED, PLATFORM)) is None
 
 
 def test_missing_file_fails_but_leaves_a_trace(tmp_path):
@@ -346,7 +428,8 @@ def test_incomplete_snapshot_from_a_weaker_profile_is_reported(tmp_path):
     snapshot, event = collect_entry(record, path)
     assert event.outcome == "ok"
     assert snapshot.profile == "read-only-limited"
-    finding = completeness_finding(snapshot.device, missing_sections(snapshot.text, record.required_sections))
+    missing = missing_sections(snapshot.text, record.required_sections, snapshot.platform)
+    finding = completeness_finding(snapshot.device, missing)
     assert finding["evidence"]["missing_count"] == 3
     assert finding["evidence"]["missing_sections"] == "system interface, firewall policy, firewall address"
 
@@ -360,10 +443,12 @@ from netops_auditor.collect import (
     CHANNEL_REST,
     CHANNEL_SSH,
     HOST_KEY_PREFIX,
+    LEGACY_SSH_OPTIONS,
     PLATFORM_FORTIOS,
     REST_METHOD,
     REST_TARGET,
     REST_TIMEOUT_SECONDS,
+    SSH_ERROR_DETAIL_CHARS,
     SSH_STEPS,
     SSH_TIMEOUT_SECONDS,
     collect_fortios_rest,
@@ -810,7 +895,7 @@ def test_rest_moments_come_from_the_injected_clock():
 def test_rest_snapshot_feeds_the_completeness_check():
     weak = "config system global\n    set hostname \"fw-example\"\nend\n"
     snapshot, event = rest_call(FakeOpener(body=weak.encode("utf-8")), fingerprint=PIN)
-    missing = missing_sections(snapshot.text, REQUIRED)
+    missing = missing_sections(snapshot.text, REQUIRED, snapshot.platform)
     assert missing == ("system interface", "firewall policy", "firewall address")
     assert completeness_finding(snapshot.device, missing)["evidence"]["missing_count"] == 3
     assert event.channel == CHANNEL_REST
@@ -828,7 +913,7 @@ EXOS_CONFIG = (
     "#\n"
     "# Module devmgr configuration.\n"
     "#\n"
-    "configure snmp sysName \"sw2\"\n"
+    "configure snmp sysName \"example-switch\"\n"
     "configure vlan default delete ports all\n"
 ).encode("utf-8")
 WRITE_MARKERS = ("config system console", "set output", "config ", "set ", "execute ")
@@ -854,6 +939,7 @@ class FakeRunner:
         console_error=None,
         code=0,
         stdout=None,
+        stderr=b"",
         error=None,
     ):
         self.steps = SSH_STEPS[platform]
@@ -865,6 +951,7 @@ class FakeRunner:
         self.console_error = console_error
         self.code = code
         self.stdout = config_text().encode("utf-8") if stdout is None else stdout
+        self.stderr = stderr
         self.error = error
         self.calls = []
         self.known_hosts = None
@@ -887,7 +974,7 @@ class FakeRunner:
             return FakeResult(self.console_code, self.console)
         if self.error is not None:
             raise self.error
-        return FakeResult(self.code, self.stdout)
+        return FakeResult(self.code, self.stdout, self.stderr)
 
     def _look(self, argv):
         for entry in argv:
@@ -1384,7 +1471,7 @@ def test_ssh_moments_come_from_the_injected_clock():
 def test_ssh_snapshot_feeds_the_completeness_check():
     weak = "config system global\n    set hostname \"fw-example\"\nend\n"
     snapshot, events = ssh_call(FakeRunner(stdout=weak.encode("utf-8")))
-    missing = missing_sections(snapshot.text, REQUIRED)
+    missing = missing_sections(snapshot.text, REQUIRED, snapshot.platform)
     assert missing == ("system interface", "firewall policy", "firewall address")
     assert completeness_finding(snapshot.device, missing)["evidence"]["missing_count"] == 3
     assert events[1].channel == CHANNEL_SSH
@@ -1444,10 +1531,10 @@ EXOS_BODY = (
     "#\n"
     "# Module devmgr configuration.\n"
     "#\n"
-    'configure snmp sysName "sw2"\n'
+    'configure snmp sysName "example-switch"\n'
     'configure ports 1 display-string "uplink # 3"\n'
 )
-EXOS_PROMPTED = ("* SW2.5 # " + EXOS_BODY + "* SW2.5 #").encode("utf-8")
+EXOS_PROMPTED = ("* example-switch.5 # " + EXOS_BODY + "* example-switch.5 #").encode("utf-8")
 
 
 def test_ssh_preflight_reads_the_field_through_the_prompt():
@@ -1474,7 +1561,7 @@ def test_ssh_snapshot_drops_the_prompt_from_both_ends():
     assert snapshot.text.endswith("end\n")
     assert "FortiGate-80F" not in snapshot.text
     assert "#" in snapshot.text
-    assert missing_sections(snapshot.text, REQUIRED) == ()
+    assert missing_sections(snapshot.text, REQUIRED, snapshot.platform) == ()
 
 
 def test_ssh_event_hashes_the_raw_answer_and_the_snapshot_the_clean_text():
@@ -1532,7 +1619,7 @@ def test_ssh_exos_cleans_the_prompt_with_the_same_mechanism():
     snapshot, events = ssh_call(runner, platform="exos")
     assert snapshot.text == EXOS_BODY
     assert snapshot.text.startswith("#\n# Module devmgr configuration.\n")
-    assert "SW2.5 #" not in snapshot.text
+    assert "example-switch.5 #" not in snapshot.text
     assert 'configure ports 1 display-string "uplink # 3"' in snapshot.text
     assert events[1].response_sha256 == hashlib.sha256(EXOS_PROMPTED).hexdigest()
     assert snapshot.sha256 == hashlib.sha256(EXOS_BODY.encode("utf-8")).hexdigest()
@@ -1543,3 +1630,147 @@ def test_ssh_cleanup_is_the_platform_adapter_not_the_transport():
     ssh_call(runner)
     assert runner.calls[2]["argv"][-1] == "show"
     assert [step.prompt for step in SSH_STEPS["fortios"]] == [True, True]
+
+
+LEGACY_PROFILE = "rsa-sha1"
+LEGACY_OPTIONS = ("HostKeyAlgorithms=+ssh-rsa", "PubkeyAcceptedAlgorithms=+ssh-rsa")
+ALGORITHM_OPTION_PREFIXES = (
+    "HostKeyAlgorithms=",
+    "PubkeyAcceptedAlgorithms=",
+    "KexAlgorithms=",
+    "Ciphers=",
+    "MACs=",
+    "HostbasedAcceptedAlgorithms=",
+)
+
+
+def algorithm_options(argv):
+    return [entry for entry in argv if entry.startswith(ALGORITHM_OPTION_PREFIXES)]
+
+
+def test_ssh_without_a_legacy_profile_binds_no_algorithm_option():
+    runner = FakeRunner()
+    ssh_call(runner)
+    for call in runner.calls:
+        assert algorithm_options(call["argv"]) == []
+
+
+def test_legacy_profile_expands_to_the_options_written_down_in_the_module():
+    assert tuple(LEGACY_SSH_OPTIONS) == (LEGACY_PROFILE,)
+    assert LEGACY_SSH_OPTIONS[LEGACY_PROFILE] == LEGACY_OPTIONS
+
+
+@pytest.mark.parametrize("platform", ("fortios", "exos"))
+def test_legacy_profile_adds_its_options_behind_the_bound_ones(platform):
+    runner = FakeRunner(platform=platform, stdout=EXOS_CONFIG)
+    ssh_call(runner, platform=platform, legacy_ssh=LEGACY_PROFILE)
+    for index in (1, 2):
+        argv = runner.argv(index)
+        assert algorithm_options(argv) == list(LEGACY_OPTIONS)
+        for option in LEGACY_OPTIONS:
+            assert argv.count(option) == 1
+            assert argv[argv.index(option) - 1] == "-o"
+        for option in MANDATED_OPTIONS:
+            assert argv.count(option) == 1
+            assert argv.index(option) < argv.index(LEGACY_OPTIONS[0])
+        assert argv[-2] == "%s@%s" % (LOGIN, HOST)
+        assert argv[-1] == SSH_STEPS[platform][index - 1].command
+
+
+def test_legacy_profile_stays_out_of_the_host_key_scan():
+    runner = FakeRunner()
+    ssh_call(runner, legacy_ssh=LEGACY_PROFILE)
+    scan = runner.argv(0)
+    assert scan[0] == "ssh-keyscan"
+    assert algorithm_options(scan) == []
+    assert "-o" not in scan
+
+
+@pytest.mark.parametrize(
+    "profile",
+    (
+        "ssh-rsa",
+        "HostKeyAlgorithms=+ssh-rsa",
+        "rsa-sha1,diffie-hellman-group14-sha1",
+        "RSA-SHA1",
+        " rsa-sha1",
+        "-oProxyCommand=touch /tmp/pwned",
+        "",
+        "   ",
+        1,
+        True,
+        [],
+        {},
+        ["rsa-sha1"],
+        ("rsa-sha1",),
+    ),
+)
+def test_ssh_refuses_a_legacy_profile_that_is_not_named_in_the_module(profile):
+    runner = FakeRunner()
+    with pytest.raises(CollectError) as caught:
+        ssh_call(runner, legacy_ssh=profile)
+    assert caught.value.event is None
+    assert runner.calls == []
+    assert "legacy_ssh must be None for a device that speaks current algorithms" in str(caught.value)
+
+
+def test_ssh_exit_code_carries_what_the_client_said():
+    runner = FakeRunner(
+        code=255,
+        stdout=b"",
+        stderr=b"Unable to negotiate with 192.0.2.10 port 22:"
+        b" no matching host key type found. Their offer: ssh-rsa\n",
+    )
+    error = ssh_failure(runner)
+    assert "failed with exit code 255" in str(error)
+    assert "no matching host key type found. Their offer: ssh-rsa" in str(error)
+    assert error.event.outcome == "failed"
+
+
+def test_client_words_are_trimmed_and_carry_no_control_characters():
+    noise = b"\x1b[31mbanner\x1b[0m\r\n\x00second line\n" + b"x" * 400
+    error = ssh_failure(FakeRunner(code=255, stdout=b"", stderr=noise))
+    said = str(error).split("the client said: ", 1)[1]
+    assert said.endswith("...")
+    assert len(said) == SSH_ERROR_DETAIL_CHARS + len("...")
+    assert said.startswith("[31mbanner [0m second line")
+    for character in said:
+        assert character.isprintable()
+
+
+def test_empty_client_words_add_nothing_to_the_message():
+    error = ssh_failure(FakeRunner(code=255, stdout=b"", stderr=b" \n"))
+    assert str(error).endswith("failed with exit code 255")
+
+
+NEGOTIATION_STDERR = (
+    b"Unable to negotiate with 192.0.2.10 port 22:"
+    b" no matching host key type found. Their offer: ssh-rsa\n"
+)
+
+
+def test_a_refused_negotiation_names_the_target_and_how_to_write_the_exception_down():
+    error = ssh_failure(FakeRunner(code=255, stdout=b"", stderr=NEGOTIATION_STDERR))
+    said = str(error)
+    assert HOST in said
+    assert "no matching host key type found" in said
+    assert "offers only algorithms this client refuses" in said
+    assert "legacy_ssh" in said
+    assert "rsa-sha1" in said
+    assert "there is no global switch" in said
+
+
+def test_the_remedy_stays_out_when_the_device_already_has_its_profile():
+    error = ssh_failure(
+        FakeRunner(code=255, stdout=b"", stderr=NEGOTIATION_STDERR), legacy_ssh=LEGACY_PROFILE
+    )
+    assert "no matching host key type found" in str(error)
+    assert "legacy_ssh" not in str(error)
+
+
+def test_the_remedy_stays_out_of_a_failure_that_is_not_a_negotiation():
+    error = ssh_failure(
+        FakeRunner(code=255, stdout=b"", stderr=b"Permission denied (publickey,password).\n")
+    )
+    assert "Permission denied" in str(error)
+    assert "legacy_ssh" not in str(error)
