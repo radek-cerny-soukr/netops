@@ -6,8 +6,9 @@ Tools that give an AI agent the narrowest possible hands and usable eyes on netw
 |---|---|---|
 | [`netops-helper`](components/netops-helper/) | Read-only MCP server for bounded network troubleshooting | `netops-helper/v0.2.3` |
 | [`netops-auditor`](components/netops-auditor/) | Configuration audit; collects the configuration from the device itself | not yet |
+| [`netops-core`](components/netops-core/) | Shared access layer the other components build on: inventory, credential store, host key trust, SSH transport, audit records | not yet |
 
-`netops-core` (shared access layer) and `netops-admin` (device writes, refuses to start without the auditor) are designed but not built. They will appear under `components/` when they carry code; an empty directory guarantees nothing.
+`netops-admin` (device writes, refuses to start without the auditor) is designed but not built. It will appear under `components/` when it carries code; an empty directory guarantees nothing.
 
 ## Releases
 
@@ -15,7 +16,7 @@ Every component has its own version, its own tag prefix `netops-<component>/vX.Y
 
 ## Repository gate
 
-`scripts/check_release.py` is the gate for the tree as a whole. It fails closed when a tracked file belongs to no component release and to no reviewed repository file, when a component has no release selector or no gate of its own, when a component `LICENSE` differs from the repository one, when CI does not cover a component, or when any tracked file carries a private address, host name, path, or credential-shaped string. Each component then runs its own gate over its own tree: `components/netops-helper/scripts/check_public_release.py` and `components/netops-auditor/scripts/check_gates.py`.
+`scripts/check_release.py` is the gate for the tree as a whole. It fails closed when a tracked file belongs to no component release and to no reviewed repository file, when a component has no release selector or no gate of its own, when a component `LICENSE` differs from the repository one, when CI does not cover a component, or when any tracked file carries a private address, host name, path, or credential-shaped string. Each component then runs its own gate over its own tree: `components/netops-helper/scripts/check_public_release.py`, `components/netops-auditor/scripts/check_gates.py`, and `components/netops-core/scripts/check_gates.py`.
 
 ```sh
 python3 scripts/check_release.py                                    # whole repository

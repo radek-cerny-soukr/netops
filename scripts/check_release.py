@@ -17,6 +17,7 @@ COMPONENT_SELECTOR = "scripts/create_release_artifacts.py"
 COMPONENT_GATES = {
     "netops-helper": ("scripts/check_public_release.py",),
     "netops-auditor": ("scripts/check_gates.py",),
+    "netops-core": ("scripts/check_gates.py",),
 }
 CI_REQUIRED_FRAGMENTS = (
     "scripts/check_release.py",
@@ -24,6 +25,7 @@ CI_REQUIRED_FRAGMENTS = (
     "NETOPS_REQUIRE_RUNTIME_TESTS=1 python -m pytest -q",
 )
 ROOT_FILES = {
+    ".dockerignore",
     ".github/workflows/ci.yml",
     ".gitignore",
     "CONTRIBUTING.md",

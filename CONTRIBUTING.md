@@ -10,7 +10,7 @@ Contributions are welcome when they preserve the fail-closed model.
 3. Add exact positive and negative tests for every command/path capability.
 4. Run the complete offline suite and public-release checker.
 5. Keep both hash lockfiles byte-identical when dependencies did not change. If a dependency or
-   lock generator changes, pin and record the exact Python 3.12 generator environment, regenerate
+   lock generator changes, pin and record the exact Python 3.13 generator environment, regenerate
    both locks, and explain the complete dependency diff. Always regenerate and byte-compare the
    CycloneDX SBOM with the reviewed release environment.
 6. Update tool, limitation, security, and changelog documentation with behavior changes.

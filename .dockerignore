@@ -1,0 +1,8 @@
+**
+!components/netops-core/src/netops_core/**
+!components/netops-helper/config/container/**
+!components/netops-helper/requirements.lock
+!components/netops-helper/src/**
+components/netops-helper/config/target-policy.json
+**/__pycache__
+**/*.pyc
