@@ -3,13 +3,19 @@
 
 from __future__ import annotations
 
+from base64 import b64encode
+
+from netops_core.hostkey import fingerprint_of
 from netops_helper.auth import TargetAuth
 import netops_helper.engine as engine
 
 
+PIN = fingerprint_of(b64encode(b"sftp-safety-host-key").decode("ascii"))
+
+
 def test_safe_remote_path_confinement() -> None:
     auth = TargetAuth(
-        "device-a", "host.invalid", 22, "account", "credential", "public-key", ("/safe",),
+        "device-a", "host.invalid", 22, "account", "credential", PIN, "password", ("/safe",),
     )
     assert engine._safe_remote_path(auth, "/safe/config") == "/safe/config"
     for unsafe in ("/etc/passwd", "/safe/../etc/passwd", "/", "relative/path"):
@@ -19,7 +25,7 @@ def test_safe_remote_path_confinement() -> None:
             pass
         else:
             raise AssertionError(f"unsafe SFTP path accepted: {unsafe}")
-    deny_all = TargetAuth("device-a", "host.invalid", 22, "account", "credential", "public-key")
+    deny_all = TargetAuth("device-a", "host.invalid", 22, "account", "credential", PIN)
     try:
         engine._safe_remote_path(deny_all, "/safe/config")
     except ValueError:

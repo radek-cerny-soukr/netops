@@ -93,6 +93,25 @@ EXPECTED = {
     "sharing": ("show sharing", (), True),
     "lacp": ("show lacp", (), True),
     "stp_summary": ("show stpd", (), True),
+    "stp_detail": ("show stpd detail", (), True),
+    "stacking": ("show stacking", (), False),
+    "stacking_support": ("show stacking-support", (), False),
+    "inline_power": ("show inline-power", (), False),
+    "inline_power_port": (
+        "show inline-power info ports {interface}",
+        (("interface", "interfaces", "extreme_physical_port"),),
+        False,
+    ),
+    "access_list_counters": ("show access-list counter", (), True),
+    "qos_profiles": ("show qosprofile", (), False),
+    "licenses": ("show licenses", (), False),
+    "ntp": ("show ntp", (), False),
+    "sntp_client": ("show sntp-client", (), False),
+    "sessions": ("show session", (), False),
+    "elrp": ("show elrp", (), False),
+    "mcast_cache_summary": ("show mcast cache summary", (), False),
+    "mirror": ("show mirror", (), False),
+    "edp_neighbors": ("show edp", (), True),
 }
 
 CONTROL_OR_SHELL = re.compile(r"[\x00-\x1f\x7f;&|$<>\x60]")

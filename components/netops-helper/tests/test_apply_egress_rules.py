@@ -16,39 +16,49 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
+sys.path.insert(0, str(ROOT.parent / "netops-core" / "src"))
 sys.path.insert(0, str(ROOT / "scripts"))
 
 import apply_egress_rules as apply_rules
 import generate_egress_rules as generator
 
 
+PIN = "SHA256:" + "A" * 43
+
+
 def bundle_fixture() -> dict[str, object]:
-    vault = {
-        "device-a": {
-            "host": "192.0.2.10",
+    document = {
+        "version": 2,
+        "devices": [{
+            "name": "device-a",
+            "platform": "linux",
+            "address": "192.0.2.10",
             "port": 2222,
-            "login": "reader",
-            "password": "account-secret",
-        },
+            "role": "interni",
+            "credential": "device-a-account",
+            "host_key_fingerprint": PIN,
+            "legacy_ssh": None,
+            "auditor": None,
+            "helper": {
+                "account_role": "read-only",
+                "ssh_platform": "linux",
+                "enabled_queries": ["hostname"],
+                "read_inventory": {},
+                "sftp_roots": [],
+                "egress": {
+                    "addresses": ["192.0.2.10"],
+                    "tcp_ports": [443],
+                    "udp_ports": [161],
+                    "tcp_port_ranges": [],
+                    "udp_port_ranges": [],
+                    "allow_icmp": True,
+                    "allow_dns": False,
+                    "tls_server_names": [],
+                },
+            },
+        }],
     }
-    target = {
-        "account_role": "read-only",
-        "ssh_platform": "linux",
-        "enabled_queries": ["hostname"],
-        "read_inventory": {},
-        "sftp_roots": [],
-        "egress": {
-            "addresses": ["192.0.2.10"],
-            "tcp_ports": [443],
-            "udp_ports": [161],
-            "tcp_port_ranges": [],
-            "udp_port_ranges": [],
-            "allow_icmp": True,
-            "allow_dns": False,
-            "tls_server_names": [],
-        },
-    }
-    global_scope = {
+    policy = {
         "schema_version": 1,
         "profile": "strict-target",
         "backend": "iptables",
@@ -58,9 +68,12 @@ def bundle_fixture() -> dict[str, object]:
         "dns_resolvers": [],
         "lan_cidrs": [],
     }
-    return generator.build_bundle(
-        vault, {"_egress": global_scope, "device-a": target}, "netops-runner",
-    )
+    with tempfile.TemporaryDirectory() as raw:
+        path = Path(raw) / "inventory.json"
+        path.write_text(json.dumps(document), encoding="utf-8")
+        return generator.build_bundle(
+            generator._devices(path), policy, generator.inventory_digest(path),
+        )
 
 
 def empty_save() -> str:

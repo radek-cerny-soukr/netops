@@ -1,64 +1,116 @@
 # Configuration
 
-## Local proxy
+## The four operator files
 
-The proxy uses these environment variables:
+The proxy reads four files. None of them is written by the tool, and every one of them is fail-closed: a file that does not match this page is refused as a whole.
 
-| Variable | Default |
-| --- | --- |
-| `NETOPS_VAULT_PATH` | `$XDG_CONFIG_HOME/netops-helper/vault.json` |
-| `NETOPS_KNOWN_HOSTS_PATH` | `~/.ssh/known_hosts` |
-| `NETOPS_TARGET_POLICY_PATH` | `$XDG_CONFIG_HOME/netops-helper/target-policy.json` |
-| `NETOPS_MASTER_ALIAS` | `netops-runner` |
+| File | Variable | Default | Content |
+| --- | --- | --- | --- |
+| `inventory.json` | `NETOPS_INVENTORY_PATH` | `$XDG_CONFIG_HOME/netops-helper/inventory.json` | the device document of `netops_core.inventory`, file version 2 |
+| `vault.json` | `NETOPS_VAULT_PATH` | `$XDG_CONFIG_HOME/netops-helper/vault.json` | the credential document of `netops_core.vault`, file version 2 |
+| `egress-policy.json` | `NETOPS_EGRESS_POLICY_PATH` | beside the inventory | the eight fields the host-firewall generator needs |
+| `runner.json` | `NETOPS_RUNNER_PATH` | beside the inventory | the runner the proxy reaches over SSH |
 
-### Credential vault structure and protocol use
+`target-policy.json`, `NETOPS_TARGET_POLICY_PATH`, `NETOPS_KNOWN_HOSTS_PATH` and `NETOPS_MASTER_ALIAS` are gone. A run that finds one of those files or variables stops with the transport category `legacy_configuration` and names the files above. There is no fallback and no migration tool: the enrollment is written once in the new shape and reviewed.
 
-The credential file is one valid JSON object containing two kinds of records:
+The common device fields and the credential records are documented by the shared access layer: [inventory](../../netops-core/docs/inventory.md) and [credential store](../../netops-core/docs/vault.md). This page documents what the helper adds: the `helper` section of a device, the cross-checks between the section and the common fields, the egress policy, and the runner file.
 
-- exactly one runner SSH record under the alias selected by `NETOPS_MASTER_ALIAS`;
-- one separate target record for every enrolled device alias.
+## The `helper` section of a device
 
-It is not JSONL: whitespace and line wrapping are irrelevant, and the complete file must parse as one object. Set mode `600`. This synthetic shape uses documentation-only names and placeholders:
+A device belongs to the helper when its `helper` field is an object. The alias a client uses is the device `name`. The section holds exactly these fields; an unknown field is refused.
+
+| Field | Required | Exact contract |
+| --- | --- | --- |
+| `account_role` | yes | `"read-only"`; any other value is `role_rejected` |
+| `ssh_platform` | yes | a canonical platform name of `netops_core.platforms` (`fortios`, `exos`, `linux`, `cisco_ios`, `cisco_xe`, `cisco_nxos`, `arista_eos`, `juniper_junos`, `juniper_junos_els`) or `null`. An alias such as `fortinet` is refused here; the inventory carries canonical names |
+| `enabled_queries` | yes | an opt-in subset of that platform's catalogue, unique, at most 256 names; empty when `ssh_platform` is `null` |
+| `egress` | yes | exactly the eight fields below |
+| `read_inventory` | no (`{}`) | `interfaces`, `services`, `addresses`, `switches`; every value canonical for its category |
+| `sftp_roots` | no (`[]`) | canonical absolute paths below `/`, no `..`, no NUL, at most 2000 characters |
+| `fortios_output_standard_verified` | no (`false`) | boolean operator assertion |
+| `rate_limit` | no (30/60) | `requests` 1-60 and `window_seconds` 1-3600 |
+| `snmp_credential` | no | the name of a vault record of kind `snmp-community`; absent disables `snmp_get` for that device |
+
+Validation lives in `src/netops_helper/inventory.py` and is the same code in the proxy and in the egress generator. Besides the fields it checks the device it belongs to:
+
+- `address` and `port` must both be set: the helper reaches a device over the network;
+- an IPv4 `address` must appear in `egress.addresses`;
+- a host name `address` requires `egress.allow_dns` and a non-empty `egress.addresses`, and the egress policy must declare at least one resolver;
+- `host_key_fingerprint` must pin the host key, so `target_scope` reports `host_key_pinned: true` for every enrolled device;
+- `credential` must name a vault record of kind `password` or `ssh-key`;
+- `snmp_credential`, when present, must name a record of kind `snmp-community`; a `snmp_get` against a device without it fails with `auth_material`.
+
+A complete device, with documentation values only:
 
 ```json
 {
-  "netops-runner": {
-    "host": "runner.example.invalid",
-    "port": 22,
-    "login": "<RUNNER_SSH_LOGIN>",
-    "password": "<RUNNER_SSH_PASSWORD>"
-  },
-  "edge-a": {
-    "host": "device.example.invalid",
-    "port": 22,
-    "login": "<TARGET_READ_ONLY_LOGIN>",
-    "password": "<TARGET_PASSWORD>",
-    "snmp_community": "<SEPARATE_READ_ONLY_COMMUNITY>"
-  }
+  "version": 2,
+  "devices": [
+    {
+      "name": "device-alias",
+      "platform": "linux",
+      "address": "192.0.2.10",
+      "port": 22,
+      "role": "interni",
+      "credential": "device-alias-account",
+      "host_key_fingerprint": "SHA256:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+      "legacy_ssh": null,
+      "auditor": null,
+      "helper": {
+        "account_role": "read-only",
+        "ssh_platform": "linux",
+        "enabled_queries": ["hostname", "neighbors"],
+        "read_inventory": {
+          "interfaces": ["example-interface"],
+          "services": ["example.service"],
+          "addresses": ["192.0.2.20"],
+          "switches": ["example-switch"]
+        },
+        "sftp_roots": [],
+        "fortios_output_standard_verified": false,
+        "snmp_credential": "device-alias-community",
+        "rate_limit": {"requests": 30, "window_seconds": 60},
+        "egress": {
+          "addresses": ["192.0.2.10"],
+          "tcp_ports": [],
+          "udp_ports": [161],
+          "tcp_port_ranges": [],
+          "udp_port_ranges": [],
+          "allow_icmp": false,
+          "allow_dns": false,
+          "tls_server_names": []
+        }
+      }
+    }
+  ]
 }
 ```
 
-If `NETOPS_MASTER_ALIAS` is changed, its value must exactly match the runner key in this object. The runner record is used only for the proxy-to-runner SSH transport: its `host`, `port`, `login`, and `password` are not target credentials. Do not add the runner alias to `target-policy.json`; only device aliases have target-policy entries, and the proxy rejects the runner alias as a target.
+[`config/inventory.example.json`](../config/inventory.example.json) is that document. Copy it, replace every documentation address and name, and review every scope.
 
-Each target record has exactly `host`, `port`, `login`, and `password`, plus optional `snmp_community`. `host` must be a canonical IPv4 literal or canonical lowercase hostname without a trailing dot. IPv6 target hosts are not supported. `port` is an integer from 1 through 65535.
+The account role is an operator assertion, not proof of remote authorization. Independently verify the account over the real access path as described in [Read-only accounts](read-only-accounts.md).
 
-For a target record, the same `login` and `password` are used by `ssh_read`, `sftp_stat`, and `ftp_list` over either FTPS or plain FTP. The target vault `port` is only the SSH/SFTP port; the FTP/FTPS control port is the `ftp_list` argument and must also be explicitly enrolled in target egress. The negotiated FTP passive data port must fall in an explicitly enrolled TCP range.
+A device whose `helper` section is `null` belongs to another component of the family; the proxy refuses it as `policy_rejected` and never reads its credential.
 
-> **Plain FTP credential warning:** `ftp_list(use_tls=false)` transmits that same target `login`, `password`, and directory-listing data without encryption. It requires `acknowledge_unencrypted=true`, but acknowledgement does not add confidentiality. Prefer FTPS. If legacy FTP is unavoidable, create a separate least-privilege remote FTP identity and a dedicated target alias instead of reusing an SSH identity.
+## Credentials and protocol use
 
-For a dedicated FTP identity, set `ssh_platform: null` and `enabled_queries: []`, and make the remote service/account reject SSH and SFTP. Target policy alone cannot make the alias FTP-only: `sftp_roots` is the shared path allowlist needed by `ftp_list`, and it also authorizes a proxy call to `sftp_stat`. Device-side protocol denial remains mandatory.
+The vault is one mode-`600` or mode-`400` regular file holding one JSON object of credential records. A device record is of kind `password` or `ssh-key` and carries the `login`; the SNMP community is a separate record of kind `snmp-community` and carries no login. [`config/vault.example.json`](../config/vault.example.json) shows the three kinds with `replace-me` placeholders.
 
-The optional SNMP value must be a different secret from the target password, contain 3-255 printable UTF-8 bytes, and be omitted when SNMP is unused. There is no password fallback for SNMP.
+For a device, the same record authenticates `ssh_read`, `sftp_stat`, and `ftp_list` over either FTPS or plain FTP. The device `port` is only the SSH/SFTP port; the FTP/FTPS control port is the `ftp_list` argument and must also be enrolled in `egress`. The negotiated FTP passive data port must fall in an explicitly enrolled TCP range.
 
-Never place credentials in the project directory, command line, logs, target policy, generated egress bundle, or source control. The runner password is never exported into the `ssh` process environment; the proxy hands it to its own askpass re-execution once over a private abstract socket. Password-backed records are a portability compromise. A dedicated secret broker and platform-appropriate key or certificate authentication would be preferable in a separately designed integration, but the stock proxy does not implement those alternatives.
+> **Plain FTP credential warning:** `ftp_list(use_tls=false)` transmits that same `login`, secret, and directory-listing data without encryption. It requires `acknowledge_unencrypted=true`, but acknowledgement does not add confidentiality. Prefer FTPS. If legacy FTP is unavoidable, create a separate least-privilege remote FTP identity and a dedicated device entry instead of reusing an SSH identity.
+
+For a dedicated FTP identity, set `ssh_platform: null` and `enabled_queries: []`, and make the remote service/account reject SSH and SFTP. The section alone cannot make a device FTP-only: `sftp_roots` is the shared path allowlist needed by `ftp_list`, and it also authorizes a proxy call to `sftp_stat`. Device-side protocol denial remains mandatory.
+
+The SNMP community must be a different secret from the device secret. There is no password fallback for SNMP.
+
+Never place credentials in the project directory, command line, logs, inventory, generated egress bundle, or source control. The runner password is never exported into the `ssh` process environment; the proxy hands it to its own askpass re-execution once over a private abstract socket. A runner or device key is written to a mode-`600` file in the proxy's private temporary directory, which is removed when the proxy exits.
 
 > SNMPv2c provides no encryption. Its community is transmitted in plaintext in UDP packets. Use a separate least-privilege read-only community, restrict UDP egress and device source ACLs, and prefer SNMPv3 when available.
 
-## Exact target policy
+## The egress policy file
 
-`target-policy.json` is credential-free but security- and topology-sensitive. Copy [the example](../config/target-policy.example.json), replace every documentation address, and review every scope.
-
-The reserved `_egress` object configures host-firewall generation and is never a target alias. It must contain exactly these eight fields:
+`egress-policy.json` holds exactly the eight fields the host-firewall generator needs. It is credential-free but topology-sensitive. Copy [the example](../config/egress-policy.example.json).
 
 | Field | Exact contract |
 | --- | --- |
@@ -69,28 +121,61 @@ The reserved `_egress` object configures host-firewall generation and is never a
 | `network_name` | `"netops-helper"`, matching Compose. |
 | `ipv6_mode` | `"deny"`, paired with Compose `enable_ipv6: false`. |
 | `dns_resolvers` | At most 16 unique canonical IPv4 literals. |
-| `lan_cidrs` | At most 32 unique canonical IPv4 CIDRs, with profile rules below. |
+| `lan_cidrs` | At most 32 unique canonical IPv4 CIDRs, with the profile rules below. |
 
-`strict-target` requires `lan_cidrs: []` and keeps each target's destinations associated with only that target's effective ports, ranges, and ICMP permission. `lan-constrained` requires a non-empty `lan_cidrs` list; every CIDR must be wholly inside one RFC1918 block, and every enrolled target destination must lie within the declared CIDR union. It grants the union of every enrolled target's TCP/UDP ports and ranges plus ICMP permission throughout every declared CIDR, so it is intentionally broader than per-target isolation.
+`strict-target` requires `lan_cidrs: []` and keeps each device's destinations associated with only that device's effective ports, ranges, and ICMP permission. `lan-constrained` requires a non-empty `lan_cidrs` list; every CIDR must be wholly inside one RFC1918 block, and every enrolled destination must lie within the declared CIDR union. It grants the union of every enrolled device's TCP/UDP ports and ranges plus ICMP permission throughout every declared CIDR, so it is intentionally broader than per-device isolation.
 
-Any target with `allow_dns: true` requires at least one global resolver. A hostname target additionally requires `allow_dns: true`, non-empty explicitly enrolled canonical IPv4 results, and global resolvers; every runtime IPv4 result must remain within the target list. DNS rules allow TCP and UDP port 53 only to the listed resolver addresses, but do not filter query names.
+Any device with `allow_dns: true` requires at least one resolver here, and the proxy refuses the device when the list is empty. DNS rules allow TCP and UDP port 53 only to the listed resolver addresses, but do not filter query names.
 
-The egress generator reads `NETOPS_MASTER_ALIAS` independently. When a non-default runner alias is used, export the same `NETOPS_MASTER_ALIAS` value for both `remote_mcp_proxy.py` and every invocation of `generate_egress_rules.py`. The value must name the runner vault record, and that alias must remain absent from target policy.
+## The runner file
 
-Each target permits only these keys:
+`runner.json` names the single host the proxy reaches over SSH to run the fixed remote command. The runner is not a device: it has no inventory entry, no section, and can never be addressed as a target.
 
-- `account_role`, `ssh_platform`, `enabled_queries`, `read_inventory`, and `sftp_roots`;
-- `fortios_output_standard_verified`, `legacy_ssh`, `rate_limit`, and `egress`.
+```json
+{
+  "version": 1,
+  "host": "runner.example.invalid",
+  "port": 22,
+  "credential": "runner-account",
+  "host_key_fingerprint": "SHA256:BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB"
+}
+```
 
-Unknown keys fail closed. `account_role`, `ssh_platform`, `enabled_queries`, and the exact `egress` object are mandatory. An old-format policy is not interpreted as unrestricted access. Version 0.2.0 removes `https_get`; the legacy `https_endpoints` key is therefore rejected as an unknown field and must be deleted during upgrade. Set `ssh_platform: null` and `enabled_queries: []` to disable SSH reads.
+`version` must be `1`. `host` is a bare name or address without a leading `-` and without `@`. `credential` names a vault record of kind `password` or `ssh-key`; a password is handed over through the askpass socket, a key through a mode-`600` identity file with `IdentitiesOnly=yes`. `host_key_fingerprint` is the same pin form as a device: before the credential is used, the proxy runs `ssh-keyscan` against `host` and `port`, keeps the offered line only when its fingerprint equals the pin, and writes exactly that one line into the private `UserKnownHostsFile` of the run. A pin that no offered key matches ends the run with the transport category `ssh_host_key` before any credential is read.
 
-The hidden proxy-to-server authentication envelope also has an exact schema: identity fields plus the validated policy projection, with mandatory `ssh_platform`, `enabled_queries`, and `egress`. Unknown fields, legacy envelopes, alias mismatch, and client-supplied `auth_context` fail closed.
+## Per-tool egress
 
-The account role is an operator assertion, not proof of remote authorization. Independently verify the account over the real access path as described in [Read-only accounts](read-only-accounts.md).
+Every `egress` object of a section has exactly:
+
+- canonical IPv4 `addresses`;
+- explicit `tcp_ports` and `udp_ports`;
+- non-overlapping `tcp_port_ranges` and `udp_port_ranges` as `[[start,end]]`;
+- boolean `allow_icmp` and `allow_dns`;
+- canonical `tls_server_names` for an explicit TLS SNI different from the device address.
+
+Authorization is tool-specific:
+
+| Tool | Required scope |
+| --- | --- |
+| `dns_probe` | `allow_dns` |
+| `icmp_probe` | `allow_icmp` |
+| `tcp_probe`, `tls_probe` | explicit TCP port/range; TLS also checks alternate SNI |
+| `ssh_read` | exact platform and enabled query |
+| `sftp_stat` | at least one enrolled root; metadata only, a directory only as a count |
+| `snmp_get` | explicit UDP port/range and an enrolled `snmp_credential` |
+| `ftp_list` | explicit TCP control port, at least one passive TCP range, and file root |
+
+The firewall generator derives the device `port` only when at least one SSH query or SFTP metadata root is enabled. Do not duplicate that derived port in explicit `tcp_ports`. Explicit TCP scope remains necessary for TCP/TLS probes and FTP; no HTTPS port is derived.
+
+See [Egress control](egress-control.md) for schema-3 generation, review, application, and residual host-access limits.
+
+## The hidden authentication envelope
+
+The proxy-to-server envelope has an exact schema of version 0.3.0 and carries exactly: `alias`, `host`, `port`, `login`, `credential_kind`, `secret`, `host_key_fingerprint`, `legacy_ssh`, `account_role`, `ssh_platform`, `enabled_queries`, `read_inventory`, `sftp_roots`, `fortios_output_standard_verified`, `egress`, and `snmp_community` only for `snmp_get`. The removed `known_hosts` and `password` keys are refused as unsupported fields, so an old proxy fails closed instead of half-working. Unknown fields, a legacy envelope, an alias mismatch, and a client-supplied `auth_context` all fail closed.
 
 ### Discovery and information exposure
 
-Call `helper_status` first. The proxy augments server status with valid non-runner target aliases and current per-target rate state. Invalid or incomplete records are counted in `invalid_target_count` but are not named.
+Call `helper_status` first. The proxy augments server status with the names of the devices whose helper section is valid, and the current per-device rate state. A device whose section is refused is counted in `invalid_target_count` but is not named.
 
 Call `target_scope(target)` for one returned alias. The proxy handles this locally without contacting the target. It intentionally returns:
 
@@ -98,13 +183,13 @@ Call `target_scope(target)` for one returned alias. The proxy handles this local
 - all enrolled interface, service, address, and switch inventory values;
 - exact SFTP metadata/listing roots;
 - full per-tool egress policy, including enrolled IPv4 addresses, ports/ranges, DNS/ICMP permission, and TLS server names;
-- rate state, the enrolled legacy SSH profile, plus boolean SNMP and device host-key enrollment status.
+- rate state, the enrolled legacy SSH profile, `snmp_enrolled`, and `host_key_pinned`, which is always true because the loader refuses a device without a pin.
 
-It does not return the vault's `host` field, login, password, SNMP community, or host-key contents. This is not anonymity: a literal target address normally appears in `egress.addresses`, and hostname targets expose their enrolled IPv4 results. Roots, inventory names, and TLS names may also reveal topology. Keep `target_scope` available only inside the dedicated operational session and do not publish its output.
+It does not return the device address, the login, any credential name, the secret, the SNMP community, or the host key pin. This is not anonymity: a literal device address normally appears in `egress.addresses`, and host name devices expose their enrolled IPv4 results. Roots, inventory names, and TLS names may also reveal topology. Keep `target_scope` available only inside the dedicated operational session and do not publish its output.
 
 ### SSH queries and inventory
 
-`enabled_queries` is an opt-in subset for exactly one `ssh_platform`. The client supplies that same platform, an enabled public query name, and only the typed parameters declared for that query. It never supplies raw CLI. `read_query_catalog` lists all available names and metadata; `target_scope` lists what one target permits.
+`enabled_queries` is an opt-in subset for exactly one `ssh_platform`. The client supplies that same platform, an enabled public query name, and only the typed parameters declared for that query. It never supplies raw CLI. `read_query_catalog` lists all available names and metadata; `target_scope` lists what one device permits.
 
 Inventory categories are validated against query-specific types. The broad mapping is:
 
@@ -125,64 +210,43 @@ SFTP roots are bounded, canonical, absolute, non-root POSIX paths without NUL or
 
 Remote permissions or chroot remain necessary because lexical checks cannot resolve remote symlinks, and `sftp_stat` uses the server's normal stat semantics. Grant only metadata/listing permission and keep configuration backups, secrets, private keys, support bundles, and broad log trees outside these roots.
 
-### Per-tool egress
-
-Every target `egress` object has exactly:
-
-- canonical IPv4 `addresses`;
-- explicit `tcp_ports` and `udp_ports`;
-- non-overlapping `tcp_port_ranges` and `udp_port_ranges` as `[[start,end]]`;
-- boolean `allow_icmp` and `allow_dns`;
-- canonical `tls_server_names` for an explicit TLS SNI different from the target host.
-
-A literal target `host` must be canonical IPv4 and occur in `addresses`. A hostname target must be canonical lowercase DNS form and requires `allow_dns: true`, non-empty explicit IPv4 `addresses`, and global DNS resolvers. Every runtime IPv4 resolution result must be enrolled. An IPv6 literal is rejected even if the local known-hosts parser is capable of safely recognizing IPv6-formatted entries.
-
-Authorization is tool-specific:
-
-| Tool | Required scope |
-| --- | --- |
-| `dns_probe` | `allow_dns` |
-| `icmp_probe` | `allow_icmp` |
-| `tcp_probe`, `tls_probe` | explicit TCP port/range; TLS also checks alternate SNI |
-| `ssh_read` | exact platform and enabled query |
-| `sftp_stat` | at least one enrolled root; metadata only |
-| `snmp_get` | explicit UDP port/range and separate community |
-| `ftp_list` | explicit TCP control port, at least one passive TCP range, and file root |
-
-The firewall generator derives the credential port only when at least one SSH query or SFTP metadata root is enabled. Do not duplicate that derived port in explicit `tcp_ports`. Explicit TCP scope remains necessary for TCP/TLS probes and FTP; no HTTPS port is derived.
-
-See [Egress control](egress-control.md) for schema-3 generation, review, application, and residual host-access limits.
-
 ## Rate limiting and snapshots
 
-Each proxy process enforces a per-alias sliding window before forwarding; two vault aliases that point at the same host have separate windows. The default is 30 device calls per 60 seconds; `requests` is bounded to 1-60 and `window_seconds` to 1-3600. Rate state is process-local, not a distributed device quota.
+Each proxy process enforces a per-device sliding window before forwarding; two devices that point at the same address have separate windows. The default is 30 device calls per 60 seconds; `requests` is bounded to 1-60 and `window_seconds` to 1-3600. Rate state is process-local, not a distributed device quota.
 
 A valid `ssh_read` continuation with integer `offset > 0` does not consume another device rate slot because it must use an existing in-memory SSH snapshot. Every other device call consumes a slot. Expired or missing continuation state fails and must restart at offset 0.
 
 An offset-0 SSH read captures at most 2 MB after sanitization. Output exceeding the capture limit fails rather than silently truncating. A retained SSH snapshot lasts at most 120 seconds, up to eight entries per process; the last page discards it. No other Phase-1 tool has a body snapshot or continuation path.
 
+The proxy's `rate_limit` above and the server's own connection pacing are independent controls at different layers. `rate_limit` bounds how many device calls the proxy forwards in a window; it is per device, configurable, and enforced before the server is ever reached. Server-side connection pacing instead bounds how fast the *server* opens SSH-family connections to one address and port - a fixed table in the code, not configuration, and unaffected by `rate_limit` in either direction: a generous `rate_limit` does not make FortiOS connections go out faster, and a strict one does not add spacing on a platform that has none. See [Security model](security-model.md#device-side-authorization).
+
 ### Legacy SSH algorithms
 
 Since the release which introduces this field, the SSH and SFTP transports refuse the `ssh-rsa` host key algorithm and SHA-1 key exchange for **every** platform. Both were silently available to every target up to and including 0.2.3, where only FortiOS targets rejected SHA-1 key exchange. This is a behaviour change: a target which offers no algorithm outside that default stops being reachable until the exception below is enrolled for it.
 
+`legacy_ssh` is a common device field of the shared inventory, not a field of the `helper` section, so one enrolled exception is the same exception for every component that reaches that device.
+
 `ssh-rsa` means an RSA host key signed with SHA-1. It is not the same as having an RSA host key: a target which offers `rsa-sha2-256` or `rsa-sha2-512` keeps working with its existing `ssh-rsa` known-hosts entry and needs no exception, because the entry names the key, not the signature algorithm. Only a target which offers nothing but `ssh-rsa`, typically an old switch or an unpatched appliance, is affected.
 
-The exception is named per target, in that target's policy entry, and nowhere else:
+The exception is named per device, in that device's inventory entry, and nowhere else:
 
 ```json
-"device-alias": {
-  "account_role": "read-only",
+{
+  "name": "device-alias",
+  "host_key_fingerprint": "SHA256:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
   "legacy_ssh": "rsa-sha1"
 }
 ```
 
-`legacy_ssh` accepts exactly `null` (the default, modern algorithms only) or the string `"rsa-sha1"`. `"rsa-sha1"` re-enables the `ssh-rsa` host key algorithm for that one target and nothing else. Any other value, including an algorithm name, fails closed in the proxy, in the egress generator, and in the server's authentication envelope.
+A profile requires a host key pin: weakening the algorithms of a session whose key is not recognised would make no sense, and the inventory refuses it.
 
-There is deliberately no global switch and no list of algorithm names in configuration. A named profile expands to a fixed algorithm set written in the code, so a policy file can never widen the cryptography of a connection beyond what the component already ships and reviewed. Enabling SHA-1 for one target must not enable it for the others, which a global option or an inherited default could not guarantee.
+`legacy_ssh` accepts exactly `null` (the default, modern algorithms only) or the string `"rsa-sha1"`. `"rsa-sha1"` re-enables the `ssh-rsa` host key algorithm for that one device and nothing else. Any other value, including an algorithm name, fails closed in the inventory loader and in the server's authentication envelope.
+
+There is deliberately no global switch and no list of algorithm names in configuration. A named profile expands to a fixed algorithm set written in the code, so an operator file can never widen the cryptography of a connection beyond what the component already ships and reviewed. Enabling SHA-1 for one target must not enable it for the others, which a global option or an inherited default could not guarantee.
 
 SHA-1 key exchange has no profile at all and stays disabled for every target. If a device needs it, it is out of scope for this component.
 
-One profile governs both transports. `ssh_read` (Netmiko/Paramiko) and `sftp_stat` (asyncssh) read the same field, so a target cannot be reachable over one and unreachable over the other.
+One profile governs both transports. `ssh_read` (the OpenSSH `ssh` client of `netops-core`) and `sftp_stat` (the OpenSSH `sftp` client of `netops-core`) read the same field, so a target cannot be reachable over one and unreachable over the other. On both paths the profile becomes the two options `HostKeyAlgorithms=+ssh-rsa` and `PubkeyAcceptedAlgorithms=+ssh-rsa`, appended after the hardening options so an exception can only widen the algorithm list, never replace the hardening.
 
 An enrolled exception is visible at runtime, not only in the policy file: `target_scope` returns `legacy_ssh` for the alias, and every audit record for a device call on that target carries `"legacy_ssh":"rsa-sha1"`. Records for targets without the exception stay unchanged and carry no such field.
 
@@ -191,21 +255,23 @@ When a target needs the exception and does not have it, the tool result names it
 ```text
 LegacySshProfileRequired: target "device-alias" offers no SSH host key or key exchange
 algorithm enabled by default; for a target which offers only ssh-rsa host keys set
-"legacy_ssh": "rsa-sha1" in its target-policy.json entry, which allows them for that
-target alone. SHA-1 key exchange has no profile and stays disabled.
+"legacy_ssh": "rsa-sha1" in its inventory.json entry, which allows them for that
+device alone. SHA-1 key exchange has no profile and stays disabled.
 ```
 
-That message replaces the underlying library error, which reports a host key mismatch as a connection timeout and names no remedy. It is raised only when the library proves the algorithm sets do not intersect; an unrelated timeout, an authentication failure, or a wrong host key keeps its own error.
+On the `ssh_read` path that message replaces the client's own refusal, which names the offered algorithm but no remedy. It is raised only when the client reports that the algorithm sets do not intersect and the device has no profile yet; an unrelated timeout, an authentication failure, or a wrong host key keeps its own error, and a device that already carries the exception gets the plain failure.
 
-On the SFTP path the message depends on which side reports first. Measured against a device which offers only `ssh-rsa`, the device closed the connection before asyncssh evaluated the offer, so the result was `ConnectionLost: Connection lost` with no algorithm detail. Read an opaque SFTP connection failure against an old target as the same cause and apply the same fix; `ssh_read` against the same target names it explicitly.
+On the SFTP path the message depends on which side reports first. `sftp` is a facade over `ssh`, so when the client reports the failed negotiation the same remedy appears. Measured on 13 September 2026 against a device which offers only `ssh-rsa`, the device closed the connection before the client had evaluated the offer; then standard error carries no algorithm marker and all that is left is the generic failure - a closed connection, exit status 255, no algorithm named. Read an opaque SFTP connection failure against an old target as the same cause and apply the same fix, `legacy_ssh` for that one device; `ssh_read` against the same target usually names it explicitly, so ask the exec channel first.
 
 ## Host keys
 
-The runner SSH connection uses the full operator-configured known-hosts file locally. For device SSH/SFTP, the proxy extracts and injects only entries matching the selected target host and port. Comments, unrelated hosts, and unrelated keys remain on the proxy host.
+There is no `known_hosts` file any more, on either side. Trust is the pin, and the pin is a field of the device.
 
-Plain, hashed, custom-port, marker, comma-hostlist, and IPv6-formatted known-hosts records are parsed fail-closed. Parser support for an IPv6 record format does not make an IPv6 target reachable: runtime target hosts remain canonical IPv4 literals or enrolled hostnames resolving only to enrolled IPv4 addresses.
+For a device, `host_key_fingerprint` travels in the envelope and the **server** verifies it: before any credential is used, the server runs `ssh-keyscan` against the enrolled address, compares `SHA256:` fingerprints, and refuses the operation by name when the pinned key was not offered. It never prints a key. The same verified key becomes the single known-hosts line of that one operation, for both the `ssh` path (`ssh_read`) and the `sftp` path (`sftp_stat`), and it is removed with the operation. Both paths use the same `netops_core.hostkey` code as the auditor.
 
-Unknown and changed keys fail closed. Never disable strict host-key verification or use automatic first-use acceptance for deployment.
+For the runner, the proxy does the same locally with `ssh-keyscan` before it starts `ssh`, and writes the one matching line into its private temporary directory.
+
+Obtain both pins over an independently trusted channel, exactly as `ssh-keygen -lf` prints them. A wrong or changed key fails closed on first contact; there is no first-use acceptance to disable.
 
 ## Stable proxy and SSH transport errors
 
@@ -213,16 +279,18 @@ After a syntactically valid `tools/call` reaches recognized tool handling, targe
 
 | Category | JSON-RPC code | Exact public message |
 | --- | ---: | --- |
-| `unknown_alias` | `-32001` | `The target alias is not present in the credential vault.` |
-| `policy_rejected` | `-32002` | `The target is not enrolled by policy.` |
+| `unknown_alias` | `-32001` | `The target alias is not present in the credential vault.` No device of that name is in the inventory. |
+| `policy_rejected` | `-32002` | `The target is not enrolled by policy.` The device exists but has no helper section. |
 | `role_rejected` | `-32003` | `The target account is not explicitly enrolled as read-only.` |
-| `vault_permission` | `-32004` | `Credential vault permissions are invalid; mode 600 is required.` |
+| `vault_permission` | `-32004` | `Credential vault permissions are invalid; mode 600 or 400 is required.` |
 | `vault_schema` | `-32005` | `The credential vault schema is invalid.` |
 | `auth_material` | `-32006` | `Required authentication material is unavailable or invalid.` |
 | `rate_limit` | `-32007` | `The target request rate limit is exceeded.` The data includes `retry_after_seconds`. |
-| `policy_schema` | `-32008` | `The target policy schema is invalid.` |
+| `policy_schema` | `-32008` | `The target policy schema is invalid.` The inventory or the egress policy was refused. |
 | `policy_scope` | `-32009` | `The requested operation is outside the enrolled target scope.` |
 | `invalid_params` | `-32602` | `Tool arguments do not match the exact input schema.` |
+| `runner_file` | `-32010` | `The runner file is unavailable or invalid.` |
+| `legacy_configuration` | `-32011` | The message names the four files and the removed variables. |
 | `internal_error` | `-32603` | `The proxy encountered an internal error.` |
 
 Do not interpret `rate_limit`, `policy_scope`, or `invalid_params` as credential failure. Correct the indicated operational state instead of rotating a valid password.
@@ -237,11 +305,12 @@ The categories are:
 
 | Category | Exact public message(s) |
 | --- | --- |
-| `runner_alias` | `The runner alias is not present in the credential vault.` |
-| `vault_permission` | `Credential vault permissions are invalid; mode 600 is required.` |
+| `runner_file` | `The runner file is unavailable or invalid.` |
+| `legacy_configuration` | The message names `inventory.json`, `runner.json` and `egress-policy.json` and the removed files and variables. |
+| `vault_permission` | `Credential vault permissions are invalid; mode 600 or 400 is required.` |
 | `vault_schema` | `The credential vault schema is invalid.` |
 | `auth_material` | `Required authentication material is unavailable or invalid.` or `The proxy script is not executable.` |
-| `ssh_host_key` | `SSH host-key verification failed.` |
+| `ssh_host_key` | `SSH host-key verification failed.` The runner offered no key matching its pin, or `ssh` refused the line built from it. |
 | `ssh_authentication` | `SSH authentication to the runner failed.` |
 | `ssh_connection` | `The SSH connection to the runner failed.` |
 | `remote_exec` | `The fixed remote container command could not start.` |
@@ -266,7 +335,7 @@ The stock image contains the base image's public CA bundle. `tls_probe` and FTPS
 
 1. Obtain the issuing CA certificate as PEM, never its private key. For a deliberately self-signed leaf, the reviewed self-signed certificate is the trust anchor.
 2. Verify certificate ownership, validity, purpose, and SHA-256 fingerprint through an independent trusted channel. Do not trust a certificate merely because it was presented by the unverified endpoint.
-3. Confirm the target certificate has an exact Subject Alternative Name. `tls_probe` verifies the selected target name or enrolled alternate SNI; system-trust FTPS verifies the credential target hostname/address. A legacy Common Name alone is insufficient.
+3. Confirm the target certificate has an exact Subject Alternative Name. `tls_probe` verifies the selected target name or enrolled alternate SNI; system-trust FTPS verifies the device host name or address. A legacy Common Name alone is insufficient.
 4. In a private build copy, place a global trust anchor under `config/container/ca/` with a `.crt` suffix. Keep only reviewed CA/trust-anchor certificates there. Do not commit, export, or publish them; the public release gate rejects environment-specific trust material.
 5. Build the private image. Preserve the stopped-container egress sequence: create/recreate it with `docker compose up --no-start --no-build --force-recreate`, rerun the egress checker, and only then `docker compose start`.
 6. Enroll the exact TCP port and optional alternate SNI for `tls_probe`; for FTPS also enroll the control port, passive range, and directory root. Test the intended path in a controlled test environment. Never disable certificate-chain or hostname verification merely to make a test pass.
@@ -296,9 +365,9 @@ A global trust anchor affects `tls_probe` and every unpinned FTPS connection in 
 
 Before starting or restarting the helper, confirm:
 
-- vault and transferred bundle modes are exactly `600`;
-- the `NETOPS_MASTER_ALIAS` runner record is not a device target and every target has `account_role: "read-only"`;
-- target host form, host keys, DNS results, and egress addresses agree;
+- vault mode is `600` or `400` and the transferred bundle mode is exactly `600`;
+- the runner file names a credential of its own and no device entry repeats it, and every helper section has `account_role: "read-only"`;
+- device address form, host key pins, DNS results, and egress addresses agree;
 - enabled queries and every typed inventory item are the minimum required;
 - no configuration, backup, secret store, support bundle, or broad log root is exposed;
 - TLS/FTPS certificate trust, SAN, and any FTPS pin are valid;

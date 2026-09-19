@@ -1,0 +1,19 @@
+{
+  "version": 2,
+  "credentials": {
+    "runner-account": {
+      "kind": "password",
+      "login": "replace-me",
+      "value": "replace-me"
+    },
+    "device-alias-account": {
+      "kind": "ssh-key",
+      "login": "replace-me",
+      "value": "-----BEGIN OPENSSH PRIVATE KEY-----\nreplace-me\n-----END OPENSSH PRIVATE KEY-----\n"
+    },
+    "device-alias-community": {
+      "kind": "snmp-community",
+      "value": "replace-me"
+    }
+  }
+}

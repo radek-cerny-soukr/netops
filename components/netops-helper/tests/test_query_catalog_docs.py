@@ -47,8 +47,8 @@ def test_registry_has_exact_profile_and_composite_keysets() -> None:
     catalog = RENDERER.load_catalog()
     RENDERER.validate_registry(registry, catalog)
     assert tuple(catalog) == RENDERER.PROFILE_ORDER
-    assert len(registry["queries"]) == 249
-    assert sum(len(queries) for queries in catalog.values()) == 249
+    assert len(registry["queries"]) == 278
+    assert sum(len(queries) for queries in catalog.values()) == 278
     vendor = [
         record for record in registry["queries"].values()
         if record["source_type"] == "official_vendor"
@@ -57,11 +57,23 @@ def test_registry_has_exact_profile_and_composite_keysets() -> None:
         record for record in registry["queries"].values()
         if record["source_type"] == "project_contract"
     ]
-    assert len(vendor) == 233
+    behind_login = [
+        record for record in registry["queries"].values()
+        if record["source_type"] == "vendor_login_required"
+    ]
+    assert len(vendor) == 258
     assert len(project) == 16
+    assert len(behind_login) == 4
     assert all(record["source_ids"] for record in vendor)
     assert all(not record["source_ids"] for record in project)
     assert all(record["source_note"] == RENDERER.PROJECT_NOTE for record in project)
+    assert all(record["source_ids"] for record in behind_login)
+    assert all(record["source_note"] == RENDERER.LOGIN_NOTE for record in behind_login)
+    assert all(
+        "url" not in registry["sources"][source_id]
+        for record in behind_login
+        for source_id in record["source_ids"]
+    )
 
 
 def test_generated_document_is_byte_for_byte_current() -> None:
@@ -75,7 +87,7 @@ def test_generated_document_is_byte_for_byte_current() -> None:
             prefix = f"| <code>{profile}</code> | <code>{query_name}</code> |"
             assert document.count(prefix) == 1, f"{profile}/{query_name}"
     data_rows = [line for line in document.splitlines() if line.startswith("| <code>")]
-    assert len(data_rows) == 249
+    assert len(data_rows) == 278
     assert all(line.count("|") == 8 for line in data_rows)
 
 

@@ -11,6 +11,10 @@ from pathlib import PurePosixPath
 import re
 from typing import Any
 
+from netops_core.hostkey import HostKeyError, checked_pin
+from netops_core.legacy_ssh import LegacySshError, checked as checked_legacy_ssh
+from netops_core.platforms import PlatformError, normalize as normalize_canonical_platform
+
 from .read_policy import (
     READ_QUERIES,
     normalize_platform,
@@ -46,13 +50,18 @@ class EgressScopeError(PolicyScopeError):
 
 
 LEGACY_SSH_PROFILES = ("rsa-sha1",)
+ENVELOPE_VERSION = "0.3.0"
+CREDENTIAL_KINDS = ("password", "ssh-key")
+PRIVATE_KEY_PREFIX = "-----BEGIN "
+_CATALOG_PLATFORMS = {"fortios": "fortinet", "exos": "extreme_exos"}
 _ENVELOPE_KEYS = {
     "alias",
     "host",
     "port",
     "login",
-    "password",
-    "known_hosts",
+    "credential_kind",
+    "secret",
+    "host_key_fingerprint",
     "sftp_roots",
     "read_inventory",
     "account_role",
@@ -289,7 +298,10 @@ def _normalize_ssh_policy(
     if platform is None:
         normalized_platform = None
     elif isinstance(platform, str):
-        normalized_platform = normalize_platform(platform)
+        canonical = normalize_canonical_platform(platform)
+        normalized_platform = normalize_platform(
+            _CATALOG_PLATFORMS.get(canonical, canonical)
+        )
     else:
         raise TypeError("ssh_platform must be a supported string or null")
 
@@ -316,11 +328,22 @@ def _normalize_ssh_policy(
 
 
 def _normalize_legacy_ssh(value: object) -> str | None:
-    if value is None:
-        return None
-    if not isinstance(value, str) or value not in LEGACY_SSH_PROFILES:
-        raise ValueError("legacy_ssh must be null or a supported profile name")
-    return value
+    return checked_legacy_ssh(value)
+
+
+def _normalize_credential(kind: object, secret: object) -> tuple[str, str]:
+    if not isinstance(kind, str) or kind not in CREDENTIAL_KINDS:
+        raise ValueError("credential_kind must be one of " + ", ".join(CREDENTIAL_KINDS))
+    if not isinstance(secret, str) or "\x00" in secret or "\x7f" in secret:
+        raise ValueError("secret must be printable text")
+    if kind == "ssh-key":
+        if not secret.startswith(PRIVATE_KEY_PREFIX) or not 64 <= len(
+            secret.encode("utf-8")
+        ) <= 65_536:
+            raise ValueError("an ssh-key secret must hold a bounded private key document")
+    elif not 3 <= len(secret.encode("utf-8")) <= 4_096:
+        raise ValueError("a password secret must contain 3-4096 UTF-8 bytes")
+    return kind, secret
 
 
 @dataclass(frozen=True, slots=True)
@@ -329,8 +352,9 @@ class TargetAuth:
     host: str
     port: int
     login: str
-    password: str
-    known_hosts: str
+    secret: str
+    host_key_fingerprint: str
+    credential_kind: str = "password"
     sftp_roots: tuple[str, ...] = ()
     read_inventory: dict[str, tuple[str, ...]] = field(default_factory=dict)
     account_role: str = "read-only"
@@ -353,14 +377,15 @@ class TargetAuth:
                 raise ValueError("authentication context contains unsupported fields")
             if "ssh_platform" not in data or "enabled_queries" not in data or "egress" not in data:
                 raise ValueError("authentication context is missing mandatory policy fields")
-            if not {"alias", "host", "port", "login", "password"} <= set(data):
+            if not {
+                "alias", "host", "port", "login",
+                "credential_kind", "secret", "host_key_fingerprint",
+            } <= set(data):
                 raise ValueError("authentication context is missing required identity fields")
 
             alias = data["alias"]
             port = data["port"]
             login = data["login"]
-            password = data["password"]
-            known_hosts = data.get("known_hosts", "")
             account_role = data.get("account_role", "")
             verified = data.get("fortios_output_standard_verified", False)
             if (
@@ -370,16 +395,15 @@ class TargetAuth:
                 or not 1 <= port <= 65_535
                 or not isinstance(login, str) or not login or len(login) > 512
                 or any(ord(char) < 32 or ord(char) == 127 for char in login)
-                or not isinstance(password, str)
-                or not 3 <= len(password.encode("utf-8")) <= 4_096
-                or "\x00" in password or "\x7f" in password
-                or not isinstance(known_hosts, str) or len(known_hosts) > 65_536
-                or "\x00" in known_hosts or "\x7f" in known_hosts
-                or "known_hosts" in data and not known_hosts.strip()
                 or not isinstance(account_role, str)
                 or not isinstance(verified, bool)
             ):
                 raise ValueError("authentication context contains invalid identity material")
+
+            credential_kind, secret = _normalize_credential(
+                data["credential_kind"], data["secret"],
+            )
+            host_key_fingerprint = checked_pin(data["host_key_fingerprint"])
 
             host = _normalize_host(data["host"])
             ssh_platform, enabled_queries = _normalize_ssh_policy(
@@ -427,8 +451,9 @@ class TargetAuth:
                 host=host,
                 port=port,
                 login=login,
-                password=password,
-                known_hosts=known_hosts,
+                secret=secret,
+                host_key_fingerprint=host_key_fingerprint,
+                credential_kind=credential_kind,
                 sftp_roots=normalized_roots,
                 read_inventory=read_inventory,
                 account_role=account_role,
@@ -439,12 +464,15 @@ class TargetAuth:
                 egress=egress,
                 legacy_ssh=legacy_ssh,
             )
-        except (KeyError, TypeError, ValueError, UnicodeError) as exc:
+        except (
+            KeyError, TypeError, ValueError, UnicodeError,
+            HostKeyError, LegacySshError, PlatformError,
+        ) as exc:
             raise AuthenticationContextError("invalid ephemeral authentication context") from exc
 
         if result.alias != expected_alias:
             raise AuthenticationContextError("target alias does not match authentication context")
-        if not result.host or not result.login or not result.password:
+        if not result.host or not result.login or not result.secret:
             raise AuthenticationContextError("authentication context has empty required fields")
         if not 1 <= result.port <= 65_535:
             raise AuthenticationContextError("authentication context has invalid port")
@@ -453,7 +481,7 @@ class TargetAuth:
         if (
             result.snmp_community is not None
             and hmac.compare_digest(
-                result.snmp_community.encode("utf-8"), result.password.encode("utf-8")
+                result.snmp_community.encode("utf-8"), result.secret.encode("utf-8")
             )
         ):
             raise AuthenticationMaterialError("SNMP community must differ from the account password")
@@ -467,13 +495,9 @@ class TargetAuth:
             )
         return result
 
-    def require_known_hosts(self) -> None:
-        if not self.known_hosts.strip():
-            raise AuthenticationContextError("verified SSH host keys are unavailable")
-
     def require_snmp_community(self) -> str:
         community = self.snmp_community
-        password = self.password
+        password = self.secret
         if community is None:
             raise AuthenticationMaterialError("SNMP community is not enrolled for this target")
         if not isinstance(community, str) or not isinstance(password, str):
@@ -549,5 +573,5 @@ class TargetAuth:
     def secrets(self) -> tuple[str, ...]:
         """Only credentials are secrets; diagnostic identifiers must remain observable."""
         return tuple(dict.fromkeys(
-            value for value in (self.password, self.snmp_community) if value
+            value for value in (self.secret, self.snmp_community) if value
         ))

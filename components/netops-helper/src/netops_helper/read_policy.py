@@ -23,6 +23,7 @@ PLATFORM_MAP = {
     "arista_eos": "arista_eos",
     "juniper_junos": "juniper_junos",
     "juniper_junos_els": "juniper_junos_els",
+    "ruckus_unleashed": "ruckus_unleashed",
 }
 
 
@@ -363,6 +364,7 @@ _EXPECTED_PLATFORMS = frozenset({
     "arista_eos",
     "juniper_junos",
     "juniper_junos_els",
+    "ruckus_unleashed",
 })
 _LINUX_COMMANDS = frozenset({
     "hostname",
@@ -413,7 +415,19 @@ _FORTINET_COMMANDS = frozenset({
     "get router info6 ospf neighbor all",
     "get router info bfd neighbor",
     "get router info6 bfd neighbor",
+    "diagnose sys ntp status",
+    "diagnose sys top 1 5 1",
+    "diagnose autoupdate status",
+    "diagnose autoupdate versions",
+    "diagnose vpn ssl list",
+    "diagnose vpn ssl statistics",
+    "diagnose firewall auth list",
+    "diagnose ips filter status",
+    "diagnose ips anomaly status",
+    "diagnose antivirus outbreak-prevention statistics list",
 })
+_FORTINET_TOP_PREFIX = "diagnose sys top"
+_FORTINET_TOP_SNAPSHOT = "diagnose sys top 1 5 1"
 _FORBIDDEN_SHOW_SECOND = re.compile(
     r"(?:run(?:ning-config)?|start(?:up-config)?|full-configuration|"
     r"conf(?:ig(?:uration)?)?|tech(?:-support)?|file|key-chain|"
@@ -551,6 +565,11 @@ def _validate_query_command(platform: str, command: object) -> None:
             raise RuntimeError("Linux query is outside the reviewed templates")
         return
     if platform == "fortinet":
+        if (
+            inspected.startswith(_FORTINET_TOP_PREFIX)
+            and inspected != _FORTINET_TOP_SNAPSHOT
+        ):
+            raise RuntimeError("FortiOS process snapshot must be the fixed single-iteration form")
         if inspected not in _FORTINET_COMMANDS:
             raise RuntimeError("Fortinet query is outside the reviewed templates")
         return

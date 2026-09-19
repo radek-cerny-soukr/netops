@@ -28,7 +28,9 @@ PROFILE_ORDER = (
     "arista_eos",
     "juniper_junos",
     "juniper_junos_els",
+    "ruckus_unleashed",
 )
+LOGIN_PROFILES = ("ruckus_unleashed",)
 OFFICIAL_HOSTS = {
     "docs.fortinet.com",
     "documentation.extremenetworks.com",
@@ -38,7 +40,12 @@ OFFICIAL_HOSTS = {
     "www.juniper.net",
 }
 SOURCE_ID_RE = re.compile(r"[A-Z][A-Z0-9-]{2,63}\Z")
+VERIFIED_DATE_RE = re.compile(r"[0-9]{4}-[0-9]{2}-[0-9]{2}\Z")
 PROJECT_NOTE = "Project contract; upstream source audit pending."
+LOGIN_NOTE = (
+    "Vendor guide behind a support login; syntax verified on a device 2026-09-16."
+)
+LOGIN_ACCESS = "login_required"
 
 
 class RegistryError(ValueError):
@@ -61,6 +68,14 @@ def _object_without_duplicates(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
 def _fail(condition: bool, message: str) -> None:
     if not condition:
         raise RegistryError(message)
+
+
+def _source_type(profile: str) -> str:
+    if profile == "linux":
+        return "project_contract"
+    if profile in LOGIN_PROFILES:
+        return "vendor_login_required"
+    return "official_vendor"
 
 
 def load_registry(path: Path = SOURCE_REGISTRY) -> dict[str, Any]:
@@ -139,10 +154,10 @@ def validate_registry(
         expected_fields = {
             "source_type", "vendor", "baseline", "reference_document"
         }
-        if profile == "linux":
+        if profile == "linux" or profile in LOGIN_PROFILES:
             expected_fields.add("source_note")
         _fail(set(record) == expected_fields, f"invalid profile fields: {profile}")
-        expected_type = "project_contract" if profile == "linux" else "official_vendor"
+        expected_type = _source_type(profile)
         _fail(record.get("source_type") == expected_type, f"invalid source type: {profile}")
         vendor = record.get("vendor")
         _fail(
@@ -159,21 +174,42 @@ def validate_registry(
         reference_texts[profile] = _reference_text(reference)
         if profile == "linux":
             _fail(record.get("source_note") == PROJECT_NOTE, "invalid Linux source marker")
+        elif profile in LOGIN_PROFILES:
+            _fail(record.get("source_note") == LOGIN_NOTE, f"invalid login-source marker: {profile}")
 
     source_urls: set[str] = set()
+    source_titles: set[str] = set()
     for source_id, record in sources.items():
         _fail(isinstance(source_id, str) and SOURCE_ID_RE.fullmatch(source_id) is not None,
               f"invalid source ID: {source_id}")
         _fail(isinstance(record, dict), f"source record is not an object: {source_id}")
+        behind_login = "access" in record
+        expected_source_fields = (
+            {"vendor", "title", "baseline", "access", "verified_on_device"}
+            if behind_login
+            else {"vendor", "title", "baseline", "url"}
+        )
         _fail(
-            set(record) == {"vendor", "title", "baseline", "url"},
+            set(record) == expected_source_fields,
             f"invalid source fields: {source_id}",
         )
-        for field in ("vendor", "title", "baseline", "url"):
+        for field in sorted(expected_source_fields):
             _fail(
                 isinstance(record.get(field), str) and bool(record[field].strip()),
                 f"source {source_id} has invalid {field}",
             )
+        if behind_login:
+            _fail(record["access"] == LOGIN_ACCESS, f"invalid source access: {source_id}")
+            _fail(
+                VERIFIED_DATE_RE.fullmatch(record["verified_on_device"]) is not None,
+                f"source behind a login has no measured verification date: {source_id}",
+            )
+            _fail(
+                record["title"] not in source_titles,
+                f"duplicate source title: {source_id}",
+            )
+            source_titles.add(record["title"])
+            continue
         url = record["url"]
         parsed = urlsplit(url)
         _fail(parsed.scheme == "https", f"source URL is not HTTPS: {source_id}")
@@ -199,7 +235,7 @@ def validate_registry(
         _fail(isinstance(record, dict), f"query record is not an object: {composite}")
         profile, query_name = composite.split("/", 1)
         expected_fields = {"profile", "query", "source_type", "source_ids"}
-        if profile == "linux":
+        if profile == "linux" or profile in LOGIN_PROFILES:
             expected_fields.add("source_note")
         _fail(set(record) == expected_fields, f"invalid query fields: {composite}")
         _fail(record.get("profile") == profile, f"profile mismatch: {composite}")
@@ -220,22 +256,30 @@ def validate_registry(
                   f"Linux query lacks pending-audit marker: {composite}")
             continue
         _fail(bool(source_ids), f"vendor query has no source: {composite}")
+        if profile in LOGIN_PROFILES:
+            _fail(record.get("source_note") == LOGIN_NOTE,
+                  f"login-source query lacks its marker: {composite}")
         for source_id in source_ids:
             _fail(source_id in sources, f"unknown source ID {source_id}: {composite}")
             source = sources[source_id]
             _fail(source["vendor"] == profile_vendors[profile],
                   f"source vendor mismatch {source_id}: {composite}")
-            _fail(source["url"] in reference_texts[profile],
-                  f"source URL is absent from narrative {source_id}: {composite}")
+            anchor = source["title"] if "access" in source else source["url"]
+            _fail(anchor in reference_texts[profile],
+                  f"source is absent from narrative {source_id}: {composite}")
             referenced_sources.add(source_id)
 
     _fail(set(sources) == referenced_sources, "registry contains an unreferenced source record")
-    vendor_count = sum(
-        1 for record in queries.values() if record["source_type"] == "official_vendor"
-    )
-    project_count = len(queries) - vendor_count
-    _fail(vendor_count == 233, "vendor query count is not 233")
-    _fail(project_count == 16, "project-contract query count is not 16")
+    counted = {
+        source_type: sum(
+            1 for record in queries.values() if record["source_type"] == source_type
+        )
+        for source_type in ("official_vendor", "project_contract", "vendor_login_required")
+    }
+    _fail(counted["official_vendor"] == 258, "vendor query count is not 258")
+    _fail(counted["project_contract"] == 16, "project-contract query count is not 16")
+    _fail(counted["vendor_login_required"] == 4, "login-source query count is not 4")
+    _fail(sum(counted.values()) == len(queries), "a query carries an unknown source type")
 
 
 def _text(value: str) -> str:
@@ -259,6 +303,18 @@ def _source_cell(registry: Mapping[str, Any], composite: str) -> str:
     record = registry["queries"][composite]
     if record["source_type"] == "project_contract":
         return _text(record["source_note"])
+    if record["source_type"] == "vendor_login_required":
+        return "<br>".join(
+            _text(
+                "%s - %s (behind a vendor login; syntax verified on a device %s)"
+                % (
+                    source_id,
+                    registry["sources"][source_id]["title"],
+                    registry["sources"][source_id]["verified_on_device"],
+                )
+            )
+            for source_id in record["source_ids"]
+        )
     return "<br>".join(
         f"[{source_id}]({registry['sources'][source_id]['url']})"
         for source_id in record["source_ids"]
@@ -281,7 +337,7 @@ def render_document(
         "",
         "The Phase-1 catalog intentionally excludes running, startup, full, backup, and exported configuration; arbitrary CLI; logs except the bounded Linux service query; debug; support bundles; packet capture; file display; shells; and every write or lifecycle action.",
         "",
-        "Source links establish reviewed syntax and purpose. They do not prove support, output shape, read-only AAA behavior, or transmitted bytes on a particular target. See the [vendor audit index](vendor-cli-references.md) for limitations and exclusions.",
+        "Source links establish reviewed syntax and purpose. They do not prove support, output shape, read-only AAA behavior, or transmitted bytes on a particular target. A source named without a link is a vendor guide that is only reachable behind a vendor login; its row carries the date the syntax was run on a device instead. See the [vendor audit index](vendor-cli-references.md) for limitations and exclusions.",
         "",
     ]
     for profile in PROFILE_ORDER:

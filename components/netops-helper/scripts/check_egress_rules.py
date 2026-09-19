@@ -46,7 +46,7 @@ def validate_bundle(bundle: dict[str, Any]) -> None:
     expected_manifest_keys = {
         "schema_version", "profile", "backend", "network_name", "bridge_name",
         "network_ipv6_enabled", "ipv6_boundary", "default_action", "allow_dns",
-        "dns_resolvers", "lan_cidrs",
+        "dns_resolvers", "lan_cidrs", "inventory_sha256",
         "targets",
     }
     if set(manifest) != expected_manifest_keys:
@@ -63,6 +63,12 @@ def validate_bundle(bundle: dict[str, Any]) -> None:
         or not isinstance(manifest.get("allow_dns"), bool)
         or not isinstance(manifest.get("dns_resolvers"), list)
         or not isinstance(manifest.get("lan_cidrs"), list)
+        or not isinstance(manifest.get("inventory_sha256"), str)
+        or len(manifest["inventory_sha256"]) != generator.DIGEST_LENGTH
+        or any(
+            character not in "0123456789abcdef"
+            for character in manifest["inventory_sha256"]
+        )
         or not isinstance(manifest.get("targets"), list)
     ):
         raise EgressCheckError("manifest safety boundary is invalid")

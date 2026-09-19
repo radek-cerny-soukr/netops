@@ -1,8 +1,6 @@
 fastmcp==4.0.3
 mcp==2.1.1
 httpx==0.28.1
-netmiko==4.7.0
 pysnmp==7.1.29
 icmplib==3.0.4
-asyncssh==2.24.0
 

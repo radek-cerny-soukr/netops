@@ -1,0 +1,59 @@
+{
+  "version": 2,
+  "devices": [
+    {
+      "name": "device-alias",
+      "platform": "linux",
+      "address": "192.0.2.10",
+      "port": 22,
+      "role": "interni",
+      "credential": "device-alias-account",
+      "host_key_fingerprint": "SHA256:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+      "legacy_ssh": null,
+      "auditor": null,
+      "helper": {
+        "account_role": "read-only",
+        "ssh_platform": "linux",
+        "enabled_queries": [
+          "hostname",
+          "neighbors"
+        ],
+        "read_inventory": {
+          "interfaces": [
+            "example-interface"
+          ],
+          "services": [
+            "example.service"
+          ],
+          "addresses": [
+            "192.0.2.20"
+          ],
+          "switches": [
+            "example-switch"
+          ]
+        },
+        "sftp_roots": [],
+        "fortios_output_standard_verified": false,
+        "snmp_credential": "device-alias-community",
+        "rate_limit": {
+          "requests": 30,
+          "window_seconds": 60
+        },
+        "egress": {
+          "addresses": [
+            "192.0.2.10"
+          ],
+          "tcp_ports": [],
+          "udp_ports": [
+            161
+          ],
+          "tcp_port_ranges": [],
+          "udp_port_ranges": [],
+          "allow_icmp": false,
+          "allow_dns": false,
+          "tls_server_names": []
+        }
+      }
+    }
+  ]
+}

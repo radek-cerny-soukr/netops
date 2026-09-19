@@ -1,0 +1,7 @@
+{
+  "version": 1,
+  "host": "runner.example.invalid",
+  "port": 22,
+  "credential": "runner-account",
+  "host_key_fingerprint": "SHA256:BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB"
+}

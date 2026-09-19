@@ -13,6 +13,7 @@ from .junos import COMMON_QUERIES as JUNIPER_JUNOS_QUERIES
 from .junos import ELS_QUERIES as JUNIPER_JUNOS_ELS_QUERIES
 from .linux import QUERIES as LINUX_QUERIES
 from .model import Query
+from .ruckus import QUERIES as RUCKUS_UNLEASHED_QUERIES
 
 
 READ_QUERIES: Mapping[str, Mapping[str, Query]] = MappingProxyType({
@@ -25,4 +26,5 @@ READ_QUERIES: Mapping[str, Mapping[str, Query]] = MappingProxyType({
     "arista_eos": ARISTA_EOS_QUERIES,
     "juniper_junos": JUNIPER_JUNOS_QUERIES,
     "juniper_junos_els": JUNIPER_JUNOS_ELS_QUERIES,
+    "ruckus_unleashed": RUCKUS_UNLEASHED_QUERIES,
 })

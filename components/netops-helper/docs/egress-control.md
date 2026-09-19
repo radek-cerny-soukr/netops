@@ -4,11 +4,11 @@
 
 The public Compose network is a stable Docker bridge named `netops-helper` with host interface `nh-egress0` and `internal: false`. Outbound diagnostics require this external connectivity.
 
-`scripts/generate_egress_rules.py` validates the credential/policy relationship and produces a deterministic, secret-free bundle for the reviewed iptables backend. `scripts/apply_egress_rules.py` applies an exact managed-chain transaction, and `scripts/check_egress_rules.py` compares observed Docker/iptables state with the bundle. These are privileged operator tools and are never exposed through MCP.
+`scripts/generate_egress_rules.py` reads `inventory.json` and `egress-policy.json` - never the vault - and produces a deterministic, secret-free bundle for the reviewed iptables backend. Its inputs are the common `address` and `port` of every device whose `helper` section is an object, the ports and flags of `helper.egress`, and the eight fields of the egress policy; a device without a helper section is ignored. `scripts/apply_egress_rules.py` applies an exact managed-chain transaction, and `scripts/check_egress_rules.py` compares observed Docker/iptables state with the bundle. These are privileged operator tools and are never exposed through MCP.
 
 The generated DOCKER-USER jump matches traffic forwarded from `nh-egress0`. It permits only the profile's derived IPv4 destinations, protocols, and ports, then drops other forwarded traffic from that bridge.
 
-`manifest_sha256` is the SHA-256 of the bundle's canonical normalized `manifest` object. It binds the rendered rule marker and lets apply/check detect manifest/ruleset substitution. It is not a digest of the vault file, policy file, source revision, aliases, or original input bytes. The normalized manifest intentionally omits aliases and can deduplicate identical effective target scopes, so the operator must review its actual network scope and separately record the transferred bundle digest.
+`manifest_sha256` is the SHA-256 of the bundle's canonical normalized `manifest` object. It binds the rendered rule marker and lets apply/check detect manifest/ruleset substitution. It is not a digest of the policy file, the source revision, or the original input bytes. The manifest does carry `inventory_sha256`, the SHA-256 of the inventory file the bundle was generated from, so one bundle names the enrollment it came from. The normalized manifest intentionally omits device names and can deduplicate identical effective scopes, so the operator must review its actual network scope and separately record the transferred bundle digest.
 
 Bundle schema 3 contains only the IPv4 ruleset that the apply helper actually installs. It does not generate or claim an ip6tables chain. The IPv6 boundary is the Compose network setting `enable_ipv6: false`, represented in the manifest as `network_ipv6_enabled: false` and `ipv6_boundary: docker-network-disabled`. Apply verifies Docker's exact `EnableIPv6: false` state before inspecting or changing IPv4 firewall state; missing, ambiguous, or enabled state fails closed. This is a network-scoped boundary, not a host-wide IPv6 firewall claim.
 
@@ -22,17 +22,17 @@ The stable bridge name is the rule anchor. A fixed container subnet is intention
 
 For this profile, the generator forms the union of every enrolled target's TCP ports/ranges, UDP ports/ranges, and ICMP permission, then grants that entire union to every address in every declared LAN CIDR. DNS remains separately limited to the explicit resolver list. Consequently, an enrolled port for one target becomes reachable on all hosts in all declared LAN CIDRs. This deliberately catches internet exfiltration while accepting substantially broader lateral reach than `strict-target`; it is not per-target isolation.
 
-`strict-target` is bounded by each target's canonical addresses and its own effective port/range/ICMP scope. Both profiles use explicit resolver addresses and the policy-derived SSH/SFTP credential port; TLS probes require explicit TCP scope, and FTP requires an explicit control port and passive TCP range. No HTTPS port is derived.
+`strict-target` is bounded by each target's canonical addresses and its own effective port/range/ICMP scope. Both profiles use explicit resolver addresses and the device `port`, derived only when that device has an `ssh_platform` with enabled queries or at least one SFTP root; TLS probes require explicit TCP scope, and FTP requires an explicit control port and passive TCP range. No HTTPS port is derived.
 
 ## DNS
 
-A hostname target requires all three:
+A device named by a host name requires all three:
 
 - `allow_dns: true`;
-- non-empty canonical target `addresses`;
-- explicit global `dns_resolvers`.
+- non-empty canonical `egress.addresses`;
+- explicit `dns_resolvers` in the egress policy.
 
-The server resolves the hostname and rejects any canonical IPv4 result outside the target address list. The firewall bundle exposes only aggregate DNS permission and resolver addresses, not hostnames or TLS names.
+The server resolves the host name and rejects any canonical IPv4 result outside that address list. The firewall bundle exposes only aggregate DNS permission and resolver addresses, not hostnames or TLS names.
 
 Docker commonly presents `127.0.0.11` to the container as embedded DNS and performs forwarding/NAT internally. The exact path is engine- and host-dependent. A generated upstream-resolver rule is not proof that embedded DNS is constrained or even functional.
 
@@ -84,7 +84,7 @@ The apply helper requires root, an explicit `--apply`, a mode-600 bundle, and wo
 
 The single IPv4 `iptables-restore` COMMIT is atomic. If later verification fails, rollback of the tool-owned marked jump and private chain is best effort; operator recovery may still be required. The helper never edits unrelated chains and never invokes ip6tables.
 
-The checker validates the supplied bundle internally and compares it with observed Docker network and IPv4 ruleset state. It does not reread the vault or policy, prove that enrollment has not changed, execute live traffic tests, or cover runner-host INPUT. A passing checker is therefore necessary but not sufficient and must be rerun with a freshly generated bundle after every relevant enrollment or Docker-network change.
+The checker validates the supplied bundle internally and compares it with observed Docker network and IPv4 ruleset state. It does not reread the inventory or the egress policy, prove that enrollment has not changed, execute live traffic tests, or cover runner-host INPUT. A passing checker is therefore necessary but not sufficient and must be rerun with a freshly generated bundle after every relevant enrollment or Docker-network change.
 
 ## Operator workflow
 
@@ -95,6 +95,6 @@ The checker validates the supplied bundle internally and compares it with observ
 5. Apply the exact bundle with the dedicated helper under the minimum required privilege.
 6. Run the checker against live observed state.
 7. Perform the ARM64 traffic tests above.
-8. Regenerate, reapply, and recheck after any vault target, policy, metadata/listing root, port, Docker network, or resolver change.
+8. Regenerate, reapply, and recheck after any device entry, helper section, metadata/listing root, port, Docker network, or resolver change.
 
 Generated bundles reveal network scope even though they contain no credentials. Store them as environment-sensitive operational data and never publish them as release artifacts.

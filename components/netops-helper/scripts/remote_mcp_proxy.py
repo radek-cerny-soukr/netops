@@ -4,10 +4,8 @@
 from __future__ import annotations
 
 import argparse
-from base64 import b64decode, urlsafe_b64encode
+from base64 import urlsafe_b64encode
 from collections import deque
-import hashlib
-import hmac
 import ipaddress
 import json
 import math
@@ -15,14 +13,26 @@ import os
 from pathlib import Path, PurePosixPath
 import re
 import secrets as secrets_module
+import shutil
 import socket
 import stat
 import struct
 import subprocess
 import sys
+import tempfile
 import threading
 import time
 from typing import Any
+
+COMPONENT_ROOT = Path(__file__).resolve().parents[1]
+for SOURCE_ROOT in (
+    COMPONENT_ROOT / "src", COMPONENT_ROOT.parent / "netops-core" / "src",
+):
+    if str(SOURCE_ROOT) not in sys.path:
+        sys.path.insert(0, str(SOURCE_ROOT))
+from netops_core import hostkey
+from netops_core import vault as core_vault
+from netops_helper import inventory as helper_inventory
 
 if __package__:
     from .proxy_sanitize import sanitize_object, sanitize_text
@@ -36,18 +46,34 @@ def _configured_path(variable: str, default: Path) -> Path:
 
 
 CONFIG_HOME = _configured_path("XDG_CONFIG_HOME", Path.home() / ".config") / "netops-helper"
+INVENTORY = _configured_path("NETOPS_INVENTORY_PATH", CONFIG_HOME / "inventory.json")
 VAULT = _configured_path("NETOPS_VAULT_PATH", CONFIG_HOME / "vault.json")
-KNOWN_HOSTS = _configured_path("NETOPS_KNOWN_HOSTS_PATH", Path.home() / ".ssh" / "known_hosts")
-TARGET_POLICY = _configured_path("NETOPS_TARGET_POLICY_PATH", CONFIG_HOME / "target-policy.json")
-MASTER_ALIAS = os.environ.get("NETOPS_MASTER_ALIAS", "netops-runner")
+EGRESS_POLICY = _configured_path(
+    "NETOPS_EGRESS_POLICY_PATH", INVENTORY.parent / "egress-policy.json",
+)
+RUNNER = _configured_path("NETOPS_RUNNER_PATH", INVENTORY.parent / "runner.json")
+REMOVED_VARIABLES = (
+    "NETOPS_TARGET_POLICY_PATH", "NETOPS_KNOWN_HOSTS_PATH", "NETOPS_MASTER_ALIAS",
+)
+REMOVED_FILES = ("target-policy.json",)
+LEGACY_CONFIGURATION_MESSAGE = (
+    "Enroll the devices in inventory.json, the runner in runner.json and the firewall"
+    " inputs in egress-policy.json; target-policy.json, NETOPS_TARGET_POLICY_PATH,"
+    " NETOPS_KNOWN_HOSTS_PATH and NETOPS_MASTER_ALIAS are gone."
+)
+VAULT_MODES = (0o600, 0o400)
+RUNNER_VERSION = 1
+RUNNER_FIELDS = ("version", "host", "port", "credential", "host_key_fingerprint")
+HOST_KEY_SCAN_TIMEOUT_SECONDS = 10
+IDENTITY_NAME = "runner-identity"
 AUTH_FIELD = "auth_context"
-DEFAULT_RATE_REQUESTS = 30
-DEFAULT_RATE_WINDOW_SECONDS = 60
+DEFAULT_RATE_REQUESTS = helper_inventory.DEFAULT_RATE_REQUESTS
+DEFAULT_RATE_WINDOW_SECONDS = helper_inventory.DEFAULT_RATE_WINDOW_SECONDS
 MAX_REQUEST_BYTES = 1_048_576
 ASKPASS_MODE_ENV = "_NETOPS_HELPER_ASKPASS_MODE"
 ASKPASS_SOCKET_ENV = "_NETOPS_HELPER_ASKPASS_SOCKET"
 SSH_TRANSPORT_FAILURE_MESSAGE = "The remote MCP SSH transport failed."
-RUNNER_ALIAS_FAILURE_MESSAGE = "The runner alias is not present in the credential vault."
+SSH_HOST_KEY_FAILURE_MESSAGE = "SSH host-key verification failed."
 SSH_TOOLS = {"ssh_read", "sftp_stat"}
 CONTROL_TOOLS = {"helper_status", "read_query_catalog", "target_scope"}
 PLATFORM_MAP = {
@@ -62,6 +88,7 @@ PLATFORM_MAP = {
     "arista_eos": "arista_eos",
     "juniper_junos": "juniper_junos",
     "juniper_junos_els": "juniper_junos_els",
+    "ruckus_unleashed": "ruckus_unleashed",
 }
 SUPPORTED_SSH_PLATFORMS = set(PLATFORM_MAP)
 READ_QUERY_NAMES = {
@@ -85,16 +112,22 @@ READ_QUERY_NAMES = {
     )),
     "fortinet": frozenset((
         "arp_table",
+        "autoupdate_status",
+        "autoupdate_versions",
+        "av_outbreak_stats",
         "bfd_neighbors",
         "bgp_summary",
         "bridge_mac_table",
         "disk_status",
+        "firewall_auth_users",
         "ha_checksum",
         "ha_history",
         "ha_status",
         "hardware_memory",
         "interface_details",
         "interface_hardware",
+        "ips_anomaly_status",
+        "ips_filter_status",
         "ipsec_status",
         "ipsec_summary",
         "ipv6_bfd_neighbors",
@@ -104,6 +137,7 @@ READ_QUERY_NAMES = {
         "ipv6_ospf_status",
         "ipv6_route_protocols",
         "lldp_summary",
+        "ntp_status",
         "ospf_neighbors",
         "ospf_status",
         "performance",
@@ -113,15 +147,23 @@ READ_QUERY_NAMES = {
         "routing_table",
         "sdwan_health",
         "session_stats",
+        "sslvpn_sessions",
+        "sslvpn_statistics",
         "system_status",
+        "system_top",
     )),
     "extreme_exos": frozenset((
+        "access_list_counters",
         "arp_address",
         "arp_interface",
         "arp_table",
         "cpu_monitoring",
         "diagnostics",
+        "edp_neighbors",
+        "elrp",
         "fans",
+        "inline_power",
+        "inline_power_port",
         "interface_details",
         "interface_rx_errors",
         "interface_statistics",
@@ -131,18 +173,28 @@ READ_QUERY_NAMES = {
         "ipv6_neighbors",
         "ipv6_route_summary",
         "lacp",
+        "licenses",
         "lldp_interface",
         "lldp_interface_details",
         "lldp_neighbors",
         "mac_interface",
         "mac_table",
+        "mcast_cache_summary",
         "memory",
+        "mirror",
+        "ntp",
         "ports",
         "ports_configuration",
         "power",
         "processes",
+        "qos_profiles",
         "route_summary",
+        "sessions",
         "sharing",
+        "sntp_client",
+        "stacking",
+        "stacking_support",
+        "stp_detail",
         "stp_summary",
         "switch",
         "temperature",
@@ -332,6 +384,12 @@ READ_QUERY_NAMES = {
         "virtual_chassis",
         "vlans",
     )),
+    "ruckus_unleashed": frozenset((
+        "access_points",
+        "ethernet_info",
+        "system_info",
+        "wlans",
+    )),
 }
 SAFE_QUERY_NAME = re.compile(r"[a-z][a-z0-9_]{0,127}")
 READ_QUERY_SLOTS = {
@@ -395,6 +453,12 @@ READ_QUERY_SLOTS = {
             },
         },
         "arp_interface": {
+            "interface": {
+                "inventory": "interfaces",
+                "kind": "extreme_physical_port",
+            },
+        },
+        "inline_power_port": {
             "interface": {
                 "inventory": "interfaces",
                 "kind": "extreme_physical_port",
@@ -725,6 +789,7 @@ READ_QUERY_SLOTS = {
             },
         },
     },
+    "ruckus_unleashed": {},
 }
 SAFE_INTERFACE_VALUE = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.:/-]{0,63}")
 SAFE_SERVICE_VALUE = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.@-]{0,127}")
@@ -1037,17 +1102,6 @@ GENERIC_INVENTORY_KINDS = {
     "addresses": "address",
     "switches": "switch",
 }
-RESERVED_POLICY_KEY = "_egress"
-TARGET_POLICY_KEYS = {
-    "account_role", "ssh_platform", "enabled_queries", "read_inventory",
-    "sftp_roots", "fortios_output_standard_verified",
-    "legacy_ssh", "rate_limit", "egress",
-}
-LEGACY_SSH_PROFILES = ("rsa-sha1",)
-EGRESS_KEYS = {
-    "addresses", "tcp_ports", "udp_ports", "tcp_port_ranges", "udp_port_ranges",
-    "allow_icmp", "allow_dns", "tls_server_names",
-}
 DEVICE_TOOLS = {
     "dns_probe", "tcp_probe", "icmp_probe", "tls_probe", "ssh_read",
     "snmp_get", "sftp_stat", "ftp_list",
@@ -1074,23 +1128,6 @@ TOOL_ARGUMENT_SCHEMAS = {
 REMOTE_SERVER_TOOLS = frozenset(TOOL_ARGUMENT_SCHEMAS) - {"target_scope"}
 
 
-def _safe_dns_name(value: object) -> bool:
-    if not isinstance(value, str) or not value or len(value) > 253:
-        return False
-    if value != value.lower() or value.endswith("."):
-        return False
-    try:
-        value.encode("ascii")
-    except UnicodeEncodeError:
-        return False
-    labels = value.split(".")
-    return all(
-        0 < len(label) <= 63
-        and re.fullmatch(r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?", label)
-        for label in labels
-    )
-
-
 def _valid_typed_inventory_value(value: object, kind: str) -> bool:
     if not isinstance(value, str):
         return False
@@ -1113,30 +1150,6 @@ def _valid_typed_inventory_value(value: object, kind: str) -> bool:
         return canonicalizer(value) is not None
     pattern = SLOT_KIND_PATTERNS.get(kind)
     return pattern is not None and pattern.fullmatch(value) is not None
-
-
-def _validate_query_interface_inventory(
-    platform: str | None,
-    queries: list[str],
-    inventory: dict[str, list[str]],
-) -> bool:
-    if platform is None:
-        return True
-    interface_kinds = {
-        slot["kind"]
-        for query_name in queries
-        for slot in READ_QUERY_SLOTS[platform].get(query_name, {}).values()
-        if slot["inventory"] == "interfaces"
-    }
-    if not interface_kinds:
-        return True
-    return all(
-        any(
-            _valid_typed_inventory_value(value, kind)
-            for kind in interface_kinds
-        )
-        for value in inventory.get("interfaces", [])
-    )
 
 
 class ProxyError(ValueError):
@@ -1194,6 +1207,16 @@ class PolicyScopeError(ProxyError):
     public_message = "The requested operation is outside the enrolled target scope."
 
 
+class RunnerFileError(ProxyError):
+    code, category = -32010, "runner_file"
+    public_message = "The runner file is unavailable or invalid."
+
+
+class LegacyConfigurationError(ProxyError):
+    code, category = -32011, "legacy_configuration"
+    public_message = LEGACY_CONFIGURATION_MESSAGE
+
+
 class InternalProxyError(ProxyError):
     code, category = -32603, "internal_error"
     public_message = "The proxy encountered an internal error."
@@ -1214,6 +1237,7 @@ class Proxy:
         self.pending_lock = threading.Lock()
         self.stdout_lock = threading.Lock()
         self.vault_lock = threading.Lock()
+        self.inventory_lock = threading.Lock()
         self.policy_lock = threading.Lock()
         self.rate_lock = threading.Lock()
         self.rate_history: dict[str, deque[float]] = {}
@@ -1225,7 +1249,7 @@ class Proxy:
             and not any(ord(char) < 33 or ord(char) == 127 for char in value)
         )
 
-    def _load_vault_document(self) -> dict[str, Any]:
+    def _vault(self) -> core_vault.Vault:
         with self.vault_lock:
             try:
                 information = VAULT.lstat()
@@ -1233,398 +1257,153 @@ class Proxy:
                 raise VaultPermissionError() from exc
             except OSError as exc:
                 raise AuthenticationMaterialError() from exc
-            if not stat.S_ISREG(information.st_mode) or stat.S_IMODE(information.st_mode) != 0o600:
+            if (
+                not stat.S_ISREG(information.st_mode)
+                or stat.S_IMODE(information.st_mode) not in VAULT_MODES
+            ):
                 raise VaultPermissionError()
             try:
-                data = json.loads(VAULT.read_text(encoding="utf-8"))
+                VAULT.read_bytes()
             except PermissionError as exc:
                 raise VaultPermissionError() from exc
-            except (UnicodeError, json.JSONDecodeError) as exc:
-                raise VaultSchemaError() from exc
             except OSError as exc:
                 raise AuthenticationMaterialError() from exc
-        if not isinstance(data, dict):
-            raise VaultSchemaError()
-        return data
+            try:
+                return core_vault.load(VAULT)
+            except core_vault.VaultError as exc:
+                raise VaultSchemaError() from exc
 
     @staticmethod
-    def _validate_record(value: object) -> dict[str, Any]:
-        required = {"host", "port", "login", "password"}
-        allowed = required | {"snmp_community"}
-        if not isinstance(value, dict) or not required <= set(value) <= allowed:
-            raise VaultSchemaError()
-        host, port = value.get("host"), value.get("port")
-        login, password = value.get("login"), value.get("password")
-        try:
-            password_length = (
-                len(password.encode("utf-8")) if isinstance(password, str) else 0
-            )
-        except UnicodeError as exc:
-            raise AuthenticationMaterialError() from exc
-        if (
-            not isinstance(host, str) or not 0 < len(host) <= 253
-            or any(ord(char) < 33 or ord(char) == 127 for char in host)
-            or isinstance(port, bool) or not isinstance(port, int) or not 1 <= port <= 65_535
-            or not isinstance(login, str) or not 0 < len(login) <= 512
-            or any(ord(char) < 32 or ord(char) == 127 for char in login)
-            or not isinstance(password, str) or not 3 <= password_length <= 4_096
-            or "\x00" in password or "\x7f" in password
-        ):
-            raise AuthenticationMaterialError()
-        community = value.get("snmp_community")
-        try:
-            community_bytes = (
-                community.encode("utf-8") if isinstance(community, str) else b""
-            )
-        except UnicodeError as exc:
-            raise AuthenticationMaterialError() from exc
-        if community is not None and (
-            not isinstance(community, str)
-            or not 3 <= len(community_bytes) <= 255
-            or any(ord(char) < 32 or ord(char) == 127 for char in community)
-            or hmac.compare_digest(community_bytes, password.encode("utf-8"))
-        ):
-            raise AuthenticationMaterialError()
-        return dict(value)
-
-    def _load_record(self, alias: str) -> dict[str, Any]:
-        data = self._load_vault_document()
-        if alias not in data:
-            raise UnknownAliasError()
-        return self._validate_record(data[alias])
+    def _credential_kinds(vault: core_vault.Vault) -> dict[str, str]:
+        return {name: vault.credential(name).kind for name in vault.names()}
 
     @staticmethod
-    def _record_secrets(record: dict[str, Any]) -> tuple[str, ...]:
-        values = (record.get("password"), record.get("snmp_community"))
-        return tuple(dict.fromkeys(
-            value for value in values if isinstance(value, str) and value
-        ))
+    def _credential(vault: core_vault.Vault, name: object) -> core_vault.Credential:
+        try:
+            return vault.credential(name)
+        except core_vault.VaultError as exc:
+            raise AuthenticationMaterialError() from exc
 
-    def _load_policy_document(self) -> dict[str, Any]:
+    def _load_inventory(self) -> tuple[Any, ...]:
+        with self.inventory_lock:
+            try:
+                return helper_inventory.load(INVENTORY)
+            except helper_inventory.InventoryError as exc:
+                raise PolicySchemaError() from exc
+
+    def _load_egress_policy(self) -> dict[str, Any]:
         with self.policy_lock:
             try:
-                data = json.loads(TARGET_POLICY.read_text(encoding="utf-8"))
+                document = json.loads(EGRESS_POLICY.read_text(encoding="utf-8"))
             except (OSError, UnicodeError, json.JSONDecodeError) as exc:
                 raise PolicySchemaError() from exc
-        if not isinstance(data, dict):
-            raise PolicySchemaError()
-        return data
+        try:
+            return helper_inventory.egress_policy(document)
+        except helper_inventory.InventoryError as exc:
+            raise PolicySchemaError() from exc
 
-    @staticmethod
-    def _validate_egress(value: object) -> dict[str, Any]:
-        if not isinstance(value, dict) or set(value) != EGRESS_KEYS:
-            raise PolicySchemaError()
-        addresses = value["addresses"]
-        tcp_ports = value["tcp_ports"]
-        udp_ports = value["udp_ports"]
-        tcp_ranges = value["tcp_port_ranges"]
-        udp_ranges = value["udp_port_ranges"]
-        names = value["tls_server_names"]
+    def _load_runner(self) -> dict[str, Any]:
+        try:
+            document = json.loads(RUNNER.read_text(encoding="utf-8"))
+        except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+            raise RunnerFileError() from exc
+        if not isinstance(document, dict) or set(document) != set(RUNNER_FIELDS):
+            raise RunnerFileError()
+        version, host = document["version"], document["host"]
+        port, credential = document["port"], document["credential"]
         if (
-            not isinstance(addresses, list) or len(addresses) > 256
-            or not all(isinstance(item, str) for item in addresses)
-            or len(set(addresses)) != len(addresses)
+            isinstance(version, bool) or version != RUNNER_VERSION
+            or not isinstance(host, str) or not 0 < len(host) <= 253
+            or host.startswith("-") or "@" in host
+            or any(ord(char) < 33 or ord(char) == 127 for char in host)
+            or isinstance(port, bool) or not isinstance(port, int)
+            or not 1 <= port <= 65_535
+            or not isinstance(credential, str) or not credential.strip()
         ):
-            raise PolicySchemaError()
-        normalized_addresses: list[str] = []
-        for item in addresses:
-            try:
-                parsed = ipaddress.IPv4Address(item)
-            except ipaddress.AddressValueError as exc:
-                raise PolicySchemaError() from exc
-            if str(parsed) != item:
-                raise PolicySchemaError()
-            normalized_addresses.append(item)
-
-        def ports(items: object) -> list[int]:
-            if (
-                not isinstance(items, list) or len(items) > 256
-                or any(
-                    isinstance(item, bool) or not isinstance(item, int)
-                    or not 1 <= item <= 65_535 for item in items
-                )
-                or len(set(items)) != len(items)
-            ):
-                raise PolicySchemaError()
-            return sorted(items)
-
-        def ranges(items: object) -> list[list[int]]:
-            if not isinstance(items, list) or len(items) > 64:
-                raise PolicySchemaError()
-            result: list[list[int]] = []
-            for item in items:
-                if not isinstance(item, list) or len(item) != 2:
-                    raise PolicySchemaError()
-                start, end = item
-                if (
-                    isinstance(start, bool) or not isinstance(start, int)
-                    or isinstance(end, bool) or not isinstance(end, int)
-                    or not 1 <= start <= end <= 65_535
-                ):
-                    raise PolicySchemaError()
-                result.append([start, end])
-            result.sort()
-            if any(
-                current[0] <= previous[1]
-                for previous, current in zip(result, result[1:])
-            ):
-                raise PolicySchemaError()
-            return result
-
-        normalized_tcp_ports = ports(tcp_ports)
-        normalized_udp_ports = ports(udp_ports)
-        normalized_tcp_ranges = ranges(tcp_ranges)
-        normalized_udp_ranges = ranges(udp_ranges)
-        if any(
-            start <= port <= end
-            for port in normalized_tcp_ports
-            for start, end in normalized_tcp_ranges
-        ) or any(
-            start <= port <= end
-            for port in normalized_udp_ports
-            for start, end in normalized_udp_ranges
-        ):
-            raise PolicySchemaError()
-
-        if (
-            not isinstance(value["allow_icmp"], bool)
-            or not isinstance(value["allow_dns"], bool)
-            or not isinstance(names, list) or len(names) > 256
-            or len(set(names)) != len(names)
-            or not all(_safe_dns_name(name) for name in names)
-        ):
-            raise PolicySchemaError()
+            raise RunnerFileError()
+        try:
+            pin = hostkey.checked_pin(document["host_key_fingerprint"])
+        except hostkey.HostKeyError as exc:
+            raise RunnerFileError() from exc
         return {
-            "addresses": sorted(normalized_addresses, key=lambda item: int(ipaddress.IPv4Address(item))),
-            "tcp_ports": normalized_tcp_ports,
-            "udp_ports": normalized_udp_ports,
-            "tcp_port_ranges": normalized_tcp_ranges,
-            "udp_port_ranges": normalized_udp_ranges,
-            "allow_icmp": value["allow_icmp"],
-            "allow_dns": value["allow_dns"],
-            "tls_server_names": sorted(names),
+            "host": host, "port": port, "credential": credential,
+            "host_key_fingerprint": pin,
         }
 
     @staticmethod
-    def _validate_target_policy(value: object) -> dict[str, Any]:
-        if (
-            not isinstance(value, dict)
-            or set(value) - TARGET_POLICY_KEYS
-            or "egress" not in value
-        ):
-            raise PolicySchemaError()
-        if value.get("account_role") != "read-only":
-            raise RoleRejectedError()
-        if "ssh_platform" not in value or "enabled_queries" not in value:
-            raise PolicySchemaError()
-        platform = value["ssh_platform"]
-        queries = value["enabled_queries"]
-        if platform is not None and (
-            not isinstance(platform, str) or platform not in SUPPORTED_SSH_PLATFORMS
-        ):
-            raise PolicySchemaError()
-        normalized_platform = PLATFORM_MAP.get(platform) if platform is not None else None
-        if (
-            not isinstance(queries, list) or len(queries) > 256
-            or not all(isinstance(item, str) and SAFE_QUERY_NAME.fullmatch(item) for item in queries)
-            or len(set(queries)) != len(queries)
-            or normalized_platform is None and queries
-            or normalized_platform is not None
-            and any(query not in READ_QUERY_NAMES[normalized_platform] for query in queries)
-        ):
-            raise PolicySchemaError()
-        roots = value.get("sftp_roots", [])
-        inventory = value.get("read_inventory", {})
-        verified = value.get("fortios_output_standard_verified", False)
-        legacy_ssh = value.get("legacy_ssh")
-        if legacy_ssh is not None and (
-            not isinstance(legacy_ssh, str) or legacy_ssh not in LEGACY_SSH_PROFILES
-        ):
-            raise PolicySchemaError()
-        rate = value.get("rate_limit", {
-            "requests": DEFAULT_RATE_REQUESTS,
-            "window_seconds": DEFAULT_RATE_WINDOW_SECONDS,
-        })
-        egress = Proxy._validate_egress(value["egress"])
-        if (
-            not isinstance(roots, list) or len(roots) > 256
-            or not all(isinstance(item, str) for item in roots)
-            or len(set(roots)) != len(roots)
-        ):
-            raise PolicySchemaError()
-        normalized_roots: list[str] = []
-        for root in roots:
-            normalized = str(PurePosixPath(root))
-            if (
-                not root.startswith("/") or root.startswith("//") or root == "/" or root != normalized
-                or any(ord(char) < 32 or ord(char) == 127 for char in root)
-                or ".." in PurePosixPath(root).parts
-                or len(root) > 2_000
-            ):
-                raise PolicySchemaError()
-            normalized_roots.append(root)
-        if not isinstance(inventory, dict) or any(
-            key not in GENERIC_INVENTORY_KINDS
-            or not isinstance(items, list) or len(items) > 256
-            or not all(isinstance(item, str) for item in items)
-            for key, items in inventory.items()
-        ):
-            raise PolicySchemaError()
-        for key, items in inventory.items():
-            kind = GENERIC_INVENTORY_KINDS[key]
-            if len(set(items)) != len(items) or any(
-                not _valid_typed_inventory_value(item, kind)
-                for item in items
-            ):
-                raise PolicySchemaError()
-        if not _validate_query_interface_inventory(
-            normalized_platform,
-            queries,
-            inventory,
-        ):
-            raise PolicySchemaError()
-        if not isinstance(verified, bool):
-            raise PolicySchemaError()
-        if not isinstance(rate, dict) or set(rate) != {"requests", "window_seconds"}:
-            raise PolicySchemaError()
-        requests, window = rate.get("requests"), rate.get("window_seconds")
-        if (
-            isinstance(requests, bool) or not isinstance(requests, int) or not 1 <= requests <= 60
-            or isinstance(window, bool) or not isinstance(window, int) or not 1 <= window <= 3_600
-        ):
-            raise PolicySchemaError()
-        return {
-            "sftp_roots": normalized_roots,
-            "read_inventory": {key: list(items) for key, items in inventory.items()},
-            "account_role": "read-only",
-            "fortios_output_standard_verified": verified,
-            "ssh_platform": normalized_platform,
-            "enabled_queries": list(queries),
-            "legacy_ssh": legacy_ssh,
-            "rate_limit": {"requests": requests, "window_seconds": window},
-            "egress": egress,
-        }
-
-    def _load_target_policy(self, alias: str) -> dict[str, Any]:
-        if alias == RESERVED_POLICY_KEY:
+    def _device(entries: tuple[Any, ...], alias: str) -> Any:
+        try:
+            entry = helper_inventory.device(entries, alias)
+        except helper_inventory.InventoryError as exc:
+            raise UnknownAliasError() from exc
+        if entry.helper is None:
             raise PolicyRejectedError()
-        data = self._load_policy_document()
-        if alias not in data:
-            raise PolicyRejectedError()
-        return self._validate_target_policy(data[alias])
+        return entry
 
     @staticmethod
-    def _validate_target_binding(
-        record: dict[str, Any], policy: dict[str, Any],
-    ) -> None:
-        host = record["host"]
+    def _section(entry: Any, kinds: dict[str, str]) -> Any:
         try:
-            address = ipaddress.ip_address(host)
-        except ValueError:
-            if (
-                not _safe_dns_name(host)
-                or not policy["egress"]["allow_dns"]
-                or not policy["egress"]["addresses"]
-            ):
-                raise PolicySchemaError()
-        else:
-            if (
-                not isinstance(address, ipaddress.IPv4Address)
-                or str(address) != host
-                or host not in policy["egress"]["addresses"]
-            ):
-                raise PolicySchemaError()
+            return helper_inventory.section(entry, kinds)
+        except helper_inventory.RoleError as exc:
+            raise RoleRejectedError() from exc
+        except helper_inventory.InventoryError as exc:
+            raise PolicySchemaError() from exc
 
     @staticmethod
-    def _known_host_candidates(record: dict[str, Any]) -> tuple[str, ...]:
-        host, port = str(record["host"]), int(record["port"])
-        if host.startswith("[") and host.endswith("]"):
-            host = host[1:-1]
-        names = (host, f"[{host}]:22") if port == 22 else (f"[{host}]:{port}",)
-        return tuple(dict.fromkeys((*names, *(name.lower() for name in names))))
+    def _check_resolvers(section: Any, policy: dict[str, Any]) -> None:
+        if section.egress["allow_dns"] and not policy["dns_resolvers"]:
+            raise PolicySchemaError()
+
+    def _target(self, alias: str) -> tuple[Any, Any, core_vault.Vault]:
+        entries = self._load_inventory()
+        policy = self._load_egress_policy()
+        vault = self._vault()
+        entry = self._device(entries, alias)
+        section = self._section(entry, self._credential_kinds(vault))
+        self._check_resolvers(section, policy)
+        return entry, section, vault
 
     @staticmethod
-    def _hashed_host_matches(token: str, candidates: tuple[str, ...]) -> bool:
-        parts = token.split("|")
-        if len(parts) != 4 or parts[0] or parts[1] != "1":
-            return False
-        try:
-            salt = b64decode(parts[2].encode("ascii"), validate=True)
-            expected = b64decode(parts[3].encode("ascii"), validate=True)
-        except (UnicodeError, ValueError):
-            return False
-        return any(
-            hmac.compare_digest(
-                hmac.new(salt, item.encode("utf-8"), hashlib.sha1).digest(), expected,
-            )
-            for item in candidates
-        )
+    def _session_secrets(
+        credential: core_vault.Credential, community: str | None,
+    ) -> tuple[str, ...]:
+        return tuple(dict.fromkeys(
+            value for value in (credential.use(), community)
+            if isinstance(value, str) and value
+        ))
 
-    @classmethod
-    def _host_token_match(
-        cls, token: str, candidates: tuple[str, ...],
-    ) -> tuple[bool, bool, str]:
-        negative = token.startswith("!")
-        value = token[1:] if negative else token
-        if value.startswith("|"):
-            matched = cls._hashed_host_matches(value, candidates)
-        elif not value or any(char in value for char in "*?"):
-            matched = False
-        else:
-            matched = value.casefold() in {item.casefold() for item in candidates}
-        return matched, negative, value
-
-    def _select_known_hosts(self, record: dict[str, Any]) -> str:
-        try:
-            lines = KNOWN_HOSTS.read_text(encoding="utf-8").splitlines()
-        except (OSError, UnicodeError) as exc:
-            raise AuthenticationMaterialError() from exc
-        candidates = self._known_host_candidates(record)
-        selected: list[str] = []
-        for raw in lines:
-            parts = raw.strip().split()
-            if not parts or parts[0].startswith("#"):
-                continue
-            marker = parts[0] if parts[0].startswith("@") else None
-            index = 1 if marker else 0
-            if len(parts) < index + 3:
-                continue
-            hosts, key_type, key_data = parts[index:index + 3]
-            matched: list[str] = []
-            rejected = False
-            for token in hosts.split(","):
-                yes, negative, normalized = self._host_token_match(token, candidates)
-                if yes and negative:
-                    rejected = True
-                    break
-                if yes:
-                    matched.append(normalized)
-            if rejected or not matched:
-                continue
-            try:
-                b64decode(key_data.encode("ascii"), validate=True)
-            except (UnicodeError, ValueError):
-                continue
-            prefix = f"{marker} " if marker else ""
-            selected.append(f"{prefix}{','.join(matched)} {key_type} {key_data}")
-        if not selected:
+    def _snmp_community(self, section: Any, vault: core_vault.Vault) -> str:
+        if section.snmp_credential is None:
             raise AuthenticationMaterialError()
-        return "\n".join(dict.fromkeys(selected)) + "\n"
+        community = self._credential(vault, section.snmp_credential).use()
+        if not isinstance(community, str) or not community:
+            raise AuthenticationMaterialError()
+        return community
 
     def _auth_context(
-        self, alias: str, record: dict[str, Any], policy: dict[str, Any], tool: str,
+        self, entry: Any, section: Any, credential: core_vault.Credential,
+        community: str | None, tool: str,
     ) -> str:
         envelope = {
-            "alias": alias, "host": record["host"], "port": record["port"],
-            "login": record["login"], "password": record["password"],
-            **{key: item for key, item in policy.items() if key != "rate_limit"},
+            "alias": entry.name,
+            "host": entry.address,
+            "port": entry.port,
+            "login": credential.login,
+            "credential_kind": credential.kind,
+            "secret": credential.use(),
+            "host_key_fingerprint": entry.host_key_fingerprint,
+            "legacy_ssh": entry.legacy_ssh,
+            "account_role": section.account_role,
+            "ssh_platform": section.ssh_platform,
+            "enabled_queries": list(section.enabled_queries),
+            "read_inventory": {
+                key: list(items) for key, items in section.read_inventory.items()
+            },
+            "sftp_roots": list(section.sftp_roots),
+            "fortios_output_standard_verified": section.fortios_output_standard_verified,
+            "egress": dict(section.egress),
         }
-        if tool in SSH_TOOLS:
-            envelope["known_hosts"] = self._select_known_hosts(record)
         if tool == "snmp_get":
-            community = record.get("snmp_community")
-            if not isinstance(community, str):
-                raise AuthenticationMaterialError()
             envelope["snmp_community"] = community
         raw = json.dumps(envelope, separators=(",", ":")).encode()
         return urlsafe_b64encode(raw).decode().rstrip("=")
@@ -1653,10 +1432,7 @@ class Proxy:
             raise ToolArgumentsError()
 
         normalized = dict(args)
-        if "target" in normalized and (
-            not cls._valid_alias(normalized["target"])
-            or normalized["target"] in {MASTER_ALIAS, RESERVED_POLICY_KEY}
-        ):
+        if "target" in normalized and not cls._valid_alias(normalized["target"]):
             raise ToolArgumentsError()
 
         if "port" in normalized:
@@ -1767,12 +1543,11 @@ class Proxy:
 
     @classmethod
     def _authorize_tool(
-        cls, tool: str, args: dict[str, Any],
-        record: dict[str, Any], policy: dict[str, Any],
+        cls, tool: str, args: dict[str, Any], entry: Any, section: Any,
     ) -> None:
         if tool not in DEVICE_TOOLS:
             raise PolicyScopeError()
-        egress = policy["egress"]
+        egress = section.egress
         if tool == "dns_probe":
             if not egress["allow_dns"]:
                 raise PolicyScopeError()
@@ -1785,9 +1560,9 @@ class Proxy:
             platform = args["platform"]
             query = args["query"]
             if (
-                policy["ssh_platform"] is None or not policy["enabled_queries"]
-                or platform != policy["ssh_platform"]
-                or query not in policy["enabled_queries"]
+                section.ssh_platform is None or not section.enabled_queries
+                or platform != section.catalog_platform()
+                or query not in section.enabled_queries
             ):
                 raise PolicyScopeError()
             slots = READ_QUERY_SLOTS[platform].get(query, {})
@@ -1799,12 +1574,12 @@ class Proxy:
                 category = slot["inventory"]
                 if (
                     not _valid_typed_inventory_value(value, slot["kind"])
-                    or value not in policy["read_inventory"].get(category, [])
+                    or value not in section.read_inventory.get(category, ())
                 ):
                     raise PolicyScopeError()
             return
         if tool == "sftp_stat":
-            if not cls._path_in_roots(args["remote_path"], policy["sftp_roots"]):
+            if not cls._path_in_roots(args["remote_path"], section.sftp_roots):
                 raise PolicyScopeError()
             return
         if tool == "snmp_get":
@@ -1818,13 +1593,13 @@ class Proxy:
         if tool == "tls_probe":
             server_name = args.get("server_name")
             if (
-                server_name is not None and server_name != record["host"]
+                server_name is not None and server_name != entry.address
                 and server_name not in egress["tls_server_names"]
             ):
                 raise PolicyScopeError()
         if tool == "ftp_list" and (
             not egress["tcp_port_ranges"]
-            or not cls._path_in_roots(args["remote_path"], policy["sftp_roots"])
+            or not cls._path_in_roots(args["remote_path"], section.sftp_roots)
         ):
             raise PolicyScopeError()
 
@@ -1863,26 +1638,25 @@ class Proxy:
         }
 
     def _helper_status_payload(self) -> dict[str, Any]:
-        vault, policies = self._load_vault_document(), self._load_policy_document()
+        entries = self._load_inventory()
+        policy = self._load_egress_policy()
+        kinds = self._credential_kinds(self._vault())
         aliases, limits = [], []
         invalid = 0
-        for alias in sorted(set(vault) | set(policies)):
-            if alias in {MASTER_ALIAS, RESERVED_POLICY_KEY}:
-                continue
-            if not self._valid_alias(alias) or alias not in vault or alias not in policies:
+        for entry in sorted(helper_inventory.devices(entries), key=lambda item: item.name):
+            if not self._valid_alias(entry.name):
                 invalid += 1
                 continue
             try:
-                record = self._validate_record(vault[alias])
-                policy = self._validate_target_policy(policies[alias])
-                self._validate_target_binding(record, policy)
+                section = self._section(entry, kinds)
+                self._check_resolvers(section, policy)
             except ProxyError:
                 invalid += 1
                 continue
-            aliases.append(alias)
+            aliases.append(entry.name)
             limits.append({
-                "alias": alias,
-                "rate_limit": self._rate_status(alias, policy["rate_limit"]),
+                "alias": entry.name,
+                "rate_limit": self._rate_status(entry.name, section.rate_limit),
             })
         return {
             "target_aliases": aliases, "target_rate_limits": limits,
@@ -1890,27 +1664,20 @@ class Proxy:
         }
 
     def _target_scope_payload(self, alias: str) -> dict[str, Any]:
-        record, policy = self._load_record(alias), self._load_target_policy(alias)
-        self._validate_target_binding(record, policy)
-        host_key = False
-        if policy["ssh_platform"] is not None or policy["sftp_roots"]:
-            try:
-                self._select_known_hosts(record)
-            except AuthenticationMaterialError:
-                pass
-            else:
-                host_key = True
+        entry, section, _ = self._target(alias)
         return {
-            "ok": True, "target": alias, "account_role": policy["account_role"],
-            "ssh_platform": policy["ssh_platform"],
-            "enabled_queries": list(policy["enabled_queries"]),
-            "legacy_ssh": policy["legacy_ssh"],
-            "egress": dict(policy["egress"]),
-            "read_inventory": {key: list(items) for key, items in policy["read_inventory"].items()},
-            "sftp_roots": list(policy["sftp_roots"]),
-            "snmp_configured": isinstance(record.get("snmp_community"), str),
-            "ssh_host_key_enrolled": host_key,
-            "rate_limit": self._rate_status(alias, policy["rate_limit"]),
+            "ok": True, "target": alias, "account_role": section.account_role,
+            "ssh_platform": section.catalog_platform(),
+            "enabled_queries": list(section.enabled_queries),
+            "legacy_ssh": entry.legacy_ssh,
+            "egress": dict(section.egress),
+            "read_inventory": {
+                key: list(items) for key, items in section.read_inventory.items()
+            },
+            "sftp_roots": list(section.sftp_roots),
+            "snmp_enrolled": section.snmp_credential is not None,
+            "host_key_pinned": True,
+            "rate_limit": self._rate_status(alias, section.rate_limit),
         }
 
     def _emit(self, message: dict[str, Any]) -> None:
@@ -2009,10 +1776,7 @@ class Proxy:
             with self.pending_lock:
                 self.pending_tools[request_id] = tool
         if tool == "target_scope":
-            if (
-                set(args) != {"target"} or not self._valid_alias(args.get("target"))
-                or args["target"] in {MASTER_ALIAS, RESERVED_POLICY_KEY}
-            ):
+            if set(args) != {"target"} or not self._valid_alias(args.get("target")):
                 self._emit_error(
                     request_id, -32602, "A valid target alias is required.",
                     notification=notification,
@@ -2039,10 +1803,7 @@ class Proxy:
                     self.control_payloads[request_id] = payload
             elif tool != "read_query_catalog":
                 alias = args.get("target")
-                if (
-                    not self._valid_alias(alias)
-                    or alias in {MASTER_ALIAS, RESERVED_POLICY_KEY}
-                ):
+                if not self._valid_alias(alias):
                     self._emit_error(
                         request_id, -32602, "A valid target alias is required.",
                         notification=notification,
@@ -2050,14 +1811,21 @@ class Proxy:
                     if has_id:
                         self._clear_pending(request_id)
                     return None
-                record, policy = self._load_record(alias), self._load_target_policy(alias)
-                self._validate_target_binding(record, policy)
-                self._authorize_tool(tool, args, record, policy)
-                auth_context = self._auth_context(alias, record, policy, tool)
+                entry, section, vault = self._target(alias)
+                self._authorize_tool(tool, args, entry, section)
+                credential = self._credential(vault, entry.credential)
+                community = (
+                    self._snmp_community(section, vault) if tool == "snmp_get" else None
+                )
+                auth_context = self._auth_context(
+                    entry, section, credential, community, tool,
+                )
                 if self._rate_costs_slot(tool, args):
-                    self._consume_rate_limit(alias, policy["rate_limit"])
+                    self._consume_rate_limit(alias, section.rate_limit)
                 args[AUTH_FIELD] = auth_context
-                secrets = (*self._record_secrets(record), auth_context)
+                secrets = (
+                    *self._session_secrets(credential, community), auth_context,
+                )
         except ProxyError as exc:
             self._emit_proxy_error(request_id, exc, notification)
             if has_id:
@@ -2203,18 +1971,34 @@ class Proxy:
         return json.dumps(message, separators=(",", ":")).encode() + b"\n"
 
 
-def _ssh_command(master: dict[str, Any]) -> list[str]:
-    host = master["host"]
+def _ssh_command(
+    runner: dict[str, Any], login: str, known_hosts: str, identity: str | None,
+) -> list[str]:
+    host = runner["host"]
     if not isinstance(host, str) or host.startswith("-"):
         raise AuthenticationMaterialError()
+    if identity is None:
+        authentication = [
+            "-o", "BatchMode=no",
+            "-o", "NumberOfPasswordPrompts=1",
+            "-o", "PreferredAuthentications=keyboard-interactive,password",
+            "-o", "PasswordAuthentication=yes",
+            "-o", "KbdInteractiveAuthentication=yes",
+            "-o", "PubkeyAuthentication=no",
+        ]
+    else:
+        authentication = [
+            "-o", "BatchMode=yes",
+            "-o", "NumberOfPasswordPrompts=0",
+            "-o", "PreferredAuthentications=publickey",
+            "-o", "PasswordAuthentication=no",
+            "-o", "KbdInteractiveAuthentication=no",
+            "-o", "PubkeyAuthentication=yes",
+            "-o", f"IdentityFile={identity}",
+        ]
     return [
         "ssh", "-T", "-F", "/dev/null",
-        "-o", "BatchMode=no",
-        "-o", "NumberOfPasswordPrompts=1",
-        "-o", "PreferredAuthentications=keyboard-interactive,password",
-        "-o", "PasswordAuthentication=yes",
-        "-o", "KbdInteractiveAuthentication=yes",
-        "-o", "PubkeyAuthentication=no",
+        *authentication,
         "-o", "HostbasedAuthentication=no",
         "-o", "GSSAPIAuthentication=no",
         "-o", "IdentitiesOnly=yes",
@@ -2234,17 +2018,35 @@ def _ssh_command(master: dict[str, Any]) -> list[str]:
         "-o", "SendEnv=-*",
         "-o", "UpdateHostKeys=no",
         "-o", "StrictHostKeyChecking=yes",
-        "-o", f"UserKnownHostsFile={KNOWN_HOSTS}",
+        "-o", f"UserKnownHostsFile={known_hosts}",
         "-o", "GlobalKnownHostsFile=/dev/null",
         "-o", "VerifyHostKeyDNS=no",
         "-o", "CanonicalizeHostname=no",
         "-o", "LogLevel=ERROR",
         "-o", "ConnectTimeout=10",
-        "-p", str(int(master.get("port", 22))),
-        "-l", master["login"],
+        "-p", str(int(runner["port"])),
+        "-l", login,
         host,
         "docker", "exec", "-i", "netops-helper", "python", "-m", "netops_helper.server",
     ]
+
+
+def _legacy_configuration() -> bool:
+    if any(variable in os.environ for variable in REMOVED_VARIABLES):
+        return True
+    return any((INVENTORY.parent / name).exists() for name in REMOVED_FILES)
+
+
+def _private_directory() -> str:
+    return tempfile.mkdtemp(prefix="netops-helper-proxy-")
+
+
+def _identity_file(directory: str, secret: str) -> str:
+    path = os.path.join(directory, IDENTITY_NAME)
+    handle = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    with os.fdopen(handle, "w", encoding="utf-8") as target:
+        target.write(secret if secret.endswith("\n") else secret + "\n")
+    return path
 
 
 def _write_transport_diagnostic(category: str, message: str) -> None:
@@ -2306,12 +2108,26 @@ def _drain_stderr(
     for line in iter(stream.readline, b""):
         if len(captured) < 65_536:
             captured.extend(line[:65_536 - len(captured)])
+    if captured and state is not None:
+        state["captured"] = sanitize_text(captured.decode(errors="replace"), secrets)
+
+
+def _exit_diagnostic(exit_code: int, timed_out: bool, state: dict[str, Any]) -> None:
+    """Report a transport failure only when the SSH child actually failed, and only once."""
+    if state.get("emitted"):
+        return
+    if timed_out:
+        _write_transport_diagnostic("ssh_timeout", "The remote MCP transport timed out.")
+        return
+    if not exit_code:
+        return
+    captured = state.get("captured", "")
     if captured:
-        safe = sanitize_text(captured.decode(errors="replace"), secrets)
-        category, message = _classify_ssh_stderr(safe)
-        _write_transport_diagnostic(category, message)
-        if state is not None:
-            state.update(emitted=True, category=category)
+        category, message = _classify_ssh_stderr(captured)
+    else:
+        category, message = "ssh_transport", SSH_TRANSPORT_FAILURE_MESSAGE
+    _write_transport_diagnostic(category, message)
+    state.update(emitted=True, category=category)
 
 
 class _AskpassHandoff:
@@ -2375,12 +2191,16 @@ def main() -> int:
         return _run_askpass()
     argparse.ArgumentParser().parse_args()
     proxy = Proxy()
-    try:
-        master = proxy._load_record(MASTER_ALIAS)
-        command = _ssh_command(master)
-    except UnknownAliasError:
-        _write_transport_diagnostic("runner_alias", RUNNER_ALIAS_FAILURE_MESSAGE)
+    if _legacy_configuration():
+        _write_transport_diagnostic(
+            LegacyConfigurationError.category, LegacyConfigurationError.public_message,
+        )
         return 2
+    try:
+        runner = proxy._load_runner()
+        credential = proxy._credential(proxy._vault(), runner["credential"])
+        if credential.kind not in helper_inventory.CREDENTIAL_KINDS:
+            raise AuthenticationMaterialError()
     except ProxyError as exc:
         _write_transport_diagnostic(exc.category, exc.public_message)
         return 2
@@ -2388,86 +2208,121 @@ def main() -> int:
     if not askpass.is_file() or not os.access(askpass, os.X_OK):
         _write_transport_diagnostic("auth_material", "The proxy script is not executable.")
         return 2
-    secrets = proxy._record_secrets(master)
-    handoff = _AskpassHandoff(str(master["password"]))
-    master["password"] = ""
-    env = os.environ.copy()
-    env.update({
-        "DISPLAY": ":0", "SSH_ASKPASS": str(askpass), "SSH_ASKPASS_REQUIRE": "force",
-        ASKPASS_MODE_ENV: "1", ASKPASS_SOCKET_ENV: handoff.name,
-    })
+    directory = _private_directory()
     try:
-        child = subprocess.Popen(
-            command, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE, env=env, bufsize=0,
-        )
-    except OSError:
-        _write_transport_diagnostic("ssh_transport", "The local SSH process could not start.")
-        return 2
-    handoff.serve(child)
-    if child.stdin is None or child.stdout is None or child.stderr is None:
-        child.terminate()
         try:
-            child.wait(timeout=5)
-        except subprocess.TimeoutExpired:
-            child.kill()
+            known_hosts = hostkey.known_hosts_file(directory, hostkey.scan(
+                runner["host"], runner["port"], runner["host_key_fingerprint"],
+                HOST_KEY_SCAN_TIMEOUT_SECONDS,
+            ))
+        except hostkey.HostKeyError:
+            _write_transport_diagnostic("ssh_host_key", SSH_HOST_KEY_FAILURE_MESSAGE)
+            return 2
+        secrets = proxy._session_secrets(credential, None)
+        handoff = None
+        env = os.environ.copy()
+        try:
+            if credential.kind == "ssh-key":
+                command = _ssh_command(
+                    runner, credential.login, known_hosts,
+                    _identity_file(directory, credential.use()),
+                )
+            else:
+                handoff = _AskpassHandoff(credential.use())
+                command = _ssh_command(runner, credential.login, known_hosts, None)
+                env.update({
+                    "DISPLAY": ":0", "SSH_ASKPASS": str(askpass),
+                    "SSH_ASKPASS_REQUIRE": "force",
+                    ASKPASS_MODE_ENV: "1", ASKPASS_SOCKET_ENV: handoff.name,
+                })
+        except (OSError, ProxyError) as exc:
+            category = getattr(exc, "category", "auth_material")
+            message = getattr(
+                exc, "public_message", AuthenticationMaterialError.public_message,
+            )
+            _write_transport_diagnostic(category, message)
+            return 2
+        try:
+            child = subprocess.Popen(
+                command, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE, env=env, bufsize=0,
+            )
+        except OSError:
+            _write_transport_diagnostic(
+                "ssh_transport", "The local SSH process could not start.",
+            )
+            return 2
+        if handoff is not None:
+            handoff.serve(child)
+        if child.stdin is None or child.stdout is None or child.stderr is None:
+            child.terminate()
             try:
                 child.wait(timeout=5)
             except subprocess.TimeoutExpired:
-                pass
-        _write_transport_diagnostic(
-            "ssh_transport", "The local SSH process pipes are unavailable."
+                child.kill()
+                try:
+                    child.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    pass
+            _write_transport_diagnostic(
+                "ssh_transport", "The local SSH process pipes are unavailable."
+            )
+            return 2
+        stderr_state: dict[str, Any] = {"emitted": False}
+        stderr_thread = threading.Thread(
+            target=_drain_stderr, args=(child.stderr, secrets, stderr_state), daemon=True,
         )
-        return 2
-    stderr_state: dict[str, Any] = {"emitted": False}
-    stderr_thread = threading.Thread(
-        target=_drain_stderr, args=(child.stderr, secrets, stderr_state), daemon=True,
-    )
-    stderr_thread.start()
+        stderr_thread.start()
 
-    def responses() -> None:
-        for line in iter(child.stdout.readline, b""):
-            transformed = proxy.response(line)
+        def responses() -> None:
+            for line in iter(child.stdout.readline, b""):
+                transformed = proxy.response(line)
+                with proxy.stdout_lock:
+                    sys.stdout.buffer.write(transformed)
+                    sys.stdout.buffer.flush()
+            try:
+                code = child.wait(timeout=10)
+            except subprocess.TimeoutExpired:
+                return
+            stderr_thread.join(timeout=2)
             with proxy.stdout_lock:
-                sys.stdout.buffer.write(transformed)
-                sys.stdout.buffer.flush()
+                _exit_diagnostic(code, False, stderr_state)
 
-    response_thread = threading.Thread(target=responses, daemon=True)
-    response_thread.start()
-    try:
-        for line in iter(lambda: sys.stdin.buffer.readline(MAX_REQUEST_BYTES + 1), b""):
-            transformed = proxy.request(line)
-            if transformed is not None:
-                child.stdin.write(transformed)
-                child.stdin.flush()
-    except BrokenPipeError:
-        pass
-    finally:
+        response_thread = threading.Thread(target=responses, daemon=True)
+        response_thread.start()
         try:
-            child.stdin.close()
+            for line in iter(lambda: sys.stdin.buffer.readline(MAX_REQUEST_BYTES + 1), b""):
+                transformed = proxy.request(line)
+                if transformed is not None:
+                    child.stdin.write(transformed)
+                    child.stdin.flush()
         except BrokenPipeError:
             pass
-    response_thread.join(timeout=5)
-    timed_out = False
-    try:
-        exit_code = child.wait(timeout=10)
-    except subprocess.TimeoutExpired:
-        timed_out = True
-        child.terminate()
+        finally:
+            try:
+                child.stdin.close()
+            except BrokenPipeError:
+                pass
+        response_thread.join(timeout=5)
+        timed_out = False
         try:
-            exit_code = child.wait(timeout=5)
+            exit_code = child.wait(timeout=10)
         except subprocess.TimeoutExpired:
-            child.kill()
+            timed_out = True
+            child.terminate()
             try:
                 exit_code = child.wait(timeout=5)
             except subprocess.TimeoutExpired:
-                exit_code = 1
-    stderr_thread.join(timeout=1)
-    if timed_out:
-        _write_transport_diagnostic("ssh_timeout", "The remote MCP transport timed out.")
-    elif exit_code and not stderr_state["emitted"]:
-        _write_transport_diagnostic("ssh_transport", SSH_TRANSPORT_FAILURE_MESSAGE)
-    return exit_code
+                child.kill()
+                try:
+                    exit_code = child.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    exit_code = 1
+        stderr_thread.join(timeout=1)
+        _exit_diagnostic(exit_code, timed_out, stderr_state)
+        return exit_code
+    finally:
+        shutil.rmtree(directory, ignore_errors=True)
 
 
 if __name__ == "__main__":

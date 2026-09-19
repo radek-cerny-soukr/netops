@@ -3,7 +3,7 @@
 
 from __future__ import annotations
 
-from base64 import urlsafe_b64encode
+from base64 import b64encode, urlsafe_b64encode
 import ast
 from contextlib import contextmanager
 import importlib
@@ -13,6 +13,7 @@ from pathlib import Path
 import sys
 import types
 
+from netops_core.hostkey import fingerprint_of
 from netops_helper.auth import (
     AuthenticationContextError,
     AuthenticationMaterialError,
@@ -31,6 +32,7 @@ from netops_helper.query_catalog import (
     LINUX_QUERIES,
     NXOS_QUERIES,
     READ_QUERIES as AUTHORITY_READ_QUERIES,
+    RUCKUS_UNLEASHED_QUERIES,
 )
 from netops_helper.query_catalog.model import Query, Slot
 from netops_helper.read_policy import (
@@ -47,6 +49,8 @@ from netops_helper.read_policy import (
 
 TEST_ADDRESS = str(ipaddress.IPv4Address((192 << 24) | (2 << 8) | 10))
 TEST_IPV6_ADDRESS = str(ipaddress.IPv6Address((0x20010DB8 << 96) | 10))
+HOST_KEY_PIN = fingerprint_of(b64encode(b"engine-contract-host-key").decode("ascii"))
+PRIVATE_KEY = "-----BEGIN OPENSSH PRIVATE KEY-----\n" + "replace-me\n" * 4 + "-----END OPENSSH PRIVATE KEY-----\n"
 _MISSING = object()
 
 
@@ -56,7 +60,9 @@ def _context(**overrides: object) -> str:
         "host": TEST_ADDRESS,
         "port": 22,
         "login": "reader",
-        "password": "ssh-secret",
+        "credential_kind": "password",
+        "secret": "ssh-secret",
+        "host_key_fingerprint": HOST_KEY_PIN,
         "account_role": "read-only",
         "ssh_platform": None,
         "enabled_queries": [],
@@ -110,13 +116,13 @@ def test_equal_snmp_and_ssh_secrets_are_rejected() -> None:
 def test_non_ascii_snmp_and_ssh_secrets_compare_as_utf8() -> None:
     auth = TargetAuth.decode(
         "device-a",
-        _context(password="ssh-heslo-ž", snmp_community="snmp-komunita-č"),
+        _context(secret="ssh-heslo-ž", snmp_community="snmp-komunita-č"),
     )
     assert auth.require_snmp_community() == "snmp-komunita-č"
     try:
         TargetAuth.decode(
             "device-a",
-            _context(password="stejné-heslo", snmp_community="stejné-heslo"),
+            _context(secret="stejné-heslo", snmp_community="stejné-heslo"),
         )
     except AuthenticationMaterialError:
         pass
@@ -138,7 +144,7 @@ def test_direct_snmp_accessor_rejects_malformed_material_cleanly() -> None:
             22,
             "reader",
             password,
-            "",
+            HOST_KEY_PIN,
             snmp_community=community,
         )
         try:
@@ -169,8 +175,11 @@ def test_identity_types_and_top_level_fields_fail_closed() -> None:
         {"alias": 7},
         {"host": 7},
         {"login": ["reader"]},
-        {"password": {"secret": True}},
-        {"known_hosts": 7},
+        {"secret": {"secret": True}},
+        {"credential_kind": "agent"},
+        {"host_key_fingerprint": "SHA256:short"},
+        {"password": "a-refused-legacy-field"},
+        {"known_hosts": "a-refused-legacy-field"},
         {"account_role": ["read-only"]},
         {"fortios_output_standard_verified": 1},
         {"unexpected_field": True},
@@ -315,6 +324,40 @@ def test_auth_accepts_every_platform_alias_with_a_known_query() -> None:
         assert auth.require_ssh_query(alias, query) == canonical
 
 
+def test_envelope_carries_the_canonical_platform_and_either_credential_kind() -> None:
+    exos = TargetAuth.decode(
+        "device-a",
+        _context(
+            ssh_platform="exos",
+            enabled_queries=[next(iter(READ_QUERIES["extreme_exos"]))],
+        ),
+    )
+    assert exos.ssh_platform == "extreme_exos"
+    assert TargetAuth.decode("device-a", _context(ssh_platform="fortios")).ssh_platform == "fortinet"
+    keyed = TargetAuth.decode(
+        "device-a", _context(credential_kind="ssh-key", secret=PRIVATE_KEY),
+    )
+    assert keyed.credential_kind == "ssh-key"
+    assert keyed.secrets == (PRIVATE_KEY,)
+    assert keyed.host_key_fingerprint == HOST_KEY_PIN
+    invalid = (
+        {"credential_kind": "ssh-key", "secret": "not-a-private-key"},
+        {"credential_kind": "ssh-agent"},
+        {"credential_kind": _MISSING},
+        {"secret": _MISSING},
+        {"host_key_fingerprint": _MISSING},
+        {"host_key_fingerprint": "SHA256:" + "a" * 42},
+        {"legacy_ssh": "ssh-rsa"},
+    )
+    for override in invalid:
+        try:
+            TargetAuth.decode("device-a", _context(**override))
+        except AuthenticationContextError:
+            pass
+        else:
+            raise AssertionError(f"unsafe credential envelope was accepted: {tuple(override)}")
+
+
 def test_query_parameters_do_not_coerce_non_string_values() -> None:
     for platform, query, parameters in (
         (7, "interface_details", {"interface": "port3"}),
@@ -364,6 +407,7 @@ def test_catalog_authority_and_platform_aliases_are_exact() -> None:
         "arista_eos": ARISTA_EOS_QUERIES,
         "juniper_junos": JUNIPER_JUNOS_QUERIES,
         "juniper_junos_els": JUNIPER_JUNOS_ELS_QUERIES,
+        "ruckus_unleashed": RUCKUS_UNLEASHED_QUERIES,
     }
     assert READ_QUERIES is AUTHORITY_READ_QUERIES
     assert set(READ_QUERIES) == set(expected_authorities)
@@ -382,6 +426,7 @@ def test_catalog_authority_and_platform_aliases_are_exact() -> None:
         "arista_eos": "arista_eos",
         "juniper_junos": "juniper_junos",
         "juniper_junos_els": "juniper_junos_els",
+        "ruckus_unleashed": "ruckus_unleashed",
     }
     assert PLATFORM_MAP == expected_aliases
     for alias, canonical in expected_aliases.items():
@@ -824,30 +869,7 @@ def test_ssh_continuation_cache_uses_absolute_capture_ttl() -> None:
     if not engine_was_loaded:
         icmplib_stub = types.ModuleType("icmplib")
         icmplib_stub.ping = lambda *args, **kwargs: None
-        netmiko_stub = types.ModuleType("netmiko")
-        netmiko_stub.ConnectHandler = lambda **kwargs: None
-        fortinet_stub = types.ModuleType("netmiko.fortinet")
-        fortinet_ssh_stub = types.ModuleType("netmiko.fortinet.fortinet_ssh")
-
-        class StubFortinetSSH:
-            pass
-
-        fortinet_ssh_stub.FortinetSSH = StubFortinetSSH
-        paramiko_stub = types.ModuleType("paramiko")
-        paramiko_exceptions_stub = types.ModuleType("paramiko.ssh_exception")
-
-        class StubIncompatiblePeer(Exception):
-            pass
-
-        paramiko_exceptions_stub.IncompatiblePeer = StubIncompatiblePeer
-        dependency_stubs = {
-            "icmplib": icmplib_stub,
-            "netmiko": netmiko_stub,
-            "netmiko.fortinet": fortinet_stub,
-            "netmiko.fortinet.fortinet_ssh": fortinet_ssh_stub,
-            "paramiko": paramiko_stub,
-            "paramiko.ssh_exception": paramiko_exceptions_stub,
-        }
+        dependency_stubs = {"icmplib": icmplib_stub}
         for name, module in dependency_stubs.items():
             if name not in sys.modules:
                 sys.modules[name] = module
@@ -857,7 +879,6 @@ def test_ssh_continuation_cache_uses_absolute_capture_ttl() -> None:
     target = TargetAuth.decode(
         "device-a",
         _context(
-            known_hosts="synthetic host key",
             read_inventory={"interfaces": ["port3"]},
             fortios_output_standard_verified=True,
             ssh_platform="fortios",
@@ -873,24 +894,19 @@ def test_ssh_continuation_cache_uses_absolute_capture_ttl() -> None:
         def monotonic(self) -> float:
             return self.now
 
-    class FakeConnection:
-        def send_command(self, command: str, read_timeout: int) -> str:
-            assert command == "diagnose netlink interface list port3"
-            assert read_timeout == 60
-            calls["commands"] += 1
-            return "x" * 4_000
-
-    @contextmanager
-    def fake_connection(*args: object, **kwargs: object):
+    def fake_read(auth: object, platform: str, command: str):
+        assert platform == "fortinet"
+        assert command == "diagnose netlink interface list port3"
         calls["connections"] += 1
-        yield FakeConnection()
+        calls["commands"] += 1
+        return 0, "x" * 4_000
 
     clock = ControlledClock()
     original_time = engine.time
-    original_connection = engine.netmiko_connection
+    original_connection = engine.read_from_device
     original_record = engine.record
     engine.time = clock
-    engine.netmiko_connection = fake_connection
+    engine.read_from_device = fake_read
     engine.record = lambda event, **fields: audit_events.append(
         {"event": event, **fields}
     )
@@ -944,12 +960,12 @@ def test_ssh_continuation_cache_uses_absolute_capture_ttl() -> None:
         assert cache_key not in engine._SSH_PAGE_CACHE
         assert calls == {"connections": 1, "commands": 1}
         assert [event["status"] for event in audit_events] == [
-            "started", "ok", "started", "ok", "started", "rejected",
+            "started", "ok", "started", "ok", "started", "failed",
         ]
     finally:
         engine._SSH_PAGE_CACHE.clear()
         engine.time = original_time
-        engine.netmiko_connection = original_connection
+        engine.read_from_device = original_connection
         engine.record = original_record
         if not engine_was_loaded:
             sys.modules.pop("netops_helper.engine", None)
@@ -1057,6 +1073,7 @@ def main() -> int:
     test_range_wire_shape_and_duplicates_fail_closed()
     test_envelope_collections_are_canonical_unique_and_control_free()
     test_auth_accepts_every_platform_alias_with_a_known_query()
+    test_envelope_carries_the_canonical_platform_and_either_credential_kind()
     test_query_parameters_do_not_coerce_non_string_values()
     test_query_and_egress_capabilities_are_explicit()
     test_catalog_authority_and_platform_aliases_are_exact()

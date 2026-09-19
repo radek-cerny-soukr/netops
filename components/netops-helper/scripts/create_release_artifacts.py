@@ -82,22 +82,24 @@ def project_version(root: Path = ROOT) -> str:
 
 VERSION = project_version()
 EXACT = {
-    ".dockerignore", ".gitignore", "CHANGELOG.md", "Dockerfile",
+    ".gitignore", "CHANGELOG.md", "Dockerfile",
     "LICENSE", "README.md", "compose.yaml", "pyproject.toml",
     "requirements.txt", "requirements.lock", "requirements-release.in",
     "requirements-release.lock", "sbom.cdx.json",
 }
 TESTS = {
-    "tests/run_tests.py", "tests/test_apply_egress_rules.py",
+    "tests/conftest.py", "tests/run_tests.py", "tests/test_apply_egress_rules.py",
     "tests/test_audit_rotation.py", "tests/test_egress_scripts.py",
     "tests/test_engine_contracts.py", "tests/test_engine_safety.py",
-    "tests/test_fortios_wire_safety.py", "tests/test_netmiko_wire_safety.py",
+    "tests/test_ssh_wire_safety.py",
+    "tests/test_connection_pacing.py",
     "tests/test_phase1_surface.py",
     "tests/test_plain_ftp_acknowledgement.py", "tests/test_policy_parity.py",
     "tests/test_proxy.py", "tests/test_proxy_contracts.py",
     "tests/test_query_catalog_arista.py", "tests/test_query_catalog_cisco.py",
     "tests/test_query_catalog_extreme.py", "tests/test_query_catalog_fortinet.py",
-    "tests/test_query_catalog_junos.py", "tests/test_query_catalog_docs.py",
+    "tests/test_query_catalog_junos.py", "tests/test_query_catalog_ruckus.py",
+    "tests/test_query_catalog_docs.py",
     "tests/test_vendor_references.py",
     "tests/test_sanitize.py", "tests/test_security.py",
     "tests/test_sftp_safety.py", "tests/test_supply_chain.py",
@@ -110,11 +112,24 @@ SCRIPTS = {
 }
 
 
+CORE_PACKAGE = ROOT.parent / "netops-core" / "src" / "netops_core"
+CORE_DESTINATION = "src/netops_core"
+
+
 PUBLIC_CONFIG_FILES = frozenset({
     "config/container/ca/.gitkeep",
     "config/container/certs/.gitkeep",
     "config/container/tls-pins.json",
-    "config/target-policy.example.json",
+    "config/egress-policy.example.json",
+    "config/inventory.example.json",
+    "config/runner.example.json",
+    "config/vault.example.json",
+})
+OPERATOR_FILES = frozenset({
+    "config/inventory.json",
+    "config/egress-policy.json",
+    "config/runner.json",
+    "config/vault.json",
 })
 RECURSIVE_FILE_RULES = {
     "config": (frozenset(), frozenset()),
@@ -125,7 +140,7 @@ RECURSIVE_FILE_RULES = {
 
 def _intentionally_excluded(relative: str) -> bool:
     path = Path(relative)
-    if relative == "config/target-policy.json":
+    if relative in OPERATOR_FILES:
         return True
     if relative.startswith(("config/container/certs/", "config/container/ca/")):
         return path.name != ".gitkeep"
@@ -309,6 +324,22 @@ def main() -> int:
     except (OSError, ReleaseSelectionError):
         print(
             "release_export=failed detail=public source copy rejected",
+            file=sys.stderr,
+        )
+        return 1
+
+    try:
+        for source in sorted(CORE_PACKAGE.rglob("*.py")):
+            if "__pycache__" in source.parts:
+                continue
+            _regular_file_stat(source)
+            target = destination / CORE_DESTINATION / source.relative_to(CORE_PACKAGE)
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(_read_regular_bytes(source))
+            target.chmod(0o644)
+    except (OSError, ReleaseSelectionError):
+        print(
+            "release_export=failed detail=shared access layer copy rejected",
             file=sys.stderr,
         )
         return 1

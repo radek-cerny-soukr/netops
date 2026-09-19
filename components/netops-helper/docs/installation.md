@@ -3,7 +3,7 @@
 NetOps Helper phase 1 uses three trust zones:
 
 - a dedicated read-only MCP agent/session;
-- a local proxy host holding aliases, credentials, host keys, and target policy;
+- a local proxy host holding the inventory, the credentials, the host key pins, and the runner file;
 - an execution host running the isolated container and reaching enrolled targets.
 
 The proxy and execution host may share one machine in a deployment. Device-side authorization, the egress contract, and the dedicated client session remain separate mandatory boundaries.
@@ -16,26 +16,30 @@ For FortiOS, an administrator must configure and verify persistent console `outp
 
 If SNMP is required, create a separate read-only community that is not the SSH password. SNMPv2c sends it in plaintext, so restrict source and destination ACLs and the enrolled UDP egress scope.
 
-The same target `login` and `password` are used for SSH, SFTP, FTPS, and plain FTP. Plain FTP sends those credentials without encryption. Prefer FTPS; if legacy FTP is unavoidable, use a separate remote FTP identity and target alias, and enforce rejection of SSH/SFTP for that identity on the target. Policy `sftp_roots` also authorizes `sftp_stat`, so policy alone is not an FTP-only protocol boundary. Review [credential vault structure and protocol use](configuration.md#credential-vault-structure-and-protocol-use) before creating accounts.
+The same device credential is used for SSH, SFTP, FTPS, and plain FTP. Plain FTP sends those credentials without encryption. Prefer FTPS; if legacy FTP is unavoidable, use a separate remote FTP identity and target alias, and enforce rejection of SSH/SFTP for that identity on the target. Policy `sftp_roots` also authorizes `sftp_stat`, so policy alone is not an FTP-only protocol boundary. Review [credentials and protocol use](configuration.md#credentials-and-protocol-use) before creating accounts.
 
-## 2. Prepare configuration and trust on the proxy host
+## 2. Install the shared access layer on the proxy host
 
-Use `$XDG_CONFIG_HOME/netops-helper` or set the documented `NETOPS_*` variables.
+The proxy and the egress generator import `netops_core` and `netops_helper`. Both come from the tree of this repository, not from an index: install `components/netops-core` and `components/netops-helper` into the environment that runs the proxy, or put `components/netops-core/src` and `components/netops-helper/src` on `PYTHONPATH`. The scripts add both directories themselves when they are started from a checkout, so a checkout needs no further setup.
 
-1. Create one valid credential JSON object with mode `600`; it is not JSONL. Follow the [runner/target vault structure and synthetic example](configuration.md#credential-vault-structure-and-protocol-use).
-2. Copy `config/target-policy.example.json` and replace every documentation address and scope.
-3. Declare exact platform, query, inventory, metadata/listing-root, and egress policy and a suitable rate limit for each target alias.
-4. Enroll the runner and every SSH/SFTP target in the configured `known_hosts` through an independently trusted host-key channel.
-5. Keep the `NETOPS_MASTER_ALIAS` runner record separate from every device alias and omit it from target policy; the proxy rejects it as a target.
-6. If `NETOPS_MASTER_ALIAS` is customized, export the identical value when launching the proxy and when generating every egress bundle.
+## 3. Prepare configuration and trust on the proxy host
 
-The runtime target `host` is either a canonical IPv4 literal or a canonical lowercase hostname. A hostname target additionally needs explicit enrolled canonical IPv4 results, DNS permission, and configured resolvers. IPv6 target hosts are not supported in this release.
+Use `$XDG_CONFIG_HOME/netops-helper` or set the documented `NETOPS_*` variables. All four files are described in [Configuration](configuration.md#the-four-operator-files).
+
+1. Create `vault.json` with mode `600` or `400`; it is one JSON object of credential records, not JSONL. Follow [credentials and protocol use](configuration.md#credentials-and-protocol-use).
+2. Copy `config/inventory.example.json` to `inventory.json` and replace every documentation address, name, and pin.
+3. Declare exact platform, query, inventory, metadata/listing-root, and egress scope and a suitable rate limit in the `helper` section of every device.
+4. Obtain the host key fingerprint of the runner and of every device through an independently trusted channel, exactly as `ssh-keygen -lf` prints it, and write it into `runner.json` and into each device's `host_key_fingerprint`.
+5. Copy `config/egress-policy.example.json` to `egress-policy.json` and `config/runner.example.json` to `runner.json`; the runner has no inventory entry and can never be addressed as a target.
+6. Delete any `target-policy.json` and unset `NETOPS_TARGET_POLICY_PATH`, `NETOPS_KNOWN_HOSTS_PATH` and `NETOPS_MASTER_ALIAS`: the proxy refuses to start while one of them is present.
+
+The device `address` is either a canonical IPv4 literal or a canonical lowercase host name. A host name additionally needs explicit enrolled canonical IPv4 results, DNS permission, and configured resolvers. IPv6 devices are not supported in this release.
 
 For private TLS or FTPS trust, complete [the private CA, SAN, and FTPS pin procedure](configuration.md#private-tls-and-ftps-ca-san-and-pins) before building the runner image. The stock image works with certificates chaining to its public system trust. It does not normally trust a private device CA or self-signed device certificate.
 
-## 3. Build and create stopped Docker resources
+## 4. Build and create stopped Docker resources
 
-Install Docker Engine with Compose v2 and obtain a verified release on the execution host. The Compose network contract is:
+Install Docker Engine with Compose v2 and obtain a verified release on the execution host. The image needs both `src/netops_helper` and `src/netops_core`. In the repository `compose.yaml` builds from the repository root and passes the two build arguments `COMPONENT_DIR=components/netops-helper` and `CORE_PACKAGE_DIR=components/netops-core/src/netops_core`; in a release export (`scripts/create_release_artifacts.py`), which carries `src/netops_core` inside the component tree, the arguments keep their defaults (`.` and `src/netops_core`) and `docker build .` in the export is enough. The Compose network contract is:
 
 - network name `netops-helper`;
 - bridge interface `nh-egress0`;
@@ -43,6 +47,10 @@ Install Docker Engine with Compose v2 and obtain a verified release on the execu
 - `enable_ipv6: false` as the network-scoped IPv6 boundary.
 
 Do not change `internal` to true as an egress-hardening shortcut; it removes required external connectivity. Do not force a fixed bridge subnet unless it was independently designed for that host. Interface-based matching does not need a fixed subnet, and a fixed allocation can collide with existing networks.
+
+The image installs one distribution package on top of the digest-pinned base: `openssh-client`, which provides the `ssh` and `ssh-keyscan` binaries every `ssh_read` and every host key verification runs, and the `sftp` binary `sftp_stat` runs. It is installed with `--no-install-recommends` and the package lists are removed in the same layer; its exact version is the one the pinned base image's distribution carries at build time and is recorded in the release SBOM, not pinned in the Dockerfile. The health check refuses to report healthy when any of the three binaries is missing.
+
+**Known and unfixed:** the `openssh-client` that Debian trixie ships carries CVE-2026-60002, a Critical client-side use-after-free triggered by a server that changes its host key during a key re-exchange; the upstream fix is OpenSSH 10.4 and trixie stays on 10.0. This release ships with that vulnerability as a reviewed exception, not with a fix. Read [known vulnerability findings](known-vulnerabilities.md) before deploying; if the exposure is not acceptable, rebuild the image on a base that ships OpenSSH 10.4 or newer.
 
 Build the digest-pinned image, then create the network and container without starting the service:
 
@@ -59,29 +67,20 @@ Verify that the container is not running and that the inspected network is the b
 
 The runner SSH identity later used by the proxy needs narrowly constrained permission to invoke the fixed remote command `docker exec -i netops-helper python -m netops_helper.server`. The stock proxy invokes OpenSSH with `ssh -T`, so it allocates no terminal, and explicitly disables agent, X11, TCP, tunnel, proxy-command, jump-host, local-command, environment, and multiplexing paths. Docker group membership is effectively privileged host access; use a dedicated runner account constrained to that command or another independently reviewed restriction.
 
-The stock proxy supports only password and keyboard-interactive runner authentication, limits prompting to one attempt, and explicitly sets `PubkeyAuthentication=no`. The runner vault record therefore contains the password used for that SSH hop. Key- or certificate-based authentication may be preferable in a separately designed transport adapter, but the stock proxy does not implement it and this documentation does not claim otherwise.
+The runner credential is a vault record of kind `password` or `ssh-key`. A password is handed to OpenSSH's askpass helper once over a private abstract socket, with one prompt allowed and `PubkeyAuthentication=no`. A key is written to a mode-`600` identity file in the proxy's private temporary directory and used with `IdentitiesOnly=yes`, `PubkeyAuthentication=yes`, `PasswordAuthentication=no` and `BatchMode=yes`; the directory is removed when the proxy exits. Certificate-based authentication is not implemented.
 
-## 4. Generate the egress bundle on the proxy host
+## 5. Generate the egress bundle on the proxy host
 
-Run the generator from the same verified source revision that is deployed on the runner. It reads the mode-`600` vault and target policy, validates their relationship, and atomically writes a mode-`600` bundle. The bundle contains no credentials, logins, aliases, hostnames, TLS names, or host-key material, but it does reveal destination addresses, ports, LAN scopes, and resolver scope.
+Run the generator from the same verified source revision that is deployed on the runner. It reads the inventory and the egress policy, never the vault, and atomically writes a mode-`600` bundle. The bundle contains no credentials, logins, device names, host names, TLS names, or host-key material, but it does reveal destination addresses, ports, LAN scopes, and resolver scope.
 
 ```bash
 python3 scripts/generate_egress_rules.py \
-  --vault /path/to/vault.json \
-  --policy /path/to/target-policy.json \
+  --inventory /path/to/inventory.json \
+  --policy /path/to/egress-policy.json \
   --output /restricted/path/netops-helper-egress.json
 ```
 
-Generation must finish with exit status zero. Do not pass JSON or credentials inline, and do not place the output in the public repository.
-
-If the runner alias is not the default, pass the same value used by the proxy:
-
-```bash
-NETOPS_MASTER_ALIAS=transport-runner python3 scripts/generate_egress_rules.py \
-  --vault /path/to/vault.json \
-  --policy /path/to/target-policy.json \
-  --output /restricted/path/netops-helper-egress.json
-```
+Generation must finish with exit status zero. Do not pass JSON inline, and do not place the output in the public repository.
 
 If the proxy and runner are different hosts:
 
@@ -90,9 +89,9 @@ If the proxy and runner are different hosts:
 3. store it in a runner-local restricted directory with mode `600`;
 4. recompute and compare the digest on the runner through a separate trusted observation.
 
-A successful transfer proves only byte equality. It does not replace review of the bundle's intended network scope. `manifest_sha256` later verifies only the normalized manifest inside that bundle; it is not a digest of the vault, policy, source revision, aliases, or original input bytes.
+A successful transfer proves only byte equality. It does not replace review of the bundle's intended network scope. `manifest_sha256` later verifies only the normalized manifest inside that bundle; it is not a digest of the policy file, the source revision, or the original input bytes. The manifest does record `inventory_sha256`, the digest of the inventory file the bundle was generated from, so a bundle can be tied back to one reviewed enrollment.
 
-## 5. Review, explicitly apply, and check egress
+## 6. Review, explicitly apply, and check egress
 
 Read [Egress control](egress-control.md) before changing the host firewall. Retain an out-of-band recovery path.
 
@@ -119,7 +118,7 @@ Continue only after `egress_apply=ok` and `egress_check=ok`. The helper requires
 
 Bundle schema 3 contains one IPv4 ruleset and apply uses one IPv4 `iptables-restore` COMMIT. It never invokes ip6tables and does not claim an IPv6 firewall transaction. IPv6 is instead disabled on this Docker network by Compose. DOCKER-USER filters forwarded bridge traffic; it does not protect services reached through the runner's INPUT path. The checker validates its defined network and forwarding contract, not complete host containment.
 
-## 6. Start the service only after the check
+## 7. Start the service only after the check
 
 Start the already-created stopped container and confirm its state:
 
@@ -130,19 +129,19 @@ docker compose ps
 
 If start causes an unexpected recreate or network change, stop the service, rerun the checker, and investigate before reconnecting a client. Do not replace this guarded first start with `docker compose up -d`.
 
-## 7. Connect an MCP client
+## 8. Connect an MCP client
 
 Configure any compatible client to launch `python3` with the absolute path to `scripts/remote_mcp_proxy.py` as a stdio MCP server. Keep client-specific settings outside the repository.
 
 Use a dedicated read-only agent/session with no generic shell, write-capable filesystem, deployment, configuration, or mutating tools. Restart the client after changing its MCP configuration.
 
-## 8. Validate the deployment
+## 9. Validate the deployment
 
 Run portable source checks in a suitable development environment, from this component's directory (`components/netops-helper/` in the `netops` repository):
 
 ```bash
-PYTHONPATH=src python tests/run_tests.py
-PYTHONPATH=src python tests/test_engine_contracts.py
+PYTHONPATH=src:../netops-core/src python tests/run_tests.py
+PYTHONPATH=src:../netops-core/src python tests/test_engine_contracts.py
 python tests/test_proxy_contracts.py
 python tests/test_egress_scripts.py
 python tests/test_apply_egress_rules.py
@@ -159,7 +158,7 @@ Then start a fresh dedicated client session:
 
 1. Call `helper_status`; confirm `write_tools` is empty and review `invalid_target_count` and per-target rate state.
 2. Choose only an alias returned in `target_aliases`.
-3. Call `target_scope`; review query, inventory, metadata/listing root, egress, host-key, SNMP, and rate state. Remember that egress addresses and other returned scope are topology-sensitive.
+3. Call `target_scope`; review query, inventory, metadata/listing root, egress, `host_key_pinned`, `snmp_enrolled`, and rate state. Remember that egress addresses and other returned scope are topology-sensitive.
 4. Compare enabled names and typed slots with `read_query_catalog`.
 5. Execute one harmless enrolled query against a controlled test target.
 6. Confirm target-side authentication/authorization logging and the expected two-phase audit pair.
@@ -178,7 +177,7 @@ DOCKER-USER alone does not cover INPUT. If runner-host services require protecti
 
 ## Change procedure
 
-Any change to vault targets or connection ports, policy, metadata/listing roots, resolver scope, Compose network, or Docker networking requires the guarded sequence again:
+Any change to a device entry or its connection port, a helper section, metadata/listing roots, resolver scope, Compose network, or Docker networking requires the guarded sequence again:
 
 1. stop the service;
 2. regenerate and securely transfer a fresh bundle;
@@ -191,4 +190,4 @@ Do not assume that a previously installed rule follows enrollment changes automa
 
 ## Removal
 
-Disconnect the MCP client and stop the container. Remove or replace the tool-owned host-firewall chain through a reviewed operator procedure before removing the Compose network. Preserve or securely dispose of the audit volume according to retention policy. Removing the MCP connection does not remove the credential file, host keys, policy, transferred bundle, or host firewall state.
+Disconnect the MCP client and stop the container. Remove or replace the tool-owned host-firewall chain through a reviewed operator procedure before removing the Compose network. Preserve or securely dispose of the audit volume according to retention policy. Removing the MCP connection does not remove the vault, the inventory, the runner file, the transferred bundle, or host firewall state.

@@ -1,7 +1,9 @@
-FROM python:3.12.14-slim-trixie@sha256:78387bc3881b8273120a12ebe6c1ab22b018ccc2c9adf565ae1ac9b536e184ea
+FROM python:3.13.15-slim-trixie@sha256:9d2e5553305c7c7b0097999bb17187c69b921ccd6bc9d40e4bb5ebe652c00285
 
 ARG APP_UID=65532
 ARG APP_GID=65532
+ARG COMPONENT_DIR=.
+ARG CORE_PACKAGE_DIR=src/netops_core
 
 LABEL org.opencontainers.image.title="netops-helper" \
       org.opencontainers.image.source="https://github.com/radek-cerny-soukr/netops" \
@@ -16,15 +18,21 @@ ENV PYTHONUNBUFFERED=1 \
 RUN groupadd --gid "${APP_GID}" netops \
     && useradd --uid "${APP_UID}" --gid "${APP_GID}" --home-dir /nonexistent --shell /usr/sbin/nologin netops
 
+RUN set -eu \
+    && apt-get update \
+    && apt-get install --yes --no-install-recommends openssh-client \
+    && rm -rf /var/lib/apt/lists/*
+
 RUN mkdir -p /etc/netops-helper/certs
-COPY config/container/tls-pins.json /etc/netops-helper/tls-pins.json
-COPY config/container/certs/ /etc/netops-helper/certs/
-COPY config/container/ca/ /usr/local/share/ca-certificates/netops-helper/
+COPY ${COMPONENT_DIR}/config/container/tls-pins.json /etc/netops-helper/tls-pins.json
+COPY ${COMPONENT_DIR}/config/container/certs/ /etc/netops-helper/certs/
+COPY ${COMPONENT_DIR}/config/container/ca/ /usr/local/share/ca-certificates/netops-helper/
 RUN update-ca-certificates
 
 WORKDIR /app
-COPY requirements.lock ./
-COPY src ./src
+COPY ${COMPONENT_DIR}/requirements.lock ./
+COPY ${COMPONENT_DIR}/src ./src
+COPY ${CORE_PACKAGE_DIR} ./src/netops_core
 RUN python -m pip install --no-cache-dir --require-hashes -r requirements.lock \
     && python -m pip uninstall -y pip
 

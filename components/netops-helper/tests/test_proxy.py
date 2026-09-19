@@ -1,8 +1,6 @@
 from __future__ import annotations
 
-from base64 import b64encode, urlsafe_b64decode
-import hashlib
-import hmac
+from base64 import urlsafe_b64decode
 import importlib.util
 import io
 import json
@@ -16,6 +14,9 @@ SPEC = importlib.util.spec_from_file_location("remote_mcp_proxy", SCRIPT)
 MODULE = importlib.util.module_from_spec(SPEC)
 assert SPEC.loader is not None
 SPEC.loader.exec_module(MODULE)
+
+DEVICE_PIN = "SHA256:" + "A" * 43
+RUNNER_PIN = "SHA256:" + "B" * 43
 
 
 def test_schema_hides_internal_auth_field() -> None:
@@ -33,23 +34,8 @@ def test_schema_hides_internal_auth_field() -> None:
     assert "auth_context" not in schema["required"]
 
 
-def _write_test_vault(path: Path) -> None:
-    path.write_text(json.dumps({
-        "other": {
-            "host": "unrelated-host", "port": 22,
-            "login": "unrelated-user", "password": "unrelated-secret",
-        },
-        "device-a": {
-            "host": "selected-host", "port": 22,
-            "login": "selected-user", "password": "selected-secret",
-            "snmp_community": "separate-community",
-        },
-    }, indent=2) + "\n")
-    path.chmod(0o600)
-
-
-def _policy(path: Path) -> None:
-    path.write_text(json.dumps({"device-a": {
+def _section() -> dict:
+    return {
         "account_role": "read-only",
         "ssh_platform": "fortios",
         "enabled_queries": ["system_status", "interface_details"],
@@ -63,68 +49,168 @@ def _policy(path: Path) -> None:
             "allow_dns": True,
             "tls_server_names": [],
         },
-        "read_inventory": {"interfaces": ["eth0"], "services": [], "addresses": []},
+        "read_inventory": {"interfaces": ["port1"], "services": [], "addresses": []},
         "sftp_roots": ["/safe"],
         "fortios_output_standard_verified": True,
+        "snmp_credential": "device-a-community",
         "rate_limit": {"requests": 2, "window_seconds": 60},
-    }}))
+    }
 
 
-def test_load_record_accepts_pretty_printed_json(tmp_path: Path, monkeypatch) -> None:
+def _write_test_inventory(path: Path) -> None:
+    path.write_text(json.dumps({
+        "version": 2,
+        "devices": [{
+            "name": "device-a",
+            "platform": "fortios",
+            "address": "192.0.2.10",
+            "port": 22,
+            "role": "interni",
+            "credential": "device-a-account",
+            "host_key_fingerprint": DEVICE_PIN,
+            "legacy_ssh": None,
+            "auditor": None,
+            "helper": _section(),
+        }],
+    }, indent=2) + "\n")
+
+
+def _write_test_vault(path: Path) -> None:
+    path.write_text(json.dumps({
+        "version": 2,
+        "credentials": {
+            "runner-account": {
+                "kind": "password", "login": "runner-user", "value": "runner-secret",
+            },
+            "device-a-account": {
+                "kind": "password", "login": "selected-user", "value": "selected-secret",
+            },
+            "device-a-community": {
+                "kind": "snmp-community", "value": "separate-community",
+            },
+        },
+    }, indent=2) + "\n")
+    path.chmod(0o600)
+
+
+def _write_test_policy(path: Path) -> None:
+    path.write_text(json.dumps({
+        "schema_version": 1,
+        "profile": "strict-target",
+        "backend": "iptables",
+        "bridge_name": "nh-egress0",
+        "network_name": "netops-helper",
+        "ipv6_mode": "deny",
+        "dns_resolvers": ["192.0.2.53"],
+        "lan_cidrs": [],
+    }))
+
+
+def _write_test_runner(path: Path) -> None:
+    path.write_text(json.dumps({
+        "version": 1,
+        "host": "runner.example.invalid",
+        "port": 22,
+        "credential": "runner-account",
+        "host_key_fingerprint": RUNNER_PIN,
+    }))
+
+
+def _paths(tmp_path: Path, monkeypatch):
+    inventory = tmp_path / "inventory.json"
     vault = tmp_path / "vault.json"
+    policy = tmp_path / "egress-policy.json"
+    runner = tmp_path / "runner.json"
+    _write_test_inventory(inventory)
     _write_test_vault(vault)
+    _write_test_policy(policy)
+    _write_test_runner(runner)
+    monkeypatch.setattr(MODULE, "INVENTORY", inventory)
     monkeypatch.setattr(MODULE, "VAULT", vault)
-    assert MODULE.Proxy()._load_record("device-a")["login"] == "selected-user"
-    with pytest.raises(ValueError):
-        MODULE.Proxy()._load_record("missing")
+    monkeypatch.setattr(MODULE, "EGRESS_POLICY", policy)
+    monkeypatch.setattr(MODULE, "RUNNER", runner)
+    return inventory, vault, policy, runner
 
 
-def test_load_record_rejects_loose_permissions(tmp_path: Path, monkeypatch) -> None:
-    vault = tmp_path / "vault.json"
-    _write_test_vault(vault)
+def _section_of(inventory: Path) -> dict:
+    return json.loads(inventory.read_text())["devices"][0]["helper"]
+
+
+def _rewrite(inventory: Path, document: dict) -> None:
+    inventory.write_text(json.dumps(document))
+
+
+def test_vault_is_read_through_the_shared_credential_store(tmp_path: Path, monkeypatch) -> None:
+    _, vault, _, _ = _paths(tmp_path, monkeypatch)
+    assert MODULE.Proxy()._vault().credential("device-a-account").login == "selected-user"
+    with pytest.raises(MODULE.AuthenticationMaterialError):
+        MODULE.Proxy()._credential(MODULE.Proxy()._vault(), "missing")
+
+
+def test_vault_rejects_loose_permissions(tmp_path: Path, monkeypatch) -> None:
+    _, vault, _, _ = _paths(tmp_path, monkeypatch)
     vault.chmod(0o644)
-    monkeypatch.setattr(MODULE, "VAULT", vault)
-    with pytest.raises(ValueError):
-        MODULE.Proxy()._load_record("device-a")
+    with pytest.raises(MODULE.VaultPermissionError):
+        MODULE.Proxy()._vault()
 
 
-def test_request_injects_read_only_scope_and_target_host_key(tmp_path: Path, monkeypatch) -> None:
-    vault=tmp_path/"vault.json"; known=tmp_path/"known_hosts"; policy=tmp_path/"target-policy.json"
-    _write_test_vault(vault); known.write_text("selected-host ssh-ed25519 QUJD\nother-host ssh-ed25519 REVG\n"); _policy(policy)
-    monkeypatch.setattr(MODULE,"VAULT",vault); monkeypatch.setattr(MODULE,"KNOWN_HOSTS",known); monkeypatch.setattr(MODULE,"TARGET_POLICY",policy)
-    proxy=MODULE.Proxy()
-    transformed=proxy.request(json.dumps({
-        "jsonrpc":"2.0","id":21,"method":"tools/call",
-        "params":{"name":"ssh_read","arguments":{"target":"device-a","platform":"fortios","query":"system_status"}},
+def test_request_injects_the_read_only_scope_and_the_pinned_host_key(
+    tmp_path: Path, monkeypatch,
+) -> None:
+    _paths(tmp_path, monkeypatch)
+    proxy = MODULE.Proxy()
+    transformed = proxy.request(json.dumps({
+        "jsonrpc": "2.0", "id": 21, "method": "tools/call",
+        "params": {"name": "ssh_read", "arguments": {
+            "target": "device-a", "platform": "fortios", "query": "system_status",
+        }},
     }).encode())
     assert transformed is not None
-    assert proxy.response_secrets[21][:2] == ("selected-secret", "separate-community")
-    assert proxy.response_secrets[21][2] == json.loads(transformed)["params"]["arguments"]["auth_context"]
-    encoded=json.loads(transformed)["params"]["arguments"]["auth_context"]
-    scope=json.loads(urlsafe_b64decode(encoded + "=" * (-len(encoded) % 4)))
+    assert proxy.response_secrets[21][0] == "selected-secret"
+    assert proxy.response_secrets[21][1] == json.loads(
+        transformed,
+    )["params"]["arguments"]["auth_context"]
+    scope = _decode_context(transformed)
+    assert set(scope) == {
+        "alias", "host", "port", "login", "credential_kind", "secret",
+        "host_key_fingerprint", "legacy_ssh", "account_role", "ssh_platform",
+        "enabled_queries", "read_inventory", "sftp_roots",
+        "fortios_output_standard_verified", "egress",
+    }
     assert scope["account_role"] == "read-only"
-    assert scope["read_inventory"]["interfaces"] == ["eth0"]
+    assert scope["credential_kind"] == "password"
+    assert scope["host_key_fingerprint"] == DEVICE_PIN
+    assert scope["ssh_platform"] == "fortios"
+    assert scope["read_inventory"]["interfaces"] == ["port1"]
     assert scope["sftp_roots"] == ["/safe"]
-    assert "https_endpoints" not in scope
     assert scope["fortios_output_standard_verified"] is True
-    assert scope["known_hosts"] == "selected-host ssh-ed25519 QUJD\n"
-    assert "snmp_community" not in scope
+    assert "known_hosts" not in scope
+    assert "password" not in scope
     assert "rate_limit" not in scope
 
 
-def test_missing_read_only_enrollment_fails_closed(tmp_path: Path, monkeypatch) -> None:
-    policy=tmp_path/"target-policy.json"; policy.write_text("{}")
-    monkeypatch.setattr(MODULE,"TARGET_POLICY",policy)
-    with pytest.raises(ValueError): MODULE.Proxy()._load_target_policy("device-a")
+def test_a_device_without_a_helper_section_is_not_a_target(
+    tmp_path: Path, monkeypatch,
+) -> None:
+    inventory, _, _, _ = _paths(tmp_path, monkeypatch)
+    document = json.loads(inventory.read_text())
+    document["devices"][0]["helper"] = None
+    document["devices"][0]["auditor"] = {"channel": "ssh"}
+    _rewrite(inventory, document)
+    with pytest.raises(MODULE.PolicyRejectedError):
+        MODULE.Proxy()._target("device-a")
+    with pytest.raises(MODULE.UnknownAliasError):
+        MODULE.Proxy()._target("device-b")
 
 
 def test_response_preserves_identifiers_redacts_secret_and_marks_untrusted() -> None:
-    proxy=MODULE.Proxy(); proxy.pending[22]="tools/call"; proxy.response_secrets[22]=("credential-value",)
-    raw=json.dumps({
-        "jsonrpc":"2.0","id":22,
-        "result":{"content":[{"type":"text","text":"Sep 9 10:23:45 host ip=192.0.2.10 mac=aa:bb:cc:dd:ee:ff credential-value"}]},
+    proxy = MODULE.Proxy(); proxy.pending[22] = "tools/call"
+    proxy.response_secrets[22] = ("credential-value",)
+    raw = json.dumps({
+        "jsonrpc": "2.0", "id": 22,
+        "result": {"content": [{"type": "text", "text": "Sep 9 10:23:45 host ip=192.0.2.10 mac=aa:bb:cc:dd:ee:ff credential-value"}]},
     }).encode()
-    transformed=json.loads(proxy.response(raw)); output=transformed["result"]["content"][0]["text"]
+    transformed = json.loads(proxy.response(raw)); output = transformed["result"]["content"][0]["text"]
     assert output.startswith("UNTRUSTED DEVICE DATA")
     for visible in ("10:23:45", "host", "192.0.2.10", "aa:bb:cc:dd:ee:ff"): assert visible in output
     assert "credential-value" not in output
@@ -155,17 +241,6 @@ def test_batch_is_rejected_without_crashing(monkeypatch) -> None:
     monkeypatch.setattr(proxy, "_emit", emitted.append)
     assert proxy.request(b"[]") is None
     assert emitted[0]["error"]["code"] == -32600
-
-
-def test_master_alias_is_never_addressable(monkeypatch) -> None:
-    proxy = MODULE.Proxy(); emitted = []
-    monkeypatch.setattr(proxy, "_emit", emitted.append)
-    monkeypatch.setattr(proxy, "_load_record", lambda alias: (_ for _ in ()).throw(AssertionError()))
-    request = {"jsonrpc": "2.0", "id": 30, "method": "tools/call", "params": {
-        "name": "tcp_probe", "arguments": {"target": MODULE.MASTER_ALIAS, "port": 22},
-    }}
-    assert proxy.request(json.dumps(request).encode()) is None
-    assert emitted[0]["error"]["code"] == -32602
 
 
 def test_per_target_rate_limit_fails_closed(monkeypatch) -> None:
@@ -233,7 +308,7 @@ def test_every_server_message_is_sanitized_with_session_secrets() -> None:
 
 
 def test_auth_context_envelope_is_redacted_from_server_messages() -> None:
-    envelope = MODULE.urlsafe_b64encode(b'{"password":"credential-value"}').decode().rstrip("=")
+    envelope = MODULE.urlsafe_b64encode(b'{"secret":"credential-value"}').decode().rstrip("=")
     proxy = MODULE.Proxy(); proxy.pending[70] = "tools/call"
     proxy.response_secrets[70] = ("credential-value", envelope)
     proxy.session_secrets.update(dict.fromkeys(("credential-value", envelope)))
@@ -260,27 +335,16 @@ def test_configured_paths_expand_home_and_symlinked_vault_is_rejected(tmp_path: 
     monkeypatch.setenv("NETOPS_VAULT_PATH", "~/vault.json")
     assert MODULE._configured_path("NETOPS_VAULT_PATH", tmp_path / "x") == tmp_path / "vault.json"
     real = tmp_path / "real-vault.json"
-    real.write_text("{}", encoding="utf-8"); real.chmod(0o600)
+    _write_test_vault(real)
     link = tmp_path / "vault-link.json"
     link.symlink_to(real)
     monkeypatch.setattr(MODULE, "VAULT", link)
     with pytest.raises(MODULE.VaultPermissionError):
-        MODULE.Proxy()._load_vault_document()
+        MODULE.Proxy()._vault()
     monkeypatch.setattr(MODULE, "VAULT", real)
-    assert MODULE.Proxy()._load_vault_document() == {}
-
-
-def _paths(tmp_path: Path, monkeypatch):
-    vault = tmp_path / "vault.json"
-    known = tmp_path / "known_hosts"
-    policy = tmp_path / "target-policy.json"
-    _write_test_vault(vault)
-    known.write_text("selected-host ssh-ed25519 QUJD\n")
-    _policy(policy)
-    monkeypatch.setattr(MODULE, "VAULT", vault)
-    monkeypatch.setattr(MODULE, "KNOWN_HOSTS", known)
-    monkeypatch.setattr(MODULE, "TARGET_POLICY", policy)
-    return vault, known, policy
+    assert MODULE.Proxy()._vault().names() == (
+        "device-a-account", "device-a-community", "runner-account",
+    )
 
 
 def _tool_call(request_id, name: str, arguments: dict):
@@ -310,6 +374,8 @@ def test_proxy_error_taxonomy_has_distinct_safe_categories() -> None:
         MODULE.RateLimitError: "rate_limit",
         MODULE.PolicySchemaError: "policy_schema",
         MODULE.PolicyScopeError: "policy_scope",
+        MODULE.RunnerFileError: "runner_file",
+        MODULE.LegacyConfigurationError: "legacy_configuration",
     }
     assert {error.category for error in expected} == set(expected.values())
     assert len({error.code for error in expected}) == len(expected)
@@ -332,44 +398,63 @@ def test_request_reports_unknown_alias_and_rate_limit_separately(tmp_path: Path,
     assert "credential" not in error["message"].lower()
 
 
-def test_policy_schema_and_role_fail_with_distinct_types(tmp_path: Path, monkeypatch) -> None:
-    _, _, policy = _paths(tmp_path, monkeypatch)
-    data = json.loads(policy.read_text())
-    del data["device-a"]["ssh_platform"]
-    policy.write_text(json.dumps(data))
+def test_section_schema_and_role_fail_with_distinct_types(tmp_path: Path, monkeypatch) -> None:
+    inventory, _, _, _ = _paths(tmp_path, monkeypatch)
+    document = json.loads(inventory.read_text())
+    del document["devices"][0]["helper"]["ssh_platform"]
+    _rewrite(inventory, document)
     with pytest.raises(MODULE.PolicySchemaError):
-        MODULE.Proxy()._load_target_policy("device-a")
+        MODULE.Proxy()._target("device-a")
 
-    data["device-a"]["ssh_platform"] = "fortios"
-    data["device-a"]["account_role"] = "administrator"
-    policy.write_text(json.dumps(data))
+    document["devices"][0]["helper"]["ssh_platform"] = "fortios"
+    document["devices"][0]["helper"]["account_role"] = "administrator"
+    _rewrite(inventory, document)
     with pytest.raises(MODULE.RoleRejectedError):
-        MODULE.Proxy()._load_target_policy("device-a")
+        MODULE.Proxy()._target("device-a")
+
+
+def test_inventory_and_egress_policy_failures_are_policy_schema(
+    tmp_path: Path, monkeypatch,
+) -> None:
+    inventory, _, policy, _ = _paths(tmp_path, monkeypatch)
+    inventory.write_text("[]")
+    with pytest.raises(MODULE.PolicySchemaError):
+        MODULE.Proxy()._load_inventory()
+    _write_test_inventory(inventory)
+    policy.write_text(json.dumps({"schema_version": 1}))
+    with pytest.raises(MODULE.PolicySchemaError):
+        MODULE.Proxy()._load_egress_policy()
+    _write_test_policy(policy)
+    document = json.loads(policy.read_text())
+    document["dns_resolvers"] = []
+    policy.write_text(json.dumps(document))
+    with pytest.raises(MODULE.PolicySchemaError):
+        MODULE.Proxy()._target("device-a")
 
 
 def test_vault_schema_permissions_and_auth_material_are_distinct(
     tmp_path: Path, monkeypatch,
 ) -> None:
-    vault, _, _ = _paths(tmp_path, monkeypatch)
+    _, vault, _, _ = _paths(tmp_path, monkeypatch)
     vault.chmod(0o644)
     with pytest.raises(MODULE.VaultPermissionError):
-        MODULE.Proxy()._load_record("device-a")
+        MODULE.Proxy()._vault()
     vault.chmod(0o600)
     vault.write_text("[]")
     with pytest.raises(MODULE.VaultSchemaError):
-        MODULE.Proxy()._load_record("device-a")
-    vault.write_text(json.dumps({"device-a": {
-        "host": "host", "port": 22, "login": "user", "password": "abc",
-        "snmp_community": "abc",
-    }}))
-    with pytest.raises(MODULE.AuthenticationMaterialError):
-        MODULE.Proxy()._load_record("device-a")
+        MODULE.Proxy()._vault()
+    vault.write_text(json.dumps({
+        "version": 2,
+        "credentials": {"device-a-account": {"kind": "password", "value": "abc"}},
+    }))
+    with pytest.raises(MODULE.VaultSchemaError):
+        MODULE.Proxy()._vault()
 
 
-def test_snmp_community_is_separate_injected_secret_without_fallback(
+def test_snmp_community_is_a_separate_enrolled_record_without_fallback(
     tmp_path: Path, monkeypatch,
 ) -> None:
-    vault, _, _ = _paths(tmp_path, monkeypatch)
+    inventory, _, _, _ = _paths(tmp_path, monkeypatch)
     proxy = MODULE.Proxy()
     transformed = proxy.request(_tool_call(
         70, "snmp_get", {"target": "device-a", "oids": ["1.3.6.1.2.1.1.1.0"]},
@@ -377,13 +462,15 @@ def test_snmp_community_is_separate_injected_secret_without_fallback(
     assert transformed is not None
     context = _decode_context(transformed)
     assert context["snmp_community"] == "separate-community"
-    assert context["password"] == "selected-secret"
+    assert context["secret"] == "selected-secret"
     assert proxy.response_secrets[70][:2] == ("selected-secret", "separate-community")
-    assert proxy.response_secrets[70][2] == json.loads(transformed)["params"]["arguments"]["auth_context"]
+    assert proxy.response_secrets[70][2] == json.loads(
+        transformed,
+    )["params"]["arguments"]["auth_context"]
 
-    data = json.loads(vault.read_text())
-    del data["device-a"]["snmp_community"]
-    vault.write_text(json.dumps(data))
+    document = json.loads(inventory.read_text())
+    del document["devices"][0]["helper"]["snmp_credential"]
+    _rewrite(inventory, document)
     emitted = []
     proxy = MODULE.Proxy()
     monkeypatch.setattr(proxy, "_emit", emitted.append)
@@ -393,75 +480,20 @@ def test_snmp_community_is_separate_injected_secret_without_fallback(
     assert emitted[-1]["error"]["data"]["category"] == "auth_material"
 
 
-def _hashed_host(value: str) -> str:
-    salt = b"0123456789abcdefghij"
-    digest = hmac.new(salt, value.encode(), hashlib.sha1).digest()
-    return "|1|" + b64encode(salt).decode() + "|" + b64encode(digest).decode()
-
-
-def test_known_hosts_filters_plaintext_markers_and_comma_hostlists(
+def test_helper_status_lists_only_valid_aliases_with_rate_state(
     tmp_path: Path, monkeypatch,
 ) -> None:
-    _, known, _ = _paths(tmp_path, monkeypatch)
-    known.write_text(
-        "other-host,selected-host ssh-ed25519 QUJD comment-leak\n"
-        "@cert-authority selected-host,third-host ssh-ed25519 REVG other-comment\n"
-    )
-    selected = MODULE.Proxy()._select_known_hosts({
-        "host": "selected-host", "port": 22,
-    })
-    assert selected == (
-        "selected-host ssh-ed25519 QUJD\n"
-        "@cert-authority selected-host ssh-ed25519 REVG\n"
-    )
-    for hidden in ("other-host", "third-host", "comment-leak", "other-comment"):
-        assert hidden not in selected
-
-
-@pytest.mark.parametrize(
-    ("host", "port", "known_name"),
-    [
-        ("device.example", 2222, "[device.example]:2222"),
-        ("2001:db8::10", 22, "2001:db8::10"),
-        ("2001:db8::10", 2222, "[2001:db8::10]:2222"),
-    ],
-)
-def test_known_hosts_supports_custom_ports_and_ipv6(
-    host: str, port: int, known_name: str, tmp_path: Path, monkeypatch,
-) -> None:
-    known = tmp_path / "known_hosts"
-    known.write_text(f"{known_name} ssh-ed25519 QUJD\n")
-    monkeypatch.setattr(MODULE, "KNOWN_HOSTS", known)
-    selected = MODULE.Proxy()._select_known_hosts({"host": host, "port": port})
-    assert selected == f"{known_name} ssh-ed25519 QUJD\n"
-
-
-def test_known_hosts_supports_hashed_names_and_fails_closed(
-    tmp_path: Path, monkeypatch,
-) -> None:
-    known = tmp_path / "known_hosts"
-    token = _hashed_host("[device.example]:2222")
-    known.write_text(f"{token} ssh-ed25519 QUJD\n")
-    monkeypatch.setattr(MODULE, "KNOWN_HOSTS", known)
-    assert MODULE.Proxy()._select_known_hosts({
-        "host": "device.example", "port": 2222,
-    }).startswith(token)
-    with pytest.raises(MODULE.AuthenticationMaterialError):
-        MODULE.Proxy()._select_known_hosts({"host": "other.example", "port": 2222})
-
-
-def test_helper_status_lists_only_valid_non_master_aliases_with_rate_state(
-    tmp_path: Path, monkeypatch,
-) -> None:
-    vault, _, policy = _paths(tmp_path, monkeypatch)
-    vault_data = json.loads(vault.read_text())
-    vault_data[MODULE.MASTER_ALIAS] = {
-        "host": "runner", "port": 22, "login": "runner", "password": "runner-secret",
-    }
-    vault.write_text(json.dumps(vault_data))
-    policy_data = json.loads(policy.read_text())
-    policy_data["invalid-only-policy"] = dict(policy_data["device-a"])
-    policy.write_text(json.dumps(policy_data))
+    inventory, _, _, _ = _paths(tmp_path, monkeypatch)
+    document = json.loads(inventory.read_text())
+    invalid = json.loads(json.dumps(document["devices"][0]))
+    invalid["name"] = "invalid-section"
+    invalid["helper"]["enabled_queries"] = ["does_not_exist"]
+    auditor_only = json.loads(json.dumps(document["devices"][0]))
+    auditor_only["name"] = "auditor-only"
+    auditor_only["helper"] = None
+    auditor_only["auditor"] = {"channel": "ssh"}
+    document["devices"].extend((invalid, auditor_only))
+    _rewrite(inventory, document)
     proxy = MODULE.Proxy()
     forwarded = proxy.request(_tool_call(80, "helper_status", {}))
     assert forwarded is not None
@@ -472,23 +504,22 @@ def test_helper_status_lists_only_valid_non_master_aliases_with_rate_state(
     result = json.loads(proxy.response(json.dumps(remote).encode()))["result"]
     assert result["structuredContent"]["target_aliases"] == ["device-a"]
     assert result["structuredContent"]["target_rate_limits"][0]["rate_limit"]["remaining"] == 2
-    assert MODULE.MASTER_ALIAS not in result["structuredContent"]["target_aliases"]
-    assert result["structuredContent"]["invalid_target_count"] == 2
+    assert result["structuredContent"]["invalid_target_count"] == 1
 
 
 def test_target_scope_reports_the_enrolled_legacy_ssh_profile(
     tmp_path: Path, monkeypatch,
 ) -> None:
-    _, _, policy = _paths(tmp_path, monkeypatch)
+    inventory, _, _, _ = _paths(tmp_path, monkeypatch)
     emitted = []
     proxy = MODULE.Proxy()
     monkeypatch.setattr(proxy, "_emit", emitted.append)
     assert proxy.request(_tool_call(91, "target_scope", {"target": "device-a"})) is None
     assert emitted[-1]["result"]["structuredContent"]["legacy_ssh"] is None
 
-    document = json.loads(policy.read_text())
-    document["device-a"]["legacy_ssh"] = "rsa-sha1"
-    policy.write_text(json.dumps(document))
+    document = json.loads(inventory.read_text())
+    document["devices"][0]["legacy_ssh"] = "rsa-sha1"
+    _rewrite(inventory, document)
     enrolled = MODULE.Proxy()
     monkeypatch.setattr(enrolled, "_emit", emitted.append)
     assert enrolled.request(_tool_call(92, "target_scope", {"target": "device-a"})) is None
@@ -506,12 +537,15 @@ def test_target_scope_is_local_non_secret_and_tools_list_advertises_it(
     scope = emitted[-1]["result"]["structuredContent"]
     assert scope["ssh_platform"] == "fortinet"
     assert scope["enabled_queries"] == ["system_status", "interface_details"]
-    assert scope["read_inventory"]["interfaces"] == ["eth0"]
-    assert "https_endpoints" not in scope
-    assert scope["ssh_host_key_enrolled"] is True
-    assert scope["snmp_configured"] is True
+    assert scope["read_inventory"]["interfaces"] == ["port1"]
+    assert scope["host_key_pinned"] is True
+    assert scope["snmp_enrolled"] is True
+    assert "snmp_configured" not in scope
+    assert "ssh_host_key_enrolled" not in scope
     serialized = json.dumps(scope)
-    for secret in ("selected-secret", "separate-community", "selected-user", "selected-host"):
+    for secret in (
+        "selected-secret", "separate-community", "selected-user", DEVICE_PIN,
+    ):
         assert secret not in serialized
 
     proxy.pending[82] = "tools/list"
@@ -539,7 +573,7 @@ def test_json_rpc_notifications_never_emit_responses(tmp_path: Path, monkeypatch
     emitted = []
     monkeypatch.setattr(proxy, "_emit", emitted.append)
     assert proxy.request(_tool_call(..., "target_scope", {"target": "device-a"})) is None
-    assert proxy.request(_tool_call(..., "tcp_probe", {"target": MODULE.MASTER_ALIAS})) is None
+    assert proxy.request(_tool_call(..., "tcp_probe", {"target": "device" + chr(127)})) is None
     forwarded = proxy.request(_tool_call(
         ..., "tcp_probe", {"target": "device-a", "port": 22},
     ))
@@ -560,11 +594,32 @@ def test_stderr_is_classified_without_raw_topology_or_secrets(
         ("selected-secret",),
         state,
     )
+    assert capsys.readouterr().err == ""
+    assert "selected-secret" not in state["captured"]
+    MODULE._exit_diagnostic(255, False, state)
     output = capsys.readouterr().err
     assert "category=ssh_authentication" in output
     for hidden in ("selected-user", "selected-host", "selected-secret", "Permission denied"):
         assert hidden not in output
     assert state["emitted"] is True
+
+
+def test_a_clean_exit_with_stderr_noise_reports_no_transport_failure(capsys) -> None:
+    state = {"emitted": False}
+    MODULE._drain_stderr(
+        io.BytesIO(b"FastMCP 4.0.3\nINFO Starting MCP server with transport 'stdio'\n"),
+        (),
+        state,
+    )
+    MODULE._exit_diagnostic(0, False, state)
+    assert capsys.readouterr().err == ""
+    assert state["emitted"] is False
+
+    MODULE._exit_diagnostic(255, False, {"emitted": False})
+    assert "category=ssh_transport" in capsys.readouterr().err
+
+    MODULE._exit_diagnostic(0, True, {"emitted": False})
+    assert "category=ssh_timeout" in capsys.readouterr().err
 
 
 def test_redaction_does_not_consume_log_words_and_hides_real_community() -> None:
@@ -577,10 +632,8 @@ def test_redaction_does_not_consume_log_words_and_hides_real_community() -> None
     assert second == "SNMP community string configured: <REDACTED>"
 
 
-def test_askpass_uses_self_reexec_without_temporary_file(monkeypatch, capsys) -> None:
+def test_askpass_uses_self_reexec_without_writing_the_password(monkeypatch, capsys) -> None:
     source = SCRIPT.read_text()
-    assert "mkstemp" not in source
-    assert "tempfile" not in source
     assert MODULE.ASKPASS_SOCKET_ENV in source
     assert "_NETOPS_HELPER_ASKPASS_SECRET" not in source
     child = MODULE.subprocess.Popen(["sleep", "30"])
@@ -595,3 +648,23 @@ def test_askpass_uses_self_reexec_without_temporary_file(monkeypatch, capsys) ->
     finally:
         child.kill()
         child.wait()
+
+
+def test_the_private_identity_file_is_written_0600_and_is_the_only_copy(
+    tmp_path: Path,
+) -> None:
+    directory = MODULE._private_directory()
+    try:
+        path = MODULE._identity_file(directory, "-----BEGIN OPENSSH PRIVATE KEY-----")
+        assert MODULE.stat.S_IMODE(MODULE.os.stat(path).st_mode) == 0o600
+        assert MODULE.os.listdir(directory) == [MODULE.IDENTITY_NAME]
+        command = MODULE._ssh_command(
+            {"host": "runner.example.invalid", "port": 22}, "runner-user",
+            directory + "/known_hosts", path,
+        )
+        assert f"IdentityFile={path}" in command
+        assert "PubkeyAuthentication=yes" in command
+        assert "PasswordAuthentication=no" in command
+        assert not any("-----BEGIN" in item for item in command)
+    finally:
+        MODULE.shutil.rmtree(directory, ignore_errors=True)

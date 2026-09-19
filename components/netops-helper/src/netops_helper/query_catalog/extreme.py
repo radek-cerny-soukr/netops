@@ -141,4 +141,82 @@ QUERIES: dict[str, Query] = {
         "show stpd", NO_SLOTS, "Summarize spanning-tree domains.",
         high_volume=True,
     ),
+    "stp_detail": Query(
+        "show stpd detail",
+        NO_SLOTS,
+        "Show spanning-tree settings for each domain.",
+        high_volume=True,
+    ),
+    "stacking": Query(
+        "show stacking",
+        NO_SLOTS,
+        "Summarize the nodes in the stack topology.",
+    ),
+    "stacking_support": Query(
+        "show stacking-support",
+        NO_SLOTS,
+        "Show the configured and current stacking-support state of the node.",
+    ),
+    "inline_power": Query(
+        "show inline-power",
+        NO_SLOTS,
+        "Show the inline-power status of the switch.",
+    ),
+    "inline_power_port": Query(
+        "show inline-power info ports {interface}",
+        PHYSICAL_PORT,
+        "Show inline-power information for one enrolled port.",
+    ),
+    "access_list_counters": Query(
+        "show access-list counter",
+        NO_SLOTS,
+        "Show access-list counters.",
+        high_volume=True,
+    ),
+    "qos_profiles": Query(
+        "show qosprofile",
+        NO_SLOTS,
+        "Show QoS profile information.",
+    ),
+    "licenses": Query(
+        "show licenses",
+        NO_SLOTS,
+        "Show the software license level, port speed licensing, and feature packs.",
+    ),
+    "ntp": Query(
+        "show ntp",
+        NO_SLOTS,
+        "Show the global NTP status of the switch.",
+    ),
+    "sntp_client": Query(
+        "show sntp-client",
+        NO_SLOTS,
+        "Show the SNTP client state.",
+    ),
+    "sessions": Query(
+        "show session",
+        NO_SLOTS,
+        "Show the currently active console and remote sessions.",
+    ),
+    "elrp": Query(
+        "show elrp",
+        NO_SLOTS,
+        "Show Extreme Loop Recovery Protocol information.",
+    ),
+    "mcast_cache_summary": Query(
+        "show mcast cache summary",
+        NO_SLOTS,
+        "Summarize the multicast forwarding cache.",
+    ),
+    "mirror": Query(
+        "show mirror",
+        NO_SLOTS,
+        "Show the configured mirror instances and their state.",
+    ),
+    "edp_neighbors": Query(
+        "show edp",
+        NO_SLOTS,
+        "Summarize Extreme Discovery Protocol neighbors.",
+        high_volume=True,
+    ),
 }

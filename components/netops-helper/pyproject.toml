@@ -4,18 +4,17 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "netops-helper"
-version = "0.2.3"
+version = "0.3.0"
 description = "Read-only MCP engine for bounded network troubleshooting"
 license = { text = "MIT" }
-requires-python = ">=3.12"
+requires-python = ">=3.13"
 dependencies = [
+  "netops-core==0.1.0",
   "fastmcp==4.0.3",
   "mcp==2.1.1",
   "httpx==0.28.1",
-  "netmiko==4.7.0",
   "pysnmp==7.1.29",
   "icmplib==3.0.4",
-  "asyncssh==2.24.0",
 ]
 
 [tool.setuptools.packages.find]
@@ -23,4 +22,4 @@ where = ["src"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-pythonpath = ["src"]
+pythonpath = ["src", "../netops-core/src"]

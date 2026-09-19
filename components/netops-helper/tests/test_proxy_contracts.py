@@ -13,12 +13,19 @@ import os
 from pathlib import Path
 import stat
 import subprocess
+import threading
 import sys
 import tempfile
 
 
 ROOT = Path(__file__).parents[1]
 SCRIPT = ROOT / "scripts" / "remote_mcp_proxy.py"
+DEVICE_PIN = "SHA256:" + "A" * 43
+RUNNER_PIN = "SHA256:" + "B" * 43
+DEVICE_SECRET = "ssh-password"
+RUNNER_SECRET = "runner-password"
+COMMUNITY = "snmp-community-value"
+RUNNER_HOST_KEY = b64encode(b"runner-host-key-material").decode("ascii")
 
 
 def _load_proxy():
@@ -42,7 +49,7 @@ def _egress() -> dict:
     }
 
 
-def _target_policy() -> dict:
+def _section() -> dict:
     return {
         "account_role": "read-only",
         "ssh_platform": "fortios",
@@ -53,42 +60,88 @@ def _target_policy() -> dict:
         },
         "sftp_roots": ["/safe"],
         "fortios_output_standard_verified": True,
+        "snmp_credential": "device-a-community",
         "rate_limit": {"requests": 30, "window_seconds": 60},
         "egress": _egress(),
     }
 
 
+def _device(section: dict, platform: str = "fortios") -> dict:
+    return {
+        "name": "device-a",
+        "platform": platform,
+        "address": "192.0.2.10",
+        "port": 22,
+        "role": "interni",
+        "credential": "device-a-account",
+        "host_key_fingerprint": DEVICE_PIN,
+        "legacy_ssh": None,
+        "auditor": None,
+        "helper": section,
+    }
+
+
+def _inventory(*devices: dict) -> dict:
+    return {"version": 2, "devices": list(devices)}
+
+
+def _egress_policy() -> dict:
+    return {
+        "schema_version": 1,
+        "profile": "strict-target",
+        "backend": "iptables",
+        "bridge_name": "nh-egress0",
+        "network_name": "netops-helper",
+        "ipv6_mode": "deny",
+        "dns_resolvers": ["192.0.2.53"],
+        "lan_cidrs": [],
+    }
+
+
+def _runner(pin: str = RUNNER_PIN) -> dict:
+    return {
+        "version": 1,
+        "host": "runner.example.invalid",
+        "port": 22,
+        "credential": "runner-account",
+        "host_key_fingerprint": pin,
+    }
+
+
+def _vault_document() -> dict:
+    return {
+        "version": 2,
+        "credentials": {
+            "runner-account": {
+                "kind": "password", "login": "runner-user", "value": RUNNER_SECRET,
+            },
+            "device-a-account": {
+                "kind": "password", "login": "reader", "value": DEVICE_SECRET,
+            },
+            "device-a-community": {
+                "kind": "snmp-community", "value": COMMUNITY,
+            },
+        },
+    }
+
+
+def _write(path: Path, document: dict, mode: int | None = None) -> Path:
+    path.write_text(json.dumps(document), encoding="utf-8")
+    if mode is not None:
+        path.chmod(mode)
+    return path
+
+
 def _configure(module, directory: Path):
-    vault = directory / "vault.json"
-    policy = directory / "policy.json"
-    known = directory / "known_hosts"
-    vault.write_text(json.dumps({
-        "device-a": {
-            "host": "192.0.2.10",
-            "port": 22,
-            "login": "reader",
-            "password": "ssh-password",
-            "snmp_community": "snmp-community",
-        },
-        module.MASTER_ALIAS: {
-            "host": "runner.example",
-            "port": 22,
-            "login": "runner",
-            "password": "runner-password",
-        },
-    }))
-    vault.chmod(0o600)
-    policy.write_text(json.dumps({
-        module.RESERVED_POLICY_KEY: {"generated": True},
-        "device-a": _target_policy(),
-    }))
-    known.write_text(
-        "unrelated.example,192.0.2.10 ssh-ed25519 QUJD comment-is-not-forwarded\n"
-    )
+    inventory = _write(directory / "inventory.json", _inventory(_device(_section())))
+    vault = _write(directory / "vault.json", _vault_document(), 0o600)
+    policy = _write(directory / "egress-policy.json", _egress_policy())
+    runner = _write(directory / "runner.json", _runner())
+    module.INVENTORY = inventory
     module.VAULT = vault
-    module.TARGET_POLICY = policy
-    module.KNOWN_HOSTS = known
-    return vault, policy, known
+    module.EGRESS_POLICY = policy
+    module.RUNNER = runner
+    return inventory, vault, policy, runner
 
 
 def _request(identifier, tool: str, arguments: dict) -> bytes:
@@ -132,27 +185,32 @@ def _assert_invalid_params(proxy, payload: bytes) -> None:
     assert not proxy.response_secrets
 
 
-def check_schema_and_reserved_key(module, directory: Path) -> None:
-    vault_path, policy_path, _ = _configure(module, directory)
+def check_section_schema_and_consumer_binding(module, directory: Path) -> None:
+    inventory, vault, policy, _ = _configure(module, directory)
     proxy = module.Proxy()
-    loaded = proxy._load_target_policy("device-a")
-    assert loaded["egress"]["tcp_port_ranges"] == [[8000, 8010]]
-    assert loaded["read_inventory"]["switches"] == ["sw1"]
+    _, section, _ = proxy._target("device-a")
+    assert section.egress["tcp_port_ranges"] == [[8000, 8010]]
+    assert section.read_inventory["switches"] == ("sw1",)
+    assert section.ssh_platform == "fortios"
+    assert section.catalog_platform() == "fortinet"
+
+    _write(inventory, _inventory(dict(_device(_section()), helper=None, auditor={})))
     try:
-        proxy._load_target_policy(module.RESERVED_POLICY_KEY)
+        module.Proxy()._target("device-a")
     except module.PolicyRejectedError:
         pass
     else:
-        raise AssertionError("reserved global key became a target alias")
+        raise AssertionError("a device without a helper section became a target")
 
-    invalid = _target_policy()
+    invalid = _section()
     invalid["typo"] = True
+    _write(inventory, _inventory(_device(invalid)))
     try:
-        proxy._validate_target_policy(invalid)
+        module.Proxy()._target("device-a")
     except module.PolicySchemaError:
         pass
     else:
-        raise AssertionError("unknown policy key was accepted")
+        raise AssertionError("unknown section key was accepted")
 
     for mutate in (
         lambda value: value["egress"].update(addresses=["192.0.2.010"]),
@@ -162,69 +220,81 @@ def check_schema_and_reserved_key(module, directory: Path) -> None:
         lambda value: value["egress"].update(tls_server_names=["*.example"]),
         lambda value: value["egress"].update(tcp_ports=[True]),
     ):
-        candidate = _target_policy()
+        candidate = _section()
         mutate(candidate)
+        _write(inventory, _inventory(_device(candidate)))
         try:
-            proxy._validate_target_policy(candidate)
+            module.Proxy()._target("device-a")
         except module.PolicySchemaError:
             pass
         else:
             raise AssertionError("invalid egress contract was accepted")
 
-    hostname_policy = copy.deepcopy(_target_policy())
-    hostname_policy["egress"]["allow_dns"] = True
-    hostname_policy["egress"]["addresses"] = []
-    normalized = proxy._validate_target_policy(hostname_policy)
+    hostname_section = copy.deepcopy(_section())
+    hostname_section["egress"]["allow_dns"] = True
+    hostname_section["egress"]["addresses"] = []
+    hostname = dict(_device(hostname_section), address="target.example", port=22)
+    _write(inventory, _inventory(hostname))
     try:
-        proxy._validate_target_binding({"host": "target.example"}, normalized)
+        module.Proxy()._target("device-a")
     except module.PolicySchemaError:
         pass
     else:
         raise AssertionError("hostname target without explicit addresses was accepted")
-    hostname_policy["egress"]["addresses"] = ["192.0.2.10"]
-    proxy._validate_target_binding(
-        {"host": "target.example"}, proxy._validate_target_policy(hostname_policy),
-    )
+    hostname_section["egress"]["addresses"] = ["192.0.2.10"]
+    _write(inventory, _inventory(hostname))
+    module.Proxy()._target("device-a")
 
-    data = json.loads(policy_path.read_text())
-    assert module.RESERVED_POLICY_KEY in data
-
-    vault_path.write_bytes(b"\xff")
+    document = _egress_policy()
+    document["dns_resolvers"] = []
+    _write(policy, document)
     try:
-        proxy._load_vault_document()
+        module.Proxy()._target("device-a")
+    except module.PolicySchemaError:
+        pass
+    else:
+        raise AssertionError("a DNS target without a resolver scope was accepted")
+    _write(policy, _egress_policy())
+    _write(inventory, _inventory(_device(_section())))
+
+    vault.write_bytes(b"\xff")
+    try:
+        module.Proxy()._vault()
     except module.VaultSchemaError:
         pass
     else:
         raise AssertionError("invalid UTF-8 vault was not classified as vault_schema")
 
 
-def check_malformed_snmp_unicode_is_typed_and_discovery_survives(
-    module, directory: Path,
-) -> None:
-    vault_path, policy_path, _ = _configure(module, directory)
-    vault = json.loads(vault_path.read_text())
-    malformed = copy.deepcopy(vault["device-a"])
-    malformed["snmp_community"] = chr(0xD800) + "xx"
-    vault["malformed-target"] = malformed
-    vault_path.write_text(json.dumps(vault))
-
-    policies = json.loads(policy_path.read_text())
-    policies["malformed-target"] = _target_policy()
-    policy_path.write_text(json.dumps(policies))
+def check_credential_kinds_and_discovery_survive(module, directory: Path) -> None:
+    inventory, vault, _, _ = _configure(module, directory)
+    document = _vault_document()
+    document["credentials"]["device-a-community"]["kind"] = "api-token"
+    _write(vault, document, 0o600)
 
     proxy = module.Proxy()
     emitted = []
     proxy._emit = emitted.append
     assert proxy.request(_request(98, "snmp_get", {
-        "target": "malformed-target",
+        "target": "device-a",
         "oids": ["1.3.6.1.2.1.1.1.0"],
     })) is None
-    assert emitted[-1]["error"]["data"]["category"] == "auth_material"
+    assert emitted[-1]["error"]["data"]["category"] == "policy_schema"
     assert not proxy.pending
     assert not proxy.pending_tools
     assert not proxy.response_secrets
     assert proxy.rate_history == {}
 
+    discovery = module.Proxy()
+    status = discovery._helper_status_payload()
+    assert status["target_aliases"] == []
+    assert status["invalid_target_count"] == 1
+
+    _write(vault, _vault_document(), 0o600)
+    second = _device(_section())
+    second["name"] = "device-b"
+    second["helper"] = dict(_section(), enabled_queries=["does_not_exist"])
+    _write(inventory, _inventory(_device(_section()), second))
     discovery = module.Proxy()
     forwarded = discovery.request(_request(99, "helper_status", {}))
     assert forwarded is not None
@@ -242,7 +312,7 @@ def check_malformed_snmp_unicode_is_typed_and_discovery_survives(
 
 
 def check_policy_parity_invalid_corpus(module, directory: Path) -> None:
-    _, policy_path, _ = _configure(module, directory)
+    inventory, _, _, _ = _configure(module, directory)
     mutations = (
         (
             "legacy HTTPS body-read field",
@@ -250,6 +320,7 @@ def check_policy_parity_invalid_corpus(module, directory: Path) -> None:
                 "path": "/export.conf", "port": 443, "use_basic_auth": False,
             }]),
         ),
+        ("legacy per-target profile", lambda value: value.update(legacy_ssh="rsa-sha1")),
         ("SFTP relative", lambda value: value.update(sftp_roots=["relative"])),
         ("SFTP root", lambda value: value.update(sftp_roots=["/"])),
         ("SFTP parent", lambda value: value.update(sftp_roots=["/safe/../escape"])),
@@ -265,24 +336,23 @@ def check_policy_parity_invalid_corpus(module, directory: Path) -> None:
         ("inventory interface syntax", lambda value: value["read_inventory"].update(interfaces=["port3;show"])),
         ("inventory service syntax", lambda value: value["read_inventory"].update(services=["sshd/service"])),
         ("inventory switch syntax", lambda value: value["read_inventory"].update(switches=["switch/1"])),
+        ("platform alias", lambda value: value.update(ssh_platform="fortinet")),
+        ("unknown snmp record", lambda value: value.update(snmp_credential="missing")),
         ("TCP port/range overlap", lambda value: value["egress"].update(tcp_ports=[8_005])),
         ("UDP port/range overlap", lambda value: value["egress"].update(udp_ports=[5_005])),
     )
     for index, (label, mutate) in enumerate(mutations, start=100):
-        candidate = _target_policy()
+        candidate = _section()
         mutate(candidate)
+        _write(inventory, _inventory(_device(candidate)))
+        proxy = module.Proxy()
         try:
-            module.Proxy._validate_target_policy(candidate)
+            proxy._target("device-a")
         except module.PolicySchemaError:
             pass
         else:
-            raise AssertionError(f"invalid policy accepted: {label}")
+            raise AssertionError(f"invalid section accepted: {label}")
 
-        policy_path.write_text(json.dumps({
-            module.RESERVED_POLICY_KEY: {"generated": True},
-            "device-a": candidate,
-        }))
-        proxy = module.Proxy()
         status = proxy._helper_status_payload()
         assert status["target_aliases"] == [], label
         assert status["invalid_target_count"] == 1, label
@@ -296,7 +366,7 @@ def check_policy_parity_invalid_corpus(module, directory: Path) -> None:
 
 
 def check_scope_and_no_overinjection(module, directory: Path) -> None:
-    _, policy_path, _ = _configure(module, directory)
+    inventory, _, _, _ = _configure(module, directory)
     assert 22 not in _egress()["tcp_ports"]
     assert 443 not in _egress()["tcp_ports"]
     proxy = module.Proxy()
@@ -308,12 +378,14 @@ def check_scope_and_no_overinjection(module, directory: Path) -> None:
     forwarded_ssh = json.loads(ssh)
     assert forwarded_ssh["params"]["arguments"]["platform"] == "fortinet"
     auth = _envelope(ssh)
-    assert auth["ssh_platform"] == "fortinet"
+    assert auth["ssh_platform"] == "fortios"
     assert auth["egress"] == _egress()
-    assert auth["known_hosts"] == "192.0.2.10 ssh-ed25519 QUJD\n"
-    serialized = json.dumps(auth["known_hosts"])
-    assert "unrelated" not in serialized
-    assert "comment-is-not-forwarded" not in serialized
+    assert auth["host_key_fingerprint"] == DEVICE_PIN
+    assert auth["credential_kind"] == "password"
+    assert auth["secret"] == DEVICE_SECRET
+    assert auth["legacy_ssh"] is None
+    assert "known_hosts" not in auth
+    assert "password" not in auth
     assert "snmp_community" not in auth
 
     snmp = proxy.request(_request(2, "snmp_get", {
@@ -321,8 +393,7 @@ def check_scope_and_no_overinjection(module, directory: Path) -> None:
     }))
     assert snmp is not None
     auth = _envelope(snmp)
-    assert auth["snmp_community"] == "snmp-community"
-    assert "known_hosts" not in auth
+    assert auth["snmp_community"] == COMMUNITY
 
     proxy = module.Proxy()
     _assert_policy_error(proxy, _request(3, "tcp_probe", {
@@ -358,17 +429,17 @@ def check_scope_and_no_overinjection(module, directory: Path) -> None:
         "use_tls": True,
     })) is not None
 
-    policy_data = json.loads(policy_path.read_text())
-    policy_data["device-a"]["egress"]["tcp_port_ranges"] = []
-    policy_path.write_text(json.dumps(policy_data))
+    section = _section()
+    section["egress"]["tcp_port_ranges"] = []
+    _write(inventory, _inventory(_device(section)))
     _assert_policy_error(module.Proxy(), _request(15, "ftp_list", {
         "target": "device-a", "remote_path": "/safe", "port": 21,
         "use_tls": True,
     }))
 
-    policy_data["device-a"]["egress"]["tcp_port_ranges"] = [[8000, 8010]]
-    policy_data["device-a"]["sftp_roots"] = []
-    policy_path.write_text(json.dumps(policy_data))
+    section = _section()
+    section["sftp_roots"] = []
+    _write(inventory, _inventory(_device(section)))
     _assert_policy_error(module.Proxy(), _request(16, "sftp_stat", {
         "target": "device-a", "remote_path": "/safe/log",
     }))
@@ -389,8 +460,6 @@ def check_discovery_notifications_and_rate_cost(module, directory: Path) -> None
     }).encode())
     status = json.loads(status_response)["result"]["structuredContent"]
     assert status["target_aliases"] == ["device-a"]
-    assert module.RESERVED_POLICY_KEY not in status["target_aliases"]
-    assert module.MASTER_ALIAS not in status["target_aliases"]
     assert status["target_rate_limits"][0]["rate_limit"]["requests"] == 30
 
     emitted.clear()
@@ -399,9 +468,11 @@ def check_discovery_notifications_and_rate_cost(module, directory: Path) -> None
     assert scope["ssh_platform"] == "fortinet"
     assert scope["egress"] == _egress()
     assert scope["read_inventory"]["switches"] == ["sw1"]
+    assert scope["host_key_pinned"] is True
+    assert scope["snmp_enrolled"] is True
     assert "https_endpoints" not in scope
     visible = json.dumps(scope)
-    for secret in ("ssh-password", "snmp-community", "reader", "runner-password"):
+    for secret in (DEVICE_SECRET, COMMUNITY, "reader", RUNNER_SECRET, DEVICE_PIN):
         assert secret not in visible
 
     emitted.clear()
@@ -424,7 +495,7 @@ def check_discovery_notifications_and_rate_cost(module, directory: Path) -> None
     )
     for index, (tool, arguments) in enumerate(calls, start=30):
         assert rate_proxy.request(_request(index, tool, arguments)) is not None
-    rate = rate_proxy._rate_status("device-a", _target_policy()["rate_limit"])
+    rate = rate_proxy._rate_status("device-a", _section()["rate_limit"])
     assert rate["used"] == 2
     assert rate["remaining"] == 28
 
@@ -466,7 +537,7 @@ def check_exact_argument_schema_precedes_auth_rate_and_forward(
     )
     for index, (tool, arguments) in enumerate(invalid_calls, start=200):
         proxy = module.Proxy()
-        proxy._load_record = lambda alias: (_ for _ in ()).throw(
+        proxy._target = lambda alias: (_ for _ in ()).throw(
             AssertionError("authentication lookup must not start")
         )
         proxy._consume_rate_limit = lambda *args: (_ for _ in ()).throw(
@@ -479,12 +550,11 @@ def check_exact_argument_schema_precedes_auth_rate_and_forward(
 def check_pre_auth_scope_for_query_slots_paths_and_alias(
     module, directory: Path,
 ) -> None:
-    _, policy_path, _ = _configure(module, directory)
-    policies = json.loads(policy_path.read_text())
-    target = policies["device-a"]
-    target["enabled_queries"].append("interface_details")
-    target["read_inventory"]["interfaces"] = ["port3"]
-    policy_path.write_text(json.dumps(policies))
+    inventory, _, _, _ = _configure(module, directory)
+    section = _section()
+    section["enabled_queries"].append("interface_details")
+    section["read_inventory"]["interfaces"] = ["port3"]
+    _write(inventory, _inventory(_device(section)))
 
     def assert_scope_rejected(payload: bytes) -> None:
         proxy = module.Proxy()
@@ -536,7 +606,7 @@ def check_pre_auth_scope_for_query_slots_paths_and_alias(
 
     assert module.Proxy._valid_alias("device" + chr(127)) is False
     proxy = module.Proxy()
-    proxy._load_record = lambda alias: (_ for _ in ()).throw(
+    proxy._target = lambda alias: (_ for _ in ()).throw(
         AssertionError("vault lookup must not start for invalid alias")
     )
     _assert_invalid_params(proxy, _request(
@@ -547,7 +617,7 @@ def check_pre_auth_scope_for_query_slots_paths_and_alias(
 def check_query_authority_and_typed_pre_auth(
     module, directory: Path,
 ) -> None:
-    _, policy_path, _ = _configure(module, directory)
+    inventory, _, _, _ = _configure(module, directory)
     expected_aliases = {
         "linux": "linux",
         "fortinet": "fortinet",
@@ -560,17 +630,19 @@ def check_query_authority_and_typed_pre_auth(
         "arista_eos": "arista_eos",
         "juniper_junos": "juniper_junos",
         "juniper_junos_els": "juniper_junos_els",
+        "ruckus_unleashed": "ruckus_unleashed",
     }
     expected_counts = {
         "linux": 16,
-        "fortinet": 30,
-        "extreme_exos": 32,
+        "fortinet": 40,
+        "extreme_exos": 47,
         "cisco_ios": 27,
         "cisco_xe": 27,
         "cisco_nxos": 30,
         "arista_eos": 33,
         "juniper_junos": 25,
         "juniper_junos_els": 29,
+        "ruckus_unleashed": 4,
     }
     assert module.PLATFORM_MAP == expected_aliases
     assert {
@@ -583,9 +655,9 @@ def check_query_authority_and_typed_pre_auth(
         for name in sorted(names)
     )
     assert hashlib.sha256(name_contract.encode()).hexdigest() == (
-        "af80b37e1fed942389425c880f429d2fec02f077d8e09356c5e52cfab4a69dce"
+        "86bcc88f4f031239a732d223c7f49c98d90a2b8450d4f3a32c0935f906bb40b2"
     )
-    assert sum(expected_counts.values()) == 249
+    assert sum(expected_counts.values()) == 278
 
     expected_kind_inventory = {
         "address": "addresses",
@@ -635,13 +707,18 @@ def check_query_authority_and_typed_pre_auth(
         "arista_eos": "version",
         "juniper_junos": "version",
         "juniper_junos_els": "version",
+        "ruckus_unleashed": "system_info",
     }
-    for alias, canonical in expected_aliases.items():
-        candidate = _target_policy()
-        candidate["ssh_platform"] = alias
+    for canonical_name in module.helper_inventory.core.platforms.PLATFORMS:
+        canonical = module.helper_inventory.catalog_platform(canonical_name)
+        candidate = _section()
+        candidate["ssh_platform"] = canonical_name
         candidate["enabled_queries"] = [query_by_platform[canonical]]
-        normalized = module.Proxy._validate_target_policy(candidate)
-        assert normalized["ssh_platform"] == canonical
+        candidate["read_inventory"] = {}
+        _write(inventory, _inventory(_device(candidate, canonical_name)))
+        _, section, _ = module.Proxy()._target("device-a")
+        assert section.ssh_platform == canonical_name
+        assert section.catalog_platform() == canonical
 
     expected_slots = {
         ("linux", "interface_link"): (
@@ -751,7 +828,13 @@ def check_query_authority_and_typed_pre_auth(
         ("juniper_junos", "lacp_interface", "et-0/0/0"),
     )
 
-    def install_policy(
+    canonical_of = {
+        catalog: name
+        for name in module.helper_inventory.core.platforms.PLATFORMS
+        for catalog in (module.helper_inventory.catalog_platform(name),)
+    }
+
+    def install_section(
         platform: str,
         query: str,
         inventory_value: str,
@@ -759,8 +842,8 @@ def check_query_authority_and_typed_pre_auth(
         slot_name, slot = next(iter(
             module.READ_QUERY_SLOTS[platform][query].items()
         ))
-        candidate = _target_policy()
-        candidate["ssh_platform"] = platform
+        candidate = _section()
+        candidate["ssh_platform"] = canonical_of[platform]
         candidate["enabled_queries"] = [query]
         candidate["read_inventory"] = {
             "interfaces": [],
@@ -769,19 +852,14 @@ def check_query_authority_and_typed_pre_auth(
             "switches": [],
         }
         candidate["read_inventory"][slot["inventory"]] = [inventory_value]
-        policy_path.write_text(json.dumps({
-            module.RESERVED_POLICY_KEY: {"generated": True},
-            "device-a": candidate,
-        }))
+        _write(inventory, _inventory(_device(candidate, canonical_of[platform])))
         return slot_name, slot["inventory"]
 
-    candidate = _target_policy()
-    candidate["ssh_platform"] = "extreme_exos"
+    candidate = _section()
+    candidate["ssh_platform"] = "exos"
     candidate["enabled_queries"] = ["ports_configuration"]
-    policy_path.write_text(json.dumps({
-        module.RESERVED_POLICY_KEY: {"generated": True},
-        "device-a": candidate,
-    }))
+    candidate["read_inventory"] = {}
+    _write(inventory, _inventory(_device(candidate, "exos")))
     assert module.Proxy().request(_request(399, "ssh_read", {
         "target": "device-a",
         "platform": "extreme_exos",
@@ -789,7 +867,7 @@ def check_query_authority_and_typed_pre_auth(
     })) is not None
 
     for index, (platform, query, value) in enumerate(valid_queries, start=400):
-        slot_name, _ = install_policy(platform, query, value)
+        slot_name, _ = install_section(platform, query, value)
         forwarded = module.Proxy().request(_request(index, "ssh_read", {
             "target": "device-a",
             "platform": platform,
@@ -845,7 +923,7 @@ def check_query_authority_and_typed_pre_auth(
     for index, (
         platform, query, parameter_value, inventory_value,
     ) in enumerate(invalid_queries, start=450):
-        slot_name, _ = install_policy(platform, query, inventory_value)
+        slot_name, _ = install_section(platform, query, inventory_value)
         proxy = module.Proxy()
         auth_calls = []
         rate_calls = []
@@ -901,21 +979,9 @@ def check_standalone_isolated_help(directory: Path) -> None:
     assert "usage:" in completed.stdout
 
 
-def check_hashed_known_hosts_batch_and_tools_list(module, directory: Path) -> None:
-    _, _, known = _configure(module, directory)
-    salt = b"0123456789abcdefghij"
-    lookup = "192.0.2.10"
-    digest = hmac.new(salt, lookup.encode(), hashlib.sha1).digest()
-    token = "|1|" + b64encode(salt).decode() + "|" + b64encode(digest).decode()
-    known.write_text(
-        f"{token},unrelated.example ssh-ed25519 QUJD hidden-comment\n"
-    )
+def check_batch_and_tools_list(module, directory: Path) -> None:
+    _configure(module, directory)
     proxy = module.Proxy()
-    selected = proxy._select_known_hosts({
-        "host": "192.0.2.10", "port": 22,
-    })
-    assert selected == f"{token} ssh-ed25519 QUJD\n"
-
     proxy.pending[40] = "tools/call"
     proxy.pending_tools[40] = "tcp_probe"
     proxy.response_secrets[40] = ("response-secret",)
@@ -1029,25 +1095,79 @@ def check_runner_startup_preflight_categories(module, directory: Path) -> None:
         )
         module.sys.argv = [str(SCRIPT)]
 
-        vault, _, _ = _configure(module, directory)
-        document = json.loads(vault.read_text(encoding="utf-8"))
-        document.pop(module.MASTER_ALIAS)
-        vault.write_text(json.dumps(document), encoding="utf-8")
-        run_case(("runner_alias", module.RUNNER_ALIAS_FAILURE_MESSAGE))
+        _, _, _, runner = _configure(module, directory)
+        runner.unlink()
+        run_case((
+            module.RunnerFileError.category,
+            module.RunnerFileError.public_message,
+        ))
 
-        vault, _, _ = _configure(module, directory)
+        _, _, _, runner = _configure(module, directory)
+        for invalid in (
+            dict(_runner(), version=2),
+            dict(_runner(), host="-oProxyCommand=malicious"),
+            dict(_runner(), port=0),
+            dict(_runner(), host_key_fingerprint="SHA256:short"),
+            {key: value for key, value in _runner().items() if key != "credential"},
+        ):
+            _write(runner, invalid)
+            run_case((
+                module.RunnerFileError.category,
+                module.RunnerFileError.public_message,
+            ))
+
+        _, vault, _, runner = _configure(module, directory)
+        _write(runner, dict(_runner(), credential="missing"))
+        run_case((
+            module.AuthenticationMaterialError.category,
+            module.AuthenticationMaterialError.public_message,
+        ))
+
+        _, vault, _, _ = _configure(module, directory)
+        document = _vault_document()
+        document["credentials"]["runner-account"] = {
+            "kind": "api-token", "value": RUNNER_SECRET,
+        }
+        _write(vault, document, 0o600)
+        run_case((
+            module.AuthenticationMaterialError.category,
+            module.AuthenticationMaterialError.public_message,
+        ))
+
+        _, vault, _, _ = _configure(module, directory)
         vault.chmod(0o644)
         run_case((
             module.VaultPermissionError.category,
             module.VaultPermissionError.public_message,
         ))
 
-        vault, _, _ = _configure(module, directory)
+        _, vault, _, _ = _configure(module, directory)
         vault.write_text("{invalid-json", encoding="utf-8")
         run_case((
             module.VaultSchemaError.category,
             module.VaultSchemaError.public_message,
         ))
+
+        _configure(module, directory)
+        for variable in module.REMOVED_VARIABLES:
+            module.os.environ[variable] = "set-by-an-old-deployment"
+            try:
+                run_case((
+                    module.LegacyConfigurationError.category,
+                    module.LegacyConfigurationError.public_message,
+                ))
+            finally:
+                del module.os.environ[variable]
+        for name in module.REMOVED_FILES:
+            legacy = directory / name
+            legacy.write_text("{}", encoding="utf-8")
+            try:
+                run_case((
+                    module.LegacyConfigurationError.category,
+                    module.LegacyConfigurationError.public_message,
+                ))
+            finally:
+                legacy.unlink()
     finally:
         module.subprocess.Popen = original_popen
         module._write_transport_diagnostic = original_diagnostic
@@ -1057,14 +1177,10 @@ def check_runner_startup_preflight_categories(module, directory: Path) -> None:
 
 
 def check_ssh_launch_hardening(module, directory: Path) -> None:
-    _, _, known_hosts = _configure(module, directory)
-    master = {
-        "host": "runner.example",
-        "port": 2222,
-        "login": "runner-user",
-        "password": "runner-password",
-    }
-    command = module._ssh_command(master)
+    _configure(module, directory)
+    known_hosts = str(directory / "known_hosts")
+    runner = {"host": "runner.example", "port": 2222}
+    command = module._ssh_command(runner, "runner-user", known_hosts, None)
     assert command[:4] == ["ssh", "-T", "-F", "/dev/null"]
     assert command[-8:] == [
         "runner.example", "docker", "exec", "-i", "netops-helper",
@@ -1110,7 +1226,7 @@ def check_ssh_launch_hardening(module, directory: Path) -> None:
         "SendEnv": "-*",
         "UpdateHostKeys": "no",
         "StrictHostKeyChecking": "yes",
-        "UserKnownHostsFile": str(known_hosts),
+        "UserKnownHostsFile": known_hosts,
         "GlobalKnownHostsFile": "/dev/null",
         "VerifyHostKeyDNS": "no",
         "CanonicalizeHostname": "no",
@@ -1121,6 +1237,21 @@ def check_ssh_launch_hardening(module, directory: Path) -> None:
         item in command[:destination_index]
         for item in ("-A", "-X", "-Y", "-L", "-R", "-D", "-J", "-S")
     )
+
+    identity = str(directory / "runner-identity")
+    keyed = module._ssh_command(runner, "runner-user", known_hosts, identity)
+    keyed_options = dict(
+        item.partition("=")[::2]
+        for item in keyed[:len(keyed) - 8] if "=" in item
+    )
+    assert keyed_options["PubkeyAuthentication"] == "yes"
+    assert keyed_options["PasswordAuthentication"] == "no"
+    assert keyed_options["KbdInteractiveAuthentication"] == "no"
+    assert keyed_options["PreferredAuthentications"] == "publickey"
+    assert keyed_options["BatchMode"] == "yes"
+    assert keyed_options["NumberOfPasswordPrompts"] == "0"
+    assert keyed_options["IdentityFile"] == identity
+    assert keyed_options["IdentitiesOnly"] == "yes"
 
     parsed = module.subprocess.run(
         [command[0], "-G", *command[1:destination_index + 1]],
@@ -1156,47 +1287,204 @@ def check_ssh_launch_hardening(module, directory: Path) -> None:
     assert effective["verifyhostkeydns"] == "false"
     assert effective["canonicalizehostname"] == "false"
     assert effective["globalknownhostsfile"] == "/dev/null"
-    assert effective["userknownhostsfile"] == str(known_hosts)
+    assert effective["userknownhostsfile"] == known_hosts
     assert "proxycommand" not in effective
     assert "controlpath" not in effective
     assert "localcommand" not in effective
     assert "sendenv" not in effective
     assert "setenv" not in effective
 
-    invalid_master = dict(master, host="-oProxyCommand=malicious")
-    assert module.Proxy._validate_record(invalid_master)["host"].startswith("-")
-    original_load = module.Proxy._load_record
-    original_popen = module.subprocess.Popen
-    original_diagnostic = module._write_transport_diagnostic
-    original_argv = module.sys.argv
-    askpass_mode = module.os.environ.pop(module.ASKPASS_MODE_ENV, None)
-    diagnostics = []
-    popen_called = []
 
-    def forbidden_popen(*args, **kwargs):
-        popen_called.append(True)
-        raise AssertionError("invalid master destination reached Popen")
 
+FAKE_SSH = """#!%s
+import json, os, sys
+
+record = {"argv": sys.argv[1:], "env": dict(os.environ), "requests": []}
+sys.stderr.write("FastMCP banner on standard error" + chr(10))
+sys.stderr.flush()
+for item in sys.argv[1:]:
+    if item.startswith("UserKnownHostsFile="):
+        with open(item.split("=", 1)[1], "r", encoding="utf-8") as handle:
+            record["known_hosts"] = handle.read()
+for raw in sys.stdin.buffer:
+    record["requests"].append(raw.decode("utf-8"))
+    message = json.loads(raw)
+    sys.stdout.write(json.dumps({
+        "jsonrpc": "2.0", "id": message.get("id"),
+        "result": {"content": [{"type": "text", "text": "{\\"ok\\":true}"}]},
+    }) + chr(10))
+    sys.stdout.flush()
+with open(os.environ["NETOPS_FAKE_SSH_RECORD"], "w", encoding="utf-8") as handle:
+    json.dump(record, handle)
+"""
+
+FAKE_KEYSCAN = """#!%s
+import sys
+
+sys.stdout.write("%%s ssh-ed25519 %%s" %% (sys.argv[-1], %r) + chr(10))
+"""
+
+
+def _fake_tools(directory: Path) -> Path:
+    binaries = directory / "bin"
+    binaries.mkdir(exist_ok=True)
+    for name, source in (
+        ("ssh", FAKE_SSH % sys.executable),
+        ("ssh-keyscan", FAKE_KEYSCAN % (sys.executable, RUNNER_HOST_KEY)),
+    ):
+        path = binaries / name
+        path.write_text(source, encoding="utf-8")
+        path.chmod(0o755)
+    return binaries
+
+
+def _proxy_environment(module, directory: Path, binaries: Path, record: Path) -> dict:
+    environment = {
+        key: value for key, value in os.environ.items()
+        if key not in {"PYTHONPATH"} | set(module.REMOVED_VARIABLES)
+    }
+    environment.update({
+        "PATH": "%s:%s" % (binaries, os.environ.get("PATH", "/usr/bin:/bin")),
+        "HOME": str(directory),
+        "NETOPS_INVENTORY_PATH": str(directory / "inventory.json"),
+        "NETOPS_VAULT_PATH": str(directory / "vault.json"),
+        "NETOPS_EGRESS_POLICY_PATH": str(directory / "egress-policy.json"),
+        "NETOPS_RUNNER_PATH": str(directory / "runner.json"),
+        "NETOPS_FAKE_SSH_RECORD": str(record),
+        "PYTHONDONTWRITEBYTECODE": "1",
+    })
+    return environment
+
+
+def check_end_to_end_over_a_fake_ssh(module, directory: Path) -> None:
+    _, _, _, runner_path = _configure(module, directory)
+    pin = module.hostkey.fingerprint_of(RUNNER_HOST_KEY)
+    _write(runner_path, _runner(pin))
+    binaries = _fake_tools(directory)
+    record = directory / "fake-ssh-record.json"
+    calls = b"".join((
+        _request(1, "helper_status", {}) + b"\n",
+        _request(2, "target_scope", {"target": "device-a"}) + b"\n",
+        _request(3, "ssh_read", {
+            "target": "device-a", "platform": "fortios", "query": "system_status",
+        }) + b"\n",
+    ))
+    completed = subprocess.run(
+        [sys.executable, "-B", str(SCRIPT)],
+        cwd=directory,
+        env=_proxy_environment(module, directory, binaries, record),
+        input=calls,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        timeout=30,
+        check=False,
+    )
+    assert completed.returncode == 0, completed.stderr.decode()
+    assert completed.stderr == b""
+    answers = [
+        json.loads(line) for line in completed.stdout.splitlines() if line.strip()
+    ]
+    status = next(
+        item["result"]["structuredContent"] for item in answers if item["id"] == 1
+    )
+    assert status["target_aliases"] == ["device-a"]
+    scope = next(
+        item["result"]["structuredContent"] for item in answers if item["id"] == 2
+    )
+    assert scope["host_key_pinned"] is True
+    assert scope["snmp_enrolled"] is True
+    assert scope["ssh_platform"] == "fortinet"
+
+    observed = json.loads(record.read_text(encoding="utf-8"))
+    assert observed["known_hosts"] == (
+        "runner.example.invalid ssh-ed25519 %s\n" % RUNNER_HOST_KEY
+    )
+    forwarded = [json.loads(item) for item in observed["requests"]]
+    envelope = _envelope(observed["requests"][-1].encode())
+    assert forwarded[-1]["params"]["name"] == "ssh_read"
+    assert set(envelope) == {
+        "alias", "host", "port", "login", "credential_kind", "secret",
+        "host_key_fingerprint", "legacy_ssh", "account_role", "ssh_platform",
+        "enabled_queries", "read_inventory", "sftp_roots",
+        "fortios_output_standard_verified", "egress",
+    }
+    assert envelope["host_key_fingerprint"] == DEVICE_PIN
+    assert envelope["credential_kind"] == "password"
+    assert envelope["secret"] == DEVICE_SECRET
+    for item in observed["argv"]:
+        assert RUNNER_SECRET not in item
+        assert DEVICE_SECRET not in item
+    for value in observed["env"].values():
+        assert RUNNER_SECRET not in value
+        assert DEVICE_SECRET not in value
+    assert observed["env"]["SSH_ASKPASS_REQUIRE"] == "force"
+
+    record.unlink()
+    _write(runner_path, _runner())
+    refused = subprocess.run(
+        [sys.executable, "-B", str(SCRIPT)],
+        cwd=directory,
+        env=_proxy_environment(module, directory, binaries, record),
+        input=calls,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        timeout=30,
+        check=False,
+    )
+    assert refused.returncode == 2
+    assert refused.stdout == b""
+    assert refused.stderr.decode() == (
+        "netops_proxy_transport category=ssh_host_key message=%s\n"
+        % module.SSH_HOST_KEY_FAILURE_MESSAGE
+    )
+    assert not record.exists()
+
+
+
+FAKE_DEAD_SSH = """#!%s
+import sys
+
+sys.stderr.write("Error response from daemon: No such container: netops-helper" + chr(10))
+sys.stderr.flush()
+sys.exit(1)
+"""
+
+
+def check_a_dead_child_is_reported_while_stdin_stays_open(module, directory: Path) -> None:
+    _, _, _, runner_path = _configure(module, directory)
+    pin = module.hostkey.fingerprint_of(RUNNER_HOST_KEY)
+    _write(runner_path, _runner(pin))
+    binaries = _fake_tools(directory)
+    dead = binaries / "ssh"
+    dead.write_text(FAKE_DEAD_SSH % sys.executable, encoding="utf-8")
+    dead.chmod(0o755)
+    record = directory / "fake-ssh-record.json"
+    process = subprocess.Popen(
+        [sys.executable, "-B", str(SCRIPT)],
+        cwd=directory,
+        env=_proxy_environment(module, directory, binaries, record),
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
     try:
-        module.Proxy._load_record = lambda self, alias: dict(invalid_master)
-        module.subprocess.Popen = forbidden_popen
-        module._write_transport_diagnostic = (
-            lambda category, message: diagnostics.append((category, message))
-        )
-        module.sys.argv = [str(SCRIPT)]
-        assert module.main() == 2
-        assert popen_called == []
-        assert diagnostics == [(
-            module.AuthenticationMaterialError.category,
-            module.AuthenticationMaterialError.public_message,
-        )]
+        process.stdin.write(_request(1, "helper_status", {}) + b"\n")
+        process.stdin.flush()
+        lines: list[bytes] = []
+        reader = threading.Thread(target=lambda: lines.append(process.stderr.readline()))
+        reader.start()
+        reader.join(timeout=10)
+        assert not reader.is_alive(), "no diagnostic while the client kept stdin open"
+        assert lines[0] == (
+            "netops_proxy_transport category=remote_exec message=%s\n"
+            % "The fixed remote container command could not start."
+        ).encode()
     finally:
-        module.Proxy._load_record = original_load
-        module.subprocess.Popen = original_popen
-        module._write_transport_diagnostic = original_diagnostic
-        module.sys.argv = original_argv
-        if askpass_mode is not None:
-            module.os.environ[module.ASKPASS_MODE_ENV] = askpass_mode
+        process.stdin.close()
+        code = process.wait(timeout=10)
+    assert code != 0
+    remaining = process.stderr.read()
+    assert b"netops_proxy_transport" not in remaining
 
 
 def main() -> int:
@@ -1219,9 +1507,16 @@ def main() -> int:
     assert module.SSH_TRANSPORT_FAILURE_MESSAGE == (
         "The remote MCP SSH transport failed."
     )
-    assert module.RUNNER_ALIAS_FAILURE_MESSAGE == (
-        "The runner alias is not present in the credential vault."
+    assert module.RunnerFileError.public_message == (
+        "The runner file is unavailable or invalid."
     )
+    assert module.SSH_HOST_KEY_FAILURE_MESSAGE == (
+        "SSH host-key verification failed."
+    )
+    assert module.REMOVED_VARIABLES == (
+        "NETOPS_TARGET_POLICY_PATH", "NETOPS_KNOWN_HOSTS_PATH", "NETOPS_MASTER_ALIAS",
+    )
+    assert module.REMOVED_FILES == ("target-policy.json",)
     assert module._classify_ssh_stderr("unclassified failure") == (
         "ssh_transport", module.SSH_TRANSPORT_FAILURE_MESSAGE,
     )
@@ -1235,14 +1530,14 @@ def main() -> int:
         module.RateLimitError.category,
         module.PolicySchemaError.category,
         module.PolicyScopeError.category,
+        module.RunnerFileError.category,
+        module.LegacyConfigurationError.category,
     }
-    assert len(categories) == 9
+    assert len(categories) == 11
     with tempfile.TemporaryDirectory() as raw:
         directory = Path(raw)
-        check_schema_and_reserved_key(module, directory)
-        check_malformed_snmp_unicode_is_typed_and_discovery_survives(
-            module, directory
-        )
+        check_section_schema_and_consumer_binding(module, directory)
+        check_credential_kinds_and_discovery_survive(module, directory)
         check_policy_parity_invalid_corpus(module, directory)
         check_scope_and_no_overinjection(module, directory)
         check_discovery_notifications_and_rate_cost(module, directory)
@@ -1250,10 +1545,12 @@ def main() -> int:
         check_pre_auth_scope_for_query_slots_paths_and_alias(module, directory)
         check_query_authority_and_typed_pre_auth(module, directory)
         check_standalone_isolated_help(directory)
-        check_hashed_known_hosts_batch_and_tools_list(module, directory)
+        check_batch_and_tools_list(module, directory)
         check_ssh_stderr_classification(module)
         check_runner_startup_preflight_categories(module, directory)
         check_ssh_launch_hardening(module, directory)
+        check_end_to_end_over_a_fake_ssh(module, directory)
+        check_a_dead_child_is_reported_while_stdin_stays_open(module, directory)
     print("proxy_contract_tests=passed")
     return 0
 
@@ -1264,3 +1561,4 @@ def test_dependency_free_proxy_contracts() -> None:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+

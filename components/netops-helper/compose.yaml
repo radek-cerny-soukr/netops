@@ -1,9 +1,12 @@
 services:
   netops-helper:
     build:
-      context: .
-      dockerfile: Dockerfile
-    image: local/netops-helper:0.2.3
+      context: ../..
+      dockerfile: components/netops-helper/Dockerfile
+      args:
+        COMPONENT_DIR: components/netops-helper
+        CORE_PACKAGE_DIR: components/netops-core/src/netops_core
+    image: local/netops-helper:0.3.0
     container_name: netops-helper
     restart: unless-stopped
     read_only: true

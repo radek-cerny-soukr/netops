@@ -36,4 +36,6 @@ Device output remains sensitive and attacker-controlled after best-effort redact
 
 Plain FTP is unencrypted. SNMPv2c also has no confidentiality and transmits its dedicated community in plaintext. Password-backed credential storage and the askpass environment are compatibility compromises. Client-side path roots do not replace remote permissions or chroot.
 
+The container images of the family carry the OpenSSH client of the pinned Debian base, and a vulnerability in that client that the distribution does not fix is shipped as a reviewed, dated exception rather than fixed; each component's `docs/known-vulnerabilities.md` names every such exception, what it exposes and what an operator who cannot accept it should do. `netops-helper` 0.3.0 ships CVE-2026-60002 this way.
+
 The Compose bridge uses `internal: false` so diagnostics work. DOCKER-USER forwarding rules do not by themselves block runner-host INPUT, Docker embedded DNS behavior depends on the live engine/NAT path, and compromise containment therefore remains incomplete until verified and supplemented for the deployment. A compromised client, runner, dependency, or target can still return malicious data. No release is certified for a regulatory framework.

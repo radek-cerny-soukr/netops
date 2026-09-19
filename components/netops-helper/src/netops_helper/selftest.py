@@ -2,16 +2,20 @@
 
 from __future__ import annotations
 
+import shutil
 import ssl
 from pathlib import Path
+
+SSH_BINARIES = ("ssh", "ssh-keyscan", "sftp")
 
 
 def main() -> int:
     import fastmcp  # noqa: F401
     import httpx  # noqa: F401
-    import netmiko  # noqa: F401
     import pysnmp  # noqa: F401
 
+    if any(shutil.which(binary) is None for binary in SSH_BINARIES):
+        return 1
     trust_paths = ssl.get_default_verify_paths()
     if not trust_paths.cafile or not Path(trust_paths.cafile).is_file():
         return 1

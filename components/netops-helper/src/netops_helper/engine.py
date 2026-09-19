@@ -3,10 +3,9 @@
 from __future__ import annotations
 
 import asyncio
-from contextlib import asynccontextmanager, contextmanager
+from contextlib import contextmanager
 from functools import wraps
 import inspect
-from datetime import datetime, timezone
 import ftplib
 import ipaddress
 import hashlib
@@ -14,115 +13,233 @@ import hmac
 import json
 import math
 import os
-import tempfile
 from pathlib import Path, PurePosixPath
 import secrets
 import socket
 import threading
 import ssl
 import time
-from typing import Any, Iterator
+from typing import Any
 
 from icmplib import ping
-from netmiko import ConnectHandler
-from netmiko.fortinet.fortinet_ssh import FortinetSSH
-from paramiko.ssh_exception import IncompatiblePeer
+from netops_core import hostkey as core_hostkey
+from netops_core import legacy_ssh as core_legacy_ssh
+from netops_core import prompt as core_prompt
+from netops_core import session as core_session
+from netops_core import sftp as core_sftp
+from netops_core import ssh as core_ssh
 
 from .audit import AuditPostOperationError, AuditPreflightError, record
 from .auth import (
-    LEGACY_SSH_PROFILES, EgressScopeError, LegacySshProfileRequired, TargetAuth,
+    LEGACY_SSH_PROFILES, AuthenticationContextError, EgressScopeError,
+    LegacySshProfileRequired, TargetAuth,
 )
 from .read_policy import READ_QUERIES, normalize_platform, render_read_query
 from .sanitize import digest_text, redact
 
 
-_WEAK_SSH_KEX = [
-    "diffie-hellman-group1-sha1",
-    "diffie-hellman-group14-sha1",
-    "diffie-hellman-group-exchange-sha1",
-]
 _LEGACY_SSH_HOST_KEY_ALGS = ("ssh-rsa",)
 _SSH_LEGACY_PROFILES: dict[str | None, tuple[str, ...]] = {
     None: (),
     "rsa-sha1": _LEGACY_SSH_HOST_KEY_ALGS,
 }
-_ASYNCSSH_KEX_ALGS = "-diffie-hellman-group1-sha1,diffie-hellman-group14-sha1,diffie-hellman-group-exchange-sha1"
-_ASYNCSSH_HOST_KEY_ALGS: dict[str | None, str] = {
-    None: "-ssh-rsa",
-    "rsa-sha1": "+ssh-rsa",
-}
+_OPENSSH_LEGACY_OPTIONS = ("HostKeyAlgorithms", "PubkeyAcceptedAlgorithms")
 if (
     set(_SSH_LEGACY_PROFILES) != {None, *LEGACY_SSH_PROFILES}
-    or set(_ASYNCSSH_HOST_KEY_ALGS) != set(_SSH_LEGACY_PROFILES)
     or _SSH_LEGACY_PROFILES[None]
     or any(
         set(enabled) - set(_LEGACY_SSH_HOST_KEY_ALGS)
         for enabled in _SSH_LEGACY_PROFILES.values()
     )
+    or tuple(core_legacy_ssh.PROFILES) != LEGACY_SSH_PROFILES
     or any(
-        _ASYNCSSH_HOST_KEY_ALGS[profile]
-        != ("+" if enabled else "-") + ",".join(_LEGACY_SSH_HOST_KEY_ALGS)
+        core_legacy_ssh.openssh_options(profile)
+        != tuple(f"{option}=+{name}" for option in _OPENSSH_LEGACY_OPTIONS for name in enabled)
         for profile, enabled in _SSH_LEGACY_PROFILES.items()
+        if profile is not None
     )
-    or _ASYNCSSH_KEX_ALGS != "-" + ",".join(_WEAK_SSH_KEX)
+    or core_legacy_ssh.openssh_options(None) != ()
 ):
     raise RuntimeError("SSH legacy profile mapping is incomplete or invalid")
-_NETMIKO_DEVICE_TYPES = {
-    "linux": "linux",
-    "fortinet": "fortinet",
-    "extreme_exos": "extreme_exos",
-    "cisco_ios": "cisco_ios",
-    "cisco_xe": "cisco_xe",
-    "cisco_nxos": "cisco_nxos",
-    "arista_eos": "arista_eos",
-    "juniper_junos": "juniper_junos",
-    "juniper_junos_els": "juniper_junos",
+_TRANSPORT_EXEC = "exec"
+_TRANSPORT_PTY = "pty"
+_SSH_TRANSPORTS = {
+    "linux": _TRANSPORT_EXEC,
+    "fortinet": _TRANSPORT_EXEC,
+    "extreme_exos": _TRANSPORT_EXEC,
+    "cisco_ios": _TRANSPORT_EXEC,
+    "cisco_xe": _TRANSPORT_EXEC,
+    "cisco_nxos": _TRANSPORT_EXEC,
+    "arista_eos": _TRANSPORT_EXEC,
+    "juniper_junos": _TRANSPORT_EXEC,
+    "juniper_junos_els": _TRANSPORT_EXEC,
+    "ruckus_unleashed": _TRANSPORT_PTY,
 }
+_PLATFORM_PREAMBLE: dict[str, tuple[str, ...]] = {
+    "extreme_exos": ("disable cli paging",),
+}
+_RUCKUS_LOGIN_PROMPT = b"Please login:"
+_RUCKUS_PASSWORD_PROMPT = b"assword"
+_RUCKUS_USER_PROMPT = b"ruckus>"
+_RUCKUS_ENABLE_PROMPT = b"ruckus#"
+_RUCKUS_ENABLE_COMMAND = "enable"
+_CONNECTION_SPACING_SECONDS: dict[str, float] = {"fortinet": 5.0}
 if (
-    set(_NETMIKO_DEVICE_TYPES) != set(READ_QUERIES)
-    or _NETMIKO_DEVICE_TYPES.get("fortinet") != "fortinet"
-    or _NETMIKO_DEVICE_TYPES.get("juniper_junos_els") != "juniper_junos"
+    set(_SSH_TRANSPORTS) != set(READ_QUERIES)
+    or set(_SSH_TRANSPORTS.values()) - {_TRANSPORT_EXEC, _TRANSPORT_PTY}
+    or set(_PLATFORM_PREAMBLE) - set(_SSH_TRANSPORTS)
     or any(
-        not isinstance(device_type, str) or not device_type
-        for device_type in _NETMIKO_DEVICE_TYPES.values()
+        _SSH_TRANSPORTS[platform] != _TRANSPORT_EXEC for platform in _PLATFORM_PREAMBLE
+    )
+    or _RUCKUS_ENABLE_COMMAND != "enable"
+    or set(_CONNECTION_SPACING_SECONDS) - set(_SSH_TRANSPORTS)
+    or any(
+        isinstance(spacing, bool) or not isinstance(spacing, (int, float)) or spacing < 0
+        for spacing in _CONNECTION_SPACING_SECONDS.values()
     )
 ):
-    raise RuntimeError("Netmiko device-type mapping is incomplete or invalid")
+    raise RuntimeError("SSH transport mapping is incomplete or invalid")
+_SSH_READ_TIMEOUT_SECONDS = 60.0
+_SSH_LOGIN_TIMEOUT_SECONDS = 20.0
+_HOST_KEY_SCAN_TIMEOUT_SECONDS = 10.0
 _SSH_CACHE_TTL_SECONDS = 120.0
 _SSH_CACHE_MAX_ENTRIES = 8
 _SSH_CAPTURE_MAX_BYTES = 2_000_000
-_SSH_PAGE_CACHE: dict[tuple[Any, ...], tuple[float, str]] = {}
+_SSH_PAGE_CACHE: dict[tuple[Any, ...], tuple[float, int | None, str]] = {}
 _SSH_CACHE_LOCK = threading.Lock()
 
-class ReadOnlyFortinetSSH(FortinetSSH):
-    """FortiOS session setup which never enters configuration or changes paging."""
+_now = time.monotonic
+_sleep = time.sleep
 
-    def session_preparation(self) -> None:
-        data = self._test_channel_read(pattern=f"to accept|{self.prompt_pattern}")
-        if "to accept" in data:
-            self.write_channel("a\r")
-            self._test_channel_read(pattern=self.prompt_pattern)
-        self.set_base_prompt()
 
-    def cleanup(self, command: str = "exit") -> None:
-        # Closing Paramiko directly avoids FortinetSSH's persistent paging restore.
-        return None
+class _ConnectionLane:
+    """One device's SSH-family connection queue: a lock plus the last start time."""
+
+    __slots__ = ("lock", "last_started")
+
+    def __init__(self) -> None:
+        self.lock = threading.Lock()
+        self.last_started: float | None = None
+
+
+_CONNECTION_LANES: dict[tuple[str, int], _ConnectionLane] = {}
+_CONNECTION_LANES_LOCK = threading.Lock()
+
+
+def _lane_for(address: str, port: int) -> _ConnectionLane:
+    key = (address, port)
+    with _CONNECTION_LANES_LOCK:
+        lane = _CONNECTION_LANES.get(key)
+        if lane is None:
+            lane = _ConnectionLane()
+            _CONNECTION_LANES[key] = lane
+        return lane
 
 
 @contextmanager
-def _known_hosts_file(auth: TargetAuth) -> Iterator[str]:
-    auth.require_known_hosts()
-    fd, path = tempfile.mkstemp(prefix="netops-known-hosts-", dir="/tmp")
+def _paced_connection(address: str, port: int, platform: str | None):
+    """Queue one SSH-family connection to a device behind the platform's spacing.
+
+    Every device has exactly one lane: connections to it never run in parallel,
+    and each one waits until `spacing(platform)` seconds have passed since the
+    previous connection to that same (address, port) started. Different devices
+    never wait on each other. The lane's lock is held for the whole connection,
+    not only for the wait, so a slow connection also delays the next one.
+    """
+    spacing = _CONNECTION_SPACING_SECONDS.get(platform, 0.0)
+    lane = _lane_for(address, port)
+    with lane.lock:
+        if lane.last_started is not None:
+            wait = lane.last_started + spacing - _now()
+            if wait > 0:
+                _sleep(wait)
+        lane.last_started = _now()
+        yield
+
+
+_HOST_KEY_CACHE_TTL_SECONDS = 600.0
+_HOST_KEY_CACHE_MAX_ENTRIES = 64
+_HOST_KEY_LINE_CACHE: dict[tuple[str, int, str], tuple[float, str]] = {}
+_HOST_KEY_CACHE_LOCK = threading.Lock()
+
+
+def _cached_host_key_line(key: tuple[str, int, str]) -> str | None:
+    with _HOST_KEY_CACHE_LOCK:
+        entry = _HOST_KEY_LINE_CACHE.get(key)
+        if entry is None:
+            return None
+        expires, line = entry
+        if expires <= _now():
+            _HOST_KEY_LINE_CACHE.pop(key, None)
+            return None
+        return line
+
+
+def _cache_host_key_line(key: tuple[str, int, str], line: str) -> None:
+    with _HOST_KEY_CACHE_LOCK:
+        if (
+            key not in _HOST_KEY_LINE_CACHE
+            and len(_HOST_KEY_LINE_CACHE) >= _HOST_KEY_CACHE_MAX_ENTRIES
+        ):
+            oldest = min(_HOST_KEY_LINE_CACHE, key=lambda item: _HOST_KEY_LINE_CACHE[item][0])
+            _HOST_KEY_LINE_CACHE.pop(oldest, None)
+        _HOST_KEY_LINE_CACHE[key] = (_now() + _HOST_KEY_CACHE_TTL_SECONDS, line)
+
+
+def _forget_host_key_line(address: str, port: int) -> None:
+    with _HOST_KEY_CACHE_LOCK:
+        stale = [
+            key for key in _HOST_KEY_LINE_CACHE if key[0] == address and key[1] == port
+        ]
+        for key in stale:
+            _HOST_KEY_LINE_CACHE.pop(key, None)
+
+
+class DeviceCredential:
+    """The credential-store handle `netops_core` expects, built from the envelope secret."""
+
+    __slots__ = ("kind", "login", "_secret")
+
+    def __init__(self, auth: "TargetAuth") -> None:
+        self.kind = auth.credential_kind
+        self.login = auth.login
+        self._secret = auth.secret
+
+    def use(self) -> str:
+        return self._secret
+
+    def __repr__(self) -> str:
+        return f"<DeviceCredential {self.kind}>"
+
+    __str__ = __repr__
+
+
+def host_key_line(
+    auth: TargetAuth, address: str | None = None, platform: str | None = None,
+) -> str:
+    """Read the offered host keys with ssh-keyscan and keep the one matching the pin.
+
+    A cache hit answers without a keyscan at all; a miss queues the keyscan
+    itself through the same per-device lane as every other SSH-family
+    connection, so it too respects the platform's connection spacing.
+    """
+    target = _resolve_target_ipv4(auth)[0] if address is None else address
+    effective_platform = auth.ssh_platform if platform is None else platform
+    cache_key = (target, auth.port, auth.host_key_fingerprint)
+    cached = _cached_host_key_line(cache_key)
+    if cached is not None:
+        return cached
     try:
-        with os.fdopen(fd, "w", encoding="utf-8") as handle:
-            handle.write(auth.known_hosts)
-        os.chmod(path, 0o600)
-        yield path
-    finally:
-        try:
-            os.unlink(path)
-        except FileNotFoundError:
-            pass
+        with _paced_connection(target, auth.port, effective_platform):
+            line = core_hostkey.scan(
+                target, auth.port, auth.host_key_fingerprint, _HOST_KEY_SCAN_TIMEOUT_SECONDS,
+            )
+    except core_hostkey.HostKeyError as exc:
+        raise AuthenticationContextError(
+            f'target "{auth.alias}" did not offer the pinned SSH host key'
+        ) from exc
+    _cache_host_key_line(cache_key, line)
+    return line
 
 
 def _resolve_target_ipv4(auth: TargetAuth) -> tuple[str, ...]:
@@ -145,78 +262,126 @@ def _resolve_target_ipv4(auth: TargetAuth) -> tuple[str, ...]:
     return addresses
 
 
-def _open_verified_socket(auth: TargetAuth, timeout: float = 10.0) -> socket.socket:
-    address = _resolve_target_ipv4(auth)[0]
-    return socket.create_connection((address, auth.port), timeout=timeout)
-
-
-def _disabled_ssh_algorithms(auth: TargetAuth) -> dict[str, list[str]]:
+def _refused_host_key_algorithms(auth: TargetAuth) -> list[str]:
     enabled = _SSH_LEGACY_PROFILES[auth.legacy_ssh]
-    return {
-        "keys": [name for name in _LEGACY_SSH_HOST_KEY_ALGS if name not in enabled],
-        "kex": list(_WEAK_SSH_KEX),
-    }
+    return [name for name in _LEGACY_SSH_HOST_KEY_ALGS if name not in enabled]
 
 
 def _legacy_ssh_required(auth: TargetAuth) -> LegacySshProfileRequired:
-    names = ", ".join(_disabled_ssh_algorithms(auth)["keys"])
+    names = ", ".join(_refused_host_key_algorithms(auth))
     return LegacySshProfileRequired(
         f'target "{auth.alias}" offers no SSH host key or key exchange algorithm '
         f"enabled by default; for a target which offers only {names} host keys set "
-        f'"legacy_ssh": "rsa-sha1" in its target-policy.json entry, which allows them '
-        f"for that target alone. SHA-1 key exchange has no profile and stays disabled."
+        f'"legacy_ssh": "rsa-sha1" in its inventory.json entry, which allows them '
+        f"for that device alone. SHA-1 key exchange has no profile and stays disabled."
     )
 
 
-def _caused_by(exc: BaseException, expected: type[BaseException]) -> bool:
-    seen: set[int] = set()
-    current: BaseException | None = exc
-    while current is not None and id(current) not in seen:
-        seen.add(id(current))
-        if isinstance(current, expected):
-            return True
-        current = current.__cause__ or current.__context__
-    return False
+def _exec_failure(auth: TargetAuth, exc: core_ssh.SshError) -> BaseException:
+    if auth.legacy_ssh is None and core_ssh.NEGOTIATION_MARKER in getattr(exc, "said", ""):
+        return _legacy_ssh_required(auth)
+    return exc
 
 
-@contextmanager
-def netmiko_connection(auth: TargetAuth, platform: str) -> Iterator[Any]:
+def _exec_command(
+    auth: TargetAuth,
+    address: str,
+    known_hosts_line: str,
+    credential: DeviceCredential,
+    command: str,
+    platform: str,
+) -> core_ssh.Result:
+    try:
+        with _paced_connection(address, auth.port, platform):
+            return core_ssh.run_command(
+                address,
+                auth.port,
+                auth.login,
+                credential,
+                known_hosts_line,
+                command,
+                legacy_ssh=auth.legacy_ssh,
+                timeout_seconds=_SSH_READ_TIMEOUT_SECONDS,
+            )
+    except core_ssh.SshError as exc:
+        _forget_host_key_line(address, auth.port)
+        raise _exec_failure(auth, exc) from exc
+
+
+def _exec_read(auth: TargetAuth, platform: str, command: str) -> tuple[int | None, str]:
+    address = _resolve_target_ipv4(auth)[0]
+    known_hosts_line = host_key_line(auth, address, platform)
+    credential = DeviceCredential(auth)
+    for preamble in _PLATFORM_PREAMBLE.get(platform, ()):
+        _exec_command(auth, address, known_hosts_line, credential, preamble, platform)
+    result = _exec_command(auth, address, known_hosts_line, credential, command, platform)
+    return result.rc, core_prompt.cleaned(
+        result.stdout.decode("utf-8", "replace"), platform,
+    )
+
+
+def _pty_body(data: bytes, command: str, prompt: bytes) -> str:
+    text = data.decode("utf-8", "replace").replace("\r", "")
+    marker = prompt.decode("ascii")
+    if text.endswith(marker):
+        text = text[: -len(marker)]
+    lines = text.split("\n")
+    while lines and not lines[0].strip():
+        lines.pop(0)
+    if lines and lines[0].strip() == command:
+        lines.pop(0)
+    while lines and not lines[0].strip():
+        lines.pop(0)
+    while lines and not lines[-1].strip():
+        lines.pop()
+    return "\n".join(lines)
+
+
+def _pty_read(auth: TargetAuth, platform: str, command: str) -> tuple[int | None, str]:
+    """Answer a device without an exec channel, discarding every byte of the login."""
+    address = _resolve_target_ipv4(auth)[0]
+    known_hosts_line = host_key_line(auth, address, platform)
+    try:
+        with _paced_connection(address, auth.port, platform):
+            session = core_session.Session(
+                address,
+                auth.port,
+                auth.login,
+                DeviceCredential(auth),
+                known_hosts_line,
+                legacy_ssh=auth.legacy_ssh,
+                timeout_seconds=_SSH_READ_TIMEOUT_SECONDS,
+            )
+            try:
+                for prompt, answer in (
+                    (_RUCKUS_LOGIN_PROMPT, auth.login),
+                    (_RUCKUS_PASSWORD_PROMPT, auth.secret),
+                    (_RUCKUS_USER_PROMPT, _RUCKUS_ENABLE_COMMAND),
+                ):
+                    _, seen = session.expect([prompt], _SSH_LOGIN_TIMEOUT_SECONDS)
+                    session.discard(seen)
+                    session.send(answer)
+                _, seen = session.expect([_RUCKUS_ENABLE_PROMPT], _SSH_LOGIN_TIMEOUT_SECONDS)
+                session.discard(seen)
+                session.send(command)
+                _, answered = session.expect([_RUCKUS_ENABLE_PROMPT], _SSH_READ_TIMEOUT_SECONDS)
+            finally:
+                session.close()
+    except core_session.SessionError:
+        _forget_host_key_line(address, auth.port)
+        raise
+    return None, _pty_body(answered, command, _RUCKUS_ENABLE_PROMPT)
+
+
+def read_from_device(
+    auth: TargetAuth, platform: str, command: str,
+) -> tuple[int | None, str]:
     normalized = normalize_platform(platform)
     if normalized == "fortinet" and not auth.fortios_output_standard_verified:
         raise ValueError("FortiOS output standard must be independently verified before enrollment")
-    sock = _open_verified_socket(auth)
-    with _known_hosts_file(auth) as known_hosts_path:
-        connection_factory = (
-            ReadOnlyFortinetSSH if normalized == "fortinet" else ConnectHandler
-        )
-        try:
-            connection = connection_factory(
-                device_type=_NETMIKO_DEVICE_TYPES[normalized],
-                host=auth.host,
-                port=auth.port,
-                username=auth.login,
-                password=auth.password,
-                sock=sock,
-                conn_timeout=10,
-                auth_timeout=12,
-                banner_timeout=15,
-                fast_cli=False,
-                ssh_strict=True,
-                system_host_keys=False,
-                alt_host_keys=True,
-                alt_key_file=known_hosts_path,
-                disabled_algorithms=_disabled_ssh_algorithms(auth),
-            )
-        except BaseException as exc:
-            sock.close()
-            if auth.legacy_ssh is None and _caused_by(exc, IncompatiblePeer):
-                raise _legacy_ssh_required(auth) from exc
-            raise
-        try:
-            yield connection
-        finally:
-            connection.disconnect()
-            sock.close()
+    if _SSH_TRANSPORTS[normalized] == _TRANSPORT_PTY:
+        return _pty_read(auth, normalized, command)
+    return _exec_read(auth, normalized, command)
 
 
 def _safe_error(exc: Exception, auth: TargetAuth) -> str:
@@ -276,7 +441,7 @@ def _page_text(text: str, offset: int, max_bytes: int) -> dict[str, Any]:
 
 def _audit_fields(arguments: dict[str, Any], result: dict[str, Any]) -> dict[str, Any]:
     fields: dict[str, Any] = {}
-    for name in ("port", "count", "max_hops", "offset", "max_bytes"):
+    for name in ("port", "count", "offset", "max_bytes"):
         value = arguments.get(name)
         if isinstance(value, int) and not isinstance(value, bool):
             fields[name] = value
@@ -298,7 +463,10 @@ def _audit_fields(arguments: dict[str, Any], result: dict[str, Any]) -> dict[str
     path = arguments.get("remote_path")
     if isinstance(path, str):
         fields["path_sha256"] = digest_text(path)
-    for name in ("query", "platform", "total_bytes", "returned_bytes", "pagination_source"):
+    for name in (
+        "query", "platform", "total_bytes", "returned_bytes", "pagination_source",
+        "transport", "rc",
+    ):
         value = result.get(name)
         if isinstance(value, (str, int)) and not isinstance(value, bool):
             fields[name] = value
@@ -321,7 +489,7 @@ def _audit_device_call(function: Any) -> Any:
             if auth.legacy_ssh is not None:
                 fields["legacy_ssh"] = auth.legacy_ssh
             record(
-                event, operation_id=operation_id, target=auth.alias, status="started",
+                event, operation_id=operation_id, device=auth.alias, status="started",
                 **fields,
             )
         except Exception as exc:
@@ -345,7 +513,7 @@ def _audit_device_call(function: Any) -> Any:
             fields["detail"] = detail
         try:
             record(
-                event, operation_id=operation_id, target=auth.alias,
+                event, operation_id=operation_id, device=auth.alias,
                 status=status, **fields,
             )
         except Exception as exc:
@@ -363,7 +531,7 @@ def _audit_device_call(function: Any) -> Any:
                 result = await function(auth, *args, **kwargs)
             except Exception as exc:
                 complete(
-                    auth, arguments, "rejected", operation_id,
+                    auth, arguments, "failed", operation_id,
                     detail=type(exc).__name__,
                 )
                 raise
@@ -383,7 +551,7 @@ def _audit_device_call(function: Any) -> Any:
             result = function(auth, *args, **kwargs)
         except Exception as exc:
             complete(
-                auth, arguments, "rejected", operation_id,
+                auth, arguments, "failed", operation_id,
                 detail=type(exc).__name__,
             )
             raise
@@ -400,27 +568,27 @@ def _ssh_cache_key(
 ) -> tuple[Any, ...]:
     return (
         auth.alias, auth.host, auth.port, auth.login,
-        hashlib.sha256(auth.password.encode("utf-8", "replace")).hexdigest(),
+        hashlib.sha256(auth.secret.encode("utf-8", "replace")).hexdigest(),
         platform, query, tuple(sorted((parameters or {}).items())),
     )
 
 
-def _load_cached_ssh_output(key: tuple[Any, ...]) -> str | None:
+def _load_cached_ssh_output(key: tuple[Any, ...]) -> tuple[int | None, str] | None:
     now = time.monotonic()
     with _SSH_CACHE_LOCK:
-        for candidate, (expires, _) in list(_SSH_PAGE_CACHE.items()):
+        for candidate, (expires, _, _) in list(_SSH_PAGE_CACHE.items()):
             if expires <= now:
                 _SSH_PAGE_CACHE.pop(candidate, None)
         cached = _SSH_PAGE_CACHE.get(key)
-        return cached[1] if cached else None
+        return (cached[1], cached[2]) if cached else None
 
 
-def _store_cached_ssh_output(key: tuple[Any, ...], output: str) -> None:
+def _store_cached_ssh_output(key: tuple[Any, ...], rc: int | None, output: str) -> None:
     with _SSH_CACHE_LOCK:
         if len(_SSH_PAGE_CACHE) >= _SSH_CACHE_MAX_ENTRIES:
             oldest = min(_SSH_PAGE_CACHE, key=lambda item: _SSH_PAGE_CACHE[item][0])
             _SSH_PAGE_CACHE.pop(oldest, None)
-        _SSH_PAGE_CACHE[key] = (time.monotonic() + _SSH_CACHE_TTL_SECONDS, output)
+        _SSH_PAGE_CACHE[key] = (time.monotonic() + _SSH_CACHE_TTL_SECONDS, rc, output)
 
 
 @_audit_device_call
@@ -437,37 +605,41 @@ def ssh_read(
     offset, max_bytes = _validate_pagination(offset, max_bytes)
     normalized = auth.require_ssh_query(platform, query)
     normalized, command = render_read_query(normalized, query, parameters, auth.read_inventory)
+    transport = _SSH_TRANSPORTS[normalized]
     cache_key = _ssh_cache_key(auth, normalized, query, parameters)
     pagination_source = "fresh"
     if offset:
-        cleaned = _load_cached_ssh_output(cache_key)
-        if cleaned is None:
+        cached = _load_cached_ssh_output(cache_key)
+        if cached is None:
             raise ValueError("SSH pagination state expired; restart at offset 0")
+        rc, cleaned = cached
         pagination_source = "cached"
     else:
         try:
-            with netmiko_connection(auth, normalized) as connection:
-                output = str(connection.send_command(command, read_timeout=60))
+            rc, output = read_from_device(auth, normalized, command)
         except Exception as exc:
             return {
                 "ok": False, "target": auth.alias, "platform": normalized,
-                "query": query, "error": _safe_error(exc, auth),
+                "query": query, "transport": transport,
+                "error": _safe_error(exc, auth),
             }
         cleaned = redact(output, auth.secrets)
         if len(cleaned.encode("utf-8")) > _SSH_CAPTURE_MAX_BYTES:
             return {
                 "ok": False, "target": auth.alias, "platform": normalized,
-                "query": query, "error": "SSH output exceeds the 2000000-byte safety cap",
+                "query": query, "transport": transport, "rc": rc,
+                "error": "SSH output exceeds the 2000000-byte safety cap",
             }
     page = _page_text(cleaned, offset, max_bytes)
     if page["next_offset"] is not None:
         if offset == 0:
-            _store_cached_ssh_output(cache_key, cleaned)
+            _store_cached_ssh_output(cache_key, rc, cleaned)
     else:
         with _SSH_CACHE_LOCK:
             _SSH_PAGE_CACHE.pop(cache_key, None)
     return {
         "ok": True, "target": auth.alias, "platform": normalized, "query": query,
+        "transport": transport, "rc": rc,
         "pagination_source": pagination_source, **page,
     }
 
@@ -625,53 +797,45 @@ async def snmp_get(auth: TargetAuth, oids: list[str], port: int) -> dict[str, An
     }
 
 
-@asynccontextmanager
-async def _sftp_client(auth: TargetAuth):
-    import asyncssh
-
-    sock = await asyncio.to_thread(_open_verified_socket, auth)
-    with _known_hosts_file(auth) as known_hosts_path:
-        try:
-            async with asyncssh.connect(
-                auth.host,
-                port=auth.port,
-                sock=sock,
-                username=auth.login,
-                password=auth.password,
-                client_keys=[],
-                known_hosts=known_hosts_path,
-                server_host_key_algs=_ASYNCSSH_HOST_KEY_ALGS[auth.legacy_ssh],
-                kex_algs=_ASYNCSSH_KEX_ALGS,
-                config=None,
-                connect_timeout=10,
-                login_timeout=15,
-                keepalive_interval=15,
-                keepalive_count_max=2,
-            ) as connection:
-                async with connection.start_sftp_client(sftp_version=3) as sftp:
-                    yield sftp
-        except asyncssh.KeyExchangeFailed as exc:
-            if auth.legacy_ssh is None:
-                raise _legacy_ssh_required(auth) from exc
-            raise
+def _sftp_entry(auth: TargetAuth, path: str) -> core_sftp.Entry:
+    address = _resolve_target_ipv4(auth)[0]
+    platform = auth.ssh_platform
+    known_hosts_line = host_key_line(auth, address, platform)
+    try:
+        with _paced_connection(address, auth.port, platform):
+            return core_sftp.stat(
+                address,
+                auth.port,
+                auth.login,
+                DeviceCredential(auth),
+                known_hosts_line,
+                path,
+                legacy_ssh=auth.legacy_ssh,
+                timeout_seconds=_SSH_READ_TIMEOUT_SECONDS,
+            )
+    except core_ssh.SshError as exc:
+        _forget_host_key_line(address, auth.port)
+        raise _exec_failure(auth, exc) from exc
 
 
 @_audit_device_call
 async def sftp_stat(auth: TargetAuth, remote_path: str) -> dict[str, Any]:
     path = _safe_remote_path(auth, remote_path)
     try:
-        async with _sftp_client(auth) as sftp:
-            attributes = await sftp.stat(path)
+        entry = await asyncio.to_thread(_sftp_entry, auth, path)
     except Exception as exc:
         return {"ok": False, "target": auth.alias, "error": _safe_error(exc, auth)}
-    size = int(attributes.size or 0)
-    permissions = int(attributes.permissions or 0)
-    modified = attributes.mtime
-    return {
+    answer: dict[str, Any] = {
         "ok": True, "target": auth.alias, "path_sha256": digest_text(path),
-        "size": size, "mode": oct(permissions & 0o7777),
-        "modified_utc": datetime.fromtimestamp(modified, timezone.utc).isoformat() if modified is not None else None,
+        "kind": entry.kind,
     }
+    if entry.kind == core_sftp.KIND_DIRECTORY:
+        answer["entry_count"] = entry.entry_count
+        return answer
+    answer["size"] = entry.size
+    answer["mode"] = None if entry.mode is None else oct(entry.mode & 0o7777)
+    answer["modified_ls"] = entry.modified_ls
+    return answer
 
 
 def _safe_remote_path(auth: TargetAuth, remote_path: str) -> str:
@@ -805,12 +969,12 @@ def ftp_list(
                 if not peer or not hmac.compare_digest(actual, pin_digest):
                     raise ssl.SSLCertVerificationError("pinned FTPS certificate mismatch")
             stage = "login_over_tls"
-            client.login(auth.login, auth.password)
+            client.login(auth.login, auth.secret)
             stage = "protect_data_channel"
             client.prot_p()
         else:
             stage = "plain_login"
-            client.login(auth.login, auth.password)
+            client.login(auth.login, auth.secret)
         stage = "directory_list"
         names = client.nlst(remote_path)
         stage = "quit"

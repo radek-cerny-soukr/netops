@@ -3,8 +3,7 @@
 
 from __future__ import annotations
 
-from base64 import urlsafe_b64encode
-from copy import deepcopy
+from base64 import b64encode, urlsafe_b64encode
 import json
 import os
 from pathlib import Path
@@ -15,16 +14,26 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
+sys.path.insert(0, str(ROOT.parent / "netops-core" / "src"))
 sys.path.insert(0, str(ROOT / "scripts"))
 
 import generate_egress_rules as generator
+from netops_core.hostkey import fingerprint_of
 import remote_mcp_proxy as proxy_module
 from netops_helper.auth import TargetAuth
+from netops_helper import inventory as helper_inventory
 from netops_helper import read_policy
 
 
 ALIAS = "device-a"
-MASTER_ALIAS = "netops-runner"
+CREDENTIAL = "device-a-account"
+SNMP_CREDENTIAL = "device-a-community"
+LOGIN = "reader"
+SECRET = "account-secret"
+COMMUNITY = "separate-community"
+KINDS = {CREDENTIAL: "password", SNMP_CREDENTIAL: "snmp-community"}
+CANONICAL_PLATFORMS = {"fortinet": "fortios", "extreme_exos": "exos"}
+HOST_KEY_PIN = fingerprint_of(b64encode(b"policy-parity-host-key").decode("ascii"))
 
 REPRESENTATIVE_SLOT_VALUES = {
     "interface": "port5",
@@ -54,17 +63,22 @@ REPRESENTATIVE_SLOT_VALUES = {
 }
 
 
-def canonical_record() -> dict[str, object]:
+def canonical_device() -> dict[str, object]:
     return {
-        "host": "192.0.2.10",
+        "name": ALIAS,
+        "platform": "linux",
+        "address": "192.0.2.10",
         "port": 2222,
-        "login": "reader",
-        "password": "account-secret",
-        "snmp_community": "separate-community",
+        "role": "interni",
+        "credential": CREDENTIAL,
+        "host_key_fingerprint": HOST_KEY_PIN,
+        "legacy_ssh": None,
+        "auditor": None,
+        "helper": canonical_section(),
     }
 
 
-def canonical_policy() -> dict[str, object]:
+def canonical_section() -> dict[str, object]:
     return {
         "account_role": "read-only",
         "ssh_platform": "linux",
@@ -77,7 +91,7 @@ def canonical_policy() -> dict[str, object]:
         },
         "sftp_roots": ["/safe"],
         "fortios_output_standard_verified": False,
-        "legacy_ssh": None,
+        "snmp_credential": SNMP_CREDENTIAL,
         "rate_limit": {"requests": 30, "window_seconds": 60},
         "egress": {
             "addresses": ["192.0.2.10"],
@@ -105,44 +119,72 @@ def global_egress() -> dict[str, object]:
     }
 
 
-def encode_envelope(record: dict[str, object], policy: dict[str, object]) -> str:
+def document(device: dict[str, object]) -> dict[str, object]:
+    return {"version": 2, "devices": [device]}
+
+
+def loaded(device: dict[str, object]):
+    with tempfile.TemporaryDirectory() as temporary:
+        path = Path(temporary) / "inventory.json"
+        path.write_text(json.dumps(document(device)), encoding="utf-8")
+        return helper_inventory.load(path), generator.inventory_digest(path)
+
+
+def encode_envelope(device: dict[str, object], section: dict[str, object]) -> str:
     # This is the documented proxy-to-engine envelope projection, not validation.
     envelope = {
-        "alias": ALIAS,
-        "host": record.get("host"),
-        "port": record.get("port"),
-        "login": record.get("login"),
-        "password": record.get("password"),
-        **{key: value for key, value in policy.items() if key != "rate_limit"},
+        "alias": device.get("name"),
+        "host": device.get("address"),
+        "port": device.get("port"),
+        "login": LOGIN,
+        "credential_kind": "password",
+        "secret": SECRET,
+        "host_key_fingerprint": device.get("host_key_fingerprint"),
+        "legacy_ssh": device.get("legacy_ssh"),
+        **{
+            key: value for key, value in section.items()
+            if key not in {"rate_limit", "snmp_credential"}
+        },
     }
-    if "snmp_community" in record:
-        envelope["snmp_community"] = record["snmp_community"]
+    if section.get("snmp_credential") is not None:
+        envelope["snmp_community"] = COMMUNITY
     raw = json.dumps(envelope, separators=(",", ":")).encode("utf-8")
     return urlsafe_b64encode(raw).decode("ascii").rstrip("=")
 
 
-def proxy_accepts(
-    record: dict[str, object], policy: dict[str, object], *, ftp: bool = False,
-) -> bool:
+def unchecked_section(platform: str, query_name: str, inventory: dict):
+    """The tool-time scope check must stand on its own, without section validation."""
+    return helper_inventory.HelperSection(
+        account_role="read-only",
+        ssh_platform=CANONICAL_PLATFORMS.get(platform, platform),
+        enabled_queries=(query_name,),
+        read_inventory={
+            category: tuple(items) for category, items in inventory.items()
+        },
+        sftp_roots=("/safe",),
+        fortios_output_standard_verified=False,
+        rate_limit={"requests": 30, "window_seconds": 60},
+        egress=canonical_section()["egress"],
+        snmp_credential=None,
+    )
+
+
+def section_accepts(device: dict[str, object], *, ftp: bool = False) -> bool:
     try:
-        checked_record = proxy_module.Proxy._validate_record(record)
-        checked_policy = proxy_module.Proxy._validate_target_policy(policy)
-        proxy_module.Proxy._validate_target_binding(checked_record, checked_policy)
+        entries, _ = loaded(device)
+        section = helper_inventory.section(entries[0], KINDS)
         if ftp:
             proxy_module.Proxy._authorize_tool(
-                "ftp_list", {"port": 21, "remote_path": "/safe"},
-                checked_record, checked_policy,
+                "ftp_list", {"port": 21, "remote_path": "/safe"}, entries[0], section,
             )
         return True
-    except (ValueError, TypeError, KeyError):
+    except (helper_inventory.InventoryError, ValueError, TypeError, KeyError):
         return False
 
 
-def envelope_accepts(
-    record: dict[str, object], policy: dict[str, object], *, ftp: bool = False,
-) -> bool:
+def envelope_accepts(device: dict[str, object], *, ftp: bool = False) -> bool:
     try:
-        target = TargetAuth.decode(ALIAS, encode_envelope(record, policy))
+        target = TargetAuth.decode(ALIAS, encode_envelope(device, device["helper"]))
         if ftp:
             target.require_tcp_port(21)
             target.require_passive_tcp_range()
@@ -152,65 +194,58 @@ def envelope_accepts(
         return False
 
 
-def generator_accepts(
-    record: dict[str, object], policy: dict[str, object], *, ftp: bool = False,
-) -> bool:
+def generator_accepts(device: dict[str, object], *, ftp: bool = False) -> bool:
     try:
-        bundle = generator.build_bundle(
-            {ALIAS: record},
-            {"_egress": global_egress(), ALIAS: policy},
-            MASTER_ALIAS,
-        )
+        entries, digest = loaded(device)
+        bundle = generator.build_bundle(entries, global_egress(), digest)
         if ftp:
             generator.require_ftp_scope(bundle["manifest"]["targets"][0], 21, 50005)
         return True
-    except (ValueError, TypeError, KeyError):
+    except (helper_inventory.InventoryError, ValueError, TypeError, KeyError):
         return False
 
 
 class PolicyParityTests(unittest.TestCase):
     def assert_all_accept(
-        self, record: dict[str, object], policy: dict[str, object], *, ftp: bool = False,
+        self, device: dict[str, object], *, ftp: bool = False,
     ) -> None:
         results = {
-            "proxy": proxy_accepts(record, policy, ftp=ftp),
-            "envelope": envelope_accepts(record, policy, ftp=ftp),
-            "generator": generator_accepts(record, policy, ftp=ftp),
+            "section": section_accepts(device, ftp=ftp),
+            "envelope": envelope_accepts(device, ftp=ftp),
+            "generator": generator_accepts(device, ftp=ftp),
         }
         self.assertEqual(results, {name: True for name in results}, results)
 
     def assert_all_reject(
-        self, record: dict[str, object], policy: dict[str, object], *, ftp: bool = False,
+        self, device: dict[str, object], *, ftp: bool = False,
     ) -> None:
         results = {
-            "proxy": proxy_accepts(record, policy, ftp=ftp),
-            "envelope": envelope_accepts(record, policy, ftp=ftp),
-            "generator": generator_accepts(record, policy, ftp=ftp),
+            "section": section_accepts(device, ftp=ftp),
+            "envelope": envelope_accepts(device, ftp=ftp),
+            "generator": generator_accepts(device, ftp=ftp),
         }
         self.assertEqual(results, {name: False for name in results}, results)
 
     def test_canonical_policy_and_ftp_scope_are_accepted(self) -> None:
-        self.assert_all_accept(canonical_record(), canonical_policy(), ftp=True)
+        self.assert_all_accept(canonical_device(), ftp=True)
 
     def test_legacy_ssh_profile_is_accepted_by_every_validator(self) -> None:
-        record, policy = canonical_record(), canonical_policy()
-        policy["legacy_ssh"] = "rsa-sha1"
-        self.assert_all_accept(record, policy)
-        decoded = TargetAuth.decode(ALIAS, encode_envelope(record, policy))
+        device = canonical_device()
+        device["legacy_ssh"] = "rsa-sha1"
+        self.assert_all_accept(device)
+        decoded = TargetAuth.decode(ALIAS, encode_envelope(device, device["helper"]))
         self.assertEqual(decoded.legacy_ssh, "rsa-sha1")
-        self.assertEqual(
-            proxy_module.Proxy._validate_target_policy(policy)["legacy_ssh"],
-            "rsa-sha1",
-        )
+        entries, _ = loaded(device)
+        self.assertEqual(entries[0].legacy_ssh, "rsa-sha1")
 
-    def test_default_target_policy_has_no_legacy_ssh_profile(self) -> None:
-        record, policy = canonical_record(), canonical_policy()
-        del policy["legacy_ssh"]
-        self.assert_all_accept(record, policy)
-        self.assertIsNone(TargetAuth.decode(ALIAS, encode_envelope(record, policy)).legacy_ssh)
+    def test_default_device_has_no_legacy_ssh_profile(self) -> None:
+        device = canonical_device()
+        self.assert_all_accept(device)
         self.assertIsNone(
-            proxy_module.Proxy._validate_target_policy(policy)["legacy_ssh"],
+            TargetAuth.decode(ALIAS, encode_envelope(device, device["helper"])).legacy_ssh
         )
+        entries, _ = loaded(device)
+        self.assertIsNone(entries[0].legacy_ssh)
 
     def test_unknown_legacy_ssh_values_fail_closed_everywhere(self) -> None:
         for value in (
@@ -218,27 +253,32 @@ class PolicyParityTests(unittest.TestCase):
             {"profile": "rsa-sha1"}, "diffie-hellman-group1-sha1",
         ):
             with self.subTest(value=value):
-                record, policy = canonical_record(), canonical_policy()
-                policy["legacy_ssh"] = value
-                self.assert_all_reject(record, policy)
+                device = canonical_device()
+                device["legacy_ssh"] = value
+                self.assert_all_reject(device)
 
-    def test_proxy_vocabulary_matches_the_engine_vocabulary(self) -> None:
+    def test_the_legacy_profile_vocabulary_is_the_one_of_the_shared_layer(self) -> None:
+        from netops_core import legacy_ssh
         from netops_helper.auth import LEGACY_SSH_PROFILES
 
-        self.assertEqual(tuple(proxy_module.LEGACY_SSH_PROFILES), LEGACY_SSH_PROFILES)
-        self.assertEqual(tuple(generator.LEGACY_SSH_PROFILES), LEGACY_SSH_PROFILES)
-        self.assertIn("legacy_ssh", proxy_module.TARGET_POLICY_KEYS)
-        self.assertIn("legacy_ssh", generator.TARGET_POLICY_KEYS)
-        self.assertNotIn("legacy_ssh", generator.REQUIRED_TARGET_POLICY_KEYS)
+        self.assertEqual(legacy_ssh.PROFILES, LEGACY_SSH_PROFILES)
+        self.assertNotIn("legacy_ssh", helper_inventory.SECTION_FIELDS)
+        self.assertIn("legacy_ssh", helper_inventory.core.DEVICE_FIELDS)
 
-    def test_fortios_alias_has_canonical_fortinet_meaning(self) -> None:
-        record, policy = canonical_record(), canonical_policy()
-        policy["ssh_platform"] = "fortios"
-        policy["enabled_queries"] = ["system_status"]
-        self.assert_all_accept(record, policy)
-        decoded = TargetAuth.decode(ALIAS, encode_envelope(record, policy))
+    def test_the_canonical_platform_carries_its_catalogue_meaning(self) -> None:
+        device = canonical_device()
+        device["platform"] = "fortios"
+        device["helper"]["ssh_platform"] = "fortios"
+        device["helper"]["enabled_queries"] = ["system_status"]
+        device["helper"]["read_inventory"] = {}
+        self.assert_all_accept(device)
+        decoded = TargetAuth.decode(ALIAS, encode_envelope(device, device["helper"]))
         self.assertEqual(decoded.ssh_platform, "fortinet")
         self.assertEqual(decoded.enabled_queries, ("system_status",))
+        entries, _ = loaded(device)
+        section = helper_inventory.section(entries[0], KINDS)
+        self.assertEqual(section.ssh_platform, "fortios")
+        self.assertEqual(section.catalog_platform(), "fortinet")
 
     def test_complete_query_catalog_and_slot_maps_do_not_drift(self) -> None:
         expected_aliases = {
@@ -253,17 +293,19 @@ class PolicyParityTests(unittest.TestCase):
             "arista_eos": "arista_eos",
             "juniper_junos": "juniper_junos",
             "juniper_junos_els": "juniper_junos_els",
+            "ruckus_unleashed": "ruckus_unleashed",
         }
         expected_counts = {
             "linux": 16,
-            "fortinet": 30,
-            "extreme_exos": 32,
+            "fortinet": 40,
+            "extreme_exos": 47,
             "cisco_ios": 27,
             "cisco_xe": 27,
             "cisco_nxos": 30,
             "arista_eos": 33,
             "juniper_junos": 25,
             "juniper_junos_els": 29,
+            "ruckus_unleashed": 4,
         }
         self.assertEqual(read_policy.PLATFORM_MAP, expected_aliases)
         self.assertEqual(
@@ -273,7 +315,7 @@ class PolicyParityTests(unittest.TestCase):
             },
             expected_counts,
         )
-        self.assertEqual(sum(expected_counts.values()), 249)
+        self.assertEqual(sum(expected_counts.values()), 278)
         expected_names = {
             platform: frozenset(queries)
             for platform, queries in read_policy.READ_QUERIES.items()
@@ -295,11 +337,11 @@ class PolicyParityTests(unittest.TestCase):
         self.assertEqual(proxy_module.PLATFORM_MAP, read_policy.PLATFORM_MAP)
         self.assertEqual(proxy_module.READ_QUERY_NAMES, expected_names)
         self.assertEqual(proxy_module.READ_QUERY_SLOTS, expected_slots)
-        self.assertEqual(set(generator.READ_QUERIES), set(expected_names))
-        for alias, canonical in read_policy.PLATFORM_MAP.items():
-            self.assertEqual(generator.normalize_platform(alias), canonical)
+        self.assertEqual(set(helper_inventory.READ_QUERIES), set(expected_names))
+        for canonical_name in helper_inventory.core.platforms.PLATFORMS:
+            canonical = helper_inventory.catalog_platform(canonical_name)
             self.assertEqual(
-                frozenset(generator.READ_QUERIES[canonical]),
+                frozenset(helper_inventory.READ_QUERIES[canonical]),
                 expected_names[canonical],
             )
 
@@ -331,16 +373,15 @@ class PolicyParityTests(unittest.TestCase):
                         if value not in inventory[slot.inventory]:
                             inventory[slot.inventory].append(value)
 
-                    record, policy = canonical_record(), canonical_policy()
-                    policy["ssh_platform"] = platform
+                    device = canonical_device()
+                    policy = device["helper"]
+                    device["platform"] = CANONICAL_PLATFORMS.get(platform, platform)
+                    policy["ssh_platform"] = device["platform"]
                     policy["enabled_queries"] = [query_name]
                     policy["read_inventory"] = inventory
 
-                    checked_record = proxy_module.Proxy._validate_record(record)
-                    checked_policy = proxy_module.Proxy._validate_target_policy(policy)
-                    proxy_module.Proxy._validate_target_binding(
-                        checked_record, checked_policy,
-                    )
+                    entries, digest = loaded(device)
+                    section = helper_inventory.section(entries[0], KINDS)
                     proxy_module.Proxy._authorize_tool(
                         "ssh_read",
                         {
@@ -348,12 +389,12 @@ class PolicyParityTests(unittest.TestCase):
                             "query": query_name,
                             "parameters": parameters,
                         },
-                        checked_record,
-                        checked_policy,
+                        entries[0],
+                        section,
                     )
 
                     target = TargetAuth.decode(
-                        ALIAS, encode_envelope(record, policy),
+                        ALIAS, encode_envelope(device, policy),
                     )
                     self.assertEqual(
                         target.require_ssh_query(platform, query_name),
@@ -372,9 +413,7 @@ class PolicyParityTests(unittest.TestCase):
                     )
 
                     bundle = generator.build_bundle(
-                        {ALIAS: record},
-                        {"_egress": global_egress(), ALIAS: policy},
-                        MASTER_ALIAS,
+                        entries, global_egress(), digest,
                     )
                     self.assertEqual(
                         bundle["manifest"]["targets"][0]["destinations"],
@@ -382,7 +421,7 @@ class PolicyParityTests(unittest.TestCase):
                     )
                     exercised += 1
 
-        self.assertEqual(exercised, 62)
+        self.assertEqual(exercised, 63)
 
     def test_typed_query_rejections_have_proxy_render_parity(self) -> None:
         cases = (
@@ -447,13 +486,11 @@ class PolicyParityTests(unittest.TestCase):
                     "switches": [],
                 }
                 inventory[slot.inventory] = [value]
-                policy = canonical_policy()
-                policy["ssh_platform"] = platform
-                policy["enabled_queries"] = [query_name]
-                policy["read_inventory"] = inventory
+                section = unchecked_section(platform, query_name, inventory)
                 parameters = {slot_name: value}
-                self.assertIn(value, policy["read_inventory"][slot.inventory])
+                self.assertIn(value, section.read_inventory[slot.inventory])
 
+                entries, _ = loaded(canonical_device())
                 with self.assertRaises(proxy_module.PolicyScopeError):
                     proxy_module.Proxy._authorize_tool(
                         "ssh_read",
@@ -462,8 +499,8 @@ class PolicyParityTests(unittest.TestCase):
                             "query": query_name,
                             "parameters": parameters,
                         },
-                        canonical_record(),
-                        policy,
+                        entries[0],
+                        section,
                     )
                 with self.assertRaises(ValueError):
                     read_policy.render_read_query(
@@ -689,8 +726,10 @@ class PolicyParityTests(unittest.TestCase):
 
         for platform, query_name, value, canonical in positive_cases:
             with self.subTest(outcome="accept", platform=platform, value=value):
-                record, policy = canonical_record(), canonical_policy()
-                policy["ssh_platform"] = platform
+                device = canonical_device()
+                policy = device["helper"]
+                device["platform"] = CANONICAL_PLATFORMS.get(platform, platform)
+                policy["ssh_platform"] = device["platform"]
                 policy["enabled_queries"] = [query_name]
                 policy["read_inventory"] = {
                     "interfaces": [value],
@@ -698,7 +737,7 @@ class PolicyParityTests(unittest.TestCase):
                     "addresses": [],
                     "switches": [],
                 }
-                self.assert_all_accept(record, policy)
+                self.assert_all_accept(device)
                 query = read_policy.READ_QUERIES[platform][query_name]
                 kind = query.slots["interface"].kind
                 proxy_canonicalizer = (
@@ -706,12 +745,7 @@ class PolicyParityTests(unittest.TestCase):
                 )
                 self.assertEqual(proxy_canonicalizer(value), canonical)
 
-                checked_record = proxy_module.Proxy._validate_record(record)
-                checked_policy = proxy_module.Proxy._validate_target_policy(policy)
-                proxy_module.Proxy._validate_target_binding(
-                    checked_record,
-                    checked_policy,
-                )
+                entries, _ = loaded(device)
                 proxy_module.Proxy._authorize_tool(
                     "ssh_read",
                     {
@@ -719,13 +753,13 @@ class PolicyParityTests(unittest.TestCase):
                         "query": query_name,
                         "parameters": {"interface": value},
                     },
-                    checked_record,
-                    checked_policy,
+                    entries[0],
+                    helper_inventory.section(entries[0], KINDS),
                 )
 
                 target = TargetAuth.decode(
                     ALIAS,
-                    encode_envelope(record, policy),
+                    encode_envelope(device, policy),
                 )
                 normalized, rendered = read_policy.render_read_query(
                     platform,
@@ -741,8 +775,10 @@ class PolicyParityTests(unittest.TestCase):
 
         for platform, query_name, value in negative_cases:
             with self.subTest(outcome="reject", platform=platform, value=value):
-                record, policy = canonical_record(), canonical_policy()
-                policy["ssh_platform"] = platform
+                device = canonical_device()
+                policy = device["helper"]
+                device["platform"] = CANONICAL_PLATFORMS.get(platform, platform)
+                policy["ssh_platform"] = device["platform"]
                 policy["enabled_queries"] = [query_name]
                 policy["read_inventory"] = {
                     "interfaces": [value],
@@ -750,7 +786,7 @@ class PolicyParityTests(unittest.TestCase):
                     "addresses": [],
                     "switches": [],
                 }
-                self.assert_all_reject(record, policy)
+                self.assert_all_reject(device)
                 query = read_policy.READ_QUERIES[platform][query_name]
                 kind = query.slots["interface"].kind
                 self.assertIsNone(
@@ -767,20 +803,22 @@ class PolicyParityTests(unittest.TestCase):
                     )
 
     def test_interface_inventory_profile_binding_and_raw_membership(self) -> None:
-        record, policy = canonical_record(), canonical_policy()
+        device = canonical_device()
+        policy = device["helper"]
         policy["read_inventory"]["interfaces"] = ["status"]
-        self.assert_all_accept(record, policy)
+        self.assert_all_accept(device)
 
+        device["platform"] = "cisco_ios"
         policy["ssh_platform"] = "cisco_ios"
         policy["enabled_queries"] = ["interface_details"]
-        self.assert_all_reject(record, policy)
+        self.assert_all_reject(device)
 
         policy["read_inventory"]["interfaces"] = [
             "GigabitEthernet1/0/1",
         ]
-        self.assert_all_accept(record, policy)
-        checked_record = proxy_module.Proxy._validate_record(record)
-        checked_policy = proxy_module.Proxy._validate_target_policy(policy)
+        self.assert_all_accept(device)
+        entries, _ = loaded(device)
+        section = helper_inventory.section(entries[0], KINDS)
         with self.assertRaises(proxy_module.PolicyScopeError):
             proxy_module.Proxy._authorize_tool(
                 "ssh_read",
@@ -789,12 +827,12 @@ class PolicyParityTests(unittest.TestCase):
                     "query": "interface_details",
                     "parameters": {"interface": "Gi1/0/1"},
                 },
-                checked_record,
-                checked_policy,
+                entries[0],
+                section,
             )
         target = TargetAuth.decode(
             ALIAS,
-            encode_envelope(record, policy),
+            encode_envelope(device, policy),
         )
         with self.assertRaises(ValueError):
             read_policy.render_read_query(
@@ -829,54 +867,74 @@ class PolicyParityTests(unittest.TestCase):
                     )
                     self.assertEqual(completed.returncode, 0, completed.stderr)
 
-    def test_client_vault_schema_is_exact_before_envelope_projection(self) -> None:
-        record, policy = canonical_record(), canonical_policy()
-        record["unexpected"] = "must-not-be-ignored"
-        self.assertFalse(proxy_accepts(record, policy))
-        self.assertFalse(generator_accepts(record, policy))
-        # TargetAuth cannot validate a vault-only key that the wire envelope never carries.
-        self.assertTrue(envelope_accepts(record, policy))
+    def test_common_device_field_is_exact_before_envelope_projection(self) -> None:
+        for name, mutate in (
+            ("role", lambda d: d.__setitem__("role", "must-not-be-ignored")),
+            ("unknown field", lambda d: d.__setitem__("snmp_community", "abc")),
+            ("credential", lambda d: d.__setitem__("credential", None)),
+        ):
+            with self.subTest(name=name):
+                device = canonical_device()
+                mutate(device)
+                self.assertFalse(section_accepts(device))
+                self.assertFalse(generator_accepts(device))
+                # TargetAuth cannot validate a common field the envelope never carries.
+                self.assertTrue(envelope_accepts(device))
 
-    def test_shared_invalid_credential_identity_corpus_is_rejected(self) -> None:
+    def test_shared_invalid_device_identity_corpus_is_rejected(self) -> None:
         cases = (
-            ("empty host", lambda r: r.__setitem__("host", "")),
-            ("long host", lambda r: r.__setitem__("host", "a" * 254)),
-            ("host space", lambda r: r.__setitem__("host", "bad host")),
-            ("host DEL", lambda r: r.__setitem__("host", "bad\x7fhost")),
-            ("empty login", lambda r: r.__setitem__("login", "")),
-            ("long login", lambda r: r.__setitem__("login", "a" * 513)),
-            ("login NUL", lambda r: r.__setitem__("login", "bad\x00login")),
-            ("login DEL", lambda r: r.__setitem__("login", "bad\x7flogin")),
-            ("short password", lambda r: r.__setitem__("password", "ab")),
-            ("long password", lambda r: r.__setitem__("password", "a" * 4097)),
-            ("password NUL", lambda r: r.__setitem__("password", "abc\x00")),
-            ("password DEL", lambda r: r.__setitem__("password", "abc\x7f")),
-            ("password surrogate", lambda r: r.__setitem__("password", "abc\ud800")),
-            ("short community", lambda r: r.__setitem__("snmp_community", "ab")),
-            ("long community", lambda r: r.__setitem__("snmp_community", "a" * 256)),
-            ("community C0", lambda r: r.__setitem__("snmp_community", "abc\n")),
-            ("community DEL", lambda r: r.__setitem__("snmp_community", "abc\x7f")),
-            ("community surrogate", lambda r: r.__setitem__("snmp_community", "abc\ud800")),
-            ("community equals password", lambda r: r.__setitem__("snmp_community", r["password"])),
+            ("null address", lambda d: d.__setitem__("address", None)),
+            ("empty address", lambda d: d.__setitem__("address", "")),
+            ("uppercase address", lambda d: d.__setitem__("address", "Device.Example")),
+            ("trailing dot address", lambda d: d.__setitem__("address", "device.example.")),
+            ("IPv6 address", lambda d: d.__setitem__("address", "2001:db8::1")),
+            ("noncanonical address", lambda d: d.__setitem__("address", "192.0.2.010")),
+            ("bool port", lambda d: d.__setitem__("port", True)),
+            ("port out of range", lambda d: d.__setitem__("port", 65_536)),
+            ("null port", lambda d: d.__setitem__("port", None)),
+            ("null pin", lambda d: d.__setitem__("host_key_fingerprint", None)),
+            ("short pin", lambda d: d.__setitem__("host_key_fingerprint", "SHA256:AAA")),
+            (
+                "pin without prefix",
+                lambda d: d.__setitem__("host_key_fingerprint", "A" * 43),
+            ),
         )
         for name, mutate in cases:
             with self.subTest(name=name):
-                record, policy = canonical_record(), canonical_policy()
-                mutate(record)
-                self.assert_all_reject(record, policy)
+                device = canonical_device()
+                mutate(device)
+                self.assert_all_reject(device)
+
+    def test_credential_kinds_of_a_device_are_checked_against_the_store(self) -> None:
+        for name, kinds in (
+            ("account is a token", {CREDENTIAL: "api-token", SNMP_CREDENTIAL: "snmp-community"}),
+            ("account is a community", {CREDENTIAL: "snmp-community", SNMP_CREDENTIAL: "snmp-community"}),
+            ("community is a password", {CREDENTIAL: "password", SNMP_CREDENTIAL: "password"}),
+            ("account is unknown", {SNMP_CREDENTIAL: "snmp-community"}),
+            ("community is unknown", {CREDENTIAL: "password"}),
+        ):
+            with self.subTest(name=name):
+                entries, _ = loaded(canonical_device())
+                with self.assertRaises(helper_inventory.InventoryError):
+                    helper_inventory.section(entries[0], kinds)
+        entries, _ = loaded(canonical_device())
+        self.assertEqual(
+            helper_inventory.section(entries[0], KINDS).snmp_credential,
+            SNMP_CREDENTIAL,
+        )
 
     def test_shared_invalid_policy_corpus_is_rejected(self) -> None:
-        cases: list[tuple[str, dict[str, object], dict[str, object], bool]] = []
+        cases: list[tuple[str, dict[str, object], bool]] = []
 
         def add(name: str, mutate, *, ftp: bool = False) -> None:
-            record, policy = canonical_record(), canonical_policy()
-            mutate(record, policy)
-            cases.append((name, record, policy, ftp))
+            device = canonical_device()
+            mutate(device, device["helper"])
+            cases.append((name, device, ftp))
 
         add("unknown target key", lambda _r, p: p.__setitem__("unexpected", True))
         for key in ("account_role", "ssh_platform", "enabled_queries", "egress"):
             add(f"missing {key}", lambda _r, p, key=key: p.pop(key))
-        add("bool credential port", lambda r, _p: r.__setitem__("port", True))
+        add("bool device port", lambda d, _p: d.__setitem__("port", True))
         add(
             "non-string query",
             lambda _r, p: p.__setitem__("enabled_queries", [7]),
@@ -885,10 +943,10 @@ class PolicyParityTests(unittest.TestCase):
             "unknown platform query",
             lambda _r, p: p.__setitem__("enabled_queries", ["does_not_exist"]),
         )
-        add("invalid hostname", lambda r, _p: r.__setitem__("host", "bad_name"))
+        add("invalid hostname", lambda d, _p: d.__setitem__("address", "bad_name"))
         add(
             "hostname without DNS",
-            lambda r, _p: r.__setitem__("host", "device.example"),
+            lambda d, _p: d.__setitem__("address", "device.example"),
         )
         add(
             "literal host outside addresses",
@@ -960,14 +1018,15 @@ class PolicyParityTests(unittest.TestCase):
             ftp=True,
         )
 
-        for name, record, policy, ftp in cases:
+        for name, device, ftp in cases:
             with self.subTest(name=name):
-                self.assert_all_reject(record, policy, ftp=ftp)
+                self.assert_all_reject(device, ftp=ftp)
 
     def test_corpus_adapters_are_independent_production_paths(self) -> None:
-        self.assertIsNot(proxy_module.Proxy._validate_target_policy, TargetAuth.decode)
-        self.assertIsNot(generator.build_bundle, proxy_module.Proxy._validate_target_policy)
+        self.assertIsNot(helper_inventory.section, TargetAuth.decode)
+        self.assertIsNot(generator.build_bundle, helper_inventory.section)
         self.assertIsNot(generator.build_bundle, TargetAuth.decode)
+        self.assertIs(proxy_module.helper_inventory.section, helper_inventory.section)
 
 
 if __name__ == "__main__":

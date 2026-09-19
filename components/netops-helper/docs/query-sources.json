@@ -55,6 +55,13 @@
       "vendor": "Juniper Networks",
       "baseline": "Junos OS 23.4R2 EX/QFX ELS superset",
       "reference_document": "docs/vendor-cli-references/juniper-junos.md"
+    },
+    "ruckus_unleashed": {
+      "source_type": "vendor_login_required",
+      "vendor": "Ruckus",
+      "baseline": "Unleashed 200.13",
+      "reference_document": "docs/vendor-cli-references/ruckus-unleashed.md",
+      "source_note": "Vendor guide behind a support login; syntax verified on a device 2026-09-16."
     }
   },
   "sources": {
@@ -303,6 +310,12 @@
       "title": "Switch Engine v33.7.1 Command References: show fdb",
       "baseline": "Switch Engine 33.7.1",
       "url": "https://documentation.extremenetworks.com/Switch%20Engine%20v33.7.1%20Command%20References/content/documents/Switch_Operating_Systems/Switch_Engine/Command_References/show_fdb.shtml"
+    },
+    "E-INDEX": {
+      "vendor": "Extreme Networks",
+      "title": "Switch Engine v33.7.1 Command References",
+      "baseline": "Switch Engine 33.7.1",
+      "url": "https://documentation.extremenetworks.com/Switch%20Engine%20v33.7.1%20Command%20References/content/documents/Switch_Operating_Systems/Switch_Engine/Command_References/"
     },
     "E-IPARP": {
       "vendor": "Extreme Networks",
@@ -735,6 +748,13 @@
       "title": "show route",
       "baseline": "Junos OS 23.4R2; EX/QFX ELS extension",
       "url": "https://www.juniper.net/documentation/us/en/software/junos/cli-reference/topics/ref/command/show-route.html"
+    },
+    "R-CLI-UNLEASHED-200-13": {
+      "vendor": "Ruckus",
+      "title": "Ruckus Unleashed 200.13 CLI Reference Guide",
+      "baseline": "Unleashed 200.13",
+      "access": "login_required",
+      "verified_on_device": "2026-09-16"
     }
   },
   "queries": {
@@ -1845,6 +1865,14 @@
         "C-4A456165AC7D"
       ]
     },
+    "extreme_exos/access_list_counters": {
+      "profile": "extreme_exos",
+      "query": "access_list_counters",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "E-INDEX"
+      ]
+    },
     "extreme_exos/arp_address": {
       "profile": "extreme_exos",
       "query": "arp_address",
@@ -1885,12 +1913,44 @@
         "E-DIAGNOSTICS"
       ]
     },
+    "extreme_exos/edp_neighbors": {
+      "profile": "extreme_exos",
+      "query": "edp_neighbors",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "E-INDEX"
+      ]
+    },
+    "extreme_exos/elrp": {
+      "profile": "extreme_exos",
+      "query": "elrp",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "E-INDEX"
+      ]
+    },
     "extreme_exos/fans": {
       "profile": "extreme_exos",
       "query": "fans",
       "source_type": "official_vendor",
       "source_ids": [
         "E-FANS"
+      ]
+    },
+    "extreme_exos/inline_power": {
+      "profile": "extreme_exos",
+      "query": "inline_power",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "E-INDEX"
+      ]
+    },
+    "extreme_exos/inline_power_port": {
+      "profile": "extreme_exos",
+      "query": "inline_power_port",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "E-INDEX"
       ]
     },
     "extreme_exos/interface_details": {
@@ -1965,6 +2025,14 @@
         "E-LACP"
       ]
     },
+    "extreme_exos/licenses": {
+      "profile": "extreme_exos",
+      "query": "licenses",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "E-INDEX"
+      ]
+    },
     "extreme_exos/lldp_interface": {
       "profile": "extreme_exos",
       "query": "lldp_interface",
@@ -2005,12 +2073,36 @@
         "E-FDB"
       ]
     },
+    "extreme_exos/mcast_cache_summary": {
+      "profile": "extreme_exos",
+      "query": "mcast_cache_summary",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "E-INDEX"
+      ]
+    },
     "extreme_exos/memory": {
       "profile": "extreme_exos",
       "query": "memory",
       "source_type": "official_vendor",
       "source_ids": [
         "E-MEMORY"
+      ]
+    },
+    "extreme_exos/mirror": {
+      "profile": "extreme_exos",
+      "query": "mirror",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "E-INDEX"
+      ]
+    },
+    "extreme_exos/ntp": {
+      "profile": "extreme_exos",
+      "query": "ntp",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "E-INDEX"
       ]
     },
     "extreme_exos/ports": {
@@ -2045,6 +2137,14 @@
         "E-PROCESS"
       ]
     },
+    "extreme_exos/qos_profiles": {
+      "profile": "extreme_exos",
+      "query": "qos_profiles",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "E-INDEX"
+      ]
+    },
     "extreme_exos/route_summary": {
       "profile": "extreme_exos",
       "query": "route_summary",
@@ -2053,12 +2153,52 @@
         "E-IPROUTE"
       ]
     },
+    "extreme_exos/sessions": {
+      "profile": "extreme_exos",
+      "query": "sessions",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "E-INDEX"
+      ]
+    },
     "extreme_exos/sharing": {
       "profile": "extreme_exos",
       "query": "sharing",
       "source_type": "official_vendor",
       "source_ids": [
         "E-SHARING"
+      ]
+    },
+    "extreme_exos/sntp_client": {
+      "profile": "extreme_exos",
+      "query": "sntp_client",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "E-INDEX"
+      ]
+    },
+    "extreme_exos/stacking": {
+      "profile": "extreme_exos",
+      "query": "stacking",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "E-INDEX"
+      ]
+    },
+    "extreme_exos/stacking_support": {
+      "profile": "extreme_exos",
+      "query": "stacking_support",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "E-INDEX"
+      ]
+    },
+    "extreme_exos/stp_detail": {
+      "profile": "extreme_exos",
+      "query": "stp_detail",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "E-STPD"
       ]
     },
     "extreme_exos/stp_summary": {
@@ -2112,6 +2252,30 @@
         "F-CHEAT-80"
       ]
     },
+    "fortinet/autoupdate_status": {
+      "profile": "fortinet",
+      "query": "autoupdate_status",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "F-CLI-80"
+      ]
+    },
+    "fortinet/autoupdate_versions": {
+      "profile": "fortinet",
+      "query": "autoupdate_versions",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "F-CLI-80"
+      ]
+    },
+    "fortinet/av_outbreak_stats": {
+      "profile": "fortinet",
+      "query": "av_outbreak_stats",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "F-CLI-80"
+      ]
+    },
     "fortinet/bfd_neighbors": {
       "profile": "fortinet",
       "query": "bfd_neighbors",
@@ -2148,6 +2312,14 @@
       "source_type": "official_vendor",
       "source_ids": [
         "F-DIAG-HW-76",
+        "F-CLI-80"
+      ]
+    },
+    "fortinet/firewall_auth_users": {
+      "profile": "fortinet",
+      "query": "firewall_auth_users",
+      "source_type": "official_vendor",
+      "source_ids": [
         "F-CLI-80"
       ]
     },
@@ -2220,6 +2392,22 @@
         "F-TEXT-STRINGS-80",
         "F-INTERFACE-SETTINGS-80",
         "F-IPSEC-ALIAS-80"
+      ]
+    },
+    "fortinet/ips_anomaly_status": {
+      "profile": "fortinet",
+      "query": "ips_anomaly_status",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "F-CLI-80"
+      ]
+    },
+    "fortinet/ips_filter_status": {
+      "profile": "fortinet",
+      "query": "ips_filter_status",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "F-CLI-80"
       ]
     },
     "fortinet/ipsec_status": {
@@ -2307,6 +2495,15 @@
       "source_ids": [
         "F-LLDP-80",
         "F-CLI-76"
+      ]
+    },
+    "fortinet/ntp_status": {
+      "profile": "fortinet",
+      "query": "ntp_status",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "F-DIAG-SYS-80",
+        "F-CLI-80"
       ]
     },
     "fortinet/ospf_neighbors": {
@@ -2403,6 +2600,22 @@
         "F-CHEAT-80"
       ]
     },
+    "fortinet/sslvpn_sessions": {
+      "profile": "fortinet",
+      "query": "sslvpn_sessions",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "F-CLI-80"
+      ]
+    },
+    "fortinet/sslvpn_statistics": {
+      "profile": "fortinet",
+      "query": "sslvpn_statistics",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "F-CLI-80"
+      ]
+    },
     "fortinet/system_status": {
       "profile": "fortinet",
       "query": "system_status",
@@ -2412,6 +2625,15 @@
         "F-CLI-80",
         "F-CHEAT-76",
         "F-CHEAT-80"
+      ]
+    },
+    "fortinet/system_top": {
+      "profile": "fortinet",
+      "query": "system_top",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "F-DIAG-SYS-80",
+        "F-CLI-80"
       ]
     },
     "juniper_junos/arp_interface": {
@@ -2965,6 +3187,42 @@
       "source_type": "project_contract",
       "source_ids": [],
       "source_note": "Project contract; upstream source audit pending."
+    },
+    "ruckus_unleashed/access_points": {
+      "profile": "ruckus_unleashed",
+      "query": "access_points",
+      "source_type": "vendor_login_required",
+      "source_ids": [
+        "R-CLI-UNLEASHED-200-13"
+      ],
+      "source_note": "Vendor guide behind a support login; syntax verified on a device 2026-09-16."
+    },
+    "ruckus_unleashed/ethernet_info": {
+      "profile": "ruckus_unleashed",
+      "query": "ethernet_info",
+      "source_type": "vendor_login_required",
+      "source_ids": [
+        "R-CLI-UNLEASHED-200-13"
+      ],
+      "source_note": "Vendor guide behind a support login; syntax verified on a device 2026-09-16."
+    },
+    "ruckus_unleashed/system_info": {
+      "profile": "ruckus_unleashed",
+      "query": "system_info",
+      "source_type": "vendor_login_required",
+      "source_ids": [
+        "R-CLI-UNLEASHED-200-13"
+      ],
+      "source_note": "Vendor guide behind a support login; syntax verified on a device 2026-09-16."
+    },
+    "ruckus_unleashed/wlans": {
+      "profile": "ruckus_unleashed",
+      "query": "wlans",
+      "source_type": "vendor_login_required",
+      "source_ids": [
+        "R-CLI-UNLEASHED-200-13"
+      ],
+      "source_note": "Vendor guide behind a support login; syntax verified on a device 2026-09-16."
     }
   }
 }

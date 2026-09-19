@@ -14,7 +14,7 @@ No universal vendor configuration recipe is provided here. Role names, privilege
 - Scope visibility to the smallest operational domain, VDOM, virtual system, routing instance, or tenant that still permits the required troubleshooting.
 - Keep Phase-1 credentials separate from every future configuration/write service.
 - Log authentication and command authorization success/failure on the target or AAA service, with retention sufficient for deployment tests and incident review.
-- Revalidate permissions after firmware, role, AAA, Netmiko, or query-catalog changes.
+- Revalidate permissions after firmware, role, AAA, transport, or query-catalog changes.
 
 The local `account_role: "read-only"` field records an operator assertion. The proxy and server reject a target without it, but they cannot prove remote enforcement.
 
@@ -24,13 +24,17 @@ The local `account_role: "read-only"` field records an operator assertion. The p
 
 Use a dedicated administrator bound to a reviewed read-only access profile, with administrative domain/VDOM scope restricted where applicable. Do not assume that a profile described as read-only excludes every diagnostic, execute, backup, or secret-bearing operation; test explicit denial of those families.
 
-Before enrollment, a separate administrator must persistently set console output to `standard` in the applicable global context and verify the effective setting. Only then set `fortios_output_standard_verified: true`. NetOps Helper's FortiOS driver deliberately skips Netmiko paging setup and cleanup so it never enters configuration merely to change or restore paging. SHA-1 key exchange and the `ssh-rsa` host key algorithm are refused for every platform, not only FortiOS. Verify both the exact wire session and target AAA log in a controlled test environment.
+Before enrollment, a separate administrator must persistently set console output to `standard` in the applicable global context and verify the effective setting. Only then set `fortios_output_standard_verified: true`. The helper sends no preamble at all on FortiOS - one `ssh` process carries the catalogue command and nothing else - so it never enters configuration to change or restore paging, and it also never restores a pager somebody else changed. SHA-1 key exchange is refused for every platform. The `ssh-rsa` host key algorithm is refused too unless the device carries the named per-device exception `legacy_ssh: "rsa-sha1"` with its host key pin; that exception exists since 13 September 2026 and no FortiOS device has needed it. Verify both the exact wire session and target AAA log in a controlled test environment.
+
+Measured on 17 September 2026 against FortiOS 8.0.0 with this code: an administrator bound to a custom access profile with every permission group set to `read`, `cli-get enable`, `cli-show enable`, `cli-diagnose enable`, `cli-exec disable` and `cli-config disable` answered all 40 catalogue queries with exit status 0 - the thirty whitelisted before that session and the ten added from it - and `config system global`, `execute ping` and `execute dhcp lease-list` were all refused with `Unknown action 0`. `cli-diagnose` defaults to `disable`; without it the 22 `diagnose` queries of the catalogue are refused. Such an account prints the prompt `$` instead of `#`, and the prompt is part of the one-shot answer. Twenty-six connections in a row (one `ssh-keyscan` and one `ssh` per query) made the device refuse further connections for a while; the helper now queues every FortiOS connection through one lane per device, five seconds apart, and caches the keyscan's host key line for ten minutes so a query after the first usually needs only the `ssh` connection - see [Security model](security-model.md#device-side-authorization).
 
 ### Extreme Switch Engine / ExtremeXOS
 
 Use a dedicated read-only role or externally authorized network-login identity. Confirm the role can execute only the enabled `show` and read-only diagnostic commands for the intended switch/slot scope. Deny configuration, save, download/upload, process/debug, support collection, and shell-like facilities.
 
 Role behavior differs across releases and external RADIUS/TACACS policy. Test each enabled catalog command, including typed port forms, and verify that malformed, list, range, wildcard, and broad port selectors remain unavailable through the account.
+
+Measured on 17 September 2026 against ExtremeXOS 33.7.1 with this code: a user-level account (`create account user <name> <password>`) answered 46 of the 47 catalogue queries, byte-identical to an administrator account - the thirty-two whitelisted before that session and the fourteen added from it, with only `inline_power_port` still unmeasured - and was refused `show accounts` as well as `show configuration`, the latter with `This user does not have permissions for this command.` (exit status 254). Four queries (`show port <port> information detail`, `show iproute ipv6 summary`, `show neighbor-discovery cache ipv6 <address>`, `show sharing`) end with exit status 250 and a complete answer; the helper returns the answer and reports the status. The factory `user` account ships enabled and without a password: delete it or set one before the switch is enrolled anywhere.
 
 ### Cisco IOS
 
@@ -62,17 +66,27 @@ Use a dedicated login class with the minimum operational permissions and explici
 
 Do not grant configuration or maintenance permissions merely to make operational commands work. Explicitly deny configuration display/export, `configure`, file operations, request/maintenance actions, shell access, support collection, packet capture, and secret-bearing outputs. Validate both classic and ELS target profiles separately because accepted interface syntax and query catalogs differ.
 
+### Ruckus Unleashed
+
+Not measured against a device with this code: no read-only account model for this platform has been verified. The four enrolled `show` commands live in the privileged context reached with `enable`, which is the same context as `reboot`, `upgrade` and the configuration commands. An account that can run `show sysinfo` there can, as far as this project has established, also run those. Treat an Unleashed enrollment as an account whose blast radius is the device, and enrol it only where that is acceptable.
+
+The helper's own boundary is narrower than the account's: the session never enters `config`, never sends `exit` (which saves in a configuration context), and closes the terminal instead. The exact bytes are pinned by `tests/test_ssh_wire_safety.py`.
+
+The access point asks for the password a second time inside its shell and echoes it on the terminal. The whole login phase is therefore discarded and never reaches an output, an error or an audit record. The device also offers only the `ssh-rsa` host key algorithm, so it needs `legacy_ssh: "rsa-sha1"` and its pin.
+
 ### Linux
 
 Use an unprivileged account with no Docker socket/group access, no writable operational groups, no package/service/process-control rights, and no general sudo. Membership that grants broad journal, network namespace, disk, virtualization, or container visibility must be reviewed as an effective privilege grant.
 
 If an enabled read needs elevation, expose an exact root-owned dispatcher or narrowly parameterized wrapper for that query; do not provide a shell-capable sudo rule. Constrain SSH to the expected command path where practical and deny forwarding, PTY/shell use, arbitrary environment injection, redirection, pipelines, and alternate commands. The fixed one-hour `journalctl -u <enrolled-service>` query must not become general journal access.
 
-## Session-driver caveat
+## What the session sends
 
-For non-FortiOS network platforms, NetOps Helper currently uses the upstream Netmiko platform driver. A driver can perform platform-specific session preparation, prompt discovery, terminal-width/paging setup, or cleanup in addition to the selected catalog command. Source review and unit tests over project code do not prove what every driver/release/device combination sends on the wire.
+There is no vendor session driver any more. `ssh_read` runs the OpenSSH client of `netops-core`, so what reaches the device is the reviewed catalogue command plus, on `extreme_exos` only, the preamble `disable cli paging` sent as its own command before it. `ruckus_unleashed` is the one platform without an exec channel: it is driven on a pseudo-terminal, answers its own login prompts, sends `enable`, then the command, and ends by closing the terminal.
 
-The account or external AAA policy must therefore reject any unexpected setup or cleanup command safely. Before production enrollment and after dependency/firmware changes, observe the SSH/AAA command log or a controlled mock or test endpoint and compare the full session with the reviewed expectation. FortiOS has an additional wire-level regression test because its upstream paging behavior required a dedicated no-write subclass; equivalent live denial testing remains necessary for all vendors.
+`tests/test_ssh_wire_safety.py` substitutes `ssh` and `ssh-keyscan` on `PATH` and asserts, per platform, the exact argument vector, the environment, the known-hosts line and the bytes of the terminal conversation. That removes the old uncertainty about what an upstream driver adds, but it does not remove the need for device-side proof: the test pins what this code sends, not what a particular release, model or AAA policy accepts or logs.
+
+The account or external AAA policy must still reject anything unexpected safely. Before production enrollment and after firmware changes, observe the SSH/AAA command log and compare the full session with the reviewed expectation.
 
 ## Enrollment test procedure
 
@@ -85,7 +99,7 @@ Perform these tests with the exact identity, SSH platform selection, AAA path, V
 5. Negatively test running/startup/full/backup/candidate/committed configuration display or export and secret-bearing file/support commands.
 6. Verify arbitrary CLI, pipes, redirection, command separators, wildcard/range/list selectors, and unenrolled typed inventory values cannot be introduced through NetOps Helper.
 7. Verify authentication or authorization failure does not lock out another required operational account and produces a useful target-side audit event.
-8. Record the firmware, role/AAA policy revision, Netmiko version, test date, allowed command set, denied families, and reviewer.
+8. Record the firmware, role/AAA policy revision, OpenSSH client version, test date, allowed command set, denied families, and reviewer.
 9. Repeat the procedure after any relevant change. Do not set `account_role: "read-only"` or the FortiOS output verification flag until the test passes.
 
 A successful read test alone is insufficient. Enrollment is complete only when allowed reads succeed, forbidden actions are demonstrably denied, and the full session matches the reviewed authorization boundary.

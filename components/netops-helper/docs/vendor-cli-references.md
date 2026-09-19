@@ -18,6 +18,7 @@ The exact machine-checked commands, typed slots, volume labels, descriptions, an
 | `arista_eos` | EOS 4.36.x, primarily 4.36.2F | [Arista EOS](vendor-cli-references/arista-eos.md) | Source-reviewed; live model, licensed-feature, RBAC/AAA, paging, and bytes-on-wire validation remain required. |
 | `juniper_junos` | Junos OS 23.4R2 common cross-family profile | [Juniper Junos](vendor-cli-references/juniper-junos.md) | Source-reviewed; live product-family, login-class/AAA, fixed-pipe, and bytes-on-wire validation remain required. |
 | `juniper_junos_els` | Junos OS 23.4R2 EX/QFX ELS superset | [Juniper Junos](vendor-cli-references/juniper-junos.md) | Source-reviewed as an explicit switch-only superset; model capability and live wire validation remain required before selection. |
+| `ruckus_unleashed` | Unleashed 200.13 | [Ruckus Unleashed](vendor-cli-references/ruckus-unleashed.md) | Source and one device run on 16 September 2026; the four accepted commands and the pseudo-terminal login are pinned by the wire test. A read-only account model on the device is not verified. |
 
 Source review establishes documented syntax and helps reject unsafe, secret-bearing, mutating, or unbounded command families. It does not prove that a particular hardware model, software image, feature license, local RBAC role, or TACACS+/RADIUS policy accepts a command. It also does not prove what an SSH driver transmits during login, paging setup, command execution, or cleanup.
 

@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "profile": "strict-target",
+  "backend": "iptables",
+  "bridge_name": "nh-egress0",
+  "network_name": "netops-helper",
+  "ipv6_mode": "deny",
+  "dns_resolvers": [],
+  "lan_cidrs": []
+}

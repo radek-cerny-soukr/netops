@@ -25,7 +25,11 @@ PROFILE_DOCUMENTS = {
     "arista_eos": "arista-eos.md",
     "juniper_junos": "juniper-junos.md",
     "juniper_junos_els": "juniper-junos.md",
+    "ruckus_unleashed": "ruckus-unleashed.md",
 }
+LOGIN_ONLY_DOCUMENTS = {"ruckus-unleashed.md"}
+LOGIN_SOURCE_TITLE = "Ruckus Unleashed 200.13 CLI Reference Guide"
+LOGIN_VERIFIED_ON_DEVICE = "2026-09-16"
 CANONICAL_KEYS_AND_ALIASES = {
     "fortinet",
     "fortios",
@@ -37,6 +41,7 @@ CANONICAL_KEYS_AND_ALIASES = {
     "arista_eos",
     "juniper_junos",
     "juniper_junos_els",
+    "ruckus_unleashed",
 }
 ALLOWED_HOSTS = {
     "docs.fortinet.com",
@@ -96,9 +101,18 @@ def _validate_official_urls(text: str) -> None:
         assert not any(character.isspace() or ord(character) < 32 for character in url), url
 
 
-def _validate_source_document(text: str, query_names: set[str]) -> None:
+def _validate_login_only_source(text: str) -> None:
+    assert not _extract_urls(text), "a source behind a login must claim no public URL"
+    assert LOGIN_SOURCE_TITLE in text
+    assert LOGIN_VERIFIED_ON_DEVICE in text
+    assert "behind a vendor support login" in text
+
+
+def _validate_source_document(
+    text: str, query_names: set[str], login_only: bool = False,
+) -> None:
     assert re.search(
-        r"(?:Audit|Verification) date:\s*2026-09-09\.",
+        r"(?:Audit|Verification) date:\s*2026-09-(?:09|16)\.",
         text,
         re.IGNORECASE,
     )
@@ -107,6 +121,9 @@ def _validate_source_document(text: str, query_names: set[str]) -> None:
     assert "../query-catalog.md" in text
     for query_name in query_names:
         assert f"`{query_name}`" in text, query_name
+    if login_only:
+        _validate_login_only_source(text)
+        return
     _validate_official_urls(text)
 
 
@@ -177,7 +194,9 @@ def test_source_documents_cover_profiles_sections_urls_and_catalog_link() -> Non
             if source_filename == filename
         }
         names = {name for profile in profiles for name in READ_QUERIES[profile]}
-        _validate_source_document(_read(SOURCE_DIR / filename), names)
+        _validate_source_document(
+            _read(SOURCE_DIR / filename), names, filename in LOGIN_ONLY_DOCUMENTS,
+        )
 
 
 def test_registry_resolves_every_vendor_composite_to_its_narrative() -> None:
@@ -191,13 +210,22 @@ def test_registry_resolves_every_vendor_composite_to_its_narrative() -> None:
     }
     for profile, filename in PROFILE_DOCUMENTS.items():
         text = _read(SOURCE_DIR / filename)
+        login_only = filename in LOGIN_ONLY_DOCUMENTS
         for query_name in READ_QUERIES[profile]:
             record = registry["queries"][f"{profile}/{query_name}"]
-            assert record["source_type"] == "official_vendor"
+            assert record["source_type"] == (
+                "vendor_login_required" if login_only else "official_vendor"
+            )
             assert record["source_ids"]
             for source_id in record["source_ids"]:
                 source = registry["sources"][source_id]
                 assert source["vendor"] == registry["profiles"][profile]["vendor"]
+                if login_only:
+                    assert "url" not in source
+                    assert source["access"] == "login_required"
+                    assert source["verified_on_device"] == LOGIN_VERIFIED_ON_DEVICE
+                    assert source["title"] in text
+                    continue
                 assert source["url"] in text
 
 
@@ -219,12 +247,17 @@ def test_mutations_cannot_remove_query_tokens_or_change_source_ids() -> None:
     registry = RENDERER.load_registry()
     for profile, filename in PROFILE_DOCUMENTS.items():
         text = _read(SOURCE_DIR / filename)
+        login_only = filename in LOGIN_ONLY_DOCUMENTS
         query_name = sorted(READ_QUERIES[profile])[0]
         token = f"`{query_name}`"
         assert token in text
         mutated = text.replace(token, query_name)
         names = set(READ_QUERIES[profile])
-        _assert_rejected(lambda mutated=mutated, names=names: _validate_source_document(mutated, names))
+        _assert_rejected(
+            lambda mutated=mutated, names=names, login_only=login_only: (
+                _validate_source_document(mutated, names, login_only)
+            )
+        )
 
     text = _read(SOURCE_DIR / "fortinet-fortios.md")
     mutated = text.replace("F-CLI-76, F-CLI-80", "F-CLI-80", 1)
@@ -248,6 +281,26 @@ def test_mutations_cannot_introduce_foreign_or_insecure_urls() -> None:
         _assert_rejected(lambda mutated=mutated: _validate_official_urls(mutated))
 
 
+def test_a_login_only_source_may_not_invent_a_public_url() -> None:
+    text = _read(SOURCE_DIR / "ruckus-unleashed.md")
+    names = set(READ_QUERIES["ruckus_unleashed"])
+    _validate_source_document(text, names, True)
+    for invented in (
+        "https://docs.fortinet.com/unleashed",
+        "https://www.arista.com/unleashed",
+    ):
+        mutated = text.replace("## Limitations", f"{invented}\n\n## Limitations", 1)
+        _assert_rejected(
+            lambda mutated=mutated, names=names: _validate_source_document(
+                mutated, names, True,
+            )
+        )
+    stripped = text.replace(LOGIN_VERIFIED_ON_DEVICE, "sometime")
+    _assert_rejected(
+        lambda: _validate_source_document(stripped, names, True)
+    )
+
+
 def main() -> int:
     test_index_keys_and_vendor_links()
     test_source_documents_cover_profiles_sections_urls_and_catalog_link()
@@ -255,6 +308,7 @@ def main() -> int:
     test_fortinet_and_extreme_tables_match_catalogue_and_registry()
     test_mutations_cannot_remove_query_tokens_or_change_source_ids()
     test_mutations_cannot_introduce_foreign_or_insecure_urls()
+    test_a_login_only_source_may_not_invent_a_public_url()
     print("vendor_reference_tests=passed")
     return 0
 

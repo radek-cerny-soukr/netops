@@ -3,7 +3,7 @@
 
 from __future__ import annotations
 
-from base64 import urlsafe_b64encode
+from base64 import b64encode, urlsafe_b64encode
 import importlib.util
 import json
 import os
@@ -12,12 +12,21 @@ import subprocess
 import sys
 from typing import Any, Callable
 
+_CORE_SOURCE = Path(__file__).resolve().parents[2] / "netops-core" / "src"
+if importlib.util.find_spec("netops_core") is None and _CORE_SOURCE.is_dir():
+    sys.path.insert(0, str(_CORE_SOURCE))
+
+from netops_core.hostkey import fingerprint_of
 from netops_helper.auth import TargetAuth
 from netops_helper.read_policy import render_read_query
 from netops_helper.sanitize import redact
 
 
 ROOT = Path(__file__).resolve().parents[1]
+HOST_KEY_PIN = fingerprint_of(b64encode(b"portable-contract-host-key").decode("ascii"))
+SOURCE_PATH = os.pathsep.join(
+    (str(ROOT / "src"), str(ROOT.parent / "netops-core" / "src"))
+)
 DEPENDENCY_FREE_TESTS = (
     "tests/test_engine_contracts.py",
     "tests/test_query_catalog_arista.py",
@@ -25,6 +34,7 @@ DEPENDENCY_FREE_TESTS = (
     "tests/test_query_catalog_extreme.py",
     "tests/test_query_catalog_fortinet.py",
     "tests/test_query_catalog_junos.py",
+    "tests/test_query_catalog_ruckus.py",
     "tests/test_query_catalog_docs.py",
     "tests/test_vendor_references.py",
     "tests/test_proxy_contracts.py",
@@ -50,8 +60,9 @@ def _auth_context() -> str:
         "host": "192.0.2.10",
         "port": 22,
         "login": "operator",
-        "password": "ssh-secret-value",
-        "known_hosts": "test-key",
+        "credential_kind": "password",
+        "secret": "ssh-secret-value",
+        "host_key_fingerprint": HOST_KEY_PIN,
         "account_role": "read-only",
         "read_inventory": {"interfaces": ["port3"]},
         "ssh_platform": "fortios",
@@ -169,7 +180,7 @@ def _run_core_contracts() -> None:
 def _run_dependency_free_files() -> None:
     environment = os.environ.copy()
     environment["PYTHONDONTWRITEBYTECODE"] = "1"
-    environment["PYTHONPATH"] = str(ROOT / "src")
+    environment["PYTHONPATH"] = SOURCE_PATH
     for relative in DEPENDENCY_FREE_TESTS:
         path = ROOT / relative
         if not path.is_file():

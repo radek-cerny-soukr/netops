@@ -7,7 +7,7 @@ import re
 
 from netops_helper.query_catalog.fortinet import QUERIES
 from netops_helper.query_catalog.model import Query
-from netops_helper.read_policy import render_read_query
+from netops_helper.read_policy import _validate_query_command, render_read_query
 
 
 # Exact volume rationale: device-wide interface, route, neighbor, and FDB tables,
@@ -60,6 +60,20 @@ EXPECTED = {
     "ipv6_ospf_neighbors": ("get router info6 ospf neighbor all", (), True),
     "bfd_neighbors": ("get router info bfd neighbor", (), True),
     "ipv6_bfd_neighbors": ("get router info6 bfd neighbor", (), True),
+    "ntp_status": ("diagnose sys ntp status", (), False),
+    "system_top": ("diagnose sys top 1 5 1", (), False),
+    "autoupdate_status": ("diagnose autoupdate status", (), False),
+    "autoupdate_versions": ("diagnose autoupdate versions", (), True),
+    "sslvpn_sessions": ("diagnose vpn ssl list", (), True),
+    "sslvpn_statistics": ("diagnose vpn ssl statistics", (), False),
+    "firewall_auth_users": ("diagnose firewall auth list", (), True),
+    "ips_filter_status": ("diagnose ips filter status", (), False),
+    "ips_anomaly_status": ("diagnose ips anomaly status", (), False),
+    "av_outbreak_stats": (
+        "diagnose antivirus outbreak-prevention statistics list",
+        (),
+        False,
+    ),
 }
 
 CONTROL_OR_SHELL = re.compile(r"[\x00-\x1f\x7f;&|$<>\x60]")
@@ -165,6 +179,26 @@ def test_interface_kinds_are_bounded_and_inventory_exact() -> None:
         raise AssertionError("non-enrolled FortiOS interface was accepted")
 
 
+def test_process_snapshot_is_pinned_to_one_iteration() -> None:
+    assert QUERIES["system_top"].command == "diagnose sys top 1 5 1"
+    _validate_query_command("fortinet", "diagnose sys top 1 5 1")
+    rejected = (
+        "diagnose sys top",
+        "diagnose sys top 1",
+        "diagnose sys top 1 5",
+        "diagnose sys top 1 5 2",
+        "diagnose sys top 1 5 0",
+        "diagnose sys top 5 20 1",
+        "diagnose sys top-mem",
+    )
+    for command in rejected:
+        try:
+            _validate_query_command("fortinet", command)
+        except RuntimeError:
+            continue
+        raise AssertionError(f"unpinned FortiOS process snapshot was accepted: {command!r}")
+
+
 def test_descriptions_are_present_and_ascii() -> None:
     for query in QUERIES.values():
         assert query.description
@@ -176,6 +210,7 @@ def main() -> None:
     test_exact_catalogue_contract()
     test_commands_are_narrow_read_only_cli()
     test_interface_kinds_are_bounded_and_inventory_exact()
+    test_process_snapshot_is_pinned_to_one_iteration()
     test_descriptions_are_present_and_ascii()
     print("fortinet query catalogue tests: ok")
 

@@ -178,4 +178,57 @@ QUERIES: dict[str, Query] = {
         "Show IPv6 BFD neighbors.",
         high_volume=True,
     ),
+    "ntp_status": Query(
+        "diagnose sys ntp status",
+        NO_SLOTS,
+        "Show NTP synchronization status and configured servers.",
+    ),
+    "system_top": Query(
+        "diagnose sys top 1 5 1",
+        NO_SLOTS,
+        "Show one fixed five-line snapshot of the busiest processes.",
+    ),
+    "autoupdate_status": Query(
+        "diagnose autoupdate status",
+        NO_SLOTS,
+        "Show FortiGuard automatic-update status.",
+    ),
+    "autoupdate_versions": Query(
+        "diagnose autoupdate versions",
+        NO_SLOTS,
+        "Show the installed FortiGuard package versions.",
+        high_volume=True,
+    ),
+    "sslvpn_sessions": Query(
+        "diagnose vpn ssl list",
+        NO_SLOTS,
+        "List active SSL VPN sessions.",
+        high_volume=True,
+    ),
+    "sslvpn_statistics": Query(
+        "diagnose vpn ssl statistics",
+        NO_SLOTS,
+        "Show aggregate SSL VPN statistics.",
+    ),
+    "firewall_auth_users": Query(
+        "diagnose firewall auth list",
+        NO_SLOTS,
+        "List authenticated firewall users.",
+        high_volume=True,
+    ),
+    "ips_filter_status": Query(
+        "diagnose ips filter status",
+        NO_SLOTS,
+        "Show the IPS engine filter status.",
+    ),
+    "ips_anomaly_status": Query(
+        "diagnose ips anomaly status",
+        NO_SLOTS,
+        "Show the IPS anomaly and DoS sensor status.",
+    ),
+    "av_outbreak_stats": Query(
+        "diagnose antivirus outbreak-prevention statistics list",
+        NO_SLOTS,
+        "Show antivirus outbreak-prevention statistics.",
+    ),
 }

@@ -1,13 +1,17 @@
 from __future__ import annotations
 
-from base64 import urlsafe_b64encode
+from base64 import b64encode, urlsafe_b64encode
 import json
 
+from netops_core.hostkey import fingerprint_of
 import pytest
 
 from netops_helper.auth import AuthenticationContextError, TargetAuth
 from netops_helper.read_policy import render_read_query
 from netops_helper.sanitize import redact
+
+
+PIN = fingerprint_of(b64encode(b"security-test-host-key").decode("ascii"))
 
 
 def envelope(alias: str = "device-a", role: str = "read-only") -> str:
@@ -16,8 +20,9 @@ def envelope(alias: str = "device-a", role: str = "read-only") -> str:
         "host": "192.0.2.10",
         "port": 22,
         "login": "operator",
-        "password": "correct horse battery staple",
-        "known_hosts": "test-key",
+        "credential_kind": "password",
+        "secret": "correct horse battery staple",
+        "host_key_fingerprint": PIN,
         "account_role": role,
         "fortios_output_standard_verified": True,
         "ssh_platform": None,

@@ -50,6 +50,24 @@ The table is the conservative Phase-1 whitelist. A template slot is accepted onl
 | `ipv6_ospf_neighbors` | `get router info6 ospf neighbor all` | none | high-volume | F-OSPF-80, F-CLI-76, F-CLI-80 |
 | `bfd_neighbors` | `get router info bfd neighbor` | none | high-volume | F-BFD-80, F-CLI-76, F-CLI-80 |
 | `ipv6_bfd_neighbors` | `get router info6 bfd neighbor` | none | high-volume | F-BFD-80, F-CLI-76, F-CLI-80 |
+| `ntp_status` | `diagnose sys ntp status` | none | normal | F-DIAG-SYS-80, F-CLI-80 |
+| `system_top` | `diagnose sys top 1 5 1` | none | normal | F-DIAG-SYS-80, F-CLI-80 |
+| `autoupdate_status` | `diagnose autoupdate status` | none | normal | F-CLI-80 |
+| `autoupdate_versions` | `diagnose autoupdate versions` | none | high-volume | F-CLI-80 |
+| `sslvpn_sessions` | `diagnose vpn ssl list` | none | high-volume | F-CLI-80 |
+| `sslvpn_statistics` | `diagnose vpn ssl statistics` | none | normal | F-CLI-80 |
+| `firewall_auth_users` | `diagnose firewall auth list` | none | high-volume | F-CLI-80 |
+| `ips_filter_status` | `diagnose ips filter status` | none | normal | F-CLI-80 |
+| `ips_anomaly_status` | `diagnose ips anomaly status` | none | normal | F-CLI-80 |
+| `av_outbreak_stats` | `diagnose antivirus outbreak-prevention statistics list` | none | normal | F-CLI-80 |
+
+### Audit entries measured on 17 September 2026
+
+Measured on 17 September 2026 against FortiOS 8.0.0 with a read-only account (a custom access profile with `cli-get`, `cli-show` and `cli-diagnose` enabled and `cli-exec` and `cli-config` disabled), over the exec channel, each of the following answered with exit status 0 and non-empty output except where stated: `ntp_status`, `system_top`, `autoupdate_status`, `autoupdate_versions`, `sslvpn_sessions` (empty, no SSL VPN session was up), `sslvpn_statistics`, `firewall_auth_users`, `ips_filter_status`, `ips_anomaly_status` and `av_outbreak_stats`. Each command is a chapter of the FortiOS 8.0.0 CLI Reference (`diagnose sys ntp status`, `diagnose sys top`, `diagnose autoupdate status`, `diagnose autoupdate versions`, `diagnose vpn ssl list`, `diagnose vpn ssl statistics`, `diagnose firewall auth list`, `diagnose ips filter status`, `diagnose ips anomaly status`, `diagnose antivirus outbreak-prevention statistics list`); the same chapters exist in the 7.6 reference, which was not the measured build.
+
+`system_top` pins every argument of the documented `diagnose sys top <delay> <lines> <iterations>` grammar. The vendor defaults are a five-second delay, twenty lines and an unlimited iteration count, so the unpinned command is a refresh loop; the template is fixed at `1 5 1`, one snapshot of five lines, and `read_policy` refuses any other `diagnose sys top` form even if it is added to the catalogue.
+
+In the same session `execute dhcp lease-list` was refused with `Unknown action 0`. It is an `execute` command and stays outside the boundary; the refusal is recorded as a measured fact, not as a candidate.
 
 ### Version, model, and feature constraints
 
@@ -71,6 +89,8 @@ These exclusions are capability boundaries, not merely undocumented omissions.
 | Mutation or lifecycle control | `config`, `edit`, `set`, `unset`, `delete`, backup, test, restart, reset, clear, kill, reboot, or shutdown operations | These can change persistent configuration or live state. |
 | Detailed IKE or tunnel listings | `diagnose vpn ike gateway list`, `diagnose vpn tunnel list`, and similarly detailed keying-state dumps | Detailed output can expose sensitive IKE/IPsec keying material and peer state. The bounded `ipsec_summary` and aggregate `ipsec_status` are the Phase-1 boundary. |
 | VDOM enumeration | former `vd_list` candidate | It expands administrative topology exposure and is not needed for the current target-scoped troubleshooting contract. |
+| `execute` branch | `execute dhcp lease-list`, `execute ping` | The whole branch is excluded. Measured on 17 September 2026, a read-only access profile with `cli-exec disable` refused `execute dhcp lease-list` with `Unknown action 0`; the DHCP lease list therefore has no Phase-1 source at all. |
+| Unbounded refresh loops | `diagnose sys top` without the pinned `1 5 1` arguments | The documented default iteration count is unlimited, so the bare command never ends. Only the fixed single-iteration snapshot `system_top` is accepted, and the read policy rejects every other `diagnose sys top` form. |
 | Device log retrieval | arbitrary event, traffic, security, or system log commands | No arbitrary device log scope, filter, time bound, or safe output contract exists in Phase 1. |
 
 ## Deferred: live-test-only candidates
@@ -80,7 +100,10 @@ No additional command in this review is approved merely because it appears in ve
 - an IPv6 equivalent of the typed single-address route lookup;
 - model-portable optics and environmental sensor detail beyond the accepted NIC, disk, and memory queries;
 - scoped ARP, IPv6-neighbor, and bridge/FDB variants whose interface, VDOM, or software-switch semantics differ across releases;
-- any command that requires an output modifier, interactive paging response, or feature-specific prompt.
+- any command that requires an output modifier, interactive paging response, or feature-specific prompt;
+- the FortiSwitch-controller family `diagnose switch-controller switch-info ...`, which needs a managed-switch inventory type that Phase 1 does not have;
+- a DHCP lease view: the `execute` branch is excluded and no `diagnose` chapter of the 8.0.0 reference prints leases without also printing server configuration;
+- certificate expiry: the reference documents only TPM hardware certificates and the revocation blocklist, neither of which answers the question.
 
 These are research candidates, not callable query names. The accepted table must not be expanded from this section without a separate source and live-test review.
 
@@ -91,12 +114,12 @@ Only first-party Fortinet pages are retained. General CLI references establish t
 | ID | Official document title and version | Query-name mapping | URL |
 | --- | --- | --- | --- |
 | F-CLI-76 | FortiGate / FortiOS 7.6.4 CLI Reference | baseline cross-check for all accepted Fortinet query names | https://docs.fortinet.com/document/fortigate/7.6.4/cli-reference |
-| F-CLI-80 | FortiGate / FortiOS 8.0.0 CLI Reference | baseline cross-check for all accepted Fortinet query names | https://docs.fortinet.com/document/fortigate/8.0.0/cli-reference |
+| F-CLI-80 | FortiGate / FortiOS 8.0.0 CLI Reference | baseline cross-check for all accepted Fortinet query names; chapter source for `autoupdate_status`, `autoupdate_versions`, `sslvpn_sessions`, `sslvpn_statistics`, `firewall_auth_users`, `ips_filter_status`, `ips_anomaly_status` and `av_outbreak_stats` | https://docs.fortinet.com/document/fortigate/8.0.0/cli-reference |
 | F-CHEAT-76 | FortiOS 7.6.0 CLI troubleshooting cheat sheet | `system_status`, `performance`, `ha_status`, `session_stats`, `physical_interfaces`, `routing_table`, `route_lookup`, `arp_table` | https://docs.fortinet.com/document/fortigate/7.6.0/cli-troubleshooting-cheat-sheet/420966/cli-troubleshooting-cheat-sheet |
 | F-CHEAT-80 | FortiOS 8.0.0 CLI troubleshooting cheat sheet | same query-name mapping as F-CHEAT-76 | https://docs.fortinet.com/document/fortigate/8.0.0/cli-troubleshooting-cheat-sheet/420966/cli-troubleshooting-cheat-sheet |
 | F-DIAG-INDEX-76 | FortiOS 7.6.4 CLI diagnose commands | diagnostic baseline, including `interface_details` | https://docs.fortinet.com/document/fortigate/7.6.4/cli-reference/424125979/cli-diagnose-commands |
 | F-DIAG-SYS-76 | FortiOS 7.6.4 `diagnose sys` CLI reference | `session_stats`, `sdwan_health`, `ha_history` | https://docs.fortinet.com/document/fortigate/7.6.4/cli-reference/235530229/diagnose-sys |
-| F-DIAG-SYS-80 | FortiOS 8.0.0 `diagnose sys` CLI reference | `session_stats`, `sdwan_health`, `ha_history` | https://docs.fortinet.com/document/fortigate/8.0.0/cli-reference/235530229/diagnose-sys |
+| F-DIAG-SYS-80 | FortiOS 8.0.0 `diagnose sys` CLI reference | `session_stats`, `sdwan_health`, `ha_history`, `ntp_status`, `system_top` | https://docs.fortinet.com/document/fortigate/8.0.0/cli-reference/235530229/diagnose-sys |
 | F-DIAG-HW-76 | FortiOS 7.6.3 `diagnose hardware` CLI reference | `hardware_memory`, `disk_status`, `interface_hardware` | https://docs.fortinet.com/document/fortigate/7.6.3/cli-reference/473204947/diagnose-hardware |
 | F-NIC-ADMIN-76 | FortiOS 7.6.4 Administration Guide: Displaying detail hardware NIC information | `interface_hardware` | https://docs.fortinet.com/document/fortigate/7.6.4/administration-guide/306050/displaying-detail-hardware-nic-information |
 | F-NIC-ACCEL-76 | FortiOS 7.6.4 Hardware Acceleration: packets dropped by an interface | `interface_hardware` | https://docs.fortinet.com/document/fortigate/7.6.4/hardware-acceleration/90160/diagnose-hardware-deviceinfo-nic-interface-name-number-of-packets-dropped-by-an-interface |

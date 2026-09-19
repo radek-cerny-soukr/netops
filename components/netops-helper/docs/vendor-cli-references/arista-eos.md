@@ -64,4 +64,4 @@ High-volume queries are `interfaces`, `ip_interfaces`, `ipv6_interfaces`, `vlans
 - Hardware SKU, modular chassis role, EOS extension availability, and feature licensing can change command availability or output fields.
 - RBAC roles and AAA command authorization must explicitly permit only the catalogued EXEC commands. A command being documented or locally present does not guarantee TACACS+/RADIUS authorization.
 - Inventory, neighbor, routing, BGP, and optics output can expose serial numbers, topology, addressing, peer identities, and interface descriptions. These are sensitive operational data, not permission to expose credentials.
-- Documentation review is not a substitute for wire verification of the Netmiko platform, prompt handling, paging, output standard, and exact bytes sent to the device.
+- Documentation review is not a substitute for wire verification of prompt handling, paging, output standard, and exact bytes sent to the device.

@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+from base64 import b64encode
 from dataclasses import replace
 import ipaddress
 
+from netops_core.hostkey import fingerprint_of
 import pytest
 
 from netops_helper.auth import EgressPolicy, EgressScopeError, TargetAuth
@@ -10,6 +12,7 @@ import netops_helper.engine as engine
 
 
 TEST_ADDRESS = str(ipaddress.IPv4Address((192 << 24) | (2 << 8) | 30))
+PIN = fingerprint_of(b64encode(b"plain-ftp-host-key").decode("ascii"))
 
 
 def target_auth() -> TargetAuth:
@@ -18,8 +21,8 @@ def target_auth() -> TargetAuth:
         host=TEST_ADDRESS,
         port=21,
         login="account",
-        password="credential",
-        known_hosts="public-key",
+        secret="credential",
+        host_key_fingerprint=PIN,
         sftp_roots=("/safe",),
         egress=EgressPolicy(
             addresses=(TEST_ADDRESS,),

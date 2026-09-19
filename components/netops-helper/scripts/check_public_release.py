@@ -62,8 +62,8 @@ REQUIRED_RELEASE_PATHS = {
     "tests/test_apply_egress_rules.py",
     "tests/test_egress_scripts.py",
     "tests/test_engine_contracts.py",
-    "tests/test_fortios_wire_safety.py",
-    "tests/test_netmiko_wire_safety.py",
+    "tests/test_ssh_wire_safety.py",
+    "tests/test_connection_pacing.py",
     "tests/test_policy_parity.py",
     "tests/test_proxy_contracts.py",
     "tests/test_query_catalog_arista.py",
@@ -71,6 +71,7 @@ REQUIRED_RELEASE_PATHS = {
     "tests/test_query_catalog_extreme.py",
     "tests/test_query_catalog_fortinet.py",
     "tests/test_query_catalog_junos.py",
+    "tests/test_query_catalog_ruckus.py",
     "tests/test_query_catalog_docs.py",
     "tests/test_vendor_references.py",
     "tests/test_sanitize.py",
@@ -101,6 +102,12 @@ def _tracked_release_files(root: Path) -> list[Path]:
     if not callable(selected_files):
         raise RuntimeError("release exporter has no file selector")
     return selected_files(root)
+
+
+def _source_path(root: Path) -> str:
+    return os.pathsep.join(
+        (str(root / "src"), str(root.parent / "netops-core" / "src"))
+    )
 
 
 def _mcp_tool(function: ast.FunctionDef | ast.AsyncFunctionDef) -> bool:
@@ -234,7 +241,7 @@ def _phase1_surface_errors(root: Path) -> list[str]:
                 + relative + ": " + ", ".join(sorted(found))
             )
 
-    example_policy = root / "config/target-policy.example.json"
+    example_policy = root / "config/inventory.example.json"
     if example_policy.exists():
         try:
             mode = example_policy.lstat().st_mode
@@ -297,85 +304,97 @@ def _phase1_surface_errors(root: Path) -> list[str]:
     return errors
 
 
-def _fortios_wire_errors(root: Path) -> list[str]:
+def _ssh_wire_errors(root: Path) -> list[str]:
     errors: list[str] = []
     engine_path = root / "src/netops_helper/engine.py"
-    wire_path = root / "tests/test_fortios_wire_safety.py"
+    wire_path = root / "tests/test_ssh_wire_safety.py"
     try:
-        engine_tree = ast.parse(engine_path.read_text(encoding="utf-8"))
+        engine_text = engine_path.read_text(encoding="utf-8")
+        engine_tree = ast.parse(engine_text)
         wire_text = wire_path.read_text(encoding="utf-8")
         wire_tree = ast.parse(wire_text)
     except (OSError, UnicodeError, SyntaxError):
-        return ["FortiOS driver or wire-safety test is unavailable or invalid"]
+        return ["SSH transport or wire-safety test is unavailable or invalid"]
 
-    driver = next(
-        (
-            node
-            for node in engine_tree.body
-            if isinstance(node, ast.ClassDef) and node.name == "ReadOnlyFortinetSSH"
-        ),
-        None,
-    )
-    if driver is None or not any(
-        isinstance(base, ast.Name) and base.id == "FortinetSSH" for base in driver.bases
-    ):
-        errors.append("ReadOnlyFortinetSSH is not a FortinetSSH subclass")
-    elif not {"session_preparation", "cleanup"} <= {
-        node.name for node in driver.body if isinstance(node, ast.FunctionDef)
-    }:
-        errors.append("ReadOnlyFortinetSSH does not override preparation and cleanup")
+    imported: set[str] = set()
+    for node in ast.walk(engine_tree):
+        if isinstance(node, ast.Import):
+            imported.update(alias.name.split(".")[0] for alias in node.names)
+        elif isinstance(node, ast.ImportFrom) and node.module:
+            imported.add(node.module.split(".")[0])
+    for retired in ("netmiko", "paramiko"):
+        if retired in imported:
+            errors.append(f"the read transport still imports {retired}")
 
-    connection = next(
-        (
-            node
-            for node in ast.walk(engine_tree)
-            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
-            and node.name == "netmiko_connection"
-        ),
-        None,
-    )
-    if connection is None:
-        errors.append("FortiOS connection factory is missing")
-    else:
-        has_driver_selection = any(
-            isinstance(node, ast.IfExp)
-            and isinstance(node.body, ast.Name)
-            and node.body.id == "ReadOnlyFortinetSSH"
-            and isinstance(node.orelse, ast.Name)
-            and node.orelse.id == "ConnectHandler"
-            for node in ast.walk(connection)
-        )
-        calls_selected_factory = any(
-            isinstance(node, ast.Call)
-            and isinstance(node.func, ast.Name)
-            and node.func.id == "connection_factory"
-            for node in ast.walk(connection)
-        )
-        if not has_driver_selection or not calls_selected_factory:
-            errors.append("FortiOS does not select and call ReadOnlyFortinetSSH")
-
-    wire_classes = {
-        node.name for node in wire_tree.body if isinstance(node, ast.ClassDef)
+    functions = {
+        node.name
+        for node in ast.walk(engine_tree)
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
     }
+    for required in ("host_key_line", "read_from_device", "_exec_read", "_pty_read"):
+        if required not in functions:
+            errors.append(f"the read transport has no {required}")
+    if "netmiko_connection" in functions or "ReadOnlyFortinetSSH" in {
+        node.name for node in ast.walk(engine_tree) if isinstance(node, ast.ClassDef)
+    }:
+        errors.append("a retired Netmiko connection factory is still present")
+
+    for token, message in (
+        ("core_hostkey.scan(", "the host key pin is not verified with the shared keyscan"),
+        ("core_ssh.run_command(", "the exec transport does not call the shared SSH client"),
+        ("core_session.Session(", "the terminal transport does not use the shared session"),
+        ("session.discard(", "the terminal transport does not discard its login phase"),
+        ("_SSH_TRANSPORTS", "the transport per platform is not a table in the code"),
+        ("_PLATFORM_PREAMBLE", "the platform preamble is not a table in the code"),
+    ):
+        if token not in engine_text:
+            errors.append(message)
+    transport_bodies = [
+        node
+        for node in ast.walk(engine_tree)
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+        and node.name in {"read_from_device", "_exec_read", "_pty_read", "_pty_body"}
+    ]
+    literals = {
+        inner.value
+        for node in transport_bodies
+        for inner in ast.walk(node)
+        if isinstance(inner, ast.Constant) and isinstance(inner.value, str)
+    }
+    if literals & {"exit", "quit", "config", "configure", "end", "save"}:
+        errors.append("the read transport carries a literal that leaves the read boundary")
+
     wire_tests = {
         node.name
-        for node in wire_tree.body
+        for node in ast.walk(wire_tree)
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
         and node.name.startswith("test_")
     }
+    required_tests = {
+        "test_every_exec_platform_sends_its_preamble_and_the_catalog_command",
+        "test_the_password_reaches_the_client_only_through_the_askpass_file",
+        "test_a_key_reaches_the_client_only_as_a_private_file",
+        "test_the_legacy_options_appear_only_with_the_enrolled_profile",
+        "test_the_exec_client_is_given_no_configuration_file_of_the_host",
+        "test_the_access_point_is_driven_on_a_terminal_and_the_login_never_leaks",
+        "test_the_login_phase_of_the_access_point_stays_out_of_error_and_audit",
+    }
+    missing_tests = sorted(required_tests - wire_tests)
+    if missing_tests:
+        errors.append("wire-safety test is missing: " + ", ".join(missing_tests))
     required_tokens = (
-        "paramiko.ServerInterface",
         "engine.ssh_read",
-        "client_channel_bytes",
-        "server.commands == [DIAGNOSTIC_QUERY]",
-        "FORBIDDEN_MUTATING_COMMANDS",
-        "FORBIDDEN_PAGING_FRAGMENTS",
+        "engine._SSH_TRANSPORTS",
+        "\"-F\"",
+        "/dev/null",
+        "StrictHostKeyChecking=yes",
+        "SSH_ASKPASS",
+        "LEGACY_OPTIONS",
+        "transcript",
+        "FORBIDDEN_ON_THE_WIRE",
     )
-    if "_FortiOSSSHServer" not in wire_classes or (
-        "test_read_only_fortios_driver_sends_only_enrolled_diagnostic_query"
-        not in wire_tests
-    ) or any(token not in wire_text for token in required_tokens):
-        errors.append("FortiOS wire-safety test does not inspect real SSH channel data")
+    if any(token not in wire_text for token in required_tokens):
+        errors.append("SSH wire-safety test does not inspect the real client call")
     return errors
 
 
@@ -385,7 +404,7 @@ def _run_query_catalog_docs(root: Path) -> list[str]:
         return ["query-catalog renderer is missing"]
     environment = os.environ.copy()
     environment["PYTHONDONTWRITEBYTECODE"] = "1"
-    environment["PYTHONPATH"] = str(root / "src")
+    environment["PYTHONPATH"] = _source_path(root)
     try:
         completed = subprocess.run(
             [sys.executable, "-B", str(path), "--check"],
@@ -411,7 +430,7 @@ def _run_policy_parity(root: Path) -> list[str]:
         return ["policy parity artifact is missing"]
     environment = os.environ.copy()
     environment["PYTHONDONTWRITEBYTECODE"] = "1"
-    environment["PYTHONPATH"] = str(root / "src")
+    environment["PYTHONPATH"] = _source_path(root)
     try:
         with tempfile.TemporaryDirectory(prefix="netops-policy-parity-pycache-") as cache:
             environment["PYTHONPYCACHEPREFIX"] = cache
@@ -889,7 +908,10 @@ def check(root: Path = ROOT) -> list[str]:
         elif relative not in relative_files:
             errors.append(f"required release artifact is outside allowlist: {relative}")
 
-    forbidden_names = {"vault.json", "target-policy.json", "known_hosts", ".env"}
+    forbidden_names = {
+        "vault.json", "inventory.json", "egress-policy.json", "runner.json",
+        "known_hosts", ".env",
+    }
     private_markers = (
         re.compile(r"begin\s+private\s+key", re.IGNORECASE),
         re.compile(r"/workspace(?:/|$)", re.IGNORECASE),
@@ -952,8 +974,19 @@ def check(root: Path = ROOT) -> list[str]:
     first = dockerfile.splitlines()[0]
     if not re.fullmatch(r"FROM python:[^@\s]+@sha256:[0-9a-f]{64}", first):
         errors.append("Dockerfile base image is not digest-pinned")
-    if "pip install --no-cache-dir --upgrade" in dockerfile or "apt-get" in dockerfile:
+    if "pip install --no-cache-dir --upgrade" in dockerfile:
         errors.append("Dockerfile contains a moving package-manager operation")
+    apt_lines = [line for line in dockerfile.splitlines() if "apt-get" in line]
+    if apt_lines:
+        expected_apt = [
+            "    && apt-get update \\",
+            "    && apt-get install --yes --no-install-recommends openssh-client \\",
+        ]
+        if apt_lines != expected_apt or "rm -rf /var/lib/apt/lists/*" not in dockerfile:
+            errors.append(
+                "Dockerfile installs a distribution package outside the reviewed"
+                " openssh-client step"
+            )
     if "--require-hashes -r requirements.lock" not in dockerfile:
         errors.append("Dockerfile does not enforce the dependency hash lock")
 
@@ -990,7 +1023,7 @@ def check(root: Path = ROOT) -> list[str]:
         if (source_root / removed_name).exists():
             errors.append(f"phase-1 release contains removed write module: {removed_name}")
     errors.extend(_phase1_surface_errors(root))
-    errors.extend(_fortios_wire_errors(root))
+    errors.extend(_ssh_wire_errors(root))
     errors.extend(_run_query_catalog_docs(root))
     errors.extend(_run_policy_parity(root))
     return errors
