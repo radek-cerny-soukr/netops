@@ -2,73 +2,68 @@
 
 Three files decide what the auditor does: the inventory, the credential store and the suppression
 file. All three are read fail-closed - a missing field, an unknown field or a wrong value stops the
-run instead of falling back to a default - and none of them is ever written by the tool. This page is
-the schema of the credential store and of the suppression file, plus the exit codes and the two
-refusals that end a run before the rule catalogue is reached. The inventory has a page of its own:
-[`inventory.md`](inventory.md).
+run instead of falling back to a default - and none of them is ever written by the tool. The inventory
+and the credential store are the shared documents of `netops-core` since 0.2.0, both at file version
+`2`; this page says what the auditor adds to the credential store, holds the schema of the suppression
+file, and lists the exit codes and the two refusals that end a run before the rule catalogue is
+reached. The inventory has a page of its own: [`inventory.md`](inventory.md).
 
 ## The credential store (`vault.json`)
 
-The inventory names a credential, the store holds its value. One JSON object, two document fields, no
-device information and no path to anything else:
+The inventory names a credential, the store holds its value. Since 0.2.0 the store is **the shared
+document of `netops-core`, file version 2**, and its schema is
+[`../netops-core/docs/vault.md`](../netops-core/docs/vault.md). What follows is what the auditor adds
+to it.
 
 ```json
 {
-  "version": 1,
+  "version": 2,
   "credentials": {
-    "fw-b-audit-ro": {
-      "kind": "api-token",
-      "value": "replace-me"
-    }
+    "fw-a-audit-ro": {"kind": "ssh-key",   "login": "audit-ro", "value": "replace-me"},
+    "fw-b-audit-ro": {"kind": "password",  "login": "audit-ro", "value": "replace-me"},
+    "fw-c-audit-ro": {"kind": "api-token", "value": "replace-me"}
   }
 }
 ```
 
 | field | value |
 |---|---|
-| `version` | `1` |
+| `version` | `2`; a version `1` store - the shape the auditor read until 0.1.0 - is refused with `vault file <path>: version must be 2` |
 | `credentials` | an object; the key is the record name an inventory entry refers to in `credential` |
-| `credentials.<name>.kind` | `api-token`, and nothing else - read the trap below |
-| `credentials.<name>.value` | the secret itself, a non-empty string |
+| `credentials.<name>.kind` | one of `password`, `ssh-key`, `api-token`, `snmp-community` |
+| `credentials.<name>.login` | the account name, **required** for `password` and `ssh-key`, **forbidden** for the other two |
+| `credentials.<name>.value` | the secret itself; for `ssh-key` the whole private key text, header line and all, newlines written as `\n` - the example above is a placeholder, and the real shape is in [`../netops-core/docs/vault.md`](../netops-core/docs/vault.md) |
 
-Both levels are closed: a missing field, an unknown field, a `version` other than `1` or a name that
-is not a non-empty string is an error. The path is handed over on the command line with `--vault`,
-and the auditor refuses it for a device whose entry takes no credential:
+The file is read at mode `0600` or `0400` and at no other mode, and a vault path that is a symbolic
+link is refused before the mode is read.
 
-```
-error: device fw-a.example.invalid reads channel file and takes no credential, drop --vault
-```
+### A channel takes the kind it can use
 
-### The file mode is part of the schema
+The kind is not a free choice: the channel of the device decides it, and a record of another kind ends
+the run when the credential is resolved, before anything is sent anywhere.
 
-The store is read at mode `0600` or `0400`, and at no other mode. Anything wider, group-readable
-included, ends the run before the file is parsed:
-
-```
-error: vault: vault file vault.json has mode 0644, must be one of: 0600, 0400
-```
-
-### The trap: an SSH private key is stored under kind `api-token`
-
-`kind` accepts exactly one value, `api-token`, and that is the value an SSH private key gets as well.
-The name describes the REST channel the field was written for, not the channels that use the store
-today. On the `ssh` channel the auditor takes `value` as the **private key text**: it writes it into
-a file with mode 0600 in a throwaway directory and hands that file to the client as `-i <path>`. A
-store that calls the key what it is does not load:
+| channel | kind | what the record gives the session |
+|---|---|---|
+| `fortios-rest` | `api-token` | the token of the `Authorization: Bearer` header |
+| `ssh` | `password` or `ssh-key` | the `login` is the account of the session, the `value` is the password or the private key |
+| `file` | none | the entry takes no credential at all, and `--vault` is refused for it |
 
 ```
-error: vault: vault file vault.json: credential 'fw-b-audit-ro': kind must be one of: api-token
+error: device fw-a.example.invalid reads channel ssh under credential fw-a-audit-ro of kind
+api-token, channel ssh takes a credential of kind password or ssh-key
 ```
 
-So a key record reads `"kind": "api-token"` and carries the whole private key text in `value`,
-newlines and all (`\n` in JSON). Nothing else works today, and no message says so - which is why it
-is written down here.
+**The login comes from the credential.** `collect` has no `--profile` option any more: on the `ssh`
+channel the login of the session is the `login` of that record, and the report says which account was used in
+`collection-profile` and which kind of record opened the session in `collection-credential-kind`. On
+`file` and `fortios-rest`, which log in as nobody, `collection-profile` is `unknown`.
 
 The value stays inside the object it was loaded into. A credential prints as
-`Credential(name='fw-b-audit-ro', kind='api-token')` and a store as
-`Vault(path=vault.json, names=(fw-b-audit-ro, sw-a-audit-ro))` - names, never values - and the `ssh`
-channel never puts the secret in `argv`: the key goes to the client through a file of mode 0600 in a
-directory of mode 0700 that is removed when the call ends.
+`Credential(name='fw-a-audit-ro', kind='ssh-key', login='audit-ro')` and a store as
+`Vault(path=vault.json, names=(fw-a-audit-ro))` - names, never values - and neither channel puts a
+secret in `argv`: a key reaches the client as a file of mode 0600 in a throwaway directory, a password
+through an askpass script reading a file of mode 0600 in that same directory, and the directory is
+removed when the call ends.
 
 ## Suppressions
 
@@ -145,8 +140,25 @@ becomes visible. The two lists are independent and an item can be on both.
 
 ## The inventory
 
-Not repeated here. The list of devices, the schema of an entry field by field, the two pins and the
-`legacy_ssh` exception are in [`inventory.md`](inventory.md).
+Not repeated here. The `auditor` section field by field, what each channel requires of the common
+device, and the `legacy_ssh` exception are in [`inventory.md`](inventory.md); the common part of the
+document is in [`../netops-core/docs/inventory.md`](../netops-core/docs/inventory.md).
+
+## The platform picks the parser and the catalogue
+
+`--platform` of `run`, and the `platform` field of the entry for `collect`, choose two things at once:
+the L1 parser that reads the text and the rule catalogue that is evaluated over it. Since 0.2.0 there
+are two of each.
+
+| `--platform` | what the parser reads | catalogue | rules |
+|---|---|---|---|
+| `fortios` | the tree of `config` / `edit` / `set` / `next` / `end` | `catalog/fortios.json` | 6 |
+| `exos` | the flat list of commands of `show configuration`, one record per command with its line, its module and its tokens | `catalog/exos.json` | 4 |
+
+There is no detection: a dump handed to the wrong platform is parsed by the wrong parser, and what
+comes back is findings about commands that are not there rather than an error. The platform of a
+device belongs in the inventory, where `collect` reads it, and `run` is the command that asks for it
+on the command line.
 
 ## Exit codes
 

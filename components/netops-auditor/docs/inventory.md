@@ -1,58 +1,122 @@
 # The inventory file
 
-The inventory is the list of devices the auditor is allowed to read, and the only place where a
-device says how it is reached. It is a JSON file you write by hand. It holds no secret: a credential
-is named here, its value lives in the credential store, whose schema is in
-[`configuration.md`](configuration.md).
+The inventory is the list of devices the family may reach. Since 0.2.0 it is **the shared document of
+`netops-core`, file version 2**: the common part of a device - its name, platform, address, role,
+credential name, host key pin and legacy SSH exception - is read by `netops_core.inventory` and is
+documented in [`../netops-core/docs/inventory.md`](../netops-core/docs/inventory.md). That page is the
+schema of everything this one does not repeat.
 
-The loader is **fail-closed**. Every field listed below must be present in every entry, even when its
-value is `null`, an unknown field is an error, and a wrong value is an error - never a default. A
-typo therefore stops the run instead of quietly auditing the wrong thing. This page is the schema, so
-you do not have to read `inventory.py` to write the file.
+What each component needs for itself lives in a section of its own name. The auditor owns the
+`auditor` section, and this page is its schema. **A device is the auditor's when its `auditor` field is
+an object**; a device whose `auditor` is `null` belongs to another component, and the auditor neither
+validates nor reads it.
 
-## Shape
+Both loaders are **fail-closed**. Every field below must be present in every `auditor` section, even
+when its value is `null`, an unknown field is an error, and a wrong value is an error - never a
+default. Every refusal names the device and the field.
+
+## A document with one device of each channel
 
 ```json
 {
-  "version": 1,
+  "version": 2,
   "devices": [
     {
       "name": "fw-a.example.invalid",
       "platform": "fortios",
-      "channel": "ssh",
-      "source": "192.0.2.10",
+      "address": "192.0.2.10",
+      "port": 22,
       "role": "perimetr",
-      "consumer": "auditor",
       "credential": "fw-a-audit-ro",
-      "required_sections": ["system global", "system interface", "firewall policy"],
-      "tls_fingerprint": null,
-      "host_key_fingerprint": "SHA256:replaceMeWithTheRealHostKeyFingerprint12345",
-      "legacy_ssh": null
+      "host_key_fingerprint": "SHA256:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+      "legacy_ssh": null,
+      "auditor": {
+        "channel": "ssh",
+        "source": null,
+        "required_sections": ["system global", "system interface", "firewall policy"],
+        "tls_fingerprint": null
+      },
+      "helper": null
+    },
+    {
+      "name": "fw-b.example.invalid",
+      "platform": "fortios",
+      "address": null,
+      "port": null,
+      "role": "interni",
+      "credential": "fw-b-audit-ro",
+      "host_key_fingerprint": null,
+      "legacy_ssh": null,
+      "auditor": {
+        "channel": "fortios-rest",
+        "source": "https://192.0.2.20",
+        "required_sections": ["system global"],
+        "tls_fingerprint": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+      },
+      "helper": null
+    },
+    {
+      "name": "fw-c.example.invalid",
+      "platform": "fortios",
+      "address": null,
+      "port": null,
+      "role": "lab",
+      "credential": null,
+      "host_key_fingerprint": null,
+      "legacy_ssh": null,
+      "auditor": {
+        "channel": "file",
+        "source": "/var/lib/netops/fw-c.conf",
+        "required_sections": ["system global"],
+        "tls_fingerprint": null
+      },
+      "helper": null
     }
   ]
 }
 ```
 
-`version` is `1`. `devices` is a list; two entries may not share a `name`.
+`version` is `2`. A version `1` document - the shape the auditor read until 0.1.0 - is refused, naming
+the version found and the one expected:
 
-## Fields
+```
+inventory file inventory.json: unknown inventory file version 1, expected 2
+```
+
+The old per-device fields `channel`, `source`, `required_sections` and `tls_fingerprint` moved into
+the `auditor` section, `consumer` is gone (the section itself says whose the device is), and the
+target of the `ssh` channel is now the common `address` and `port`.
+
+## The `auditor` section
 
 | field | value | note |
 |---|---|---|
-| `name` | non-empty text | how the device is called in reports, the store and on the command line |
-| `platform` | `fortios`, `exos` | `exos` collects a snapshot; there are no EXOS rules yet |
 | `channel` | `file`, `fortios-rest`, `ssh` | one channel per device, no fallback - see [`channels.md`](channels.md) |
-| `source` | non-empty text | a path for `file`, `https://host[:port]` for `fortios-rest`, `host[:port]` for `ssh` |
-| `role` | `perimetr`, `interni`, `lab` | what the device guards; rules may be scoped by it |
-| `consumer` | `auditor`, `helper` | which tool of the family owns the entry |
-| `credential` | record name, or `null` | `null` only for `file`; never a password, never a key |
+| `source` | text, or `null` | a path for `file`, `https://host[:port]` for `fortios-rest`, and **`null` for `ssh`**, which is reached by the common `address` and `port` |
 | `required_sections` | non-empty list of texts | section names the dump must hold, written without the header its platform puts around them - see below |
 | `tls_fingerprint` | 64 hex characters, or `null` | only for `fortios-rest`, `null` for the other channels |
-| `host_key_fingerprint` | `SHA256:` + 43 base64 characters, or `null` | only for `ssh`, `null` for the other channels |
-| `legacy_ssh` | `null` or a profile name | only for `ssh`, `null` for the other channels - see below |
+
+## What a channel requires of the common part
+
+The channel decides what the shared fields must hold. Each of these is checked when the inventory is
+loaded, and the refusal names the device and the field:
+
+| | `file` | `fortios-rest` | `ssh` |
+|---|---|---|---|
+| `source` of the section | path to a dump | `https://host[:port]` | `null` |
+| `credential` | `null` | required | required |
+| `address` / `port` | may be `null` | may be `null` | **required** |
+| `host_key_fingerprint` | - | `null` | **required** |
+| `tls_fingerprint` of the section | `null` | **required** | `null` |
+| `legacy_ssh` | `null` (it needs a host key pin) | `null` (it needs a host key pin) | `null` or a profile |
 
 The two fingerprints are pins: there is no trust on first use anywhere in this tool. Take them with
 `ssh-keygen -lf` for a host key and from the certificate for TLS, over a path you trust.
+
+A credential is a **record name**, never a secret. What the record must be per channel is decided when
+the credential is resolved, not when the inventory is read: `fortios-rest` takes a credential of kind
+`api-token`, `ssh` takes `password` or `ssh-key`, and the login of an `ssh` session is the `login` of
+that record. The credential store is in [`configuration.md`](configuration.md).
 
 ## `required_sections`: the section name, never the header line
 
@@ -80,77 +144,35 @@ reached the device, and until then the same entry loads without a word.
 
 ## `legacy_ssh`: old algorithms are an exception, named per device
 
-The `ssh` channel talks to devices with the algorithms a current OpenSSH client offers by default,
-and nothing else. Some switches that are still in service offer only `ssh-rsa` - RSA with SHA-1 -
-and with the default set the collection stops before the credential is used:
+The field is part of the common device, so the whole family reads it the same way; the rules and the
+options behind a profile name are in
+[`../netops-core/docs/inventory.md`](../netops-core/docs/inventory.md) and
+[`../netops-core/docs/ssh.md`](../netops-core/docs/ssh.md). What matters here:
 
-```
-Unable to negotiate with <host> port 22: no matching host key type found. Their offer: ssh-rsa
-```
-
-**That default does not move.** An audit tool that quietly accepts SHA-1 everywhere in order to reach
-one switch has audited nothing. There is no global option, no environment variable and no command
-line flag that turns old algorithms on: the only way is to write the exception into the entry of the
-one device that needs it.
-
-| `legacy_ssh` | what the session gets | what it means |
-|---|---|---|
-| `null` | nothing | current algorithms only - the value for every device that does not need the exception |
-| `"rsa-sha1"` | `-o HostKeyAlgorithms=+ssh-rsa -o PubkeyAcceptedAlgorithms=+ssh-rsa` | SHA-1 is accepted for the host key and for the client public key, **for this device only** |
-
-Both options are written with `+`, which appends to the default set instead of replacing it, so the
-old algorithm sits last in the preference list and is chosen only when the device offers nothing
-better. Measured against the switches in the table of [`channels.md`](channels.md): the host key half
-is what makes the session possible at all, while the client public key half was never the deciding
-option there - those devices accept `rsa-sha2-*` signatures. It stays in the profile for a device
-that refuses them too, and it costs nothing where it is not needed.
-
-The value is a **profile name**, not a list of algorithms. The options behind a name are written down
-in the collector and cannot be extended from the inventory, so a file cannot smuggle an option onto
-the command line of `ssh`. An unknown name, an algorithm list, or a name with different spelling is
-refused when the inventory is loaded:
-
-```
-device 0: legacy_ssh must be null for a device that speaks current algorithms or name one of the
-profiles rsa-sha1 for channel ssh, a profile weakens the session for that device alone, got 'ssh-rsa'
-```
-
-For the `file` and `fortios-rest` channels the field must be `null`; anything else is an error, so a
-profile cannot be left behind when a device moves to another channel.
-
-**The exception is visible while it is used.** The collection report - text and JSON - carries
-`collection-legacy_ssh`, with the profile name, or `none` when the session ran on current algorithms.
-A report from a device with an exception therefore says so on its face.
-
-**When a device needs the exception and does not have it**, the failure now says so:
-
-```
-audit-ro@<host> disable cli paging failed with exit code 255, the client said: Unable to negotiate
-with <host> port 22: no matching host key type found. Their offer: ssh-rsa; <host> offers only
-algorithms this client refuses - if that is intended for this one device, name the exception in its
-inventory entry as legacy_ssh, one of the profiles rsa-sha1; there is no global switch and no other
-entry is weakened by it
-```
-
-New profiles are added only when a measurement shows a device that cannot be reached without one -
-not in advance. The name of a profile says what it costs; `rsa-sha1` says SHA-1.
-
-## Per channel, at a glance
-
-| | `file` | `fortios-rest` | `ssh` |
-|---|---|---|---|
-| `source` | path to a dump | `https://host[:port]` | `host[:port]` |
-| `credential` | `null` | record name | record name |
-| `tls_fingerprint` | `null` | required | `null` |
-| `host_key_fingerprint` | `null` | `null` | required |
-| `legacy_ssh` | `null` | `null` | `null` or a profile |
+- The `ssh` channel talks with the algorithms a current OpenSSH client offers by default. Some
+  switches that are still in service offer only `ssh-rsa` - RSA with SHA-1 - and with that default the
+  collection stops before the credential is used.
+- **The default does not move.** There is no global option, no environment variable and no command
+  line flag; the only way is `"legacy_ssh": "rsa-sha1"` in the entry of the one device that needs it,
+  and the field requires a pinned host key.
+- The value is a **profile name**, not a list of algorithms, so no string from the inventory reaches
+  the command line of `ssh`.
+- **The exception is visible while it is used.** The collection report - text and JSON - carries
+  `collection-legacy_ssh` with the profile name, or `none` when the session ran on current
+  algorithms.
+- When a device needs the exception and does not have it, the failed call says so and names the field,
+  the profile list, and that there is no global switch.
 
 ## What the inventory refuses
 
-- a missing field, an unknown field, a duplicate `name`, a `version` other than `1`,
-- a field whose name looks like a secret (`password`, `token`, `psk`, `private_key` and others):
-  the check runs before anything else, and it looks at names, not at values,
-- a pin, a credential or a profile on a channel that has no use for it,
-- a value outside the allowed set for `platform`, `channel`, `role`, `consumer` and `legacy_ssh`.
+From the common loader: a missing or unknown device field, a duplicate `name`, a `version` other than
+`2`, a field whose name looks like a secret (`password`, `token`, `psk`, `private_key` and others), an
+address that is not a canonical IPv4 literal or a lowercase DNS name, an IPv6 target, a `platform`
+outside the closed list, a `role` outside `perimetr`, `interni`, `lab`, a host key pin that is not
+`SHA256:` plus 43 base64 characters, a `legacy_ssh` profile that is not named in the family or has no
+host key pin to go with it, and a device that no component consumes.
 
-Every refusal names the entry by its index and says what was found.
+From the `auditor` section: a missing or unknown section field, a `channel` outside the three, a
+`source` on `ssh` or a missing one elsewhere, an empty `required_sections` or an entry in it that is
+not a non-empty string, a `tls_fingerprint` that is not 64 hexadecimal characters or one on a channel
+that has no use for it, and every cross-check of the table above.

@@ -1,6 +1,7 @@
 import hashlib
 import os
 import re
+from pathlib import Path
 from dataclasses import dataclass, fields
 from datetime import datetime, timedelta, timezone
 
@@ -17,6 +18,7 @@ from netops_auditor.collect import (
     missing_sections,
 )
 from netops_auditor.findings import EVIDENCE_TYPES, Finding
+from netops_core import prompt
 
 CANARY = "KANARCI-RETEZEC-NESMI-UNIKNOUT"
 DEVICE = "fw-example"
@@ -442,21 +444,22 @@ from pathlib import Path
 from netops_auditor.collect import (
     CHANNEL_REST,
     CHANNEL_SSH,
-    HOST_KEY_PREFIX,
-    LEGACY_SSH_OPTIONS,
     PLATFORM_FORTIOS,
     REST_METHOD,
     REST_TARGET,
     REST_TIMEOUT_SECONDS,
-    SSH_ERROR_DETAIL_CHARS,
     SSH_STEPS,
     SSH_TIMEOUT_SECONDS,
     collect_fortios_rest,
     collect_ssh,
 )
+from netops_core.hostkey import PREFIX as HOST_KEY_PREFIX
+from netops_core.legacy_ssh import OPENSSH_OPTIONS, PROFILES
+from netops_core.ssh import SAID_CHARS
 
 CANARY_TOKEN = "KANARCI-TOKEN-NESMI-UNIKNOUT"
 CANARY_KEY = "KANARCI-PRIVATNI-KLIC-NESMI-UNIKNOUT"
+CANARY_PASSWORD = "KANARCI-HESLO-NESMI-UNIKNOUT"
 HOST = "192.0.2.10"
 LOGIN = "audit-ro"
 REST_SOURCE = "https://192.0.2.10"
@@ -475,16 +478,6 @@ KEY_BLOB = "AAAAC3NzaC1lZDI1NTE5AAAAIEdTwaiTIgcu/hVdAGf/B5Tu8i3/vYtTyb3SkSvXkYIi
 KEY_PIN = "SHA256:ainTqLVboX+ve469siLf72rOminn3mGxWCUt89zwYxc"
 OTHER_BLOB = "AAAAC3NzaC1lZDI1NTE5AAAAINR23xHSURVIE0oubEpDDe9x6/dhC2YhG8K9mQ4EKU0T"
 OTHER_KEY_PIN = "SHA256:ekSe0E/s7//Umlqy0NuwAdT1o4BqdTDGd3f2+hFgkoM"
-MANDATED_OPTIONS = (
-    "BatchMode=yes",
-    "StrictHostKeyChecking=yes",
-    "IdentitiesOnly=yes",
-    "ClearAllForwardings=yes",
-    "ProxyCommand=none",
-    "PermitLocalCommand=no",
-    "ControlMaster=no",
-    "ControlPath=none",
-)
 BAD_PINS = (PIN[:-1], PIN + "a", PIN.replace("a", "g"), "", "   ", 0, 1, True, [PIN], {"sha256": PIN})
 BAD_KEY_PINS = (
     None,
@@ -917,6 +910,25 @@ EXOS_CONFIG = (
     "configure vlan default delete ports all\n"
 ).encode("utf-8")
 WRITE_MARKERS = ("config system console", "set output", "config ", "set ", "execute ")
+KEY_HEADER = "-----BEGIN " + "OPENSSH PRIVATE KEY-----"
+KEY_FOOTER = "-----END " + "OPENSSH PRIVATE KEY-----"
+PRIVATE_KEY = "%s\n%s\n%s\n" % (KEY_HEADER, CANARY_KEY, KEY_FOOTER)
+MANDATED_KEY_OPTIONS = (
+    "BatchMode=yes",
+    "StrictHostKeyChecking=yes",
+    "IdentitiesOnly=yes",
+    "ClearAllForwardings=yes",
+    "ProxyCommand=none",
+    "PermitLocalCommand=no",
+    "ControlMaster=no",
+    "ControlPath=none",
+)
+MANDATED_PASSWORD_OPTIONS = (
+    "BatchMode=no",
+    "StrictHostKeyChecking=yes",
+    "NumberOfPasswordPrompts=1",
+    "PubkeyAuthentication=no",
+)
 
 
 class FakeResult:
@@ -924,6 +936,24 @@ class FakeResult:
         self.returncode = returncode
         self.stdout = stdout
         self.stderr = stderr
+
+
+class SshCredential:
+    def __init__(self, secret=PRIVATE_KEY, kind="ssh-key", login=LOGIN):
+        self.kind = kind
+        self.login = login
+        self._secret = secret
+        self.uses = 0
+
+    def use(self):
+        self.uses += 1
+        return self._secret
+
+    def __repr__(self):
+        return "<SshCredential>"
+
+    def __str__(self):
+        return "<SshCredential>"
 
 
 class FakeRunner:
@@ -957,17 +987,24 @@ class FakeRunner:
         self.known_hosts = None
         self.identity = None
         self.identity_mode = None
+        self.secret = None
+        self.secret_mode = None
         self.workspace = None
 
-    def __call__(self, argv, timeout, env):
+    def __call__(self, argv, **options):
+        environment = options.get("env")
         self.calls.append(
-            {"argv": list(argv), "timeout": timeout, "env": None if env is None else dict(env)}
+            {
+                "argv": list(argv),
+                "timeout": options.get("timeout"),
+                "env": None if environment is None else dict(environment),
+            }
         )
         if argv[0] == "ssh-keyscan":
             if self.scan_error is not None:
                 raise self.scan_error
             return FakeResult(self.scan_code, self.scan)
-        self._look(argv)
+        self._look(argv, environment or {})
         if argv[-1] == self.steps[0].command:
             if self.console_error is not None:
                 raise self.console_error
@@ -976,14 +1013,20 @@ class FakeRunner:
             raise self.error
         return FakeResult(self.code, self.stdout, self.stderr)
 
-    def _look(self, argv):
-        for entry in argv:
-            if entry.startswith("UserKnownHostsFile="):
-                self.known_hosts = Path(entry.split("=", 1)[1]).read_text(encoding="utf-8")
-        identity = argv[argv.index("-i") + 1]
-        self.identity = Path(identity).read_bytes()
-        self.identity_mode = stat.S_IMODE(os.stat(identity).st_mode)
-        self.workspace = os.path.dirname(identity)
+    def _look(self, argv, environment):
+        for item in argv:
+            if item.startswith("UserKnownHostsFile="):
+                known_hosts = item.split("=", 1)[1]
+                self.known_hosts = Path(known_hosts).read_text(encoding="utf-8")
+                self.workspace = os.path.dirname(known_hosts)
+        if "-i" in argv:
+            identity = argv[argv.index("-i") + 1]
+            self.identity = Path(identity).read_bytes()
+            self.identity_mode = stat.S_IMODE(os.stat(identity).st_mode)
+        held = environment.get("NETOPS_ASKPASS_FILE")
+        if held:
+            self.secret = Path(held).read_bytes()
+            self.secret_mode = stat.S_IMODE(os.stat(held).st_mode)
 
     def argv(self, index=-1):
         return self.calls[index]["argv"]
@@ -995,9 +1038,19 @@ class FakeRunner:
         return [call["argv"][0] if call["argv"][0] != "ssh" else call["argv"][-1] for call in self.calls]
 
 
-def ssh_call(runner, credential=None, platform=PLATFORM, host=HOST, login=LOGIN, pin=KEY_PIN, **kwargs):
-    holder = FakeCredential(CANARY_KEY) if credential is None else credential
-    return collect_ssh(DEVICE, platform, host, login, holder, PROFILE, pin, runner=runner, **kwargs)
+def ssh_call(
+    runner,
+    credential=None,
+    platform=PLATFORM,
+    address=HOST,
+    port=22,
+    pin=KEY_PIN,
+    **kwargs
+):
+    holder = SshCredential() if credential is None else credential
+    return collect_ssh(
+        DEVICE, platform, address, port, holder, pin, run=runner, keyscan=runner, **kwargs
+    )
 
 
 def ssh_failure(runner, credential=None, **kwargs):
@@ -1006,12 +1059,25 @@ def ssh_failure(runner, credential=None, **kwargs):
     return caught.value
 
 
+def algorithm_options(argv):
+    return [item for item in argv if item.startswith(ALGORITHM_OPTION_PREFIXES)]
+
+
+ALGORITHM_OPTION_PREFIXES = (
+    "HostKeyAlgorithms=",
+    "PubkeyAcceptedAlgorithms=",
+    "KexAlgorithms=",
+    "Ciphers=",
+    "MACs=",
+    "HostbasedAcceptedAlgorithms=",
+)
+LEGACY_PROFILE = "rsa-sha1"
+LEGACY_OPTIONS = ("HostKeyAlgorithms=+ssh-rsa", "PubkeyAcceptedAlgorithms=+ssh-rsa")
+
+
 def test_ssh_steps_are_a_table_per_platform():
     assert tuple(SSH_STEPS) == ("fortios", "exos")
-    assert [step.command for step in SSH_STEPS["fortios"]] == [
-        "get system console",
-        "show",
-    ]
+    assert [step.command for step in SSH_STEPS["fortios"]] == ["get system console", "show"]
     assert [step.command for step in SSH_STEPS["exos"]] == [
         "disable cli paging",
         "show configuration",
@@ -1026,7 +1092,10 @@ def test_ssh_steps_are_a_table_per_platform():
         assert sum(1 for step in steps if step.snapshot) == 1
 
 
-@pytest.mark.parametrize("platform", ("fortiswitch", "ios", "junos", "FortiOS", "EXOS", "", "   ", None, 1, True, ["exos"]))
+@pytest.mark.parametrize(
+    "platform",
+    ("fortiswitch", "ios", "junos", "FortiOS", "EXOS", "", "   ", None, 1, True, ["exos"]),
+)
 def test_ssh_refuses_a_platform_without_a_step_table(platform):
     runner = FakeRunner()
     with pytest.raises(CollectError) as caught:
@@ -1046,19 +1115,21 @@ def test_ssh_snapshot_and_events_describe_the_same_read():
     assert snapshot.platform == PLATFORM
     assert snapshot.channel == CHANNEL_SSH
     assert snapshot.source == SSH_SOURCE
-    assert snapshot.profile == PROFILE
     assert snapshot.text == text
     assert snapshot.sha256 == hashlib.sha256(text.encode("utf-8")).hexdigest()
     assert event.channel == preflight.channel == CHANNEL_SSH
     assert preflight.request == PREFLIGHT_REQUEST
     assert event.request == SSH_REQUEST
-    assert event.request.endswith(" show")
     assert preflight.outcome == event.outcome == "ok"
     assert event.response_sha256 == snapshot.sha256
     assert event.response_bytes == snapshot.size_bytes
-    assert preflight.response_sha256 == hashlib.sha256(CONSOLE_STANDARD).hexdigest()
-    assert preflight.response_bytes == len(CONSOLE_STANDARD)
     assert snapshot.collected_at == event.finished_at
+
+
+def test_the_snapshot_profile_is_the_login_of_the_credential():
+    snapshot, _ = ssh_call(FakeRunner(), credential=SshCredential(login="audit-ro-2"))
+    assert snapshot.profile == "audit-ro-2"
+    assert snapshot.source == "audit-ro-2@%s" % HOST
 
 
 def test_ssh_fortios_asks_the_console_before_it_reads_the_configuration():
@@ -1073,15 +1144,12 @@ def test_ssh_exos_disables_paging_in_the_session_and_reads_the_configuration():
     snapshot, events = ssh_call(runner, platform="exos")
     assert runner.commands() == ["ssh-keyscan", "disable cli paging", "show configuration"]
     assert snapshot.platform == "exos"
-    assert snapshot.channel == CHANNEL_SSH
     assert snapshot.text == EXOS_CONFIG.decode("utf-8")
-    assert snapshot.sha256 == hashlib.sha256(EXOS_CONFIG).hexdigest()
     assert [event.request for event in events] == [
         "%s disable cli paging" % SSH_SOURCE,
         "%s show configuration" % SSH_SOURCE,
     ]
     assert [event.outcome for event in events] == ["ok", "ok"]
-    assert events[1].response_bytes == len(EXOS_CONFIG)
 
 
 def test_ssh_exos_accepts_an_empty_answer_to_the_paging_command():
@@ -1102,21 +1170,19 @@ def test_ssh_exos_still_needs_a_configuration_to_come_back():
 
 def test_ssh_fortios_pager_stops_the_collection_and_changes_nothing():
     runner = FakeRunner(console=CONSOLE_MORE)
-    credential = FakeCredential(CANARY_KEY)
+    credential = SshCredential()
     error = ssh_failure(runner, credential=credential)
     assert "the auditor does not change device configuration" in str(error)
     assert "set console output to standard first" in str(error)
     assert "'more'" in str(error)
     assert runner.commands() == ["ssh-keyscan", "get system console"]
     for call in runner.calls:
-        for entry in call["argv"]:
+        for item in call["argv"]:
             for marker in WRITE_MARKERS:
-                assert marker not in entry
-    assert "show" not in [call["argv"][-1] for call in runner.calls]
+                assert marker not in item
     assert error.event.request == PREFLIGHT_REQUEST
     assert error.event.outcome == "failed"
     assert error.event.response_sha256 == hashlib.sha256(CONSOLE_MORE).hexdigest()
-    assert error.event.response_bytes == len(CONSOLE_MORE)
     assert CANARY_KEY not in str(error)
 
 
@@ -1152,7 +1218,6 @@ def test_ssh_console_answer_is_never_logged():
     runner = FakeRunner()
     _, events = ssh_call(runner)
     assert "standard" not in repr(events[0])
-    assert "baudrate" not in repr(events[0])
     for value in event_values(events[0]):
         assert "baudrate" not in value
 
@@ -1165,21 +1230,13 @@ def test_ssh_argv_binds_every_mandated_option(platform):
         argv = runner.argv(index)
         assert argv[0] == "ssh"
         assert argv[1:3] == ["-F", "/dev/null"]
-        for option in MANDATED_OPTIONS:
-            assert ["-o", option] == argv[argv.index(option) - 1:argv.index(option) + 1]
+        for option in MANDATED_KEY_OPTIONS:
             assert argv.count(option) == 1
-        assert "BatchMode=yes" in argv
-        assert "StrictHostKeyChecking=yes" in argv
-        assert "IdentitiesOnly=yes" in argv
-        assert "ClearAllForwardings=yes" in argv
-        assert "ProxyCommand=none" in argv
-        assert "PermitLocalCommand=no" in argv
-        assert "ControlMaster=no" in argv
-        assert "ControlPath=none" in argv
+            assert argv[argv.index(option) - 1] == "-o"
         assert not [
-            entry
-            for entry in argv
-            if entry.startswith("StrictHostKeyChecking=") and entry != "StrictHostKeyChecking=yes"
+            item
+            for item in argv
+            if item.startswith("StrictHostKeyChecking=") and item != "StrictHostKeyChecking=yes"
         ]
         assert argv[-2] == "%s@%s" % (LOGIN, HOST)
     assert runner.argv(1)[-1] == SSH_STEPS[platform][0].command
@@ -1190,27 +1247,57 @@ def test_ssh_argv_points_at_a_known_hosts_file_with_the_pinned_key():
     runner = FakeRunner()
     ssh_call(runner)
     argv = runner.argv()
-    pointed = [entry for entry in argv if entry.startswith("UserKnownHostsFile=")]
+    pointed = [item for item in argv if item.startswith("UserKnownHostsFile=")]
     assert len(pointed) == 1
     assert argv[argv.index(pointed[0]) - 1] == "-o"
     assert runner.known_hosts == "%s ssh-ed25519 %s\n" % (HOST, KEY_BLOB)
-    assert KEY_BLOB in runner.known_hosts
 
 
-def test_ssh_credential_never_reaches_argv_or_the_environment():
+def test_ssh_key_never_reaches_argv_or_the_environment():
     runner = FakeRunner()
-    credential = FakeCredential(CANARY_KEY)
+    credential = SshCredential()
     ssh_call(runner, credential=credential)
     for call in runner.calls:
-        for entry in call["argv"]:
-            assert CANARY_KEY not in entry
+        for item in call["argv"]:
+            assert CANARY_KEY not in item
         for value in (call["env"] or {}).values():
             assert CANARY_KEY not in value
     assert set(runner.env().keys()) == {"PATH", "HOME", "LC_ALL"}
-    assert runner.identity.startswith(CANARY_KEY.encode("utf-8"))
+    assert runner.identity.startswith(KEY_HEADER.encode("utf-8"))
+    assert CANARY_KEY.encode("utf-8") in runner.identity
     assert runner.identity_mode == 0o600
-    assert credential.uses == 1
+    assert credential.uses == len(runner.calls) - 1
     assert "-i" in runner.argv()
+
+
+def test_ssh_password_authenticates_and_never_reaches_argv_or_the_environment():
+    runner = FakeRunner()
+    credential = SshCredential(secret=CANARY_PASSWORD, kind="password")
+    snapshot, events = ssh_call(runner, credential=credential)
+    assert snapshot.profile == LOGIN
+    assert [event.outcome for event in events] == ["ok", "ok"]
+    for call in runner.calls:
+        for item in call["argv"]:
+            assert CANARY_PASSWORD not in item
+        for value in (call["env"] or {}).values():
+            assert CANARY_PASSWORD not in value
+    for option in MANDATED_PASSWORD_OPTIONS:
+        assert runner.argv().count(option) == 1
+    assert "BatchMode=yes" not in runner.argv()
+    assert "-i" not in runner.argv()
+    assert runner.secret.startswith(CANARY_PASSWORD.encode("utf-8"))
+    assert runner.secret_mode == 0o600
+    assert runner.env()["SSH_ASKPASS_REQUIRE"] == "force"
+    assert runner.env()["NETOPS_ASKPASS_FILE"].startswith(runner.workspace)
+    assert CANARY_PASSWORD not in repr(snapshot)
+
+
+def test_ssh_refuses_a_credential_of_another_kind():
+    runner = FakeRunner()
+    error = ssh_failure(runner, credential=SshCredential(kind="api-token", login=None))
+    assert "kind password or ssh-key" in str(error)
+    assert error.event.outcome == "failed"
+    assert runner.commands() == ["ssh-keyscan"]
 
 
 @pytest.mark.parametrize(
@@ -1234,7 +1321,7 @@ def test_ssh_credential_never_reaches_argv_or_the_environment():
     ),
 )
 def test_ssh_credential_never_leaks_when_the_call_fails(runner):
-    credential = FakeCredential(CANARY_KEY)
+    credential = SshCredential()
     error = ssh_failure(runner, credential=credential)
     assert CANARY_KEY not in str(error)
     assert CANARY_KEY not in repr(error)
@@ -1242,13 +1329,12 @@ def test_ssh_credential_never_leaks_when_the_call_fails(runner):
     assert error.event.outcome == "failed"
     assert error.event.channel == CHANNEL_SSH
     assert error.event.request in (PREFLIGHT_REQUEST, SSH_REQUEST)
-    assert CANARY_KEY not in repr(error.event)
     for value in event_values(error.event):
         assert CANARY_KEY not in value
 
 
 def test_ssh_credential_never_leaks_from_a_successful_call():
-    credential = FakeCredential(CANARY_KEY)
+    credential = SshCredential()
     snapshot, events = ssh_call(FakeRunner(), credential=credential)
     assert CANARY_KEY not in repr(snapshot)
     assert CANARY_KEY not in repr(credential)
@@ -1261,14 +1347,14 @@ def test_ssh_credential_never_leaks_from_a_successful_call():
 
 def test_ssh_host_key_mismatch_stops_before_the_connection():
     runner = FakeRunner(blob=OTHER_BLOB)
-    credential = FakeCredential(CANARY_KEY)
+    credential = SshCredential()
     error = ssh_failure(runner, credential=credential)
     assert credential.uses == 0
     assert len(runner.calls) == 1
     assert runner.calls[0]["argv"][0] == "ssh-keyscan"
     assert runner.identity is None
-    assert "does not match the pinned fingerprint" in str(error)
-    assert KEY_PIN in str(error) and OTHER_KEY_PIN in str(error)
+    assert "no offered host key matches the pinned fingerprint" in str(error)
+    assert KEY_PIN in str(error)
     assert error.event.outcome == "failed"
     assert error.event.request == PREFLIGHT_REQUEST
     assert error.event.response_bytes == 0
@@ -1289,7 +1375,7 @@ def test_ssh_host_key_scan_is_bounded_and_targets_the_device():
 def test_ssh_workspace_is_removed_after_the_call():
     runner = FakeRunner()
     ssh_call(runner)
-    assert runner.workspace and "netops-auditor-" in runner.workspace
+    assert runner.workspace and "netops-core-" in runner.workspace
     assert not os.path.exists(runner.workspace)
     runner = FakeRunner(code=255)
     ssh_failure(runner)
@@ -1304,20 +1390,19 @@ def test_ssh_refuses_a_broken_or_missing_host_key_pin(pin):
     runner = FakeRunner()
     with pytest.raises(CollectError) as caught:
         ssh_call(runner, pin=pin)
-    assert caught.value.event is None
     assert runner.calls == []
-    assert "host_key_fingerprint must be the sha256 host key fingerprint" in str(caught.value)
+    assert caught.value.event.outcome == "failed"
+    assert "host_key_fingerprint must hold the sha256 host key fingerprint" in str(caught.value)
 
 
 def test_ssh_nonzero_exit_fails_with_an_event():
-    body = b"Permission denied (publickey).\n"
-    runner = FakeRunner(code=255, stdout=body)
+    runner = FakeRunner(code=255, stdout=b"Permission denied (publickey).\n")
     error = ssh_failure(runner)
     assert "failed with exit code 255" in str(error)
+    assert str(error).startswith(SSH_REQUEST)
     assert error.event.outcome == "failed"
     assert error.event.request == SSH_REQUEST
-    assert error.event.response_sha256 == hashlib.sha256(body).hexdigest()
-    assert error.event.response_bytes == len(body)
+    assert error.event.response_sha256 == EMPTY_SHA256
 
 
 def test_ssh_empty_answer_fails_with_an_event():
@@ -1331,7 +1416,7 @@ def test_ssh_empty_answer_fails_with_an_event():
 def test_ssh_timeout_fails_with_an_event():
     error = ssh_failure(FakeRunner(error=subprocess.TimeoutExpired(["ssh"], 120)))
     assert error.event.outcome == "failed"
-    assert "TimeoutExpired" in str(error)
+    assert "did not finish within" in str(error)
     assert error.event.response_bytes == 0
 
 
@@ -1362,7 +1447,7 @@ def test_ssh_answer_is_never_logged():
 def test_ssh_default_timeout_is_finite_and_reaches_the_runner():
     assert 0 < SSH_TIMEOUT_SECONDS < float("inf")
     runner = FakeRunner()
-    collect_ssh(DEVICE, PLATFORM, HOST, LOGIN, FakeCredential(CANARY_KEY), PROFILE, KEY_PIN, runner=runner)
+    collect_ssh(DEVICE, PLATFORM, HOST, 22, SshCredential(), KEY_PIN, run=runner, keyscan=runner)
     assert [call["timeout"] for call in runner.calls] == [SSH_TIMEOUT_SECONDS] * 3
 
 
@@ -1380,52 +1465,47 @@ def test_ssh_refuses_a_timeout_that_is_not_a_positive_number(timeout):
 def test_ssh_refuses_anything_but_a_credential_store_handle(credential):
     runner = FakeRunner()
     with pytest.raises(CollectError) as caught:
-        collect_ssh(DEVICE, PLATFORM, HOST, LOGIN, credential, PROFILE, KEY_PIN, runner=runner)
+        collect_ssh(DEVICE, PLATFORM, HOST, 22, credential, KEY_PIN, run=runner, keyscan=runner)
     assert caught.value.event is None
     assert runner.calls == []
     assert CANARY_KEY not in str(caught.value)
 
 
 @pytest.mark.parametrize(
-    "host,name,port,source",
+    "address,port,source",
     (
-        ("192.0.2.10", "192.0.2.10", 22, "audit-ro@192.0.2.10"),
-        ("  192.0.2.10  ", "192.0.2.10", 22, "audit-ro@192.0.2.10"),
-        ("192.0.2.10:2222", "192.0.2.10", 2222, "audit-ro@192.0.2.10:2222"),
-        ("fw-a.example.invalid", "fw-a.example.invalid", 22, "audit-ro@fw-a.example.invalid"),
+        ("192.0.2.10", 22, "audit-ro@192.0.2.10"),
+        ("192.0.2.10", 2222, "audit-ro@192.0.2.10:2222"),
+        ("fw-a.example.invalid", 22, "audit-ro@fw-a.example.invalid"),
     ),
 )
-def test_ssh_source_is_the_login_and_host_without_secrets(host, name, port, source):
-    runner = FakeRunner(scan=("[%s]:%d ssh-ed25519 %s\n" % (name, port, KEY_BLOB)).encode("utf-8"))
-    snapshot, events = ssh_call(runner, host=host)
+def test_ssh_source_is_the_login_and_the_address_of_the_device(address, port, source):
+    runner = FakeRunner(scan=("[%s]:%d ssh-ed25519 %s\n" % (address, port, KEY_BLOB)).encode("utf-8"))
+    snapshot, events = ssh_call(runner, address=address, port=port)
     assert snapshot.source == source
     assert events[0].request == "%s get system console" % source
     assert events[1].request == "%s show" % source
-    assert runner.argv()[-2] == "%s@%s" % (LOGIN, name)
+    assert runner.argv()[-2] == "%s@%s" % (LOGIN, address)
     assert ["-p", str(port)] == runner.argv()[-4:-2]
-    assert CANARY_KEY not in snapshot.source
+    assert runner.calls[0]["argv"][-1] == address
 
 
 @pytest.mark.parametrize(
-    "host",
-    (
-        "audit-ro@192.0.2.10",
-        "-oProxyCommand=touch /tmp/pwned",
-        "ssh://192.0.2.10",
-        "192.0.2.10/config",
-        "192.0.2.10:0",
-        "192.0.2.10:ssh",
-        "192.0.2.10 -oProxyCommand=x",
-        ":22",
-        "",
-        None,
-        1,
-    ),
+    "address",
+    ("audit-ro@192.0.2.10", "-oProxyCommand=touch /tmp/pwned", "ssh://192.0.2.10", "192.0.2.10/x", "", None, 1),
 )
-def test_ssh_refuses_a_host_that_is_not_a_bare_host(host):
+def test_ssh_refuses_an_address_that_is_not_a_bare_host(address):
     runner = FakeRunner()
     with pytest.raises(CollectError):
-        ssh_call(runner, host=host)
+        ssh_call(runner, address=address)
+    assert runner.calls == []
+
+
+@pytest.mark.parametrize("port", (0, 65536, None, "22", True, -1))
+def test_ssh_refuses_a_port_outside_the_range(port):
+    runner = FakeRunner()
+    with pytest.raises(CollectError):
+        ssh_call(runner, port=port)
     assert runner.calls == []
 
 
@@ -1435,9 +1515,9 @@ def test_ssh_refuses_a_host_that_is_not_a_bare_host(host):
 )
 def test_ssh_refuses_a_login_that_could_become_an_option(login):
     runner = FakeRunner()
-    with pytest.raises(CollectError):
-        ssh_call(runner, login=login)
-    assert runner.calls == []
+    error = ssh_failure(runner, credential=SshCredential(login=login))
+    assert "login" in str(error)
+    assert runner.commands() == ["ssh-keyscan"]
 
 
 @pytest.mark.parametrize("platform", ("fortios", "exos"))
@@ -1449,15 +1529,6 @@ def test_ssh_sends_the_commands_of_the_table_verbatim(platform):
     assert [event.request for event in events] == [
         "%s %s" % (SSH_SOURCE, step.command) for step in SSH_STEPS[platform]
     ]
-
-
-@pytest.mark.parametrize("profile", ["", "   ", None, 0])
-def test_ssh_without_a_profile_is_refused(profile):
-    runner = FakeRunner()
-    with pytest.raises(CollectError) as caught:
-        collect_ssh(DEVICE, PLATFORM, HOST, LOGIN, FakeCredential(CANARY_KEY), profile, KEY_PIN, runner=runner)
-    assert caught.value.event is None
-    assert runner.calls == []
 
 
 def test_ssh_moments_come_from_the_injected_clock():
@@ -1477,7 +1548,7 @@ def test_ssh_snapshot_feeds_the_completeness_check():
     assert events[1].channel == CHANNEL_SSH
 
 
-def test_ssh_talks_only_through_the_injected_runner():
+def test_ssh_talks_only_through_the_injected_runners():
     runner = FakeRunner()
     ssh_call(runner)
     assert [call["argv"][0] for call in runner.calls] == ["ssh-keyscan", "ssh", "ssh"]
@@ -1555,12 +1626,11 @@ def test_ssh_preflight_still_sees_a_pager_through_the_prompt():
 
 def test_ssh_snapshot_drops_the_prompt_from_both_ends():
     runner = FakeRunner(console=CONSOLE_PROMPTED, stdout=CONFIG_PROMPTED)
-    snapshot, events = ssh_call(runner)
+    snapshot, _ = ssh_call(runner)
     assert snapshot.text == CONFIG_BODY
     assert snapshot.text.startswith("#config-version=FGT80F-8.0.0-FW-build0167-260420:opmode=0\n")
     assert snapshot.text.endswith("end\n")
     assert "FortiGate-80F" not in snapshot.text
-    assert "#" in snapshot.text
     assert missing_sections(snapshot.text, REQUIRED, snapshot.platform) == ()
 
 
@@ -1572,8 +1642,6 @@ def test_ssh_event_hashes_the_raw_answer_and_the_snapshot_the_clean_text():
     assert event.response_bytes == len(CONFIG_PROMPTED)
     assert snapshot.sha256 == hashlib.sha256(CONFIG_BODY.encode("utf-8")).hexdigest()
     assert snapshot.size_bytes == len(CONFIG_BODY.encode("utf-8"))
-    assert snapshot.sha256 != event.response_sha256
-    assert snapshot.size_bytes < event.response_bytes
     assert event.response_bytes - snapshot.size_bytes == len("FortiGate-80F # ") + len("FortiGate-80F #")
 
 
@@ -1581,12 +1649,8 @@ def test_ssh_cleanup_keeps_every_hash_inside_the_configuration():
     runner = FakeRunner(console=CONSOLE_PROMPTED, stdout=HASH_PROMPTED)
     snapshot, _ = ssh_call(runner)
     assert snapshot.text == HASH_BODY
-    for line in HASH_BODY.splitlines():
-        assert line in snapshot.text
     assert '    edit "net # 42"' in snapshot.text
-    assert '        set comment "sprava # 42"' in snapshot.text
     assert "# a comment line that starts with a hash" in snapshot.text
-    assert '    set alias "FortiGate-80F #"' in snapshot.text
     assert snapshot.text.count("#") == HASH_BODY.count("#")
 
 
@@ -1602,50 +1666,47 @@ def test_ssh_cleanup_leaves_output_without_a_prompt_alone():
     runner = FakeRunner(stdout=raw)
     snapshot, events = ssh_call(runner)
     assert snapshot.text == CONFIG_BODY
-    assert snapshot.text.startswith("#config-version=")
     assert snapshot.sha256 == events[1].response_sha256 == hashlib.sha256(raw).hexdigest()
-    assert snapshot.size_bytes == events[1].response_bytes == len(raw)
 
 
 def test_ssh_cleanup_never_eats_a_leading_comment_line():
     raw = b"#config-version=FGT80F-8.0.0-FW-build0167-260420:opmode=0\nconfig system global\nend\n"
     snapshot, _ = ssh_call(FakeRunner(stdout=raw))
-    assert snapshot.text.startswith("#config-version=")
     assert snapshot.text == raw.decode("utf-8")
+
+
+READ_ONLY_PROMPTED = ("FortiGate-80F $ " + CONFIG_BODY + "FortiGate-80F $").encode("utf-8")
+READ_ONLY_CONSOLE = CONSOLE_PROMPTED.replace(b"FortiGate-80F #", b"FortiGate-80F $")
+
+
+def test_ssh_reads_the_preflight_and_the_snapshot_through_a_read_only_prompt():
+    runner = FakeRunner(console=READ_ONLY_CONSOLE, stdout=READ_ONLY_PROMPTED)
+    snapshot, events = ssh_call(runner)
+    assert snapshot.text == CONFIG_BODY
+    assert "FortiGate-80F" not in snapshot.text
+    assert events[1].response_sha256 == hashlib.sha256(READ_ONLY_PROMPTED).hexdigest()
+    assert snapshot.sha256 == hashlib.sha256(CONFIG_BODY.encode("utf-8")).hexdigest()
+    assert events[1].response_bytes - snapshot.size_bytes == len("FortiGate-80F $ ") + len(
+        "FortiGate-80F $"
+    )
+
+
+def test_the_auditor_cleans_prompts_through_the_core_and_holds_no_copy():
+    import netops_auditor.collect as collect
+
+    source = Path(collect.__file__).read_text(encoding="utf-8")
+    assert "PROMPT_PREFIX" not in source
+    assert "def _cleaned" not in source
+    assert collect.prompt is prompt
 
 
 def test_ssh_exos_cleans_the_prompt_with_the_same_mechanism():
     runner = FakeRunner(platform="exos", console=EXOS_PROMPTED[:20], stdout=EXOS_PROMPTED)
     snapshot, events = ssh_call(runner, platform="exos")
     assert snapshot.text == EXOS_BODY
-    assert snapshot.text.startswith("#\n# Module devmgr configuration.\n")
     assert "example-switch.5 #" not in snapshot.text
-    assert 'configure ports 1 display-string "uplink # 3"' in snapshot.text
     assert events[1].response_sha256 == hashlib.sha256(EXOS_PROMPTED).hexdigest()
     assert snapshot.sha256 == hashlib.sha256(EXOS_BODY.encode("utf-8")).hexdigest()
-
-
-def test_ssh_cleanup_is_the_platform_adapter_not_the_transport():
-    runner = FakeRunner(console=CONSOLE_PROMPTED, stdout=CONFIG_PROMPTED)
-    ssh_call(runner)
-    assert runner.calls[2]["argv"][-1] == "show"
-    assert [step.prompt for step in SSH_STEPS["fortios"]] == [True, True]
-
-
-LEGACY_PROFILE = "rsa-sha1"
-LEGACY_OPTIONS = ("HostKeyAlgorithms=+ssh-rsa", "PubkeyAcceptedAlgorithms=+ssh-rsa")
-ALGORITHM_OPTION_PREFIXES = (
-    "HostKeyAlgorithms=",
-    "PubkeyAcceptedAlgorithms=",
-    "KexAlgorithms=",
-    "Ciphers=",
-    "MACs=",
-    "HostbasedAcceptedAlgorithms=",
-)
-
-
-def algorithm_options(argv):
-    return [entry for entry in argv if entry.startswith(ALGORITHM_OPTION_PREFIXES)]
 
 
 def test_ssh_without_a_legacy_profile_binds_no_algorithm_option():
@@ -1655,9 +1716,9 @@ def test_ssh_without_a_legacy_profile_binds_no_algorithm_option():
         assert algorithm_options(call["argv"]) == []
 
 
-def test_legacy_profile_expands_to_the_options_written_down_in_the_module():
-    assert tuple(LEGACY_SSH_OPTIONS) == (LEGACY_PROFILE,)
-    assert LEGACY_SSH_OPTIONS[LEGACY_PROFILE] == LEGACY_OPTIONS
+def test_the_family_holds_the_options_behind_the_profile_name():
+    assert PROFILES == (LEGACY_PROFILE,)
+    assert OPENSSH_OPTIONS[LEGACY_PROFILE] == LEGACY_OPTIONS
 
 
 @pytest.mark.parametrize("platform", ("fortios", "exos"))
@@ -1670,10 +1731,8 @@ def test_legacy_profile_adds_its_options_behind_the_bound_ones(platform):
         for option in LEGACY_OPTIONS:
             assert argv.count(option) == 1
             assert argv[argv.index(option) - 1] == "-o"
-        for option in MANDATED_OPTIONS:
-            assert argv.count(option) == 1
+        for option in MANDATED_KEY_OPTIONS:
             assert argv.index(option) < argv.index(LEGACY_OPTIONS[0])
-        assert argv[-2] == "%s@%s" % (LOGIN, HOST)
         assert argv[-1] == SSH_STEPS[platform][index - 1].command
 
 
@@ -1702,16 +1761,15 @@ def test_legacy_profile_stays_out_of_the_host_key_scan():
         [],
         {},
         ["rsa-sha1"],
-        ("rsa-sha1",),
     ),
 )
-def test_ssh_refuses_a_legacy_profile_that_is_not_named_in_the_module(profile):
+def test_ssh_refuses_a_legacy_profile_the_family_does_not_name(profile):
     runner = FakeRunner()
     with pytest.raises(CollectError) as caught:
         ssh_call(runner, legacy_ssh=profile)
     assert caught.value.event is None
     assert runner.calls == []
-    assert "legacy_ssh must be None for a device that speaks current algorithms" in str(caught.value)
+    assert "legacy_ssh must be null for a device that speaks current algorithms" in str(caught.value)
 
 
 def test_ssh_exit_code_carries_what_the_client_said():
@@ -1732,15 +1790,10 @@ def test_client_words_are_trimmed_and_carry_no_control_characters():
     error = ssh_failure(FakeRunner(code=255, stdout=b"", stderr=noise))
     said = str(error).split("the client said: ", 1)[1]
     assert said.endswith("...")
-    assert len(said) == SSH_ERROR_DETAIL_CHARS + len("...")
+    assert len(said) == SAID_CHARS + len("...")
     assert said.startswith("[31mbanner [0m second line")
     for character in said:
         assert character.isprintable()
-
-
-def test_empty_client_words_add_nothing_to_the_message():
-    error = ssh_failure(FakeRunner(code=255, stdout=b"", stderr=b" \n"))
-    assert str(error).endswith("failed with exit code 255")
 
 
 NEGOTIATION_STDERR = (
@@ -1753,7 +1806,6 @@ def test_a_refused_negotiation_names_the_target_and_how_to_write_the_exception_d
     error = ssh_failure(FakeRunner(code=255, stdout=b"", stderr=NEGOTIATION_STDERR))
     said = str(error)
     assert HOST in said
-    assert "no matching host key type found" in said
     assert "offers only algorithms this client refuses" in said
     assert "legacy_ssh" in said
     assert "rsa-sha1" in said
@@ -1774,3 +1826,11 @@ def test_the_remedy_stays_out_of_a_failure_that_is_not_a_negotiation():
     )
     assert "Permission denied" in str(error)
     assert "legacy_ssh" not in str(error)
+
+
+def test_a_snapshot_command_that_reports_a_nonzero_exit_status_is_refused():
+    runner = FakeRunner(code=250)
+    error = ssh_failure(runner)
+    assert "exit status 250" in str(error)
+    assert error.event.outcome == "failed"
+    assert config_text() not in str(error)

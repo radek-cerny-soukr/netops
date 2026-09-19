@@ -7,19 +7,27 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
+from netops_core import vault
+
+from . import checks_exos
 from . import checks_fortios
 from . import collect
 from . import inventory
-from . import vault
+from . import l1_exos
+from . import l1_fortios
 from .engine import CATALOG_DIR, CatalogError, CheckError, load_catalog, run
 from .findings import Finding
-from .l1_fortios import ParseError, parse
 from .state import STATE_GONE, STATE_NEW, STATE_OPEN_KNOWN, STATE_SUPPRESSED, classify
 from .store import Store, StoreError
 from .suppressions import MOMENT_FORMAT, SuppressionError
 from .suppressions import load as load_suppressions
 
-PLATFORMS = {"fortios": checks_fortios}
+PLATFORMS = {
+    "exos": (checks_exos, l1_exos),
+    "fortios": (checks_fortios, l1_fortios),
+}
+
+PARSE_ERRORS = (l1_exos.ParseError, l1_fortios.ParseError)
 
 SEVERITY_ORDER = ("high", "medium", "low", "info")
 
@@ -57,9 +65,23 @@ EXIT_ERROR = 2
 
 COLLECTION_KEY = "collection"
 
-COLLECTION_KEYS = ("channel", "source", "profile", "snapshot_sha256", "legacy_ssh")
+COLLECTION_KEYS = (
+    "channel",
+    "source",
+    "profile",
+    "credential-kind",
+    "snapshot_sha256",
+    "legacy_ssh",
+)
+
+CHANNEL_KINDS = {
+    inventory.CHANNEL_REST: ("api-token",),
+    inventory.CHANNEL_SSH: ("password", "ssh-key"),
+}
 
 LEGACY_NONE = "none"
+
+CREDENTIAL_NONE = "none"
 
 COMPLETENESS_RULE = "%s.snapshot.incomplete"
 
@@ -97,7 +119,6 @@ def _parser() -> argparse.ArgumentParser:
     gather.add_argument("--tenant", required=True)
     gather.add_argument("--vault")
     gather.add_argument("--store")
-    gather.add_argument("--profile")
     gather.add_argument("--suppressions")
     gather.add_argument("--baseline-accept", action="store_true", dest="baseline_accept")
     gather.add_argument("--accepted-by", dest="accepted_by")
@@ -151,10 +172,10 @@ def _rules_version(platform: str, rules) -> str:
     return "%s:%d:%s" % (platform, len(rules), digest)
 
 
-def _audit(text: str, device: str, rules) -> tuple:
+def _audit(platform: str, text: str, device: str, rules) -> tuple:
     try:
-        tree = parse(text)
-    except ParseError as error:
+        tree = PLATFORMS[platform][1].parse(text)
+    except PARSE_ERRORS as error:
         raise Failure("cannot parse configuration: %s" % error)
     try:
         return run(tree, device, rules)
@@ -390,7 +411,7 @@ def _command_run(args) -> int:
     rules = _load_rules(args.platform)
     rules_version = _rules_version(args.platform, rules)
     suppression_items = _load_suppressions(args.suppressions)
-    findings = _audit(text, args.device, rules)
+    findings = _audit(args.platform, text, args.device, rules)
     previous, baseline, accepted = (), frozenset(), None
     if args.store:
         previous, baseline, accepted = _record(args, digest, rules_version, findings)
@@ -444,9 +465,15 @@ def _command_status(args) -> int:
     return EXIT_OK if report["state"] == STATUS_FRESH else EXIT_STALE
 
 
-def _inventory_record(path, name):
+def _inventory_record(path, name) -> tuple:
     try:
-        return inventory.device(inventory.load(path), name)
+        record = inventory.device(inventory.load(path), name)
+        if record.auditor is None:
+            raise inventory.InventoryError(
+                "device %s carries no auditor section, the auditor reads only the devices whose"
+                " entry names it" % record.name
+            )
+        return record, inventory.section(record)
     except inventory.InventoryError as error:
         raise Failure("inventory: %s" % error)
 
@@ -460,58 +487,62 @@ def _catalog_platform(record) -> str:
     return record.platform
 
 
-def _credential(record, path):
+def _credential(record, section, path):
     if record.credential is None:
         if path is not None:
             raise Failure(
                 "device %s reads channel %s and takes no credential, drop --vault"
-                % (record.name, record.channel)
+                % (record.name, section.channel)
             )
         return None
     if path is None:
         raise Failure(
             "device %s reads channel %s under credential %s, name the store with --vault"
-            % (record.name, record.channel, record.credential)
+            % (record.name, section.channel, record.credential)
         )
     try:
-        return vault.load(path).credential(record.credential)
+        credential = vault.load(path).credential(record.credential)
     except vault.VaultError as error:
         raise Failure("vault: %s" % error)
-
-
-def _profile(args, record) -> str:
-    if args.profile is not None:
-        return args.profile
-    if record.channel == inventory.CHANNEL_SSH:
+    kinds = CHANNEL_KINDS[section.channel]
+    if credential.kind not in kinds:
         raise Failure(
-            "channel %s logs in under an account, name it with --profile" % inventory.CHANNEL_SSH
+            "device %s reads channel %s under credential %s of kind %s, channel %s takes a"
+            " credential of kind %s"
+            % (
+                record.name,
+                section.channel,
+                record.credential,
+                credential.kind,
+                section.channel,
+                " or ".join(kinds),
+            )
         )
-    return DEFAULT_PROFILE
+    return credential
 
 
-def _gathered(record, credential, profile) -> tuple:
-    if record.channel == inventory.CHANNEL_FILE:
+def _gathered(record, section, credential) -> tuple:
+    if section.channel == inventory.CHANNEL_FILE:
         snapshot, event = collect.collect_file(
-            record.name, record.platform, record.source, profile
+            record.name, record.platform, section.source, DEFAULT_PROFILE
         )
         return snapshot, (event,)
-    if record.channel == inventory.CHANNEL_REST:
+    if section.channel == inventory.CHANNEL_REST:
         snapshot, event = collect.collect_fortios_rest(
             record.name,
-            record.source,
+            section.source,
             credential,
-            profile,
-            tls_fingerprint=record.tls_fingerprint,
+            DEFAULT_PROFILE,
+            tls_fingerprint=section.tls_fingerprint,
         )
         return snapshot, (event,)
     snapshot, events = collect.collect_ssh(
         record.name,
         record.platform,
-        record.source,
-        login=profile,
-        credential=credential,
-        profile=profile,
-        host_key_fingerprint=record.host_key_fingerprint,
+        record.address,
+        record.port,
+        credential,
+        record.host_key_fingerprint,
         legacy_ssh=record.legacy_ssh,
     )
     return snapshot, tuple(events)
@@ -528,18 +559,18 @@ def _traced(args, record, events) -> str:
     return ""
 
 
-def _collected(args, record, credential, profile) -> tuple:
+def _collected(args, record, section, credential) -> tuple:
     try:
-        return _gathered(record, credential, profile)
+        return _gathered(record, section, credential)
     except collect.CollectError as error:
         events = () if error.event is None else (error.event,)
-        raise Failure("channel %s: %s%s" % (record.channel, error, _traced(args, record, events)))
+        raise Failure("channel %s: %s%s" % (section.channel, error, _traced(args, record, events)))
 
 
-def _completeness(record, snapshot):
+def _completeness(record, section, snapshot):
     try:
         missing = collect.missing_sections(
-            snapshot.text, record.required_sections, snapshot.platform
+            snapshot.text, section.required_sections, snapshot.platform
         )
         item = collect.completeness_finding(record.name, missing)
     except collect.CollectError as error:
@@ -584,11 +615,12 @@ def _recorded(args, record, snapshot, rules_version, findings, events) -> tuple:
     return previous, baseline, accepted
 
 
-def _collection(snapshot, record) -> dict:
+def _collection(snapshot, record, credential) -> dict:
     return {
         "channel": snapshot.channel,
         "source": snapshot.source,
         "profile": snapshot.profile,
+        "credential-kind": CREDENTIAL_NONE if credential is None else credential.kind,
         "snapshot_sha256": snapshot.sha256,
         "legacy_ssh": record.legacy_ssh if record.legacy_ssh else LEGACY_NONE,
     }
@@ -596,16 +628,17 @@ def _collection(snapshot, record) -> dict:
 
 def _command_collect(args) -> int:
     _checked_options(args)
-    record = _inventory_record(args.inventory, args.device)
+    record, section = _inventory_record(args.inventory, args.device)
     platform = _catalog_platform(record)
     rules = _load_rules(platform)
     rules_version = _rules_version(platform, rules)
     suppression_items = _load_suppressions(args.suppressions)
-    credential = _credential(record, args.vault)
-    profile = _profile(args, record)
-    snapshot, events = _collected(args, record, credential, profile)
-    gate = _completeness(record, snapshot)
-    findings = (gate,) if gate is not None else _audit(snapshot.text, record.name, rules)
+    credential = _credential(record, section, args.vault)
+    snapshot, events = _collected(args, record, section, credential)
+    gate = _completeness(record, section, snapshot)
+    findings = (
+        (gate,) if gate is not None else _audit(platform, snapshot.text, record.name, rules)
+    )
     previous, baseline, accepted = (), frozenset(), None
     if args.store:
         previous, baseline, accepted = _recorded(
@@ -615,7 +648,7 @@ def _command_collect(args) -> int:
     report = _report(
         args.tenant, record.name, platform, snapshot.sha256, rules_version, findings, result
     )
-    report[COLLECTION_KEY] = _collection(snapshot, record)
+    report[COLLECTION_KEY] = _collection(snapshot, record, credential)
     sys.stdout.write(_render(report, args.as_json, _text_report))
     if accepted is not None:
         sys.stderr.write("baseline: accepted %d of %d findings\n" % (accepted, len(findings)))

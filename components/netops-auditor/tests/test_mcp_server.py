@@ -28,7 +28,8 @@ RULES_VERSION = "fortios:1:catalog"
 COMPONENT_ROOT = Path(__file__).resolve().parents[1]
 PACKAGE_ROOT = COMPONENT_ROOT / "src" / "netops_auditor"
 
-DEVICE_REACHING_MODULES = ("collect", "vault", "inventory", "cli")
+DEVICE_REACHING_MODULES = ("collect", "inventory", "cli")
+CORE_DEVICE_REACHING_MODULES = ("vault", "ssh", "session", "sftp", "hostkey")
 
 BANNED_TOOL_NAMES = (
     "suppress",
@@ -177,6 +178,22 @@ def _package_imports(module_name):
     return frozenset(name for name in found if (PACKAGE_ROOT / ("%s.py" % name)).is_file())
 
 
+def _core_imports(module_name):
+    tree = ast.parse((PACKAGE_ROOT / ("%s.py" % module_name)).read_text(encoding="utf-8"))
+    found = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom) and not node.level and node.module:
+            parts = node.module.split(".")
+            if parts[0] == "netops_core":
+                found.update(parts[1:2] or [alias.name for alias in node.names])
+        elif isinstance(node, ast.Import):
+            for alias in node.names:
+                parts = alias.name.split(".")
+                if parts[0] == "netops_core" and len(parts) > 1:
+                    found.add(parts[1])
+    return frozenset(found)
+
+
 def _import_closure(module_name):
     seen, pending = set(), [module_name]
     while pending:
@@ -212,6 +229,10 @@ def test_the_module_imports_no_device_reaching_module_statically():
     for name in DEVICE_REACHING_MODULES:
         assert name not in closure
         assert (PACKAGE_ROOT / ("%s.py" % name)).is_file()
+    reached = frozenset().union(*(_core_imports(name) for name in closure))
+    for name in CORE_DEVICE_REACHING_MODULES:
+        assert name not in reached
+    assert _core_imports("collect") & {"ssh", "hostkey"}
 
 
 def test_importing_the_server_loads_no_device_reaching_module():
@@ -227,6 +248,8 @@ def test_importing_the_server_loads_no_device_reaching_module():
     assert "netops_auditor.store" in loaded
     for name in DEVICE_REACHING_MODULES:
         assert ("netops_auditor.%s" % name) not in loaded
+    for name in CORE_DEVICE_REACHING_MODULES:
+        assert ("netops_core.%s" % name) not in loaded
 
 
 def test_the_server_opens_the_store_read_only(configured, monkeypatch):
@@ -517,3 +540,21 @@ def test_main_configures_before_it_serves(audited, monkeypatch):
     assert mcp_server.main() == mcp_server.EXIT_OK
     assert served == [True]
     assert mcp_server.configuration().store_path == audited.path
+
+
+def test_the_server_offers_a_catalog_for_both_platforms():
+    assert mcp_server.available_platforms() == ("exos", "fortios")
+
+
+def test_configure_accepts_the_exos_catalog(audited):
+    values = _environment(audited)
+    values[mcp_server.CATALOG_VARIABLE] = "exos"
+    mcp_server.configure(values)
+    current = mcp_server.configuration()
+    assert current.platform == "exos"
+    assert [rule.id for rule in current.rules] == [
+        "exos.snmp.default-community",
+        "exos.mgmt.telnet-enabled",
+        "exos.logging.no-syslog-target",
+        "exos.time.no-sntp-client",
+    ]

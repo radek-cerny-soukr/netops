@@ -1,0 +1,65 @@
+{
+  "platform": "exos",
+  "rules": [
+    {
+      "id": "exos.snmp.default-community",
+      "version": 1,
+      "check": "exos_default_snmp_community",
+      "class": "fakt",
+      "severity": "high",
+      "evidence_fields": ["command", "field", "dictionary"],
+      "title": "An SNMP community entry carries a name or an index from the dictionary of trivial community strings.",
+      "remediation": "Remove the community entry with configure snmp delete community or configure snmpv3 delete community, and where SNMP is needed replace it with an SNMPv3 user that authenticates.",
+      "refs": [
+        "ExtremeXOS v33.7.1 Command References, chapter Commands: configure snmp add community",
+        "ExtremeXOS v33.7.1 Command References, chapter Commands: configure snmpv3 add community"
+      ],
+      "known_false_positives": "The finding never carries the community, only which field of the entry matched and that the value is in the dictionary; the dictionary holds public and private and the comparison ignores letter case, so a community that differs from one of them by case alone is reported too. The rule reads the two forms 33.7.1 documents, configure snmp add community and configure snmpv3 add community, and it reads the plain value: an entry written with the hex or the encrypted keyword is not compared at all. Whether a switch that still carries the community entries of its factory state prints them into show configuration has not been measured against a device with this code, so a device left at those defaults may yield no finding rather than one. The object key numbers the community entries in the order they appear, so removing an entry renumbers the ones behind it and their fingerprints change."
+    },
+    {
+      "id": "exos.mgmt.telnet-enabled",
+      "version": 1,
+      "check": "exos_telnet_enabled",
+      "class": "fakt",
+      "severity": "medium",
+      "evidence_fields": ["reason"],
+      "title": "The switch accepts Telnet, which carries the password of the session in clear text.",
+      "remediation": "Send disable telnet and reach the switch over SSH, which EXOS enables with enable ssh2.",
+      "refs": [
+        "ExtremeXOS v33.7.1 Command References, chapter Commands: enable telnet",
+        "ExtremeXOS v33.7.1 Command References, chapter Commands: disable telnet"
+      ],
+      "known_false_positives": "Telnet is enabled by default in 33.7.1 (both the enable telnet and the disable telnet entry state Default: Enabled), so a configuration that names neither command is reported with the reason default enabled; a dump that reached the tool truncated before the telnetd module is therefore reported as well. The two commands are read as a flat sequence and the last one wins, which is how a list of imperative commands is applied; a configuration carrying both has not been seen. The rule says nothing about who may reach the open port: a switch that leaves Telnet enabled and blocks it in an access-list zone is reported just the same, because those entries are not read."
+    },
+    {
+      "id": "exos.logging.no-syslog-target",
+      "version": 1,
+      "check": "exos_no_syslog_target",
+      "class": "fakt",
+      "severity": "medium",
+      "evidence_fields": ["reason"],
+      "title": "The switch sends its log to no remote syslog collector.",
+      "remediation": "Add a collector with configure syslog add and turn the remote export on with enable syslog.",
+      "refs": [
+        "ExtremeXOS v33.7.1 Command References, chapter Commands: configure syslog add",
+        "ExtremeXOS v33.7.1 Command References, chapter Commands: enable syslog"
+      ],
+      "known_false_positives": "Remote logging needs two things in 33.7.1 - a target from configure syslog add and the export turned on with enable syslog, whose entry states Default: Disabled - but enable syslog does not appear in the output of show configuration, so the rule rests on the targets alone. A switch that carries a target and never enabled the export is therefore silent, and a switch shipping its log somewhere else than to a syslog target is reported. The rule reads the targets and nothing else: whether a target is reachable, and whether the log filter attached to it forwards anything, is outside what a configuration can answer."
+    },
+    {
+      "id": "exos.time.no-sntp-client",
+      "version": 1,
+      "check": "exos_no_sntp_client",
+      "class": "fakt",
+      "severity": "medium",
+      "evidence_fields": ["reason"],
+      "title": "The switch synchronizes its clock from no SNTP server, so its log timestamps cannot be lined up with another device.",
+      "remediation": "Name a server with configure sntp-client primary and turn the client on with enable sntp-client.",
+      "refs": [
+        "ExtremeXOS v33.7.1 Command References, chapter Commands: enable sntp-client",
+        "ExtremeXOS v33.7.1 Command References, chapter Commands: configure sntp-client"
+      ],
+      "known_false_positives": "33.7.1 states no default for the client - the enable sntp-client and the disable sntp-client entry both read Default: N/A - so the rule infers no state and reads presence alone: either enable sntp-client or a configure sntp-client primary entry carrying a host silences it. The NTP client is a separate feature of 33.7.1 (enable ntp, configure ntp server add) and the rule does not read it, so a switch holding its clock that way is reported. A configuration naming only configure sntp-client secondary is reported as well, because the rule accepts the primary entry alone."
+    }
+  ]
+}

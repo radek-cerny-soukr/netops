@@ -19,6 +19,7 @@ sys.dont_write_bytecode = True
 ROOT = Path(__file__).resolve().parents[1]
 COMPONENT = "netops-auditor"
 PACKAGE = "netops_auditor"
+CORE_PACKAGE = "netops_core"
 MCP_MODULE = "mcp_server.py"
 MCP_DEPENDENCY = "fastmcp"
 RELEASE_SELECTOR = ("scripts", "create_release_artifacts.py")
@@ -477,7 +478,7 @@ def gate_core_stdlib(root: Path) -> list:
     directory = root / "src" / PACKAGE
     if not directory.is_dir():
         return ["package directory is missing: src/%s" % PACKAGE]
-    allowed = set(sys.stdlib_module_names) | {PACKAGE}
+    allowed = set(sys.stdlib_module_names) | {PACKAGE, CORE_PACKAGE}
     errors = []
     modules = sorted(directory.glob("*.py"))
     if not modules:

@@ -10,6 +10,7 @@ from typing import Any
 
 from fastmcp import FastMCP
 
+from . import checks_exos
 from . import checks_fortios
 from . import query
 from .engine import CatalogError, load_catalog
@@ -24,7 +25,7 @@ SUPPRESSIONS_VARIABLE = "NETOPS_AUDITOR_SUPPRESSIONS"
 
 REQUIRED_VARIABLES = (STORE_VARIABLE, TENANT_VARIABLE, CATALOG_VARIABLE)
 
-PLATFORMS = {"fortios": checks_fortios}
+PLATFORMS = {"exos": checks_exos, "fortios": checks_fortios}
 
 TOOL_NAMES = (
     "audit_status",

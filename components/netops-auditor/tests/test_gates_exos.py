@@ -4,105 +4,71 @@ from pathlib import Path
 
 import pytest
 
-from netops_auditor import checks_fortios
+from netops_auditor import checks_exos
 from netops_auditor import cli
 from netops_auditor import query
-from netops_auditor.engine import CATALOG_DIR, load_catalog, run
-from netops_auditor.l1_fortios import parse
+from netops_auditor.engine import load_catalog, run
+from netops_auditor.l1_exos import parse
 from netops_auditor.store import Store
 
 FIXTURES = Path(__file__).parent / "fixtures"
 RULE_FIXTURES = FIXTURES / "rules"
-CLEAN = FIXTURES / "fortios_clean.conf"
-CANARY = FIXTURES / "secret_canary.conf"
+CLEAN = FIXTURES / "exos_clean.conf"
+CANARY = FIXTURES / "secret_canary_exos.conf"
 
 POSITIVE = "positive.conf"
 NEGATIVE = "negative.conf"
 
-PLATFORM = "fortios"
+PLATFORM = "exos"
 TENANT = "tenant-gate"
-DEVICE = "fw-gate.example.invalid"
-NOW = datetime(2026, 9, 12, 12, 0, 0, tzinfo=timezone.utc)
+DEVICE = "sw-gate.example.invalid"
+NOW = datetime(2026, 9, 17, 12, 0, 0, tzinfo=timezone.utc)
 
 RULES = load_catalog(PLATFORM)
 RULE_IDS = tuple(rule.id for rule in RULES)
-GATE_IDS = frozenset(rule.id for rule in RULES if rule.scope_gate)
 
-MARKERS = tuple("KANARCI-TAJEMSTVI-%02d" % number for number in range(1, 21))
-
-VDOM_BLOCK = 'config vdom\n    edit "root"\n    next\nend\n'
+MARKERS = tuple("KANARCI-TAJEMSTVI-EXOS-%02d" % number for number in range(1, 12))
 
 DEFECTS = {
-    "fortios.ref.dangling": (
-        '        set srcaddr "lan-net"\n',
-        '        set srcaddr "lan-net-typo"\n',
-    ),
-    "fortios.mgmt.wan-admin-access": (
-        "        set allowaccess ping\n",
-        "        set allowaccess ping https\n",
-    ),
-    "fortios.policy.utm-without-ssl": (
-        '        set ssl-ssh-profile "certificate-inspection"\n',
+    "exos.time.no-sntp-client": (
+        "configure sntp-client primary 192.0.2.1\nenable sntp-client\n",
         "",
     ),
-    "fortios.logging.no-syslog-target": (
-        "    set status enable\n",
-        "    set status disable\n",
+    "exos.logging.no-syslog-target": (
+        "configure syslog add 192.0.2.9 local1\n",
+        "",
     ),
-    "fortios.time.no-ntp-sync": (
-        "    set ntpsync enable\n",
-        "    set ntpsync disable\n",
+    "exos.snmp.default-community": (
+        "configure snmpv3 add community office-index name office-read user v1v2c_ro\n",
+        "configure snmpv3 add community office-index name office-read user v1v2c_ro\n"
+        "configure snmp add community readonly public\n",
+    ),
+    "exos.mgmt.telnet-enabled": (
+        "disable telnet\n",
+        "",
     ),
 }
 
-VOLATILE = '''config system interface
-    edit "port1"
-        set ip 192.0.2.1 255.255.255.0
-        set allowaccess ping https ssh
-        set role wan
-    next
-    edit "port2"
-        set ip 198.51.100.1 255.255.255.0
-        set allowaccess ping
-        set role lan
-    next
-end
-config system ntp
-    set ntpsync enable
-end
-config log syslogd setting
-    set status enable
-    set server "198.51.100.9"
-end
-config wireless-controller vap
-    edit "lab-wpa3"
-        set ssid "LAB-WPA3-EXAMPLE"
-        set security wpa3-sae
-        set sae-password ENC %s
-    next
-end
-config firewall address
-    edit "office-net"
-        set subnet 198.51.100.0 255.255.255.0
-    next
-end
-config firewall policy
-    edit 1
-        set name "office-to-internet"
-        set srcintf "port2"
-        set dstintf "port1"
-        set srcaddr "office-net-typo"
-        set dstaddr "all"
-        set service "HTTPS"
-        set schedule "always"
-        set action accept
-        set utm-status enable
-    next
-end
+VOLATILE = '''#
+# Module devmgr configuration.
+#
+configure snmp sysName "sw-example"
+#
+# Module aaa configuration.
+#
+configure account admin encrypted "%s"
+#
+# Module snmpMaster configuration.
+#
+configure snmp add community readonly public
+#
+# Module telnetd configuration.
+#
+disable telnet
 '''
 
-VOLATILE_FIRST = "T0FWMhZKQmxXcmFuZG9tQTAxLUVYQU1QTEUwMQ=="
-VOLATILE_SECOND = "T0FWMhZKQmxXcmFuZG9tQjAyLUVYQU1QTEUwMg=="
+VOLATILE_FIRST = "JDEkRVhBTVBMRTAxJGV4YW1wbGVoYXNoQTAx"
+VOLATILE_SECOND = "JDEkRVhBTVBMRTAyJGV4YW1wbGVoYXNoQjAy"
 
 
 def text_of(path):
@@ -131,11 +97,8 @@ def mutated(text, old, new):
 
 
 def defective(rule_id):
-    text = text_of(CLEAN)
-    if rule_id in GATE_IDS:
-        return VDOM_BLOCK + text
     old, new = DEFECTS[rule_id]
-    return mutated(text, old, new)
+    return mutated(text_of(CLEAN), old, new)
 
 
 def run_argv(config_path, store_path=None, as_json=False):
@@ -170,6 +133,10 @@ def written(directory, text, name="export.conf"):
     return path
 
 
+def test_gate_the_catalog_carries_every_rule_of_the_release():
+    assert sorted(RULE_IDS) == sorted(DEFECTS)
+
+
 @pytest.mark.parametrize("rule_id", RULE_IDS)
 def test_gate_every_rule_carries_a_positive_and_a_negative_fixture(rule_id):
     folder = folder_of(rule_id)
@@ -180,18 +147,8 @@ def test_gate_every_rule_carries_a_positive_and_a_negative_fixture(rule_id):
         assert text_of(path).strip()
 
 
-def test_gate_no_fixture_folder_without_a_rule():
-    present = sorted(item.name for item in RULE_FIXTURES.iterdir() if item.is_dir())
-    catalogued = []
-    for path in sorted((CATALOG_DIR).glob("*.json")):
-        document = json.loads(path.read_text(encoding="utf-8"))
-        catalogued.extend(item["id"] for item in document["rules"])
-    assert present == sorted(catalogued)
-    assert set(RULE_IDS) <= set(catalogued)
-
-
 def test_gate_every_rule_names_an_implemented_check():
-    assert all(hasattr(checks_fortios, rule.check) for rule in RULES)
+    assert all(hasattr(checks_exos, rule.check) for rule in RULES)
 
 
 @pytest.mark.parametrize("rule_id", RULE_IDS)
@@ -204,8 +161,6 @@ def test_gate_the_positive_fixture_yields_exactly_one_finding(rule_id):
 def test_gate_the_negative_fixture_silences_the_rule(rule_id):
     findings = audit(text_of(folder_of(rule_id) / NEGATIVE))
     assert [finding for finding in findings if finding.rule_id == rule_id] == []
-    if rule_id not in GATE_IDS:
-        assert [finding for finding in findings if finding.rule_id in GATE_IDS] == []
 
 
 def test_gate_the_clean_fixture_yields_no_finding():
@@ -293,7 +248,7 @@ def test_gate_a_volatile_field_does_not_move_the_findings(tmp_path, capsys):
         if left != right
     ]
     assert len(differing) == 1
-    assert "sae-password" in differing[0][0]
+    assert "configure account" in differing[0][0]
     assert len(first_text.splitlines()) == len(second_text.splitlines())
     left = [finding.as_dict() for finding in audit(first_text)]
     right = [finding.as_dict() for finding in audit(second_text)]

@@ -18,28 +18,20 @@ Both device channels share the same rules:
 - the transport is injectable, so the test suite never touches the network,
 - the auditor never changes a device. Not a policy, not an interface, not even a console setting.
 
-## Three things are called a profile
+## Two things are called a profile
 
-The word turns up on this page in three unrelated meanings, and mixing two of them up costs a
-collection:
+The word turns up on this page in two unrelated meanings, and mixing them up costs a collection:
 
 | what | where it lives | what it is |
 |---|---|---|
-| `--profile` | the command line of `collect` | on the `ssh` channel the **login name** of the session; on `file` and `fortios-rest` nothing but the label written into the report, defaulting to `unknown` |
 | an access profile | on the device, on the account or on the token | how much of the configuration comes back - the auditor neither sets it nor sees it |
-| `legacy_ssh` | the inventory entry | a named set of SSH algorithm options, expanded by the collector - see below |
+| `legacy_ssh` | the common part of the inventory entry | a named set of SSH algorithm options, expanded by the transport - see below |
 
-Only the first one is the auditor's. On the `ssh` channel it is mandatory, because the tool has no
-default login:
-
-```
-error: channel ssh logs in under an account, name it with --profile
-```
-
-and its value goes straight onto the command line of the client. Measured with `--profile audit-ro`
-against an entry whose `source` is `192.0.2.30`: the client is called as `audit-ro@192.0.2.30` and
-the report carries `collection-profile: audit-ro`. One string does two jobs, the login and the label
-of the run, so it is not a place to write a description.
+Neither is the auditor's to set. The third meaning is gone: the option `--profile` of `collect` was
+removed in 0.2.0, because the login of an `ssh` session is now the `login` of the credential the
+inventory names. The report says which account was used in `collection-profile` and which kind of
+record opened the session in `collection-credential-kind`; on `file` and `fortios-rest`, which log in
+as nobody, `collection-profile` is `unknown`.
 
 ## Channel `fortios-rest`
 
@@ -87,6 +79,13 @@ until someone runs it against a device and writes the result here.
 
 ## Channel `ssh`
 
+The transport is `netops_core.ssh`, shared with the rest of the family since 0.2.0: the client call,
+the hardening options, the workspace and the two kinds of authentication are described in
+[`../netops-core/docs/ssh.md`](../netops-core/docs/ssh.md) and measured there against real devices.
+What the auditor adds is the step table of the platform, the preflight and the `ChannelEvent` of
+every command; the prompt cleaning is `netops_core.prompt`. It adds **nothing** to the options of
+the client.
+
 ### What it does
 
 - Runs OpenSSH as a subprocess (no paramiko, no netmiko), sends the commands of its platform and
@@ -98,8 +97,8 @@ until someone runs it against a device and writes the result here.
   | `fortios` | `get system console` | read-only check, must answer `output ... standard` | `show` |
   | `exos` | `disable cli paging` | session setting, allowed to be sent | `show configuration` |
 
-- Cleans the device prompt out of the answer, as part of the platform adapter, not of the
-  transport - see below.
+- Cleans the device prompt out of the answer with `netops_core.prompt`, the rule the family
+  shares - see below.
 - Configures the client from arguments only, never from a system or user configuration file:
   `-F /dev/null`, `BatchMode=yes`, `StrictHostKeyChecking=yes`, `IdentitiesOnly=yes`,
   `ClearAllForwardings=yes`, `ProxyCommand=none`, `PermitLocalCommand=no`, `ControlMaster=no`,
@@ -111,9 +110,15 @@ until someone runs it against a device and writes the result here.
   `ssh-keyscan`, its sha256 fingerprint is computed and compared with the pin, and only the matching
   key is written into a throwaway `known_hosts` that the session then uses with
   `StrictHostKeyChecking=yes`. There is no trust on first use.
-- Never puts the credential in `argv`, where `ps` would show it to every user on the machine. The
-  private key is written into a file with mode 0600 in a private temporary directory, passed as
-  `-i <path>`, and the directory is removed when the call ends, on every path.
+- **Authenticates with a key or with a password.** A record of kind `ssh-key` is written into a file
+  with mode 0600 in a private temporary directory and passed as `-i <path>`; a record of kind
+  `password` is written into a file of the same mode that an askpass script reads, and the client is
+  called with `BatchMode=no`, `NumberOfPasswordPrompts=1` and `PubkeyAuthentication=no`, so a wrong
+  password is one failure instead of a prompt loop or a silent fallback to a key. **Password
+  authentication works on this channel for the first time in 0.2.0**; until then the store held one
+  kind and the channel took it as a key. Either way the credential never reaches `argv`, where `ps`
+  would show it to every user on the machine, and never reaches a value in the environment: only the
+  path of the file that holds it does. The directory is removed when the call ends, on every path.
 - Default timeout 120 s per command, about fifteen times the slowest dump measured (7.7 s). A
   collection runs at most three commands, so the wall clock is bounded by three timeouts.
 
@@ -130,16 +135,16 @@ Turning SHA-1 back on for the whole tool to reach those boxes would be the wrong
 tool: every other device would silently accept it too. So the weakening is a field of the device
 entry in the inventory, `legacy_ssh`, and it is a **named profile**, not a list of algorithms:
 
-| `legacy_ssh` | what the collector adds behind the bound options |
+| `legacy_ssh` | what the transport adds behind the bound options |
 |---|---|
 | `null` | nothing, the session stays on current algorithms |
 | `"rsa-sha1"` | `-o HostKeyAlgorithms=+ssh-rsa -o PubkeyAcceptedAlgorithms=+ssh-rsa` |
 
-The profile name is a key into a table in the collector; the options themselves are written down in
-the source. No string from the inventory ever reaches `-o`, so an inventory file cannot smuggle an
-option into the command line of `ssh`. The field must be `null` for the `file` and `fortios-rest`
-channels, and a device that speaks current algorithms leaves it `null` as well - the inventory is
-fail-closed and refuses anything else, including a free-text algorithm list.
+The profile name is a key into a table in `netops_core.legacy_ssh`; the options themselves are written
+down in that module. No string from the inventory ever reaches `-o`, so an inventory file cannot
+smuggle an option into the command line of `ssh`. The field needs a pinned host key, so it cannot be
+named for a device the client has nothing to recognise - the inventory is fail-closed and refuses
+anything else, including a free-text algorithm list.
 
 The name says what it costs: `rsa-sha1` is SHA-1, for that device, for the host key and for the
 public key of the client. It is not a compatibility switch to set on a whole fleet. The full schema
@@ -161,10 +166,10 @@ Two details that measurement decided rather than reasoning:
 
 ### When the client fails, it says what it said
 
-`ssh` reports a failed negotiation on stderr and exits with 255. The collector used to answer with
-the exit code alone, which left an operator with `failed with exit code 255` and no way to see that
-a legacy profile was missing. The message now carries what the client wrote on stderr, cut to 200
-characters with control characters replaced. The answer itself - stdout - is still never logged, but
+`ssh` reports a failed negotiation on stderr and exits with 255. An answer of the exit code alone
+would leave an operator with `failed with exit code 255` and no way to see that a legacy profile was
+missing, so the message carries what the client wrote on stderr, cut to 200 characters with control
+characters replaced. The answer itself - stdout - is still never logged, but
 a device that writes into stderr can put its words into the error message.
 
 When the client refused to negotiate and the device has no profile, the message also names the
@@ -251,11 +256,17 @@ Left alone, this breaks two things: the preflight never finds its field (the key
 reads `FortiGate-80F # output`, not `output`), and the snapshot carries the hostname of the device
 and a prompt instead of being only the configuration.
 
-So the platform adapter cleans it, by a rule that is deliberately narrow:
+**The marker depends on the account.** Measured on 17 September 2026 against FortiOS 8.0.0 on the
+exec channel: the `super_admin` account answers with `<hostname> # `, and an account with a read-only
+profile answers with `<hostname> $ `. Until this release the cleaner knew `#` alone, so under a
+read-only account the prompt stayed in the snapshot - and in its hash.
+
+So the answer is cleaned by [`netops_core.prompt`](../../netops-core/docs/prompt.md), which the helper
+uses as well, by a rule that is deliberately narrow:
 
 - **only the first line** can lose a prefix, and only when that line starts with a prompt shape: at
-  least one character that is not `#`, then `"# "`. A first line that begins with `#` - such as
-  `#config-version=...` - is therefore never touched.
+  least one character that is neither `#` nor `$`, a space, then `#` or `$` and a space. A first line
+  that begins with `#` - such as `#config-version=...` - is therefore never touched.
 - **only trailing lines** can be dropped, and only when they are exactly the same prompt that was
   found on the first line. If the first line carried no prompt, nothing is dropped at the end.
 - **the middle is never touched at all.** A `#` inside a value (`edit "net # 42"`, a comment line,
@@ -280,25 +291,27 @@ When the device prints no prompt the cleaner does nothing and both hashes are eq
   an audit and a disqualification for a backup.
 - **The content depends on the profile of the account that logs in.** A weaker profile returns a
   quietly incomplete view, and the counts of `config` and `end` still match, so nothing looks wrong.
-- **An EXOS snapshot is out of reach of the CLI.** The channel knows how to pull an EXOS
-  configuration and store the snapshot, but `collect` stops on the platform before it opens a
-  session, because there is no rule catalogue to evaluate against:
-
-  ```
-  error: device sw-a.example.invalid runs platform exos, the auditor holds no rule catalog for it
-  ```
-
-  Exit code 2, and no credential was read. Today an EXOS snapshot is reachable from the library only,
-  through `collect.collect_ssh()`. The completeness of an EXOS snapshot is measured - by the module
-  headers this page describes further down; what is missing is the rule catalogue. Do not read
-  `platform: exos` in the inventory as "EXOS is supported" - it is a snapshot, not an audit.
+  Measured on 17 September 2026 against FortiOS 8.0.0: an account bound to a read-only access
+  profile (every group `read`, `cli-show enable`) collects the full `show` with the same 2,165
+  top-level sections as a `super_admin` account, but `system admin`, `system api-user` and
+  `system accprofile` list **only the account's own entries** and `system automation-action` is
+  shorter, 20,493 lines against 20,574. Nothing in the answer says so. **The auditor account on
+  FortiOS is therefore a `super_admin` administrator** (decision of 17 September 2026): it is the
+  only profile whose `show` carries every administrator, API user and access profile, and rules
+  over `system admin` need exactly those. The auditor then holds an account that could write; the
+  read-only boundary is the step table above (`get system console`, `show`), the pinned host key
+  and the absence of any other command in this channel - not the profile. Restrict the account
+  with `trusthost` to the collector and log its sessions on the device.
+- **An EXOS snapshot is audited since 0.2.0, by four rules.** Until 0.2.0 `collect` stopped on the
+  platform before it opened a session - `the auditor holds no rule catalog for it`, exit code 2, no
+  credential read - and an EXOS snapshot was reachable from the library only. That refusal is gone:
+  the catalogue `exos.json` exists, `run --platform exos` and `collect` over an `exos` entry both
+  work, and what those four rules do and do not see is [below](#what-the-exos-catalogue-reads).
 - **Unverified:** the behaviour when FortiOS reports `output: more`. Switching a production device
   to the pager would have been a write, so the refusal path was proven in tests, not on a device.
-- **Unverified:** whether an EXOS switch prints its prompt into a one-shot answer the way FortiOS
-  does. The same cleaning is declared for `exos` in the step table, and it is a no-op when no
-  prompt is there, so it is safe either way - but it has not been measured against a switch. It
-  could not be measured from here: the `ssh-manager` wrapper allocates a PTY, which is precisely
-  the case this question is not about.
+- **An EXOS switch prints no prompt into a one-shot answer.** Measured on 17 September 2026 on the
+  exec channel: 0 occurrences in the dump. The same cleaning stays declared for `exos` in the step
+  table - it is a no-op there, and it keeps one path for both platforms.
 
 ### What it gives you for free
 
@@ -338,7 +351,12 @@ On FortiOS two dumps in a row were byte identical, and nine days apart, with doz
 between, every `ENC` field still matched.
 
 That table is the anchor: if the channel does not work for you, this is the hardware and the firmware
-where the behaviour was observed.
+where the behaviour was observed. The measurements above were taken with the collector of 0.1.0, which
+carried its own copy of the transport; the transport of 0.2.0 is `netops_core.ssh`, measured on the
+same devices - including the password authentication this channel had not had before - in
+[`../netops-core/docs/ssh.md`](../netops-core/docs/ssh.md). The commands and the preflight above are
+the auditor's and did not change; the prompt cleaning moved to
+[`../netops-core/docs/prompt.md`](../netops-core/docs/prompt.md) unchanged except for the `$` marker.
 
 ## Channel `file`
 
@@ -370,6 +388,58 @@ carries the names and the count, and nothing else - never a line of configuratio
 check: an empty section counts as present, because the question is whether the dump reaches that far,
 not what stands inside.
 
+## What the EXOS catalogue reads
+
+**EXOS is an audited platform since 0.2.0, not only a snapshot.** The four rules of `exos.json` are
+all class `fakt`, and all of them read the flat list of commands the L1 parser builds out of
+`show configuration` - a record per command carrying its line, the module declared above it and its
+tokens. There is no normalized model between the rules and the text; a rule asks whether a command is
+there and what stands in the positions the vendor documentation gives that command.
+
+| rule | severity | what silences it |
+|---|---|---|
+| `exos.time.no-sntp-client` | medium | `enable sntp-client`, or a `configure sntp-client primary` entry carrying a host |
+| `exos.logging.no-syslog-target` | medium | a `configure syslog add` entry carrying a target |
+| `exos.snmp.default-community` | high | no community entry whose plainly written index, name or string is in the dictionary `public`, `private` |
+| `exos.mgmt.telnet-enabled` | medium | `disable telnet`, as the last of the Telnet commands in the dump |
+
+Every rule cites the commands it rests on in its `refs` - document, chapter and command entry of the
+*ExtremeXOS v33.7.1 Command References*, the release running on the switches this catalogue was
+written for. `rule_detail` over MCP and `known_false_positives` in the catalogue carry the limits of
+each rule; three of them are worth repeating here, because they are properties of EXOS rather than of
+the rule:
+
+- **`enable syslog` does not appear in `show configuration`.** Remote logging in 33.7.1 needs both a
+  target and that command, whose entry reads `Default: Disabled` - but only the targets are in the
+  dump, so the rule rests on the targets alone. A switch with a target that never enabled the export
+  is therefore silent.
+- **Telnet is enabled by default** (both the `enable telnet` and the `disable telnet` entry read
+  `Default: Enabled`), so the absence of any Telnet command is a finding, not silence. A dump that
+  was truncated before the `telnetd` module is reported the same way, which is the fail-closed side
+  of that choice.
+- **The SNTP client and the NTP client are two features.** The time rule reads the SNTP client only,
+  so a switch that holds its clock over `enable ntp` and `configure ntp server add` is reported.
+  This is the one known false positive that was seen over a real dump, and it is in the catalogue.
+
+A community string never reaches a finding. The evidence of `exos.snmp.default-community` says which
+field of the entry matched - `community index`, `community name` or `community string` - the fixed
+first four words of the command, and that the value is in the dictionary. The value itself is not in
+the evidence, not in the object key and not in the report; an entry written with the `hex` or the
+`encrypted` keyword is not compared at all, because the rule reads plain values only.
+
+### Tested against
+
+Over a real `show configuration` of two switches running ExtremeXOS 33.7.1.6, read from a backup and
+never sent to a device: one switch produced **no finding**, the second produced **one**,
+`exos.time.no-sntp-client`, and it is the known false positive above - that switch synchronizes over
+the NTP client. Four defects inserted into a copy of the first dump - the SNTP server removed, the
+syslog target removed, a `public` community added, `disable telnet` removed - each produced **exactly
+one** new finding, and two runs over the same dump produced a byte identical report.
+
+**Not measured against a device with this code.** Those dumps were taken by a backup job, not by this
+collector; the `ssh` channel has never pulled an EXOS configuration and handed it to this catalogue in
+one run.
+
 ## Choosing a channel
 
 - `fortios-rest` if you want the configuration in a machine-readable shape from the API, you accept
@@ -379,8 +449,10 @@ not what stands inside.
 - `ssh` if you want a stable diff over an unchanged device and the smallest possible amount of
   secrets inside the tool, and you can live with a console that has to be set to standard output
   and with a dump that cannot restore the device. Pin the host key fingerprint. It is also the only
-  channel that speaks EXOS at all - and only from the library, because `collect` refuses an `exos`
-  device.
+  channel that speaks EXOS at all.
+  On FortiOS enrol a `super_admin` account (see above); on EXOS enrol an administrator account,
+  because a user-level account is refused `show configuration` (`This user does not have
+  permissions for this command.`, measured 17 September 2026 on ExtremeXOS 33.7.1).
 - `file` if the collection happens somewhere else entirely.
 
 Neither remote channel is a fallback for the other. Pick one per device and pin it.

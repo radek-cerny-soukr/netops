@@ -11,6 +11,10 @@ LOCK = COMPONENT / "requirements-release.lock"
 URL = re.compile(r"[a-z][a-z0-9+.-]*://[^\s\"]*")
 ABSOLUTE_PATH = re.compile(r"(?<![A-Za-z0-9_.~-])/[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)+")
 WINDOWS_PATH = re.compile(r"[A-Za-z]:\\\\?[A-Za-z0-9_.-]")
+CORE_NAME = "netops-core"
+CORE_VERSION = "0.1.0"
+CORE_REQUIREMENT = "%s==%s" % (CORE_NAME, CORE_VERSION)
+CORE_PURL = "pkg:pypi/%s@%s" % (CORE_NAME, CORE_VERSION)
 
 
 def _canonical(name):
@@ -58,12 +62,26 @@ def test_sbom_names_no_filesystem_location():
     assert WINDOWS_PATH.search(text) is None
 
 
-def test_sbom_states_no_required_dependency():
-    assert _project()["dependencies"] == []
+def test_sbom_carries_the_shared_access_layer_as_the_required_dependency():
+    assert _project()["dependencies"] == [CORE_REQUIREMENT]
     document = _document()
     root = document["metadata"]["component"]["bom-ref"]
     entry = next(item for item in document["dependencies"] if item["ref"] == root)
-    assert entry["dependsOn"] == []
+    assert entry["dependsOn"] == [CORE_PURL]
+    required = [
+        item for item in document["components"] if item.get("scope") == "required"
+    ]
+    assert [(item["name"], item["version"], item["purl"]) for item in required] == [
+        (CORE_NAME, CORE_VERSION, CORE_PURL)
+    ]
+
+
+def test_the_pinned_core_version_is_the_one_in_the_tree():
+    document = tomllib.loads(
+        (COMPONENT.parent / CORE_NAME / "pyproject.toml").read_text(encoding="utf-8")
+    )["project"]
+    assert document["name"] == CORE_NAME
+    assert document["version"] == CORE_VERSION
 
 
 def test_sbom_carries_every_optional_requirement_as_optional():

@@ -11,7 +11,8 @@ import pytest
 
 COMPONENT = Path(__file__).resolve().parents[1]
 SCRIPT = COMPONENT / "scripts" / "check_gates.py"
-CATALOG = COMPONENT / "src" / "netops_auditor" / "catalog" / "fortios.json"
+CATALOG_DIRECTORY = COMPONENT / "src" / "netops_auditor" / "catalog"
+CATALOG = CATALOG_DIRECTORY / "fortios.json"
 GATE_NAMES = (
     "fixtures_per_rule",
     "fixtures_synthetic",
@@ -55,8 +56,11 @@ def _text(lines) -> str:
 
 
 def _rule_identifiers() -> list:
-    document = json.loads(CATALOG.read_text(encoding="utf-8"))
-    return [item["id"] for item in document["rules"]]
+    identifiers = []
+    for path in sorted(CATALOG_DIRECTORY.glob("*.json")):
+        document = json.loads(path.read_text(encoding="utf-8"))
+        identifiers.extend(item["id"] for item in document["rules"])
+    return identifiers
 
 
 def _tree(tmp_path: Path) -> Path:
@@ -410,6 +414,17 @@ def test_third_party_import_in_the_core_is_rejected(tmp_path):
     assert any(
         "query.py" in detail and "requests" in detail for detail in details
     ), details
+
+
+def test_the_shared_access_layer_is_not_a_third_party_import(tmp_path):
+    root = _tree(tmp_path)
+    path = root / "src" / "netops_auditor" / "query.py"
+    path.write_text(
+        path.read_text(encoding="utf-8") + "from netops_core import inventory\n", encoding="utf-8"
+    )
+    result = _run(root)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert _passed(result, "core_stdlib"), result.stdout
 
 
 def test_mcp_dependency_outside_the_mcp_shell_is_rejected(tmp_path):

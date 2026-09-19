@@ -92,8 +92,10 @@ def test_clean_fixture_yields_no_finding():
 
 def test_catalog_declares_every_registered_check():
     rules = load_catalog("fortios")
-    assert {rule.check for rule in rules} == set(registered_checks())
-    assert all(hasattr(checks_fortios, rule.check) for rule in rules)
+    declared = {rule.check for rule in rules}
+    registered = set(registered_checks())
+    assert declared <= registered
+    assert {name for name in registered if hasattr(checks_fortios, name)} == declared
 
 
 def test_dangling_reference_reports_the_missing_object():

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate a reproducible CycloneDX SBOM stating the component has no required dependency."""
+"""Generate a reproducible CycloneDX SBOM carrying the required and optional dependencies."""
 
 from __future__ import annotations
 
@@ -15,6 +15,7 @@ ROOT = Path(__file__).resolve().parents[1]
 OUTPUT = ROOT / "sbom.cdx.json"
 PYPROJECT = ROOT / "pyproject.toml"
 OPTIONAL_REQUIREMENTS = ROOT / "requirements-mcp.txt"
+REQUIRED_PATTERN = re.compile(r"^([A-Za-z0-9][A-Za-z0-9._-]*)==([0-9][0-9A-Za-z.+-]*)$")
 
 
 def canonical(name: str) -> str:
@@ -30,10 +31,28 @@ def optional_names() -> set[str]:
     return result
 
 
+def required_components(project: dict) -> list:
+    result = []
+    for entry in project.get("dependencies", []):
+        found = REQUIRED_PATTERN.match(entry.strip())
+        if found is None:
+            raise RuntimeError(f"required dependency is not pinned with ==: {entry}")
+        name, version = found.group(1), found.group(2)
+        purl = f"pkg:pypi/{canonical(name)}@{version}"
+        result.append({
+            "bom-ref": purl,
+            "name": name,
+            "version": version,
+            "purl": purl,
+            "type": "library",
+            "scope": "required",
+        })
+    return result
+
+
 def main() -> int:
     project = tomllib.loads(PYPROJECT.read_text(encoding="utf-8"))["project"]
-    if project.get("dependencies"):
-        raise RuntimeError("component declares a required dependency the SBOM would not carry")
+    required = required_components(project)
     subprocess.run([
         sys.executable, "-m", "cyclonedx_py", "requirements", str(OPTIONAL_REQUIREMENTS),
         "--pyproject", str(PYPROJECT), "--mc-type", "application",
@@ -54,14 +73,22 @@ def main() -> int:
     for component in document.get("components", []):
         if component["bom-ref"] in marked:
             component["scope"] = "optional"
+    document["components"] = sorted(
+        document.get("components", []) + required, key=lambda item: item["bom-ref"]
+    )
     root_dependency = next(
         item for item in document.get("dependencies", []) if item.get("ref") == root["bom-ref"]
     )
-    root_dependency["dependsOn"] = []
+    root_dependency["dependsOn"] = sorted(component["bom-ref"] for component in required)
+    document["dependencies"] = sorted(
+        document.get("dependencies", [])
+        + [{"ref": component["bom-ref"], "dependsOn": []} for component in required],
+        key=lambda item: item["ref"],
+    )
     OUTPUT.write_text(json.dumps(document, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     print(
         f"sbom_generation=complete components={len(document.get('components', []))}"
-        f" required=0 optional={len(marked)}"
+        f" required={len(required)} optional={len(marked)}"
     )
     return 0
 

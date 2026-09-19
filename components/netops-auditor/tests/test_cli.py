@@ -653,16 +653,21 @@ def test_status_rejects_a_threshold_that_is_not_positive(tmp_path, capsys):
 
 
 CANARY_TOKEN = "KANARCI-TOKEN-NESMI-UNIKNOUT"
+KEY_HEADER = "-----BEGIN " + "OPENSSH PRIVATE KEY-----"
+KEY_FOOTER = "-----END " + "OPENSSH PRIVATE KEY-----"
+CANARY_KEY = "%s\nKANARCI-KLIC-NESMI-UNIKNOUT\n%s\n" % (KEY_HEADER, KEY_FOOTER)
 CREDENTIAL_NAME = "fw-example-audit-ro"
 REST_HOST = "192.0.2.10"
 SSH_HOST = "198.51.100.10"
+SSH_PORT = 22
+LOGIN = "audit-ro"
 TLS_FINGERPRINT = "0123456789abcdef" * 4
 HOST_KEY = "SHA256:0123456789abcdefghijklmnopqrstuvwxyzABCDEFG"
 SECTIONS = ("system global", "system interface", "firewall policy")
 MISSING_SECTION = "vpn ipsec phase1-interface"
 INCOMPLETE_RULE = "fortios.snapshot.incomplete"
-PROFILE = "audit-readonly"
 MOMENT_AT = "2026-01-01T00:00:00Z"
+KEPT = object()
 
 
 def device_item(
@@ -672,22 +677,30 @@ def device_item(
     sections=SECTIONS,
     platform="fortios",
     name=DEVICE,
+    address=None,
+    port=None,
     tls_fingerprint=None,
     host_key_fingerprint=None,
     legacy_ssh=None,
+    auditor=KEPT,
 ):
+    section = {
+        "channel": channel,
+        "source": None if source is None else str(source),
+        "required_sections": list(sections),
+        "tls_fingerprint": tls_fingerprint,
+    }
     return {
         "name": name,
         "platform": platform,
-        "channel": channel,
-        "source": str(source),
+        "address": address,
+        "port": port,
         "role": "perimetr",
-        "consumer": "auditor",
         "credential": credential,
-        "required_sections": list(sections),
-        "tls_fingerprint": tls_fingerprint,
         "host_key_fingerprint": host_key_fingerprint,
         "legacy_ssh": legacy_ssh,
+        "auditor": section if auditor is KEPT else auditor,
+        "helper": None,
     }
 
 
@@ -704,7 +717,9 @@ def rest_item(**kwargs):
 def ssh_item(**kwargs):
     return device_item(
         channel="ssh",
-        source=SSH_HOST,
+        source=None,
+        address=SSH_HOST,
+        port=SSH_PORT,
         credential=CREDENTIAL_NAME,
         host_key_fingerprint=HOST_KEY,
         **kwargs
@@ -713,7 +728,7 @@ def ssh_item(**kwargs):
 
 def write_inventory(directory, items, name="inventory.json"):
     path = directory / name
-    path.write_text(json.dumps({"version": 1, "devices": list(items)}), encoding="utf-8")
+    path.write_text(json.dumps({"version": 2, "devices": list(items)}), encoding="utf-8")
     return path
 
 
@@ -721,15 +736,28 @@ def file_inventory(directory, config, sections=SECTIONS, name="inventory.json"):
     return write_inventory(directory, [device_item(source=config, sections=sections)], name=name)
 
 
-def write_vault(directory, value=CANARY_TOKEN, name="vault.json"):
+def write_vault(
+    directory,
+    value=CANARY_TOKEN,
+    name="vault.json",
+    kind="api-token",
+    login=None,
+    version=2,
+    credential=CREDENTIAL_NAME,
+):
+    entry = {"kind": kind, "value": value}
+    if login is not None:
+        entry["login"] = login
     path = directory / name
-    document = {
-        "version": 1,
-        "credentials": {CREDENTIAL_NAME: {"kind": "api-token", "value": value}},
-    }
-    path.write_text(json.dumps(document), encoding="utf-8")
+    path.write_text(
+        json.dumps({"version": version, "credentials": {credential: entry}}), encoding="utf-8"
+    )
     os.chmod(path, 0o600)
     return path
+
+
+def write_ssh_vault(directory, value=CANARY_KEY, kind="ssh-key", **kwargs):
+    return write_vault(directory, value=value, kind=kind, login=LOGIN, **kwargs)
 
 
 def collect_args(
@@ -738,7 +766,6 @@ def collect_args(
     device=DEVICE,
     store=None,
     vault_path=None,
-    profile=None,
     suppressions=None,
     as_json=False,
     accept=None,
@@ -748,8 +775,6 @@ def collect_args(
         argv.extend(["--store", str(store)])
     if vault_path is not None:
         argv.extend(["--vault", str(vault_path)])
-    if profile is not None:
-        argv.extend(["--profile", profile])
     if suppressions is not None:
         argv.extend(["--suppressions", str(suppressions)])
     if accept is not None:
@@ -846,27 +871,29 @@ def test_collect_over_the_file_channel_reports_what_run_reports(tmp_path, capsys
 def test_collect_report_carries_the_collection_header(tmp_path, capsys):
     path = write_config(tmp_path, clean_text())
     inventory_path = file_inventory(tmp_path, path)
-    code, out, _ = gather(capsys, inventory_path, as_json=True, profile=PROFILE)
+    code, out, _ = gather(capsys, inventory_path, as_json=True)
     assert code == 0
     report = json.loads(out)
     assert sorted(report["collection"]) == sorted(cli.COLLECTION_KEYS)
     assert report["collection"] == {
         "channel": "file",
         "source": str(path),
-        "profile": PROFILE,
+        "profile": cli.DEFAULT_PROFILE,
+        "credential-kind": cli.CREDENTIAL_NONE,
         "snapshot_sha256": report["snapshot_sha256"],
         "legacy_ssh": cli.LEGACY_NONE,
     }
-    text_code, text_out, _ = gather(capsys, inventory_path, profile=PROFILE)
+    text_code, text_out, _ = gather(capsys, inventory_path)
     assert text_code == 0
     assert "collection-channel: file" in text_out
     assert "collection-source: %s" % path in text_out
-    assert "collection-profile: %s" % PROFILE in text_out
+    assert "collection-profile: %s" % cli.DEFAULT_PROFILE in text_out
+    assert "collection-credential-kind: %s" % cli.CREDENTIAL_NONE in text_out
     assert "collection-snapshot_sha256: %s" % report["snapshot_sha256"] in text_out
     assert "collection-legacy_ssh: %s" % cli.LEGACY_NONE in text_out
 
 
-def test_collect_profile_defaults_to_unknown(tmp_path, capsys):
+def test_collect_over_a_channel_without_a_login_reports_the_default_profile(tmp_path, capsys):
     path = write_config(tmp_path, clean_text())
     inventory_path = file_inventory(tmp_path, path)
     code, out, _ = gather(capsys, inventory_path, as_json=True)
@@ -918,10 +945,10 @@ def test_completeness_measures_a_snapshot_with_the_platform_it_carries(tmp_path)
     path = write_inventory(
         tmp_path, [device_item(platform="exos", sections=("vlan",))], name="exos.json"
     )
-    record = cli._inventory_record(path, DEVICE)
+    record, section = cli._inventory_record(path, DEVICE)
     text = "#\n# Module vlan configuration.\n#\nconfigure vlan Mgmt tag 10\n"
-    snapshot = snapshot_of(text, "file", str(path), PROFILE, platform="exos")
-    assert cli._completeness(record, snapshot) is None
+    snapshot = snapshot_of(text, "file", str(path), cli.DEFAULT_PROFILE, platform="exos")
+    assert cli._completeness(record, section, snapshot) is None
 
 
 def test_a_complete_view_lets_the_other_rules_run(tmp_path, capsys):
@@ -998,7 +1025,6 @@ def test_credential_never_reaches_the_output_or_the_store(tmp_path, capsys, monk
         as_json=True,
         store=database,
         vault_path=vault_path,
-        profile=PROFILE,
     )
     assert code == 0
     assert err == ""
@@ -1006,7 +1032,7 @@ def test_credential_never_reaches_the_output_or_the_store(tmp_path, capsys, monk
     report = json.loads(out)
     assert report["summary"]["total"] > 0
     _, text_out, text_err = gather(
-        capsys, inventory_path, store=database, vault_path=vault_path, profile=PROFILE
+        capsys, inventory_path, store=database, vault_path=vault_path
     )
     for output in (out, err, text_out, text_err):
         assert CANARY_TOKEN not in output
@@ -1033,7 +1059,6 @@ def test_credential_never_reaches_the_trace_of_a_failed_collection(tmp_path, cap
         as_json=True,
         store=database,
         vault_path=vault_path,
-        profile=PROFILE,
     )
     assert code == 2
     assert out == ""
@@ -1051,7 +1076,7 @@ def test_credential_never_reaches_the_trace_of_a_failed_collection(tmp_path, cap
 
 def test_a_device_with_a_credential_needs_the_vault(tmp_path, capsys):
     inventory_path = write_inventory(tmp_path, [rest_item()])
-    code, out, err = gather(capsys, inventory_path, profile=PROFILE)
+    code, out, err = gather(capsys, inventory_path)
     assert code == 2
     assert out == ""
     assert err.startswith("error: ")
@@ -1071,16 +1096,51 @@ def test_a_vault_the_file_channel_does_not_need_is_an_error(tmp_path, capsys):
 
 def test_an_unknown_credential_name_is_an_error(tmp_path, capsys):
     inventory_path = write_inventory(tmp_path, [rest_item()])
-    vault_path = tmp_path / "vault.json"
-    vault_path.write_text(
-        json.dumps({"version": 1, "credentials": {"other": {"kind": "api-token", "value": "x"}}}),
-        encoding="utf-8",
-    )
-    os.chmod(vault_path, 0o600)
-    code, out, err = gather(capsys, inventory_path, vault_path=vault_path, profile=PROFILE)
+    vault_path = write_vault(tmp_path, credential="other")
+    code, out, err = gather(capsys, inventory_path, vault_path=vault_path)
     assert code == 2
     assert out == ""
     assert err.startswith("error: ")
+    assert CREDENTIAL_NAME in err
+
+
+def test_a_version_1_vault_is_refused(tmp_path, capsys):
+    inventory_path = write_inventory(tmp_path, [rest_item()])
+    vault_path = write_vault(tmp_path, version=1)
+    code, out, err = gather(capsys, inventory_path, vault_path=vault_path)
+    assert code == 2
+    assert out == ""
+    assert "vault: " in err
+    assert "version must be 2" in err
+    assert CANARY_TOKEN not in err
+
+
+def test_the_rest_channel_refuses_a_credential_of_another_kind(tmp_path, capsys, monkeypatch):
+    inventory_path = write_inventory(tmp_path, [rest_item()])
+    vault_path = write_vault(tmp_path, value="replace-me", kind="password", login=LOGIN)
+    called = []
+
+    monkeypatch.setattr(cli.collect, "collect_fortios_rest", lambda *a, **k: called.append(a))
+    code, out, err = gather(capsys, inventory_path, vault_path=vault_path)
+    assert code == 2
+    assert out == ""
+    assert "of kind password" in err
+    assert "kind api-token" in err
+    assert called == []
+
+
+def test_the_ssh_channel_refuses_a_credential_of_another_kind(tmp_path, capsys, monkeypatch):
+    inventory_path = write_inventory(tmp_path, [ssh_item()])
+    vault_path = write_vault(tmp_path)
+    called = []
+
+    monkeypatch.setattr(cli.collect, "collect_ssh", lambda *a, **k: called.append(a))
+    code, out, err = gather(capsys, inventory_path, vault_path=vault_path)
+    assert code == 2
+    assert out == ""
+    assert "of kind api-token" in err
+    assert "kind password or ssh-key" in err
+    assert called == []
 
 
 def test_store_never_holds_the_configuration(tmp_path, capsys):
@@ -1173,24 +1233,26 @@ def test_collect_marks_a_finding_gone_after_it_disappears(tmp_path, capsys):
 def test_the_ssh_channel_is_called_with_what_the_inventory_holds(tmp_path, capsys, monkeypatch):
     text = clean_text()
     inventory_path = write_inventory(tmp_path, [ssh_item()])
-    vault_path = write_vault(tmp_path)
+    vault_path = write_ssh_vault(tmp_path)
     database = tmp_path / "audit.sqlite"
     seen = {}
 
-    def fake(device, platform, host, login, credential, profile, host_key_fingerprint, **rest):
+    def fake(device, platform, address, port, credential, host_key_fingerprint, **rest):
         seen.update(
             device=device,
             platform=platform,
-            host=host,
-            login=login,
-            token=credential.use(),
-            profile=profile,
+            address=address,
+            port=port,
+            login=credential.login,
+            kind=credential.kind,
+            key=credential.use(),
             host_key=host_key_fingerprint,
             legacy_ssh=rest.get("legacy_ssh", "not passed"),
         )
-        snapshot = snapshot_of(text, "ssh", "%s@%s" % (login, host), profile)
-        first = step_event("ssh", "%s@%s get system console" % (login, host))
-        taken = event_of(snapshot, "%s@%s show full-configuration" % (login, host))
+        source = "%s@%s" % (credential.login, address)
+        snapshot = snapshot_of(text, "ssh", source, credential.login)
+        first = step_event("ssh", "%s get system console" % source)
+        taken = event_of(snapshot, "%s show" % source)
         return snapshot, (first, taken)
 
     monkeypatch.setattr(cli.collect, "collect_ssh", fake)
@@ -1200,55 +1262,77 @@ def test_the_ssh_channel_is_called_with_what_the_inventory_holds(tmp_path, capsy
         as_json=True,
         store=database,
         vault_path=vault_path,
-        profile=PROFILE,
     )
     assert code == 0
     assert err == ""
     assert seen == {
         "device": DEVICE,
         "platform": "fortios",
-        "host": SSH_HOST,
-        "login": PROFILE,
-        "token": CANARY_TOKEN,
-        "profile": PROFILE,
+        "address": SSH_HOST,
+        "port": SSH_PORT,
+        "login": LOGIN,
+        "kind": "ssh-key",
+        "key": CANARY_KEY,
         "host_key": HOST_KEY,
         "legacy_ssh": None,
     }
     report = json.loads(out)
     assert report["collection"]["channel"] == "ssh"
-    assert report["collection"]["source"] == "%s@%s" % (PROFILE, SSH_HOST)
+    assert report["collection"]["source"] == "%s@%s" % (LOGIN, SSH_HOST)
+    assert report["collection"]["profile"] == LOGIN
+    assert report["collection"]["credential-kind"] == "ssh-key"
     assert report["collection"]["legacy_ssh"] == cli.LEGACY_NONE
+    _, text_out, _ = gather(capsys, inventory_path, vault_path=vault_path)
+    assert "collection-profile: %s" % LOGIN in text_out
+    assert "collection-credential-kind: ssh-key" in text_out
     with Store(database) as store:
         recorded = store.last_run(TENANT, DEVICE)
         events = store.channel_events_for_run(TENANT, recorded["id"])
     assert len(events) == 2
     assert [item["outcome"] for item in events] == ["ok", "ok"]
-    assert CANARY_TOKEN not in database_text(database)
+    assert CANARY_KEY not in database_text(database)
+
+
+def test_the_ssh_channel_takes_a_password_credential(tmp_path, capsys, monkeypatch):
+    text = clean_text()
+    inventory_path = write_inventory(tmp_path, [ssh_item()])
+    vault_path = write_ssh_vault(tmp_path, value="replace-me", kind="password")
+    seen = {}
+
+    def fake(device, platform, address, port, credential, host_key_fingerprint, **rest):
+        seen.update(kind=credential.kind, login=credential.login)
+        source = "%s@%s" % (credential.login, address)
+        snapshot = snapshot_of(text, "ssh", source, credential.login)
+        return snapshot, (event_of(snapshot, "%s show" % source),)
+
+    monkeypatch.setattr(cli.collect, "collect_ssh", fake)
+    code, out, err = gather(capsys, inventory_path, as_json=True, vault_path=vault_path)
+    assert code == 0
+    assert err == ""
+    assert seen == {"kind": "password", "login": LOGIN}
+    assert json.loads(out)["collection"]["credential-kind"] == "password"
 
 
 def test_the_ssh_channel_carries_the_legacy_profile_of_that_one_device(tmp_path, capsys, monkeypatch):
     text = clean_text()
     inventory_path = write_inventory(tmp_path, [ssh_item(legacy_ssh="rsa-sha1")])
-    vault_path = write_vault(tmp_path)
+    vault_path = write_ssh_vault(tmp_path)
     seen = {}
 
-    def fake(device, platform, host, login, credential, profile, host_key_fingerprint, **rest):
+    def fake(device, platform, address, port, credential, host_key_fingerprint, **rest):
         seen.update(legacy_ssh=rest.get("legacy_ssh", "not passed"))
-        snapshot = snapshot_of(text, "ssh", "%s@%s" % (login, host), profile)
-        return snapshot, (event_of(snapshot, "%s@%s show" % (login, host)),)
+        source = "%s@%s" % (credential.login, address)
+        snapshot = snapshot_of(text, "ssh", source, credential.login)
+        return snapshot, (event_of(snapshot, "%s show" % source),)
 
     monkeypatch.setattr(cli.collect, "collect_ssh", fake)
-    code, out, err = gather(
-        capsys, inventory_path, as_json=True, vault_path=vault_path, profile=PROFILE
-    )
+    code, out, err = gather(capsys, inventory_path, as_json=True, vault_path=vault_path)
     assert code == 0
     assert err == ""
     assert seen == {"legacy_ssh": "rsa-sha1"}
     report = json.loads(out)
     assert report["collection"]["legacy_ssh"] == "rsa-sha1"
-    text_code, text_out, _ = gather(
-        capsys, inventory_path, vault_path=vault_path, profile=PROFILE
-    )
+    text_code, text_out, _ = gather(capsys, inventory_path, vault_path=vault_path)
     assert text_code == 0
     assert "collection-legacy_ssh: rsa-sha1" in text_out
 
@@ -1258,7 +1342,7 @@ def test_collect_refuses_a_legacy_profile_the_inventory_does_not_know(
     tmp_path, capsys, monkeypatch, profile
 ):
     inventory_path = write_inventory(tmp_path, [ssh_item(legacy_ssh=profile)])
-    vault_path = write_vault(tmp_path)
+    vault_path = write_ssh_vault(tmp_path)
     called = []
 
     def fake(*args, **kwargs):
@@ -1266,22 +1350,20 @@ def test_collect_refuses_a_legacy_profile_the_inventory_does_not_know(
         raise AssertionError("the collection must not start")
 
     monkeypatch.setattr(cli.collect, "collect_ssh", fake)
-    code, out, err = gather(
-        capsys, inventory_path, as_json=True, vault_path=vault_path, profile=PROFILE
-    )
+    code, out, err = gather(capsys, inventory_path, as_json=True, vault_path=vault_path)
     assert code == 2
     assert out == ""
     assert "legacy_ssh must be null for a device that speaks current algorithms" in err
     assert called == []
 
 
-def test_a_legacy_profile_on_a_file_device_stops_the_collection(tmp_path, capsys):
+def test_a_legacy_profile_without_a_pinned_host_key_stops_the_collection(tmp_path, capsys):
     path = write_config(tmp_path, clean_text())
     inventory_path = write_inventory(tmp_path, [device_item(source=path, legacy_ssh="rsa-sha1")])
     code, out, err = gather(capsys, inventory_path, as_json=True)
     assert code == 2
     assert out == ""
-    assert "legacy_ssh must be null for channel file" in err
+    assert "requires host_key_fingerprint" in err
 
 
 def test_the_rest_channel_is_called_with_the_pinned_fingerprint(tmp_path, capsys, monkeypatch):
@@ -1295,6 +1377,7 @@ def test_the_rest_channel_is_called_with_the_pinned_fingerprint(tmp_path, capsys
             device=device,
             host=host,
             profile=profile,
+            kind=credential.kind,
             pin=tls_fingerprint,
             token=credential.use(),
         )
@@ -1302,31 +1385,52 @@ def test_the_rest_channel_is_called_with_the_pinned_fingerprint(tmp_path, capsys
         return snapshot, event_of(snapshot, "POST %s/api/v2/monitor" % host)
 
     monkeypatch.setattr(cli.collect, "collect_fortios_rest", fake)
-    code, out, err = gather(
-        capsys, inventory_path, as_json=True, vault_path=vault_path, profile=PROFILE
-    )
+    code, out, err = gather(capsys, inventory_path, as_json=True, vault_path=vault_path)
     assert code == 0
     assert err == ""
     assert seen == {
         "device": DEVICE,
         "host": "https://%s" % REST_HOST,
-        "profile": PROFILE,
+        "profile": cli.DEFAULT_PROFILE,
+        "kind": "api-token",
         "pin": TLS_FINGERPRINT,
         "token": CANARY_TOKEN,
     }
     report = json.loads(out)
     assert report["collection"]["channel"] == "fortios-rest"
     assert report["collection"]["source"] == "https://%s" % REST_HOST
+    assert report["collection"]["credential-kind"] == "api-token"
 
 
-def test_the_ssh_channel_needs_the_account(tmp_path, capsys):
-    inventory_path = write_inventory(tmp_path, [ssh_item()])
-    vault_path = write_vault(tmp_path)
-    code, out, err = gather(capsys, inventory_path, vault_path=vault_path)
+def test_collect_takes_no_profile_option(tmp_path):
+    path = write_config(tmp_path, clean_text())
+    inventory_path = file_inventory(tmp_path, path)
+    with pytest.raises(SystemExit) as failure:
+        cli.main(
+            [
+                "collect",
+                "--inventory",
+                str(inventory_path),
+                "--device",
+                DEVICE,
+                "--tenant",
+                TENANT,
+                "--profile",
+                LOGIN,
+            ]
+        )
+    assert failure.value.code == 2
+
+
+def test_a_device_without_an_auditor_section_is_an_error(tmp_path, capsys):
+    path = write_config(tmp_path, clean_text())
+    entry = device_item(source=path, auditor=None)
+    entry["helper"] = {"account_role": "read-only"}
+    inventory_path = write_inventory(tmp_path, [entry])
+    code, out, err = gather(capsys, inventory_path)
     assert code == 2
     assert out == ""
-    assert err.startswith("error: ")
-    assert "--profile" in err
+    assert "carries no auditor section" in err
 
 
 def test_an_unknown_device_is_an_error(tmp_path, capsys):
@@ -1426,3 +1530,107 @@ def test_collect_output_is_byte_identical_for_the_same_input(tmp_path, capsys):
         _, two, err_two = gather(capsys, inventory_path, as_json=as_json)
         assert one.encode("utf-8") == two.encode("utf-8")
         assert err_one == err_two == ""
+
+
+EXOS_DEVICE = "sw-example"
+EXOS_SECTIONS = ("vlan", "ems", "telnetd")
+EXOS_TELNET_RULE = "exos.mgmt.telnet-enabled"
+EXOS_SYSLOG_RULE = "exos.logging.no-syslog-target"
+
+
+def exos_clean_text():
+    return (FIXTURES / "exos_clean.conf").read_text(encoding="utf-8")
+
+
+def exos_positive_text(rule_id):
+    return (FIXTURES / "rules" / rule_id / "positive.conf").read_text(encoding="utf-8")
+
+
+def exos_inventory(directory, config, sections=EXOS_SECTIONS, name="exos-inventory.json"):
+    return write_inventory(
+        directory,
+        [
+            device_item(
+                source=config, sections=sections, platform="exos", name=EXOS_DEVICE
+            )
+        ],
+        name=name,
+    )
+
+
+def test_both_platforms_are_offered_on_the_command_line():
+    assert sorted(cli.PLATFORMS) == ["exos", "fortios"]
+
+
+def test_an_exos_configuration_is_audited_by_the_exos_catalog(tmp_path, capsys):
+    path = write_config(tmp_path, exos_clean_text(), name="switch.conf")
+    code, out, err = audit(capsys, path, as_json=True, platform="exos", device=EXOS_DEVICE)
+    assert code == 0
+    assert err == ""
+    report = json.loads(out)
+    assert report["platform"] == "exos"
+    assert report["findings"] == []
+    assert report["rules_version"].startswith("exos:4:")
+
+
+def test_an_exos_defect_is_reported_over_the_command_line(tmp_path, capsys):
+    path = write_config(tmp_path, exos_positive_text(EXOS_TELNET_RULE), name="switch.conf")
+    code, out, err = audit(capsys, path, as_json=True, platform="exos", device=EXOS_DEVICE)
+    assert code == 0
+    assert err == ""
+    report = json.loads(out)
+    assert [item["rule_id"] for item in report["findings"]] == [EXOS_TELNET_RULE]
+
+
+def test_an_exos_configuration_is_not_parsed_by_the_fortios_parser(tmp_path, capsys):
+    path = write_config(tmp_path, exos_clean_text(), name="switch.conf")
+    code, out, _ = audit(capsys, path, as_json=True, device=EXOS_DEVICE)
+    assert code == 0
+    assert json.loads(out)["findings"] != []
+
+
+def test_collect_no_longer_refuses_an_exos_device(tmp_path, capsys):
+    path = write_config(tmp_path, exos_clean_text(), name="switch.conf")
+    inventory_path = exos_inventory(tmp_path, path)
+    code, out, err = gather(capsys, inventory_path, device=EXOS_DEVICE, as_json=True)
+    assert code == 0
+    assert err == ""
+    report = json.loads(out)
+    assert report["platform"] == "exos"
+    assert report["findings"] == []
+    assert report["collection"]["channel"] == "file"
+
+
+def test_collect_reports_an_exos_finding_over_a_complete_view(tmp_path, capsys):
+    path = write_config(tmp_path, exos_positive_text(EXOS_SYSLOG_RULE), name="switch.conf")
+    inventory_path = exos_inventory(tmp_path, path)
+    code, out, err = gather(capsys, inventory_path, device=EXOS_DEVICE, as_json=True)
+    assert code == 0
+    assert err == ""
+    assert [item["rule_id"] for item in json.loads(out)["findings"]] == [EXOS_SYSLOG_RULE]
+
+
+def test_an_incomplete_exos_view_still_stops_the_catalog(tmp_path, capsys):
+    path = write_config(tmp_path, exos_positive_text(EXOS_SYSLOG_RULE), name="switch.conf")
+    inventory_path = exos_inventory(
+        tmp_path, path, sections=EXOS_SECTIONS + ("poe",), name="narrow-exos.json"
+    )
+    code, out, err = gather(capsys, inventory_path, device=EXOS_DEVICE, as_json=True)
+    assert code == 0
+    assert err == ""
+    findings = json.loads(out)["findings"]
+    assert [item["rule_id"] for item in findings] == ["exos.snapshot.incomplete"]
+
+
+def test_collect_still_refuses_a_platform_without_a_catalogue(tmp_path, capsys):
+    path = write_config(tmp_path, exos_clean_text(), name="host.conf")
+    inventory_path = write_inventory(
+        tmp_path,
+        [device_item(source=path, sections=("vlan",), platform="linux", name="host-a")],
+        name="linux-inventory.json",
+    )
+    code, out, err = gather(capsys, inventory_path, device="host-a", as_json=True)
+    assert code == 2
+    assert out == ""
+    assert "the auditor holds no rule catalog for it" in err
+    assert "linux" in err
