@@ -21,6 +21,8 @@ component release and then runs the gate of every component; run it before freez
 Official releases are built on an isolated, trusted Linux ARM64 builder from a clean, signed commit.
 Hosted CI performs portable source checks only; it is not the release builder.
 
+The guarded builder, source updater, checksum signer and publisher are separately provisioned maintainer tooling; they are not shipped in this repository or its source archives. References to `verify-host.sh` or publisher steps below require that reviewed environment. Source checks and export scripts shown here are repository tools.
+
 Never publish surrounding private project context, environment-specific certificates, live reports,
 credentials, host keys, or inventory and vault files. The release export is a positive allowlist, and
 the component gate also reads the content of every released file and, outside a
@@ -54,8 +56,10 @@ this repository the archive is the tree, so the tests and the CI job take the co
 
 ## Procedure
 
-1. Review every source change and freeze the release metadata, including the release date. Version
-   `0.2.2` must agree in `pyproject.toml`, `src/netops_auditor/__init__.py`, and the root of
+The current published release is linked from the [repository release table](https://github.com/radek-cerny-soukr/netops/blob/main/README.md#releases). The procedure below describes a **new** release: `<version>` means the newly reviewed version from this component's `pyproject.toml`, not an instruction to recreate the current tag. Confirm that its tag and release do not already exist. Published tags and assets must not be moved or overwritten.
+
+1. Review every source change and freeze the release metadata, including the release date. The new
+   version must agree in `pyproject.toml`, `src/netops_auditor/__init__.py`, and the root of
    `sbom.cdx.json`; the gate `version_metadata` compares those three. The pinned version of
    `netops-core` must agree with the version of the component that is released beside it; the SBOM
    carries the pin as the one required dependency of the root component. The changelog heading is not
@@ -84,9 +88,9 @@ this repository the archive is the tree, so the tests and the CI job take the co
    (cd path/to/new-output/netops-auditor-<version> && python3 -B scripts/check_gates.py)
    ```
 3. Create the final trusted signed commit on clean `main`, then, under a separate explicit
-   authorization, the signed annotated tag `netops-auditor/v0.2.2` on that exact commit. Verify the
+   authorization, the signed annotated tag `netops-auditor/v<version>` on that exact commit. Verify the
    tag resolves to a tag object, carries a trusted signature, and peels to the signed commit. Neither
-   step authorizes a push, a build, or a transparency-log upload. The tag names `0.2.2`.
+   step authorizes a push, a build, or a transparency-log upload.
 4. On the builder, place a clone of the repository at the released commit in `repos/netops-auditor`
    and run the source-only profile:
 
@@ -104,10 +108,12 @@ this repository the archive is the tree, so the tests and the CI job take the co
    An unknown component name is refused before the first container call.
 5. Sign the checksum file. This writes to a public transparency log and is a separate authorized
    action; the signing identity must be the GitHub account, never another provider.
-6. Publish in three separately authorized steps - `preflight`, `create-draft`, `publish-draft` - and
-   then verify the published release independently: download every asset from the release page and
-   check it against the local `SHA256SUMS`. The tag contains a slash, so in a download URL it is
-   encoded as `netops-auditor%2Fv0.2.2`.
+6. Run the applicable preflight immediately before each public write. Branch push, tag push,
+   draft creation with asset upload, and draft publication are separately authorized operations.
+   Verify hosted checks, draft metadata, artifact bytes, checksums and the signature before
+   publishing the draft. Then download every published asset and compare it with the local
+   `SHA256SUMS`. The tag contains a slash, so in a download URL it is
+   encoded as `netops-auditor%2Fv<version>`.
 
 ## Determinism
 
@@ -115,3 +121,7 @@ The source archive is byte-reproducible: entries are owned by `0/0`, carry a fix
 and the archive is created with an explicit mode normalization, so the umask of the builder does not
 change the bytes. The SBOM is regenerated and compared byte for byte during step 2; a release whose
 SBOM does not reproduce is not released.
+
+## Replacing the previous public release
+
+After the new release is published and independently verified, remove only this component's previous release page, its assets and its tag under explicit authorization for those exact deletions. Preserve any required rollback artifacts locally first. Other components' releases and tags remain untouched. Recheck the public release and tag lists, update the current-version links in the repository documentation, and check every release, tag and download URL against those lists. Do not link to a superseded tag: use a commit permalink for historical source.

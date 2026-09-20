@@ -18,3 +18,5 @@ Contributions are welcome when they preserve the fail-closed model.
 Do not add raw command input, a generic-shell escape hatch, automatic host-key acceptance, write tools, or broad credentials to phase 1. New queries require named templates, typed inventory-bound slots, positive and negative tests, explicit pagination, and review of prompt-injection exposure. Device-side read-only authorization is mandatory; redaction and skill instructions are not authorization boundaries.
 
 By submitting a contribution, you agree that it is licensed under the MIT License.
+
+Before publishing documentation, compare every current component version, release link, tag link and artifact filename with the actual GitHub releases and tags. Only one release and tag per component are retained. Use commit permalinks for version-specific source documentation so deleting a tag does not break it. Keep historical changelog entries explicitly separate from current download instructions.

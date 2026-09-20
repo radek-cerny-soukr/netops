@@ -33,7 +33,7 @@ The word turns up on this page in two unrelated meanings, and mixing them up cos
 | `legacy_ssh` | the common part of the inventory entry | a named set of SSH algorithm options, expanded by the transport - see below |
 
 Neither is the auditor's to set. The third meaning is gone: the option `--profile` of `collect` was
-removed in 0.2.0, because the login of an `ssh` session is now the `login` of the credential the
+removed; the login of an `ssh` session is now the `login` of the credential the
 inventory names. The report says which account was used in `collection-profile` and which kind of
 record opened the session in `collection-credential-kind`; on `file` and `fortios-rest`, which log in
 as nobody, `collection-profile` is `unknown`.
@@ -98,12 +98,12 @@ until someone runs it against a device and writes the result here.
 
 ## Channel `ssh`
 
-The transport is `netops_core.ssh`, shared with the rest of the family since 0.2.0: the client call,
+The transport is `netops_core.ssh`, shared with the rest of the family: the client call,
 the hardening options, the workspace and the two kinds of authentication are described in
 [`../../netops-core/docs/ssh.md`](../../netops-core/docs/ssh.md) and measured there against real
 devices. These documents ship in the `netops-core` archive, not in the auditor archive: that relative
 path resolves in a repository checkout; from a standalone auditor archive the same file is published
-at [`netops-core/v0.2.1`](https://github.com/radek-cerny-soukr/netops/blob/netops-core/v0.2.1/components/netops-core/docs/ssh.md).
+at [the Core 0.2.1 source commit](https://github.com/radek-cerny-soukr/netops/blob/2caf06ffd9df8d51a509d400c657c80db582ad82/components/netops-core/docs/ssh.md).
 What the auditor adds is the step table of the platform, the preflight and the `ChannelEvent` of
 every command; the prompt cleaning is `netops_core.prompt`. It adds **nothing** to the options of
 the client.
@@ -136,9 +136,7 @@ the client.
   with mode 0600 in a private temporary directory and passed as `-i <path>`; a record of kind
   `password` is written into a file of the same mode that an askpass script reads, and the client is
   called with `BatchMode=no`, `NumberOfPasswordPrompts=1` and `PubkeyAuthentication=no`, so a wrong
-  password is one failure instead of a prompt loop or a silent fallback to a key. **Password
-  authentication works on this channel for the first time in 0.2.0**; until then the store held one
-  kind and the channel took it as a key. Either way the credential never reaches `argv`, where `ps`
+  password is one failure instead of a prompt loop or a silent fallback to a key. Either way the credential never reaches `argv`, where `ps`
   would show it to every user on the machine, and never reaches a value in the environment: only the
   path of the file that holds it does. The directory is removed when the call ends, on every path.
 - Default timeout 120 s per command, about fifteen times the slowest dump measured (7.7 s). A
@@ -299,7 +297,7 @@ read-only account the prompt stayed in the snapshot - and in its hash.
 
 So the answer is cleaned by [`netops_core.prompt`](../../netops-core/docs/prompt.md) (published, for
 a standalone archive, at
-[`netops-core/v0.2.1`](https://github.com/radek-cerny-soukr/netops/blob/netops-core/v0.2.1/components/netops-core/docs/prompt.md)),
+[the Core 0.2.1 source commit](https://github.com/radek-cerny-soukr/netops/blob/2caf06ffd9df8d51a509d400c657c80db582ad82/components/netops-core/docs/prompt.md)),
 which the helper uses as well, by a rule that is deliberately narrow:
 
 - **only the first line** can lose a prefix, and only when that line starts with a prompt shape: at
@@ -340,10 +338,7 @@ When the device prints no prompt the cleaner does nothing and both hashes are eq
   read-only boundary is the step table above (`get system console`, `show`), the pinned host key
   and the absence of any other command in this channel - not the profile. Restrict the account
   with `trusthost` to the collector and log its sessions on the device.
-- **An EXOS snapshot is audited since 0.2.0, by four rules.** Until 0.2.0 `collect` stopped on the
-  platform before it opened a session - `the auditor holds no rule catalog for it`, exit code 2, no
-  credential read - and an EXOS snapshot was reachable from the library only. That refusal is gone:
-  the catalogue `exos.json` exists, `run --platform exos` and `collect` over an `exos` entry both
+- **An EXOS snapshot is audited by four rules.** The catalogue `exos.json` exists, `run --platform exos` and `collect` over an `exos` entry both
   work, and what those four rules do and do not see is [below](#what-the-exos-catalogue-reads).
 - **Unverified:** the behaviour when FortiOS reports `output: more`. Switching a production device
   to the pager would have been a write, so the refusal path was proven in tests, not on a device.
@@ -389,20 +384,21 @@ On FortiOS two dumps in a row were byte identical, and nine days apart, with doz
 between, every `ENC` field still matched.
 
 That table is the anchor: if the channel does not work for you, this is the hardware and the firmware
-where the behaviour was observed. The measurements above were taken with the collector of 0.1.0, which
-carried its own copy of the transport; the transport of 0.2.0 is `netops_core.ssh`, measured on the
+where the behaviour was observed. The measurements above were taken with the historical collector of 0.1.0
+(its release, tag and artifact downloads have since been removed), which
+carried its own copy of the transport; the current transport is `netops_core.ssh`, measured on the
 same devices - including the password authentication this channel had not had before - in
 [`../../netops-core/docs/ssh.md`](../../netops-core/docs/ssh.md). The FortiOS commands and preflight
 above are the auditor's and did not change. The EXOS preflight shown in that table, `disable cli
 paging`, did: the measurement described
-[above](#the-pager-and-why-it-is-not-one-universal-command) found it unnecessary, and since 0.2.1 the
+[above](#the-pager-and-why-it-is-not-one-universal-command) found it unnecessary, and the current
 auditor sends nothing before `show configuration` on EXOS. The prompt cleaning moved to
 [`../../netops-core/docs/prompt.md`](../../netops-core/docs/prompt.md) unchanged except for the `$`
 marker. Both relative paths resolve in a repository checkout; from a standalone auditor archive the
 same two files are published at
-[`netops-core/v0.2.1`](https://github.com/radek-cerny-soukr/netops/blob/netops-core/v0.2.1/components/netops-core/docs/ssh.md)
+[the Core 0.2.1 source commit](https://github.com/radek-cerny-soukr/netops/blob/2caf06ffd9df8d51a509d400c657c80db582ad82/components/netops-core/docs/ssh.md)
 and
-[`netops-core/v0.2.1`](https://github.com/radek-cerny-soukr/netops/blob/netops-core/v0.2.1/components/netops-core/docs/prompt.md).
+[the Core 0.2.1 source commit](https://github.com/radek-cerny-soukr/netops/blob/2caf06ffd9df8d51a509d400c657c80db582ad82/components/netops-core/docs/prompt.md).
 
 ## Channel `file`
 
@@ -436,7 +432,7 @@ not what stands inside.
 
 ## What the EXOS catalogue reads
 
-**EXOS is an audited platform since 0.2.0, not only a snapshot.** The four rules of `exos.json` are
+**EXOS has an audit rule catalogue.** The four rules of `exos.json` are
 all class `fakt`, and all of them read the flat list of commands the L1 parser builds out of
 `show configuration` - a record per command carrying its line, the module declared above it and its
 tokens. There is no normalized model between the rules and the text; a rule asks whether a command is

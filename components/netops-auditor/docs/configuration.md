@@ -3,19 +3,19 @@
 Three files decide what the auditor does: the inventory, the credential store and the suppression
 file. All three are read fail-closed - a missing field, an unknown field or a wrong value stops the
 run instead of falling back to a default - and none of them is ever written by the tool. The inventory
-and the credential store are the shared documents of `netops-core` since 0.2.0, both at file version
+and the credential store are the shared documents of `netops-core`, both at file version
 `2`; this page says what the auditor adds to the credential store, holds the schema of the suppression
 file, and lists the exit codes and the two refusals that end a run before the rule catalogue is
 reached. The inventory has a page of its own: [`inventory.md`](inventory.md).
 
 ## The credential store (`vault.json`)
 
-The inventory names a credential, the store holds its value. Since 0.2.0 the store is **the shared
+The inventory names a credential, the store holds its value. The store is **the shared
 document of `netops-core`, file version 2**, and its schema is
 [`../../netops-core/docs/vault.md`](../../netops-core/docs/vault.md). This document ships in the
 `netops-core` archive, not in the auditor archive: that relative path resolves in a repository
 checkout; from a standalone auditor archive the same file is published at
-[`netops-core/v0.2.1`](https://github.com/radek-cerny-soukr/netops/blob/netops-core/v0.2.1/components/netops-core/docs/vault.md).
+[the Core 0.2.1 source commit](https://github.com/radek-cerny-soukr/netops/blob/2caf06ffd9df8d51a509d400c657c80db582ad82/components/netops-core/docs/vault.md).
 What follows is what the auditor adds to it.
 
 ```json
@@ -31,11 +31,11 @@ What follows is what the auditor adds to it.
 
 | field | value |
 |---|---|
-| `version` | `2`; a version `1` store - the shape the auditor read until 0.1.0 - is refused with `vault file <path>: version must be 2` |
+| `version` | `2`; a legacy version `1` store is refused with `vault file <path>: version must be 2` |
 | `credentials` | an object; the key is the record name an inventory entry refers to in `credential` |
 | `credentials.<name>.kind` | one of `password`, `ssh-key`, `api-token`, `snmp-community` |
 | `credentials.<name>.login` | the account name, **required** for `password` and `ssh-key`, **forbidden** for the other two |
-| `credentials.<name>.value` | the secret itself; for `ssh-key` the whole private key text, header line and all, newlines written as `\n` - the example above is a placeholder, and the real shape is in [`../../netops-core/docs/vault.md`](../../netops-core/docs/vault.md) (from a standalone archive, published at [`netops-core/v0.2.1`](https://github.com/radek-cerny-soukr/netops/blob/netops-core/v0.2.1/components/netops-core/docs/vault.md)) |
+| `credentials.<name>.value` | the secret itself; for `ssh-key` the whole private key text, header line and all, newlines written as `\n` - the example above is a placeholder, and the real shape is in [`../../netops-core/docs/vault.md`](../../netops-core/docs/vault.md) (from a standalone archive, published at [the Core 0.2.1 source commit](https://github.com/radek-cerny-soukr/netops/blob/2caf06ffd9df8d51a509d400c657c80db582ad82/components/netops-core/docs/vault.md)) |
 
 The file is read at mode `0600` or `0400` and at no other mode, and a vault path that is a symbolic
 link is refused before the mode is read.
@@ -213,13 +213,12 @@ device, and the `legacy_ssh` exception are in [`inventory.md`](inventory.md); th
 document is in [`../../netops-core/docs/inventory.md`](../../netops-core/docs/inventory.md), which
 ships in the `netops-core` archive, not the auditor archive: from a standalone auditor archive the
 same file is published at
-[`netops-core/v0.2.1`](https://github.com/radek-cerny-soukr/netops/blob/netops-core/v0.2.1/components/netops-core/docs/inventory.md).
+[the Core 0.2.1 source commit](https://github.com/radek-cerny-soukr/netops/blob/2caf06ffd9df8d51a509d400c657c80db582ad82/components/netops-core/docs/inventory.md).
 
 ## The platform picks the parser and the catalogue
 
 `--platform` of `run`, and the `platform` field of the entry for `collect`, choose two things at once:
-the L1 parser that reads the text and the rule catalogue that is evaluated over it. Since 0.2.0 there
-are two of each.
+the L1 parser that reads the text and the rule catalogue that is evaluated over it. There are two of each.
 
 | `--platform` | what the parser reads | catalogue | rules |
 |---|---|---|---|

@@ -1,5 +1,7 @@
 # Changelog
 
+Only `netops-helper/v0.3.2` is currently published. Older entries below are historical source records, not available releases or tags; their release pages, tags and downloadable artifacts have been removed. Use commit history to inspect old source and the current [release procedure](docs/releasing.md) for new releases.
+
 ## 0.3.2 - 2026-09-20
 
 Follows `netops-core` 0.2.1, pinned as `netops-core==0.2.1`.
@@ -113,7 +115,7 @@ Release engineering release for the repository rename and the component tag sche
 ### Release engineering and tests
 
 - Rename the repository to `radek-cerny-soukr/netops`; the old `netops-helper` URLs redirect. Update the OCI `org.opencontainers.image.source` label and its release test to the new URL.
-- Tag component releases as `netops-helper/v<version>` with the release title `netops-helper <version>`. The legacy tags `v0.1.0` to `v0.2.1` remain the netops-helper history and are never moved.
+- Tag component releases as `netops-helper/v<version>` with the release title `netops-helper <version>`. Earlier releases used an unprefixed tag scheme. Those tags have since been removed under the current retention policy; their source commits remain in history.
 
 ### Fixes
 

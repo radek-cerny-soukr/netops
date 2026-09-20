@@ -41,7 +41,8 @@ The client **executes** the askpass program, so it must live on a filesystem tha
 By default the program is the small script `<workspace>/askpass`, written with mode 0700 next to the
 secret. That is right on an ordinary host and wrong in a hardened container: the helper's Compose
 file mounts `/tmp` and `/run` `noexec`, the workspace is created under `/tmp`, and a program written
-there cannot be executed at all. Measured in the published 0.3.0 image on 19 September 2026: an
+there cannot be executed at all. Historical measurement in the Helper 0.3.0 image on 19 September 2026 (that release,
+tag and image download have since been removed): an
 execute-permission check on the written script answers false and `execve` fails with `EACCES`, while
 a program outside those mounts runs and reads a file inside them without trouble - `noexec` stops
 execution, not reading.

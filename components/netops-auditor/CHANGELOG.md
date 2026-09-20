@@ -1,5 +1,7 @@
 # Changelog
 
+Only `netops-auditor/v0.2.2` is currently published. Older entries below are historical source records, not available releases or tags; their release pages, tags and downloadable artifacts have been removed. Use commit history to inspect old source and the current [release procedure](docs/releasing.md) for new releases.
+
 ## 0.2.2 - 2026-09-20
 
 Follows `netops-core` 0.2.1, pinned as `netops-core==0.2.1`. Two breaking changes to files the
@@ -60,7 +62,7 @@ Follows `netops-core` 0.2.0, pinned as `netops-core==0.2.0`.
 
 ## 0.2.0 - 2026-09-19
 
-The auditor stops carrying its own access layer and takes it from `netops-core`: the inventory, the credential store, the host key trust and the SSH transport are now the shared ones of the family, pinned as `netops-core==0.1.0`. What stays here is the policy - the `auditor` section of an inventory entry, which kind of credential a channel takes, the step table of a platform, and the audit itself. The component is no longer standard library alone; there is no index behind the pin, so the operator installs the `netops-core` source archive of exactly that version beside it (`docs/releasing.md`), and in this repository the tests and CI take it from `../netops-core/src`.
+The auditor stops carrying its own access layer and takes it from `netops-core`: the inventory, the credential store, the host key trust and the SSH transport are now the shared ones of the family, pinned as `netops-core==0.1.0`. What stays here is the policy - the `auditor` section of an inventory entry, which kind of credential a channel takes, the step table of a platform, and the audit itself. The component is no longer standard library alone; there is no index behind the pin, so that release required the matching `netops-core` source archive beside it (historical requirement; those archives are no longer published), and in this repository the tests and CI take it from `../netops-core/src`.
 
 - **ExtremeXOS and Switch Engine are an audited platform, not only a snapshot.** `collect` no longer refuses a device whose platform is `exos` - the message `the auditor holds no rule catalog for it` is gone - and `run --platform exos` reads a `show configuration` dump. The platform now picks both the parser and the catalogue; `l1_exos.py` is the second L1 parser and there is no shared model behind them, because none of the ten rules needs one yet.
 - **L1 EXOS parser.** `show configuration` is a flat list of imperative commands, not a tree: the parser keeps every line as it was and builds one record per command carrying its 1-based line, the module declared by the `# Module <name> configuration.` header above it, its tokens split on whitespace with double quotes respected, and the command text. It is lossless - the original bytes come back from `serialize()`, comments, blank lines and line endings included - and an unterminated quote is a parse error naming the line.

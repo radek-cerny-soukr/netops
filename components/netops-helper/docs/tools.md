@@ -29,7 +29,7 @@ Use them in that order: discover names, inspect one device's actual scope, then 
 | `sftp_stat` | Remote path metadata only | Configured non-root path; no file body, no entry names |
 | `ftp_list` | FTPS/FTP directory names only | Root, control port, passive range, maximum 500 returned names; plain FTP acknowledgement |
 
-`route_trace` is not registered in 0.2.0. Phase 1 has no arbitrary traceroute fallback.
+`route_trace` is not registered in the current release. Phase 1 has no arbitrary traceroute fallback.
 
 The answer of an exec `ssh_read` has the device prompt removed by
 [`netops_core.prompt`](../../netops-core/docs/prompt.md), which knows both the `#` of a

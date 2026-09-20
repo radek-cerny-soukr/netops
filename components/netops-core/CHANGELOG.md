@@ -1,5 +1,7 @@
 # Changelog
 
+Only `netops-core/v0.2.1` is currently published. Older entries below are historical source records, not available releases or tags; their release pages, tags and downloadable artifacts have been removed. Use commit history to inspect old source and the current [release procedure](docs/releasing.md) for new releases.
+
 ## 0.2.1 - 2026-09-20
 
 Correction to the bounded receive: the timeout now holds for the whole life

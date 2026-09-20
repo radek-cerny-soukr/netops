@@ -171,7 +171,7 @@ See [Egress control](egress-control.md) for schema-3 generation, review, applica
 
 ## The hidden authentication envelope
 
-The proxy-to-server envelope has an exact schema of version 0.3.0 and carries exactly: `alias`, `host`, `port`, `login`, `credential_kind`, `secret`, `host_key_fingerprint`, `legacy_ssh`, `account_role`, `ssh_platform`, `enabled_queries`, `read_inventory`, `sftp_roots`, `fortios_output_standard_verified`, `egress`, and `snmp_community` only for `snmp_get`. The removed `known_hosts` and `password` keys are refused as unsupported fields, so an old proxy fails closed instead of half-working. Unknown fields, a legacy envelope, an alias mismatch, and a client-supplied `auth_context` all fail closed.
+The current proxy-to-server envelope has an exact schema and carries exactly: `alias`, `host`, `port`, `login`, `credential_kind`, `secret`, `host_key_fingerprint`, `legacy_ssh`, `account_role`, `ssh_platform`, `enabled_queries`, `read_inventory`, `sftp_roots`, `fortios_output_standard_verified`, `egress`, and `snmp_community` only for `snmp_get`. The removed `known_hosts` and `password` keys are refused as unsupported fields, so an old proxy fails closed instead of half-working. Unknown fields, a legacy envelope, an alias mismatch, and a client-supplied `auth_context` all fail closed.
 
 ### Discovery and information exposure
 
@@ -222,7 +222,7 @@ The proxy's `rate_limit` above and the server's own connection pacing are indepe
 
 ### Legacy SSH algorithms
 
-Since the release which introduces this field, the SSH and SFTP transports refuse the `ssh-rsa` host key algorithm and SHA-1 key exchange for **every** platform. Both were silently available to every target up to and including 0.2.3, where only FortiOS targets rejected SHA-1 key exchange. This is a behaviour change: a target which offers no algorithm outside that default stops being reachable until the exception below is enrolled for it.
+The SSH and SFTP transports refuse the `ssh-rsa` host key algorithm and SHA-1 key exchange by default for **every** platform. When migrating an older deployment that allowed these algorithms implicitly, a target which offers no algorithm outside that default stops being reachable until the exception below is enrolled for it.
 
 `legacy_ssh` is a common device field of the shared inventory, not a field of the `helper` section, so one enrolled exception is the same exception for every component that reaches that device.
 

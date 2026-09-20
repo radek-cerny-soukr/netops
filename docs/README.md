@@ -5,9 +5,9 @@ This directory is mostly a signpost. Documentation lives with the component it d
 | Component | Documentation |
 |---|---|
 | `netops-helper` | [`components/netops-helper/docs/`](../components/netops-helper/docs/) — security model, egress control, installation, configuration, tools, query catalogue, vendor CLI references, releasing, known vulnerabilities |
-| `netops-auditor` | [`components/netops-auditor/docs/`](../components/netops-auditor/docs/) — collection channels and their documented limits |
+| `netops-auditor` | [`components/netops-auditor/docs/`](../components/netops-auditor/docs/) — collection channels, configuration, inventory, releasing and their documented limits |
 | `netops-core` | [`components/netops-core/docs/`](../components/netops-core/docs/) — inventory and credential schemas, the SSH transport, the audit record, releasing |
 
 Cross-component: [`verified-support.md`](verified-support.md) — per platform, what firmware, transport, authentication and account privilege the family has actually measured against a device, versus catalogue only.
 
-Repository-level policy is in [`../SECURITY.md`](../SECURITY.md) and [`../CONTRIBUTING.md`](../CONTRIBUTING.md); the release shape of the family is in [`../README.md`](../README.md), including the rule that this repository keeps exactly one release page per component - three at any moment - while tags of superseded versions stay where they are. Documentation inside a published archive is fixed at the moment that archive was signed; the documentation in this tree is the current one.
+Repository-level policy is in [`../SECURITY.md`](../SECURITY.md) and [`../CONTRIBUTING.md`](../CONTRIBUTING.md); the release shape of the family is in [`../README.md`](../README.md), including the rule that this repository keeps exactly one release page and one tag per component. Superseded release pages, assets and tags are removed; historical source remains accessible by commit. Use the current release links in the root README for downloads and commit permalinks for historical source. Documentation inside a published archive is fixed at the moment that archive was signed; the documentation in this tree is the current one.
