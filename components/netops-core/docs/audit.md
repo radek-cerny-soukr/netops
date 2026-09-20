@@ -9,6 +9,8 @@ field that is not in it is a programming error rather than a line that is silent
 ```
 Recorder(path, component, segment_bytes=2_000_000, retained_segments=5)
 record(event, **fields)
+path()
+lock_path()
 ```
 
 `component` must be one of `("helper", "auditor", "admin")`; any other value is refused when the
@@ -40,8 +42,15 @@ A response is recorded by its length and its SHA-256, never by its content: `res
 |---|---|
 | mode | the file is created with mode 0600 |
 | durability | each record is written and flushed, and the file is fsynced before the call returns |
-| exclusion | a lock serializes writers, so two processes cannot interleave a line |
-| rotation | a segment larger than `segment_bytes` is rotated; exactly `retained_segments` rotated files are kept and the oldest is removed |
+| exclusion | an advisory `flock` on a stable lock file beside the log covers the size check, the whole rotation and the write, so writers in different processes cannot interleave a line or rotate the same file at once; a `threading.Lock` does the same inside one process |
+| rotation | a segment larger than `segment_bytes` is rotated; `retained_segments` files are kept in total, the active one and `retained_segments - 1` rotated ones, and the oldest is removed |
+
+The lock file is the log's name with a leading dot and a `.lock` suffix - `audit.jsonl` is locked
+through `.audit.jsonl.lock` - so it is never mistaken for a segment and its name does not move when
+the log rotates. Locking the log itself would not do: rotation renames that file, and two processes
+would end up holding locks on two different inodes. The lock is advisory, which is enough because
+every writer goes through this module; it does not protect the log from a process that writes to it
+without one.
 
 A write that cannot be completed raises `AuditPersistenceError`: a run whose record cannot be written
 fails rather than continuing unrecorded.

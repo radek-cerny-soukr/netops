@@ -239,7 +239,9 @@ def test_an_empty_listing_with_a_client_complaint_is_a_refusal():
     )
     error = failure(run, remote_path="/safe/missing")
     assert "could not list the path" in str(error)
-    assert "not found" in str(error)
+    assert "the remote path is not there" in str(error)
+    assert 'Can\'t ls: "/safe/missing" not found' not in str(error)
+    assert 'Can\'t ls: "/safe/missing" not found' in error.said
 
 
 def test_a_listing_larger_than_the_cap_is_refused_unparsed():
@@ -268,7 +270,9 @@ def test_a_client_that_closes_early_carries_no_marker_and_no_remedy():
         FakeRun(returncode=255, stdout=b"", stderr=b"Connection closed by 192.0.2.10 port 22\n")
     )
     assert "legacy_ssh" not in str(closed)
-    assert "Connection closed" in str(closed)
+    assert "the device closed the connection" in str(closed)
+    assert "192.0.2.10 port 22" not in str(closed)
+    assert "Connection closed by 192.0.2.10 port 22" in closed.said
 
 
 def test_a_timeout_names_the_host_and_the_limit():

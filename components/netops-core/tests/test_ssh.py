@@ -341,10 +341,11 @@ def test_the_result_carries_the_moments_of_the_call():
     assert result.said == ""
 
 
-def test_a_nonzero_exit_names_the_code_and_what_the_client_said():
+def test_a_nonzero_exit_names_the_code_and_a_recognized_reason():
     error = failure(FakeRun(returncode=255, stdout=b"", stderr=b"Permission denied (publickey).\n"))
     assert "failed with exit code 255" in str(error)
-    assert "Permission denied (publickey)." in str(error)
+    assert "the device refused the credential" in str(error)
+    assert "Permission denied (publickey)." not in str(error)
     assert error.rc == 255
     assert error.said == "Permission denied (publickey)."
     assert "legacy_ssh" not in str(error)
@@ -364,7 +365,9 @@ def test_a_refused_negotiation_names_the_device_and_how_to_write_the_exception_d
     error = failure(FakeRun(returncode=255, stdout=b"", stderr=NEGOTIATION))
     said = str(error)
     assert HOST in said
-    assert "no matching host key type found" in said
+    assert "share no algorithm the client accepts" in said
+    assert "Their offer: ssh-rsa" not in said
+    assert "Their offer: ssh-rsa" in error.said
     assert "offers only algorithms this client refuses" in said
     assert "legacy_ssh" in said
     assert LEGACY_PROFILE in said
@@ -375,7 +378,7 @@ def test_the_remedy_stays_out_when_the_device_already_has_its_profile():
     error = failure(
         FakeRun(returncode=255, stdout=b"", stderr=NEGOTIATION), legacy_ssh=LEGACY_PROFILE
     )
-    assert "no matching host key type found" in str(error)
+    assert "share no algorithm the client accepts" in str(error)
     assert "legacy_ssh" not in str(error)
 
 

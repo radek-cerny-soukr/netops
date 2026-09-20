@@ -166,7 +166,8 @@ def stat(
     *,
     legacy_ssh=None,
     timeout_seconds=DEFAULT_TIMEOUT_SECONDS,
-    run=subprocess.run,
+    capture_max_bytes=ssh_module.CAPTURE_MAX_BYTES,
+    run=None,
     now=None,
 ) -> Entry:
     name = ssh_module._checked_host(host)
@@ -178,8 +179,10 @@ def stat(
     )
     profile = legacy_module.checked(legacy_ssh)
     seconds = ssh_module._checked_timeout(timeout_seconds)
+    budget = ssh_module._checked_capture(capture_max_bytes)
     clock = ssh_module._clock(now)
-    if not callable(run):
+    runner = run if run is not None else ssh_module._capped_runner(budget)
+    if not callable(runner):
         raise SftpError("run must be callable, got %s" % type(run).__name__)
     workspace = tempfile.mkdtemp(prefix=WORKSPACE_PREFIX)
     try:
@@ -190,7 +193,7 @@ def stat(
         batch = (LIST_COMMAND % path).encode("utf-8")
         started_at = ssh_module._moment(clock)
         try:
-            result = run(
+            result = runner(
                 call,
                 input=batch,
                 capture_output=True,
@@ -219,7 +222,7 @@ def stat(
         said = ssh_module._said(result)
         code = getattr(result, "returncode", None)
         if isinstance(code, bool) or not isinstance(code, int) or code != 0:
-            detail = ", the client said: %s" % said if said else ""
+            detail = "; %s" % ssh_module.reason(said) if said else ""
             remedy = ""
             if profile is None and ssh_module.NEGOTIATION_MARKER in said:
                 remedy = ssh_module.LEGACY_REMEDY % (
@@ -235,7 +238,7 @@ def stat(
         if not lines:
             if reported:
                 raise SftpError(
-                    "sftp on %s could not list the path, the client said: %s" % (name, said),
+                    "sftp on %s could not list the path; %s" % (name, ssh_module.reason(said)),
                     code,
                     said,
                 )

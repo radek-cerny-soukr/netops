@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 import os
+import selectors
 import shutil
+import stat
 import subprocess
 import tempfile
+import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
 
@@ -12,18 +15,44 @@ from . import hostkey, legacy_ssh as legacy_module
 SSH_BINARY = "ssh"
 CONFIG_FILE = "/dev/null"
 DEFAULT_TIMEOUT_SECONDS = 120.0
+CAPTURE_MAX_BYTES = 16 * 1024 * 1024
+STDERR_MAX_BYTES = 64 * 1024
+READ_CHUNK = 65536
+KILL_GRACE_SECONDS = 2.0
 MOMENT_FORMAT = "%Y-%m-%dT%H:%M:%SZ"
 WORKSPACE_PREFIX = "netops-core-"
 IDENTITY_NAME = "identity"
 SECRET_NAME = "secret"
 ASKPASS_NAME = "askpass"
 ASKPASS_SCRIPT = '#!/bin/sh\ncat "$NETOPS_ASKPASS_FILE"\n'
+ASKPASS_PROGRAM_ENV = "NETOPS_ASKPASS_PROGRAM"
+ASKPASS_REMEDY = (
+    "; a deployment whose temporary directory is mounted noexec must ship an askpass program on an"
+    " executable path and name it in %s" % ASKPASS_PROGRAM_ENV
+)
 KIND_PASSWORD = "password"
 KIND_KEY = "ssh-key"
 AUTH_KINDS = (KIND_PASSWORD, KIND_KEY)
 SAID_CHARS = 200
 NEGOTIATION_MARKER = "no matching"
 CLIENT_FAILURE_CODE = 255
+REASONS = (
+    (NEGOTIATION_MARKER, "the client and the device share no algorithm the client accepts"),
+    ("Permission denied", "the device refused the credential"),
+    ("REMOTE HOST IDENTIFICATION HAS CHANGED", "the host key is not the pinned one"),
+    ("Host key verification failed", "the host key is not the pinned one"),
+    ("Connection refused", "the device refused the connection"),
+    ("Connection reset", "the device closed the connection"),
+    ("Connection closed", "the device closed the connection"),
+    ("Connection timed out", "the connection timed out"),
+    ("Operation timed out", "the connection timed out"),
+    ("No route to host", "the device was not reachable"),
+    ("Network is unreachable", "the device was not reachable"),
+    ("Could not resolve hostname", "the name did not resolve"),
+    ("Permission denied (publickey)", "the device refused the credential"),
+    ("not found", "the remote path is not there"),
+)
+UNKNOWN_REASON = "the client reported a failure this transport does not recognize"
 OPTIONS = (
     "BatchMode=yes",
     "StrictHostKeyChecking=yes",
@@ -161,6 +190,15 @@ def _said(result) -> str:
     return text
 
 
+def reason(said) -> str:
+    if not isinstance(said, str) or not said:
+        return ""
+    for marker, meaning in REASONS:
+        if marker in said:
+            return meaning
+    return UNKNOWN_REASON
+
+
 def _secret_bytes(name, secret) -> bytes:
     if isinstance(secret, str):
         data = secret.encode("utf-8")
@@ -191,6 +229,90 @@ def _env(workspace) -> dict:
     }
 
 
+def _checked_capture(value) -> int:
+    if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+        raise SshError("capture_max_bytes must be a whole number of at least 1, got %r" % (value,))
+    return value
+
+
+def _kill_and_reap(proc) -> None:
+    try:
+        proc.kill()
+    except OSError:
+        pass
+    try:
+        proc.wait(timeout=KILL_GRACE_SECONDS)
+    except Exception:
+        pass
+
+
+def _run_capped(call, max_bytes, *, timeout, env, stdin_bytes):
+    proc = subprocess.Popen(
+        call,
+        stdin=subprocess.PIPE if stdin_bytes is not None else subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        env=env,
+    )
+    if stdin_bytes is not None:
+        try:
+            proc.stdin.write(stdin_bytes)
+        except OSError:
+            pass
+        finally:
+            try:
+                proc.stdin.close()
+            except OSError:
+                pass
+    deadline = None if timeout is None else time.monotonic() + timeout
+    out = bytearray()
+    err = bytearray()
+    selector = selectors.DefaultSelector()
+    selector.register(proc.stdout.fileno(), selectors.EVENT_READ, "out")
+    selector.register(proc.stderr.fileno(), selectors.EVENT_READ, "err")
+    open_streams = 2
+    overrun = False
+    try:
+        while open_streams and not overrun:
+            if deadline is not None:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    _kill_and_reap(proc)
+                    raise subprocess.TimeoutExpired(call, timeout)
+            else:
+                remaining = None
+            for key, _ in selector.select(remaining):
+                chunk = os.read(key.fileobj, READ_CHUNK)
+                if not chunk:
+                    selector.unregister(key.fileobj)
+                    open_streams -= 1
+                    continue
+                if key.data == "out":
+                    out += chunk
+                    if len(out) > max_bytes:
+                        overrun = True
+                        break
+                elif len(err) < STDERR_MAX_BYTES:
+                    err += chunk[: STDERR_MAX_BYTES - len(err)]
+    finally:
+        selector.close()
+        proc.stdout.close()
+        proc.stderr.close()
+    if overrun:
+        _kill_and_reap(proc)
+        raise SshError(
+            "the client produced more than %d bytes on stdout and was stopped" % max_bytes
+        )
+    return subprocess.CompletedProcess(call, proc.wait(), bytes(out), bytes(err))
+
+
+def _capped_runner(max_bytes):
+    def runner(call, *, capture_output=True, timeout=None, env=None, check=False, input=None):
+        return _run_capped(call, max_bytes, timeout=timeout, env=env, stdin_bytes=input)
+
+    return runner
+
+
 def argv(host, port, login, known_hosts, command, *, identity=None, legacy=None) -> list:
     name = _checked_host(host)
     number = _checked_port(port)
@@ -208,6 +330,45 @@ def argv(host, port, login, known_hosts, command, *, identity=None, legacy=None)
     return result
 
 
+def _named_askpass(named) -> str:
+    try:
+        information = os.stat(named)
+    except OSError:
+        raise SshError(
+            "%s names %r, which is not a file this process can read"
+            % (ASKPASS_PROGRAM_ENV, named)
+        ) from None
+    if not stat.S_ISREG(information.st_mode):
+        raise SshError(
+            "%s names %r, which is not a regular file" % (ASKPASS_PROGRAM_ENV, named)
+        )
+    if information.st_mode & (stat.S_IWGRP | stat.S_IWOTH):
+        raise SshError(
+            "%s names %r, which is writable by group or other; the program that is handed the"
+            " password must not be" % (ASKPASS_PROGRAM_ENV, named)
+        )
+    if not os.access(named, os.X_OK):
+        raise SshError(
+            "%s names %r, which this process cannot execute" % (ASKPASS_PROGRAM_ENV, named)
+        )
+    return named
+
+
+def _askpass(workspace) -> str:
+    named = os.environ.get(ASKPASS_PROGRAM_ENV)
+    if named is not None:
+        return _named_askpass(named)
+    written = _written(
+        os.path.join(workspace, ASKPASS_NAME), ASKPASS_SCRIPT.encode("utf-8"), 0o700
+    )
+    if not os.access(written, os.X_OK):
+        raise SshError(
+            "the askpass program written into %s cannot be executed, so a password cannot be"
+            " handed to the client%s" % (workspace, ASKPASS_REMEDY)
+        )
+    return written
+
+
 def _prepared(workspace, kind, credential) -> tuple:
     environment = _env(workspace)
     if kind == KIND_KEY:
@@ -222,10 +383,7 @@ def _prepared(workspace, kind, credential) -> tuple:
         _secret_bytes("password", credential.use()),
         0o600,
     )
-    askpass = _written(
-        os.path.join(workspace, ASKPASS_NAME), ASKPASS_SCRIPT.encode("utf-8"), 0o700
-    )
-    environment["SSH_ASKPASS"] = askpass
+    environment["SSH_ASKPASS"] = _askpass(workspace)
     environment["SSH_ASKPASS_REQUIRE"] = "force"
     environment["DISPLAY"] = "none"
     environment["NETOPS_ASKPASS_FILE"] = secret
@@ -242,7 +400,8 @@ def run_command(
     *,
     legacy_ssh=None,
     timeout_seconds=DEFAULT_TIMEOUT_SECONDS,
-    run=subprocess.run,
+    capture_max_bytes=CAPTURE_MAX_BYTES,
+    run=None,
     now=None,
 ) -> Result:
     name = _checked_host(host)
@@ -252,8 +411,10 @@ def run_command(
     user = _checked_login(login if login is not None else getattr(credential, "login", None))
     profile = legacy_module.checked(legacy_ssh)
     seconds = _checked_timeout(timeout_seconds)
+    budget = _checked_capture(capture_max_bytes)
     clock = _clock(now)
-    if not callable(run):
+    runner = run if run is not None else _capped_runner(budget)
+    if not callable(runner):
         raise SshError("run must be callable, got %s" % type(run).__name__)
     workspace = tempfile.mkdtemp(prefix=WORKSPACE_PREFIX)
     try:
@@ -265,7 +426,7 @@ def run_command(
         )
         started_at = _moment(clock)
         try:
-            result = run(
+            result = runner(
                 call, capture_output=True, timeout=seconds, env=environment, check=False
             )
         except subprocess.TimeoutExpired:
@@ -293,7 +454,7 @@ def run_command(
             or not isinstance(code, int)
             or code == CLIENT_FAILURE_CODE
         ):
-            detail = ", the client said: %s" % said if said else ""
+            detail = "; %s" % reason(said) if said else ""
             remedy = ""
             if profile is None and NEGOTIATION_MARKER in said:
                 remedy = LEGACY_REMEDY % (name, ", ".join(legacy_module.PROFILES))

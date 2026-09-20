@@ -26,6 +26,7 @@ written down, and one place the tests hold against.
 | `DEFAULT_TIMEOUT_SECONDS` | `60.0` |
 | `LIST_COMMAND` | `ls -ln "<path>"`, a batch of exactly one line |
 | `LISTING_MAX_BYTES` | `262144`; a larger answer is refused unparsed |
+| `capture_max_bytes` | `ssh.CAPTURE_MAX_BYTES` by default; the receive budget of [the shared runner](ssh.md#bounded-receive), which stops a flooding client before anything is parsed |
 
 The argument vector is built by `argv()` and is the one of `ssh.py` with three differences: the
 binary, `-P` instead of `-p` for the port, and no remote command at the end. Everything else is
@@ -131,7 +132,7 @@ it. A real `mtime` needs a protocol-level `stat`, which this client does not exp
   still a directory, because the entry's name is not the requested path.
 - no listing line and nothing on standard error but the progress line -> an empty directory,
   `entry_count` 0.
-- no listing line and something else on standard error -> a refusal carrying what the client said.
+- no listing line and something else on standard error -> a refusal naming the classified reason ([why not the words themselves](ssh.md#the-message-of-a-failure-names-a-reason-not-the-devices-words)).
   That last rule is what turns `Can't ls: ... not found` into an error, because the exit status does
   not: measured above, `sftp` ended with 0 on a path that is not there.
 
@@ -153,10 +154,11 @@ server for the literal name `/safe/*` and answered `Can't ls: "/safe/\*" not fou
 | a path the batch line could not carry | `SftpError` naming the rule |
 | credential of another kind | `SftpError` naming the kind |
 | the client does not finish in `timeout_seconds` | `SftpError` naming the host and the timeout |
-| any exit status other than 0 | `SftpError` carrying the status and what the client said |
+| any exit status other than 0 | `SftpError` carrying the status and, in its message, a reason from `ssh.REASONS`; what the client said stays on `said` |
 | exit status other than 0, no `legacy_ssh` profile, and the client mentions a failed negotiation | the same remedy text as `ssh.run_command`: the exception is written per device as `legacy_ssh` |
-| an empty listing with a complaint on standard error | `SftpError` carrying the complaint |
+| an empty listing with a complaint on standard error | `SftpError` naming the classified reason; the complaint itself stays on `said` |
 | a listing larger than `LISTING_MAX_BYTES` | `SftpError`; the answer is not parsed at all |
+| a client that writes more than `capture_max_bytes` | `SftpError` naming the budget; the client is killed while it writes, so `LISTING_MAX_BYTES` is the limit of what is parsed and this one is the limit of what is ever held |
 | a single listing line this parser does not know | `SftpError`; nothing is guessed |
 
 `SftpError` is `ssh.SshError`: one transport, one refusal type.

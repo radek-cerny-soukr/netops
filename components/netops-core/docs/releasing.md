@@ -1,8 +1,8 @@
 # Release process
 
 Release tags follow the component scheme `<name>/v<version>`, where `<name>` is the project name
-declared in this component's `pyproject.toml`: this component tags `netops-core/v0.1.0`, and the
-release title is `netops-core 0.1.0`. Tags of another component are never touched by this procedure,
+declared in this component's `pyproject.toml`: this component tags `netops-core/v0.2.0`, and the
+release title is `netops-core 0.2.0`. Tags of another component are never touched by this procedure,
 and the unprefixed tags `v0.1.0`, `v0.2.0`, `v0.2.1` are the history of `netops-helper`; they are
 never moved, deleted, or recreated. The canonical origin is
 `https://github.com/radek-cerny-soukr/netops`.
@@ -65,7 +65,7 @@ installed beside the standard library.
    (cd path/to/new-output/netops-core-<version> && python3 -B scripts/check_gates.py)
    ```
 3. Create the final trusted signed commit on clean `main`, then, under a separate explicit
-   authorization, the signed annotated tag `netops-core/v0.1.0` on that exact commit. Verify the tag
+   authorization, the signed annotated tag `netops-core/v0.2.0` on that exact commit. Verify the tag
    resolves to a tag object, carries a trusted signature, and peels to the signed commit. Neither step
    authorizes a push, a build, or a transparency-log upload.
 4. On the builder, place a clone of the repository at the released commit in `repos/netops-core` and

@@ -3,12 +3,14 @@ from __future__ import annotations
 import base64
 import hashlib
 import os
-import subprocess
+
+from . import ssh as ssh_module
 
 PREFIX = "SHA256:"
 DIGEST_LENGTH = 43
 KEYSCAN_BINARY = "ssh-keyscan"
 KNOWN_HOSTS_NAME = "known_hosts"
+KEYSCAN_CAPTURE_MAX_BYTES = 256 * 1024
 DIGEST_CHARS = frozenset(
     "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
 )
@@ -114,12 +116,20 @@ def _env() -> dict:
     return {"PATH": os.environ.get("PATH", "/usr/bin:/bin"), "LC_ALL": "C"}
 
 
-def scan(host, port, pin, timeout_seconds, run=subprocess.run) -> str:
+def scan(
+    host, port, pin, timeout_seconds, *, capture_max_bytes=KEYSCAN_CAPTURE_MAX_BYTES, run=None
+) -> str:
     fingerprint = checked_pin(pin)
     argv = keyscan_argv(host, port, timeout_seconds)
     seconds = _checked_timeout(timeout_seconds)
     try:
-        result = run(argv, capture_output=True, timeout=seconds, check=False, env=_env())
+        budget = ssh_module._checked_capture(capture_max_bytes)
+        runner = run if run is not None else ssh_module._capped_runner(budget)
+        result = runner(argv, capture_output=True, timeout=seconds, check=False, env=_env())
+    except ssh_module.SshError as error:
+        raise HostKeyError(
+            "cannot read the host key of %s: %s" % (argv[-1], error)
+        ) from None
     except Exception as error:
         raise HostKeyError(
             "cannot read the host key of %s (%s)" % (argv[-1], type(error).__name__)

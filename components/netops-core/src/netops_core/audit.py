@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import fcntl
 import json
 import os
 import re
 import threading
+from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -11,6 +13,7 @@ COMPONENTS = ("helper", "auditor", "admin")
 STATUSES = ("started", "ok", "failed")
 SEGMENT_BYTES = 2_000_000
 RETAINED_SEGMENTS = 5
+LOCK_SUFFIX = ".lock"
 OPERATION_ID = re.compile(r"op_[0-9a-f]{32}")
 FIELDS = frozenset(
     {
@@ -76,9 +79,23 @@ class Recorder:
         self._segment_bytes = _checked_count("segment_bytes", segment_bytes, 1)
         self._retained_segments = _checked_count("retained_segments", retained_segments, 1)
         self._lock = threading.Lock()
+        self._lock_path = self._path.with_name(".%s%s" % (self._path.name, LOCK_SUFFIX))
 
     def path(self) -> Path:
         return self._path
+
+    def lock_path(self) -> Path:
+        return self._lock_path
+
+    @contextmanager
+    def _exclusive(self):
+        descriptor = os.open(self._lock_path, os.O_RDWR | os.O_CREAT | os.O_CLOEXEC, 0o600)
+        try:
+            os.fchmod(descriptor, 0o600)
+            fcntl.flock(descriptor, fcntl.LOCK_EX)
+            yield
+        finally:
+            os.close(descriptor)
 
     def component(self) -> str:
         return self._component
@@ -155,13 +172,14 @@ class Recorder:
         try:
             with self._lock:
                 self._path.parent.mkdir(parents=True, exist_ok=True)
-                self._rotate(len(encoded))
-                self._path.touch(mode=0o600, exist_ok=True)
-                os.chmod(self._path, 0o600)
-                with self._path.open("ab") as handle:
-                    handle.write(encoded)
-                    handle.flush()
-                    os.fsync(handle.fileno())
+                with self._exclusive():
+                    self._rotate(len(encoded))
+                    self._path.touch(mode=0o600, exist_ok=True)
+                    os.chmod(self._path, 0o600)
+                    with self._path.open("ab") as handle:
+                        handle.write(encoded)
+                        handle.flush()
+                        os.fsync(handle.fileno())
         except OSError as error:
             raise AuditPersistenceError(
                 "cannot write the audit record of %r to %s: %s" % (event, self._path, error)

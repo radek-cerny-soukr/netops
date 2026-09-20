@@ -88,6 +88,7 @@ class Session:
         *,
         legacy_ssh=None,
         timeout_seconds=ssh_module.DEFAULT_TIMEOUT_SECONDS,
+        capture_max_bytes=ssh_module.CAPTURE_MAX_BYTES,
         spawn=None,
         now=None,
     ) -> None:
@@ -99,6 +100,7 @@ class Session:
         )
         profile = legacy_module.checked(legacy_ssh)
         seconds = ssh_module._checked_timeout(timeout_seconds)
+        budget = ssh_module._checked_capture(capture_max_bytes)
         clock = ssh_module._clock(now)
         start = _spawn if spawn is None else spawn
         if not callable(start):
@@ -131,6 +133,7 @@ class Session:
         self.argv = list(call)
         self.started_at = started_at
         self.timeout_seconds = seconds
+        self.max_transcript_bytes = budget
         self.discarded_login_bytes = 0
         self.seen_bytes = 0
         self._workspace = workspace
@@ -214,6 +217,15 @@ class Session:
                     size,
                 )
             buffer += chunk
+            if len(buffer) > self.max_transcript_bytes:
+                size = len(buffer)
+                self.seen_bytes += size
+                raise SessionError(
+                    "the session to %s produced more than %d bytes without matching any of the"
+                    " %d awaited pattern(s) and was stopped"
+                    % (self.host, self.max_transcript_bytes, len(awaited)),
+                    size,
+                )
 
     def send(self, line) -> None:
         self._alive()

@@ -1,5 +1,36 @@
 # Changelog
 
+## 0.2.0 - 2026-09-20
+
+Hardening release: every transport bounds what it reads from a device, a failure names a reason
+instead of repeating the device's own words, and password authentication survives a temporary
+directory mounted noexec.
+
+- Bounded receive: `ssh.run_command`, `netops_core.sftp.stat`, `session.Session` and now
+  `netops_core.hostkey.scan` no longer hand the client an open bucket. The default runner reads
+  standard output up to `capture_max_bytes` and kills a peer that keeps sending past it; standard
+  error keeps only its first `STDERR_MAX_BYTES`. The host key scan carries its own, much smaller default,
+  `KEYSCAN_CAPTURE_MAX_BYTES` (256 KiB), because a host key answer is a handful of lines, never a
+  configuration; the auditor no longer forces its own uncapped runner onto that scan either. The
+  `run=`/`spawn=` seam stays for tests, so only the default, production path is capped (`docs/ssh.md`).
+- Audit record: an advisory `flock` on a stable lock file beside the log (`.<name>.lock`) now covers
+  the size check, the rotation and the write across processes, not only across threads inside one.
+  The retention wording is corrected: `retained_segments` files are kept in total - the active one
+  and `retained_segments - 1` rotated ones - not that many rotated files on top of the active one
+  (`docs/audit.md`).
+- Askpass program: password authentication now goes through an executable program instead of a
+  script written into the workspace. By default that is `<workspace>/askpass`, mode 0700; a
+  deployment whose temporary directory is mounted noexec instead names a program on an executable
+  path in `NETOPS_ASKPASS_PROGRAM` - the package ships one, `netops_core/askpass.py`, mode 0755.
+  Both paths are checked before the client starts, so a workspace that cannot execute the program is
+  refused with a message naming the reason and the variable, instead of failing later as what looks
+  like a wrong password (`docs/ssh.md`).
+- Classified failure reasons: the message of an `SshError` or an `SftpError` now names a reason from
+  a closed list (`netops_core.ssh.reason`) instead of repeating the peer's own standard error text. The raw text
+  stays on the exception as `said`, for a log that is allowed to hold it; a device controls its own
+  standard error, so echoing it into a message an operator or a model reads put attacker-controlled
+  text - potentially a secret - there.
+
 ## 0.1.0 - 2026-09-19
 
 First version of `netops-core`, the shared access layer of the `netops` family. It releases from

@@ -11,7 +11,8 @@ additions are `-tt`, which asks for a terminal, and the fact that the process li
 
 ```
 Session(host, port, login, credential, host_key_line, *,
-        legacy_ssh=None, timeout_seconds=DEFAULT_TIMEOUT_SECONDS, spawn=None, now=None)
+        legacy_ssh=None, timeout_seconds=DEFAULT_TIMEOUT_SECONDS,
+        capture_max_bytes=CAPTURE_MAX_BYTES, spawn=None, now=None)
 ```
 
 The arguments are those of `ssh.run_command` without a command. The client is forked on a
@@ -32,10 +33,17 @@ environment is the one `ssh.py` builds, nothing inherited. A session is a contex
 b"Please login"]` tells a successful login from a repeated prompt by the returned index. The session
 keeps only the bytes it has read but not yet handed out; what `expect` returned is forgotten.
 
+A timeout bounds how long `expect` waits, and `capture_max_bytes` bounds how much it holds while it
+waits. A device that answers a prompt with an endless stream - or with a stream that simply never
+carries the awaited pattern - is stopped at that budget with a `SessionError` instead of growing the
+buffer until the deadline. The budget applies to what is held at one time, so it is not a limit on
+the length of a session: bytes handed out by a match no longer count against it. `close()` kills the
+client as usual, so nothing keeps writing after the refusal.
+
 ## What never leaves the session
 
-A `SessionError` names the host, the number of patterns awaited, the seconds waited and the number
-of bytes seen - never the bytes. Devices that ask for the password inside the shell echo it on the
+A `SessionError` names the host, the number of patterns awaited, the seconds waited or the budget
+that was exceeded, and the number of bytes seen - never the bytes. Devices that ask for the password inside the shell echo it on the
 terminal, so the transcript of a login phase is a secret: the library refuses to put it in an error,
 and the caller is expected to drop it (`discard`) rather than log it. Tests hold the library to that:
 a timeout error containing the buffer is a failing test.

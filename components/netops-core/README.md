@@ -5,7 +5,8 @@ device: the inventory of devices, the credential store, host key trust, the SSH 
 audit record. It evaluates nothing, decides nothing, and exposes no server; the components above it
 bring the policy.
 
-This component has not been released yet. It is standard library only, requires Python 3.13 or newer,
+The current release is `netops-core/v0.2.0` (2026-09-20); `netops-auditor` 0.2.1 and `netops-helper` 0.3.1 pin
+exactly that version. The component is standard library only, requires Python 3.13 or newer,
 and declares no dependency: `pyproject.toml` carries an empty `dependencies` list and the gate
 `core_stdlib` refuses any import outside the standard library anywhere under `src/`.
 
@@ -39,7 +40,10 @@ takes it from the tree at build time: the consuming component installs the direc
 and no published wheel; the version that is built is the version that is in the tree.
 
 **This component ships no image.** It has no `Dockerfile`, no compose file, and no MCP surface. An
-image belongs to the component that runs, not to the library it links.
+image belongs to the component that runs, not to the library it links. Because there is no image,
+there is no isolating container of its own either: `ssh.py`, `sftp.py`, `session.py` and
+`hostkey.py` run the OpenSSH client already installed on the host, and inherit that client's own
+vulnerabilities. Keeping that client current is the operator's responsibility, not this library's.
 
 ## Verifying it
 
