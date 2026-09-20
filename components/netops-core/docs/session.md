@@ -27,7 +27,7 @@ environment is the one `ssh.py` builds, nothing inherited. A session is a contex
 | `expect(patterns, timeout_seconds)` | reads until one of the byte patterns appears, returns `(index, data)` - the index of the earliest matching pattern and the bytes consumed up to and including the match; raises `SessionError` when the timeout passes or the process ends first |
 | `send(line)` | writes `line` and a newline; a line that carries `\n`, `\r` or `\x00` is refused |
 | `discard(data)` | counts bytes the caller has decided not to keep; the count is `discarded_login_bytes` |
-| `close()` | closes the terminal, waits for the client, kills it when it ignores the hangup, removes the workspace |
+| `close()` | closes the terminal, waits for the client, ends it when it ignores the hangup - the whole terminal group, not only the client - removes the workspace |
 
 `expect` matches the earliest pattern in the stream, not the first in the list, so `[b"ruckus> ",
 b"Please login"]` tells a successful login from a repeated prompt by the returned index. The session
@@ -37,8 +37,17 @@ A timeout bounds how long `expect` waits, and `capture_max_bytes` bounds how muc
 waits. A device that answers a prompt with an endless stream - or with a stream that simply never
 carries the awaited pattern - is stopped at that budget with a `SessionError` instead of growing the
 buffer until the deadline. The budget applies to what is held at one time, so it is not a limit on
-the length of a session: bytes handed out by a match no longer count against it. `close()` kills the
+the length of a session: bytes handed out by a match no longer count against it. `close()` ends the
 client as usual, so nothing keeps writing after the refusal.
+
+## Closing bounds the same way
+
+Closing the terminal hangs the client up. If it is still there after that, `close()` asks it to end,
+then signals the whole group the pseudo-terminal gave it - the session the client leads and nothing
+else - and finally kills and reaps, so a process the device's shell started cannot outlive the
+session that owned it and nothing is left as a zombie. That sweep of the group happens whether the
+client had to be killed or ended by itself on the hangup. This is the cleanup `ssh.py` uses for a
+single command, on the transport that stays open (`docs/ssh.md`).
 
 ## What never leaves the session
 
@@ -47,6 +56,11 @@ that was exceeded, and the number of bytes seen - never the bytes. Devices that 
 terminal, so the transcript of a login phase is a secret: the library refuses to put it in an error,
 and the caller is expected to drop it (`discard`) rather than log it. Tests hold the library to that:
 a timeout error containing the buffer is a failing test.
+
+A `SessionError` carries no text of the device at all, so there is nothing here to forward by
+accident. The rule that governs `said` on the other transport - the other side's text is for an
+operator reading it by hand and is never put into a report, a log line or a prompt on its own -
+holds for anything a caller keeps out of a transcript itself (`docs/ssh.md`).
 
 ## Measured against
 

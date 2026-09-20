@@ -50,6 +50,27 @@ def _spawn(call, env) -> tuple:
     return pid, fd
 
 
+def _waited(pid, seconds) -> bool:
+    deadline = time.monotonic() + seconds
+    while True:
+        try:
+            done, _ = os.waitpid(pid, os.WNOHANG)
+        except OSError:
+            return True
+        if done == pid:
+            return True
+        if time.monotonic() >= deadline:
+            return False
+        time.sleep(REAP_STEP_SECONDS)
+
+
+def _signalled(pid, number) -> None:
+    try:
+        os.kill(pid, number)
+    except OSError:
+        pass
+
+
 def _checked_patterns(patterns) -> tuple:
     if isinstance(patterns, (str, bytes, bytearray)):
         patterns = (patterns,)
@@ -246,25 +267,17 @@ class Session:
             ) from None
 
     def _reaped(self, pid) -> None:
-        deadline = time.monotonic() + KILL_AFTER_SECONDS
-        while True:
-            try:
-                done, _ = os.waitpid(pid, os.WNOHANG)
-            except OSError:
-                return
-            if done == pid:
-                return
-            if time.monotonic() >= deadline:
-                break
-            time.sleep(REAP_STEP_SECONDS)
-        try:
-            os.kill(pid, signal.SIGKILL)
-        except OSError:
-            pass
-        try:
-            os.waitpid(pid, 0)
-        except OSError:
-            pass
+        group = ssh_module._own_group(pid)
+        gone = _waited(pid, KILL_AFTER_SECONDS)
+        if not gone:
+            ssh_module._signalled_group(group, signal.SIGTERM)
+            _signalled(pid, signal.SIGTERM)
+            gone = _waited(pid, ssh_module.TERMINATE_GRACE_SECONDS)
+        if not gone:
+            ssh_module._signalled_group(group, signal.SIGKILL)
+            _signalled(pid, signal.SIGKILL)
+            _waited(pid, KILL_AFTER_SECONDS)
+        ssh_module._swept(group)
 
     def close(self) -> None:
         if self._closed:

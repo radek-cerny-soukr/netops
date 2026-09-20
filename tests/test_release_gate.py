@@ -55,6 +55,7 @@ def _fixture(tmp_path: Path) -> Path:
         "          python tests/test_release_gate.py\n"
         "          python scripts/check_release.py\n"
         "  demo:\n"
+        "    if: ${{ !startsWith(github.ref, 'refs/tags/') || startsWith(github.ref, 'refs/tags/demo/') }}\n"
         "    defaults:\n"
         "      run:\n"
         "        working-directory: components/demo\n"
@@ -197,6 +198,16 @@ def test_gate_rejects_ci_that_skips_a_component_or_a_required_step() -> None:
             "CI does not run a required step: NETOPS_REQUIRE_RUNTIME_TESTS=1 python -m pytest -q"
             in errors
         )
+
+        workflow.write_text(
+            text.replace(
+                "    if: ${{ !startsWith(github.ref, 'refs/tags/') || startsWith(github.ref, 'refs/tags/demo/') }}\n",
+                "",
+            ),
+            encoding="utf-8",
+        )
+        errors = _gate_for(root).check(root)
+        assert "CI does not scope the tag run of a component to its own tag: demo" in errors
 
 
 def test_gate_rejects_actions_that_are_not_sha_pinned() -> None:

@@ -1,5 +1,46 @@
 # Changelog
 
+## 0.2.1 - 2026-09-20
+
+Correction to the bounded receive: the timeout now holds for the whole life
+of the client process, not only while it is still talking, and a client is stopped together with
+everything it started.
+
+- One deadline, the whole life of the process: the capped runner watched the clock only while
+  standard output or standard error was open. A client that closed both streams and kept running was
+  then waited for without any bound, so it came back as a success long after `timeout_seconds` had
+  passed - a device, or anything in front of it, could hold a caller for as long as it liked by
+  closing two descriptors. The runner now takes one monotonic deadline before it hands the client
+  anything, and the final wait gets what is left of it; when it runs out the call is refused with the
+  timeout it always promised. A slow client that keeps its streams open is refused exactly as before.
+- The whole owned process group is stopped, not only the client: the client is started in its own
+  session (`start_new_session=True`) and is stopped by signalling the whole group it leads, so a
+  process it started itself - `sftp` runs its own `ssh` - cannot outlive the refusal, keep the pipe
+  open, or stay behind as an orphan. A signal goes to the group only when the process this library
+  started really leads one, so an injected runner cannot be made to signal a group it does not own.
+- A cleanup guard owns the process from the moment `Popen` returns: a failure to register the
+  selector, an error inside the reading loop, an overrun of `capture_max_bytes`, a timeout, or any
+  other exception all leave through the same exit, which terminates, waits a short grace, and then
+  kills - the group first, the client itself second - and reaps what it killed. Whatever the reason,
+  nothing is left running and nothing is left as a zombie. Before, only the budget and the timeout
+  killed anything, and a registration error or a broken read left the client running.
+- A call that ends by itself sweeps its group too: a client that exits with a status of its own
+  while a process it started keeps running used to leave that process behind as an orphan, because
+  only a refusal cleaned anything up. After the client is reaped, whatever is left of its group is
+  asked to end, given the same short grace and then killed. The answer of the call does not change -
+  the status, the output and the moments are the client's own - and when the group is already empty,
+  which is the ordinary case, the sweep costs one system call.
+- The interactive session follows the same contract when it is closed: after the hangup the terminal
+  sends, the client is asked to end, then the whole terminal group is signalled, so a process the
+  device's shell started does not survive the session that owned it. The pseudo-terminal already put
+  that client in its own session, so the group is the session's own and nothing else is touched.
+- `run_command`, `netops_core.sftp.stat` and `netops_core.hostkey.scan` share the one runner, so the
+  time contract and the cleanup are the same in all three; only a caller's own `run=` runner is still
+  the caller's business.
+- `docs/ssh.md` writes the time contract down and states plainly what `said` is for: it is the
+  other side's text, unanonymized, for an operator reading it by hand - never something a caller
+  forwards into a report, a log line or a model prompt on its own.
+
 ## 0.2.0 - 2026-09-20
 
 Hardening release: every transport bounds what it reads from a device, a failure names a reason

@@ -31,7 +31,7 @@ line: a reader can split the file on newlines without parsing it.
 `FIELDS` is `operation_id`, `device`, `status`, `channel`, `request`, `response_sha256`,
 `response_bytes`, `started_at`, `finished_at`, `legacy_ssh`, `detail`, `query`, `platform`, `port`,
 `count`, `item_count`, `offset`, `max_bytes`, `total_bytes`, `returned_bytes`, `path_sha256`,
-`result_sha256`, `use_tls`, `plaintext_acknowledged`, `pagination_source`.
+`result_sha256`, `use_tls`, `plaintext_acknowledged`, `pagination_source`, `transport`, `rc`.
 
 A response is recorded by its length and its SHA-256, never by its content: `response_sha256` and
 `response_bytes` say that the same answer came back twice without the file holding either answer.

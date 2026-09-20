@@ -154,7 +154,7 @@ server for the literal name `/safe/*` and answered `Can't ls: "/safe/\*" not fou
 | a path the batch line could not carry | `SftpError` naming the rule |
 | credential of another kind | `SftpError` naming the kind |
 | the client does not finish in `timeout_seconds` | `SftpError` naming the host and the timeout |
-| any exit status other than 0 | `SftpError` carrying the status and, in its message, a reason from `ssh.REASONS`; what the client said stays on `said` |
+| any exit status other than 0 | `SftpError` carrying the status and, in its message, a reason from `ssh.REASONS`; what the client said stays on `said`, which is for an operator's own reading and is never forwarded on its own (`docs/ssh.md`) |
 | exit status other than 0, no `legacy_ssh` profile, and the client mentions a failed negotiation | the same remedy text as `ssh.run_command`: the exception is written per device as `legacy_ssh` |
 | an empty listing with a complaint on standard error | `SftpError` naming the classified reason; the complaint itself stays on `said` |
 | a listing larger than `LISTING_MAX_BYTES` | `SftpError`; the answer is not parsed at all |

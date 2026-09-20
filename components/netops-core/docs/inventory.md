@@ -22,7 +22,7 @@ An unknown field is refused, naming the device and the field; a missing field is
 | Field | Type | Rule |
 |---|---|---|
 | `name` | string | non-empty, unique in the document; it is the name every other field is reported against |
-| `platform` | string | passed through `platforms.normalize`; a canonical name or a known alias, stored canonical. `PLATFORMS = ("fortios", "exos", "linux", "cisco_ios", "cisco_xe", "cisco_nxos", "arista_eos", "juniper_junos", "juniper_junos_els")`, `ALIASES = {"fortinet": "fortios", "extreme_exos": "exos", "extreme_switch_engine": "exos"}` |
+| `platform` | string | passed through `platforms.normalize`; a canonical name or a known alias, stored canonical. `PLATFORMS = ("fortios", "exos", "linux", "cisco_ios", "cisco_xe", "cisco_nxos", "arista_eos", "juniper_junos", "juniper_junos_els", "ruckus_unleashed")`, `ALIASES = {"fortinet": "fortios", "extreme_exos": "exos", "extreme_switch_engine": "exos"}` |
 | `address` | string or `null` | a canonical IPv4 literal, or a lowercase DNS name (labels `[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?`, no trailing dot, at most 253 characters). An IPv6 literal is refused with a message saying IPv6 targets are not supported |
 | `port` | integer or `null` | 1 to 65535; a boolean is refused. `address` and `port` are both `null` or both set |
 | `role` | string | one of `ROLES = ("perimetr", "interni", "lab")` |

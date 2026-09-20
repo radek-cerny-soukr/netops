@@ -28,6 +28,7 @@ jobs:
           python scripts/check_release.py
 
   netops-helper:
+    if: ${{ !startsWith(github.ref, 'refs/tags/') || startsWith(github.ref, 'refs/tags/netops-helper/') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     defaults:
@@ -72,6 +73,7 @@ jobs:
           (cd "$target" && python -B scripts/check_public_release.py)
 
   netops-auditor:
+    if: ${{ !startsWith(github.ref, 'refs/tags/') || startsWith(github.ref, 'refs/tags/netops-auditor/') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     defaults:
@@ -114,6 +116,7 @@ jobs:
           (cd "$target" && PYTHONPATH="$GITHUB_WORKSPACE/components/netops-core/src" python -B scripts/check_gates.py)
 
   netops-core:
+    if: ${{ !startsWith(github.ref, 'refs/tags/') || startsWith(github.ref, 'refs/tags/netops-core/') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     defaults:

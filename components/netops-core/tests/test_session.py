@@ -2,6 +2,7 @@ import os
 import pty
 import sys
 import tempfile
+import time
 
 import pytest
 
@@ -354,3 +355,64 @@ def test_a_credential_of_another_kind_is_refused_before_anything_starts(kind):
         session(spawn, credential=FakeCredential(kind, CANARY_PASSWORD))
     assert spawn.calls == []
     assert "password or ssh-key" in str(caught.value)
+
+
+def _deaf_child(marker):
+    return "; ".join(
+        (
+            "import os, signal, time",
+            "signal.signal(signal.SIGHUP, signal.SIG_IGN)",
+            "open(%r, 'w').write(str(os.getpid()))" % str(marker),
+            "time.sleep(30)",
+        )
+    )
+
+
+def _parent_of(child):
+    return "\n".join(
+        (
+            "import signal, subprocess, sys, time",
+            "signal.signal(signal.SIGHUP, signal.SIG_IGN)",
+            "subprocess.Popen([sys.executable, '-c', %r])" % child,
+            "time.sleep(30)",
+        )
+    )
+
+
+def _pid_of(marker, seconds=5.0):
+    deadline = time.monotonic() + seconds
+    while True:
+        try:
+            return int(marker.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            pass
+        if time.monotonic() >= deadline:
+            raise AssertionError("no process wrote its pid into %s" % marker)
+        time.sleep(0.02)
+
+
+def _ended_within(pid, seconds=5.0):
+    deadline = time.monotonic() + seconds
+    while True:
+        try:
+            with open("/proc/%d/stat" % pid, "rb") as handle:
+                state = handle.read().rsplit(b")", 1)[1].split()[0]
+        except OSError:
+            return True
+        if state == b"Z":
+            return True
+        if time.monotonic() >= deadline:
+            return False
+        time.sleep(0.02)
+
+
+def test_close_stops_the_whole_terminal_group_not_only_the_client(tmp_path, monkeypatch):
+    monkeypatch.setattr(session_module, "KILL_AFTER_SECONDS", 0.3)
+    marker = tmp_path / "grandchild-pid"
+    spawn = PtySpawn(_parent_of(_deaf_child(marker)))
+    handle = session(spawn)
+    grandchild = _pid_of(marker)
+    handle.close()
+    with pytest.raises(ChildProcessError):
+        os.waitpid(spawn.pid, os.WNOHANG)
+    assert _ended_within(grandchild)

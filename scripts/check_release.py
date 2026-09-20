@@ -279,6 +279,8 @@ def _workflow_errors(root: Path, names: list[str]) -> list[str]:
         for relative in COMPONENT_GATES.get(name, ()):
             if relative not in ci_workflow:
                 errors.append(f"CI does not run a component gate: {name}/{relative}")
+        if f"refs/tags/{name}/" not in ci_workflow:
+            errors.append(f"CI does not scope the tag run of a component to its own tag: {name}")
     for fragment in CI_REQUIRED_FRAGMENTS:
         if fragment not in ci_workflow:
             errors.append(f"CI does not run a required step: {fragment}")

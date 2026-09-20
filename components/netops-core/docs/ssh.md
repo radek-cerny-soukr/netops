@@ -68,8 +68,29 @@ output and standard error as they arrive, and holds at most `capture_max_bytes` 
 A device that keeps sending past that budget - deliberately, or through a command that never ends -
 is killed and the call is refused with `SshError`; nothing of what it sent is returned. Standard
 error keeps only its first `STDERR_MAX_BYTES` and the rest is read and dropped, so a noisy client
-cannot grow memory either and cannot block by filling its pipe. The deadline covers the whole
-receive: when `timeout_seconds` passes the client is killed and the call is refused.
+cannot grow memory either and cannot block by filling its pipe.
+
+### One deadline, and what is stopped when it passes
+
+`timeout_seconds` becomes one monotonic deadline, taken before the client is handed anything, and it
+holds until the process has really ended: while the streams are read, and for the final wait after
+they have closed. A client that closes standard output and standard error and then keeps running is
+refused at that deadline like any other; going quiet buys it no time. A client that keeps its streams
+open and says nothing is refused at the same deadline, as it always was.
+
+The client is started in its own session, so it leads a process group, and it is owned from the
+moment it is started rather than from the moment the first byte arrives. Every way out - the
+deadline, the budget, a failure to set the reading up, an error inside the reading loop - leaves
+through one cleanup: terminate, a short grace, then kill, sent to the group as well as to the
+client, and what was killed is reaped.
+
+A call that finished on its own is swept the same way, only without a refusal: once the client has
+been reaped, whatever is left of its group is asked to end, given the same short grace and then
+killed. So a client that exits with a status of its own while a process it started keeps running -
+`sftp` runs its own `ssh` - does not leave that process behind as an orphan, and no zombie is left
+either. Nothing of the answer changes: the status, the output and the moments of the call are the
+ones the client produced, and when the group is already empty, which is the ordinary case, the sweep
+is a single system call. The interactive session closes the same way (`docs/session.md`).
 
 `capture_max_bytes` defaults to `CAPTURE_MAX_BYTES`, which is the budget of a configuration-sized
 answer, not of a diagnostic one. A caller that knows it asks for little passes a smaller number, and
@@ -116,9 +137,14 @@ its command output, can put text there - including a secret it holds, or a sente
 whoever reads the error. So the **message** of an `SshError` never repeats it. It names the host, the
 exit status and one reason out of the closed list `REASONS` of this module, matched by marker;
 anything unmatched is `UNKNOWN_REASON`, which says the client failed for a reason this transport does
-not recognize. The raw text stays on the exception as `said`, for a caller that has a place for it
-that is not a message: an audit record, an operator's log. A caller that passes an error text on to
-an agent or a report passes the classified sentence.
+not recognize. The raw text stays on the exception, and on a `Result`, as `said`.
+
+`said` is the other side's own text: unanonymized, attacker-controlled, possibly a secret the device
+holds, possibly a sentence written to be read by whoever reads the error. It is there for one
+purpose, an operator diagnosing a device by hand. It must not be forwarded automatically - not into
+a report, not into a log line, not into a prompt handed to a model, not into an audit record that is
+read back by anything but a person. A caller that passes an error on to any of those passes the
+classified sentence, which is this module's own text.
 
 This is why the legacy remedy works the way it does: it is a fixed sentence of this module, triggered
 by a marker in `said`, not an echo of what the device wrote.
@@ -135,8 +161,8 @@ reports `rc`.
 |---|---|
 | credential of another kind | `SshError` naming the kind |
 | the askpass program cannot be executed, or `NETOPS_ASKPASS_PROGRAM` names something that is not an executable regular file, or one that group or other may write | `SshError` naming the variable and the reason, before the client starts |
-| the client does not finish in `timeout_seconds` | `SshError` naming the host and the timeout; the client is killed first |
-| the client writes more than `capture_max_bytes` on standard output | `SshError` naming the budget; the client is killed and no partial answer is returned |
+| the client does not finish in `timeout_seconds` | `SshError` naming the host and the timeout; the client and the group it leads are stopped and reaped first |
+| the client writes more than `capture_max_bytes` on standard output | `SshError` naming the budget; the client and the group it leads are stopped and no partial answer is returned |
 | `capture_max_bytes` is not a whole number of at least 1 | `SshError` naming the value |
 | exit status 255, or a status that is not a whole number | `SshError` carrying `rc` and `said`, whose message names a reason from `REASONS` and not the client's words |
 | exit status 255, no `legacy_ssh` profile, and `said` mentions a failed negotiation | `SshError` with the remedy: the exception is written per device as `legacy_ssh`, the profile list is closed, and there is no global switch |

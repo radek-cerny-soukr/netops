@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import selectors
 import shutil
+import signal
 import stat
 import subprocess
 import tempfile
@@ -19,6 +20,8 @@ CAPTURE_MAX_BYTES = 16 * 1024 * 1024
 STDERR_MAX_BYTES = 64 * 1024
 READ_CHUNK = 65536
 KILL_GRACE_SECONDS = 2.0
+TERMINATE_GRACE_SECONDS = 0.5
+SWEEP_STEP_SECONDS = 0.05
 MOMENT_FORMAT = "%Y-%m-%dT%H:%M:%SZ"
 WORKSPACE_PREFIX = "netops-core-"
 IDENTITY_NAME = "identity"
@@ -235,75 +238,125 @@ def _checked_capture(value) -> int:
     return value
 
 
-def _kill_and_reap(proc) -> None:
+def _own_group(pid):
     try:
-        proc.kill()
+        return pid if os.getpgid(pid) == pid else None
+    except OSError:
+        return None
+
+
+def _signalled_group(group, number) -> None:
+    if group is None:
+        return
+    try:
+        os.killpg(group, number)
     except OSError:
         pass
+
+
+def _group_alive(group) -> bool:
     try:
-        proc.wait(timeout=KILL_GRACE_SECONDS)
-    except Exception:
-        pass
+        os.killpg(group, 0)
+    except OSError:
+        return False
+    return True
+
+
+def _swept(group) -> None:
+    if group is None or not _group_alive(group):
+        return
+    _signalled_group(group, signal.SIGTERM)
+    deadline = time.monotonic() + TERMINATE_GRACE_SECONDS
+    while _group_alive(group) and time.monotonic() < deadline:
+        time.sleep(SWEEP_STEP_SECONDS)
+    _signalled_group(group, signal.SIGKILL)
+
+
+def _stopped(proc, group) -> None:
+    for number, grace in (
+        (signal.SIGTERM, TERMINATE_GRACE_SECONDS),
+        (signal.SIGKILL, KILL_GRACE_SECONDS),
+    ):
+        _signalled_group(group, number)
+        try:
+            proc.send_signal(number)
+        except (OSError, ValueError):
+            pass
+        try:
+            proc.wait(timeout=grace)
+        except subprocess.TimeoutExpired:
+            pass
+
+
+def _remaining(deadline):
+    if deadline is None:
+        return None
+    return max(0.0, deadline - time.monotonic())
 
 
 def _run_capped(call, max_bytes, *, timeout, env, stdin_bytes):
+    deadline = None if timeout is None else time.monotonic() + timeout
     proc = subprocess.Popen(
         call,
         stdin=subprocess.PIPE if stdin_bytes is not None else subprocess.DEVNULL,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         env=env,
+        start_new_session=True,
     )
-    if stdin_bytes is not None:
-        try:
-            proc.stdin.write(stdin_bytes)
-        except OSError:
-            pass
-        finally:
+    group = _own_group(proc.pid)
+    finished = False
+    try:
+        if stdin_bytes is not None:
             try:
-                proc.stdin.close()
+                proc.stdin.write(stdin_bytes)
             except OSError:
                 pass
-    deadline = None if timeout is None else time.monotonic() + timeout
-    out = bytearray()
-    err = bytearray()
-    selector = selectors.DefaultSelector()
-    selector.register(proc.stdout.fileno(), selectors.EVENT_READ, "out")
-    selector.register(proc.stderr.fileno(), selectors.EVENT_READ, "err")
-    open_streams = 2
-    overrun = False
-    try:
-        while open_streams and not overrun:
-            if deadline is not None:
-                remaining = deadline - time.monotonic()
-                if remaining <= 0:
-                    _kill_and_reap(proc)
+            finally:
+                try:
+                    proc.stdin.close()
+                except OSError:
+                    pass
+        out = bytearray()
+        err = bytearray()
+        open_streams = 2
+        overrun = False
+        selector = selectors.DefaultSelector()
+        try:
+            selector.register(proc.stdout.fileno(), selectors.EVENT_READ, "out")
+            selector.register(proc.stderr.fileno(), selectors.EVENT_READ, "err")
+            while open_streams and not overrun:
+                remaining = _remaining(deadline)
+                if remaining is not None and remaining <= 0:
                     raise subprocess.TimeoutExpired(call, timeout)
-            else:
-                remaining = None
-            for key, _ in selector.select(remaining):
-                chunk = os.read(key.fileobj, READ_CHUNK)
-                if not chunk:
-                    selector.unregister(key.fileobj)
-                    open_streams -= 1
-                    continue
-                if key.data == "out":
-                    out += chunk
-                    if len(out) > max_bytes:
-                        overrun = True
-                        break
-                elif len(err) < STDERR_MAX_BYTES:
-                    err += chunk[: STDERR_MAX_BYTES - len(err)]
+                for key, _ in selector.select(remaining):
+                    chunk = os.read(key.fileobj, READ_CHUNK)
+                    if not chunk:
+                        selector.unregister(key.fileobj)
+                        open_streams -= 1
+                        continue
+                    if key.data == "out":
+                        out += chunk
+                        if len(out) > max_bytes:
+                            overrun = True
+                            break
+                    elif len(err) < STDERR_MAX_BYTES:
+                        err += chunk[: STDERR_MAX_BYTES - len(err)]
+        finally:
+            selector.close()
+            proc.stdout.close()
+            proc.stderr.close()
+        if overrun:
+            raise SshError(
+                "the client produced more than %d bytes on stdout and was stopped" % max_bytes
+            )
+        code = proc.wait(timeout=_remaining(deadline))
+        finished = True
+        _swept(group)
+        return subprocess.CompletedProcess(call, code, bytes(out), bytes(err))
     finally:
-        selector.close()
-        proc.stdout.close()
-        proc.stderr.close()
-    if overrun:
-        _kill_and_reap(proc)
-        raise SshError(
-            "the client produced more than %d bytes on stdout and was stopped" % max_bytes
-        )
-    return subprocess.CompletedProcess(call, proc.wait(), bytes(out), bytes(err))
+        if not finished:
+            _stopped(proc, group)
 
 
 def _capped_runner(max_bytes):

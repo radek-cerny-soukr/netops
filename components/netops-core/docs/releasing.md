@@ -1,10 +1,10 @@
 # Release process
 
 Release tags follow the component scheme `<name>/v<version>`, where `<name>` is the project name
-declared in this component's `pyproject.toml`: this component tags `netops-core/v0.2.0`, and the
-release title is `netops-core 0.2.0`. Tags of another component are never touched by this procedure,
-and the unprefixed tags `v0.1.0`, `v0.2.0`, `v0.2.1` are the history of `netops-helper`; they are
-never moved, deleted, or recreated. The canonical origin is
+declared in this component's `pyproject.toml`: this component tags `netops-core/v0.2.1`, and the
+release title is `netops-core 0.2.1`. Tags of another component are never touched by this procedure.
+A tag is deleted together with its release page when a newer version of the same component is
+published, so the repository carries exactly one tag and one release page per component. The canonical origin is
 `https://github.com/radek-cerny-soukr/netops`.
 
 This component lives in the `netops` monorepo under `components/netops-core/`. Every command below
@@ -20,7 +20,7 @@ credentials, host keys, or inventory and vault files. The release export is a po
 the component gate also reads the content of every released file and, outside a repository, holds the
 exported tree to exactly the released selection.
 
-## What 0.1.0 releases
+## What 0.2.1 releases
 
 This component releases **from source; it ships no container image**, because it is a library and
 nothing in it runs on its own. The release carries four assets:
@@ -39,10 +39,10 @@ installed beside the standard library.
 ## Procedure
 
 1. Review every source change and freeze the release metadata, including the release date. Version
-   `0.1.0` must agree in `pyproject.toml`, `src/netops_core/__init__.py`, and the root of
+   `0.2.1` must agree in `pyproject.toml`, `src/netops_core/__init__.py`, and the root of
    `sbom.cdx.json`; the gate `version_metadata` compares those three. The changelog heading is not
    gated, but the publisher reads the release notes from the section it names, so it has to match too,
-   and `## 0.1.0 - unreleased` becomes the release date in the same commit. Any later change to
+   and `## 0.2.1 - unreleased` becomes the release date in the same commit. Any later change to
    source, tests, release tooling, or the release date requires a new commit and a complete repeat of
    the remaining steps.
 2. Run the portable checks, regenerate the committed SBOM, require it byte-identical, run the
@@ -65,7 +65,7 @@ installed beside the standard library.
    (cd path/to/new-output/netops-core-<version> && python3 -B scripts/check_gates.py)
    ```
 3. Create the final trusted signed commit on clean `main`, then, under a separate explicit
-   authorization, the signed annotated tag `netops-core/v0.2.0` on that exact commit. Verify the tag
+   authorization, the signed annotated tag `netops-core/v0.2.1` on that exact commit. Verify the tag
    resolves to a tag object, carries a trusted signature, and peels to the signed commit. Neither step
    authorizes a push, a build, or a transparency-log upload.
 4. On the builder, place a clone of the repository at the released commit in `repos/netops-core` and
@@ -88,7 +88,15 @@ installed beside the standard library.
 6. Publish in three separately authorized steps - `preflight`, `create-draft`, `publish-draft` - and
    then verify the published release independently: download every asset from the release page and
    check it against the local `SHA256SUMS`. The tag contains a slash, so in a download URL it is
-   encoded as `netops-core%2Fv0.1.0`.
+   encoded as `netops-core%2Fv0.2.1`.
+
+This repository advertises exactly one version per component: publishing a version removes the
+release page, all four assets **and the tag** of the version it replaces, so only the current version
+is live and a reader is never sent to a download that no longer exists. Nothing of the history is lost
+by that: every release is one signed commit on `main` whose message names the component and the
+version it released, and it stays reachable there. A reader who needs an earlier source finds that
+commit in the history and builds it the same way this procedure builds the current one; what is gone
+is the page, the assets and the tag's own signature.
 
 ## Determinism
 

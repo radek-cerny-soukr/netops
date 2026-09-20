@@ -1,6 +1,9 @@
 import os
+import selectors
 import subprocess
 import sys
+import time
+import types
 
 import pytest
 
@@ -285,3 +288,218 @@ def test_the_transports_agree_on_one_written_down_budget():
     assert ssh_module.CAPTURE_MAX_BYTES == 16 * 1024 * 1024
     assert ssh_module.STDERR_MAX_BYTES == 64 * 1024
     assert session_module.ssh_module.CAPTURE_MAX_BYTES == ssh_module.CAPTURE_MAX_BYTES
+
+
+DEAF_BUT_ALIVE = "\n".join(
+    (
+        "import os, sys, time",
+        "open(sys.argv[1], 'w').write(str(os.getpid()))",
+        "os.close(1)",
+        "os.close(2)",
+        "time.sleep(5)",
+    )
+)
+LEAVES_A_CHILD = "\n".join(
+    (
+        "import os, subprocess, sys",
+        "open(sys.argv[1], 'w').write(str(os.getpid()))",
+        "subprocess.Popen([sys.executable, sys.argv[2], sys.argv[3]])",
+        "sys.exit(0)",
+    )
+)
+OUTLIVES_ITS_PARENT = "\n".join(
+    (
+        "import os, sys, time",
+        "open(sys.argv[1], 'w').write(str(os.getpid()))",
+        "time.sleep(30)",
+    )
+)
+
+
+def _pid_of(marker, seconds=5.0):
+    deadline = time.monotonic() + seconds
+    while True:
+        try:
+            return int(marker.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            pass
+        if time.monotonic() >= deadline:
+            raise AssertionError("no process wrote its pid into %s" % marker)
+        time.sleep(0.02)
+
+
+def _ended(pid):
+    try:
+        with open("/proc/%d/stat" % pid, "rb") as handle:
+            state = handle.read().rsplit(b")", 1)[1].split()[0]
+    except OSError:
+        return True
+    return state == b"Z"
+
+
+def _ended_within(pid, seconds=5.0):
+    deadline = time.monotonic() + seconds
+    while True:
+        if _ended(pid):
+            return True
+        if time.monotonic() >= deadline:
+            return False
+        time.sleep(0.02)
+
+
+class RefusingSelector:
+    def register(self, fileobj, events, data=None):
+        raise OSError("this process has no descriptor left for a selector")
+
+    def close(self):
+        pass
+
+
+class BreakingSelector:
+    def register(self, fileobj, events, data=None):
+        pass
+
+    def select(self, timeout=None):
+        raise RuntimeError("the reading loop broke")
+
+    def close(self):
+        pass
+
+
+def _with_selector(monkeypatch, factory):
+    monkeypatch.setattr(
+        ssh_module,
+        "selectors",
+        types.SimpleNamespace(DefaultSelector=factory, EVENT_READ=selectors.EVENT_READ),
+    )
+
+
+def _remembered(monkeypatch):
+    started = []
+    real = subprocess.Popen
+
+    def popen(*arguments, **named):
+        process = real(*arguments, **named)
+        started.append(process)
+        return process
+
+    monkeypatch.setattr(
+        ssh_module,
+        "subprocess",
+        types.SimpleNamespace(
+            Popen=popen,
+            PIPE=subprocess.PIPE,
+            DEVNULL=subprocess.DEVNULL,
+            TimeoutExpired=subprocess.TimeoutExpired,
+            CompletedProcess=subprocess.CompletedProcess,
+        ),
+    )
+    return started
+
+
+def test_a_client_that_closes_both_streams_and_stays_is_stopped_by_the_timeout(tmp_path):
+    call, marker = _call(tmp_path, DEAF_BUT_ALIVE)
+    start = time.monotonic()
+    with pytest.raises(subprocess.TimeoutExpired):
+        _run(call, timeout=1.0)
+    assert time.monotonic() - start < 4.0
+    assert _gone(marker)
+
+
+def test_run_command_refuses_a_client_that_closes_its_streams_and_stays(tmp_path, monkeypatch):
+    marker = tmp_path / "pid"
+    binary = tmp_path / "ssh-stub"
+    binary.write_text(
+        "#!/bin/sh\nexec %s %s %s\n"
+        % (sys.executable, _program(tmp_path, DEAF_BUT_ALIVE), marker),
+        encoding="utf-8",
+    )
+    binary.chmod(0o755)
+    monkeypatch.setattr(ssh_module, "SSH_BINARY", str(binary))
+    start = time.monotonic()
+    with pytest.raises(SshError) as caught:
+        run_command(
+            HOST, PORT, LOGIN, FakeCredential(), HOST_KEY_LINE, COMMAND, timeout_seconds=1.0,
+        )
+    assert "did not finish within" in str(caught.value)
+    assert time.monotonic() - start < 4.0
+    assert _gone(marker)
+
+
+def test_a_selector_that_cannot_be_registered_leaves_no_client_behind(tmp_path, monkeypatch):
+    started = _remembered(monkeypatch)
+    _with_selector(monkeypatch, RefusingSelector)
+    call, _ = _call(tmp_path, QUIET_BUT_SLOW)
+    with pytest.raises(OSError):
+        _run(call, timeout=20.0)
+    assert len(started) == 1
+    assert started[0].poll() is not None
+
+
+def test_an_error_inside_the_reading_loop_leaves_no_client_behind(tmp_path, monkeypatch):
+    started = _remembered(monkeypatch)
+    _with_selector(monkeypatch, BreakingSelector)
+    call, _ = _call(tmp_path, QUIET_BUT_SLOW)
+    with pytest.raises(RuntimeError):
+        _run(call, timeout=20.0)
+    assert len(started) == 1
+    assert started[0].poll() is not None
+
+
+def test_a_client_that_leaves_a_child_behind_has_its_whole_group_stopped(tmp_path):
+    parent_marker = tmp_path / "parent-pid"
+    child_marker = tmp_path / "child-pid"
+    parent = _program(tmp_path, LEAVES_A_CHILD, name="parent.py")
+    child = _program(tmp_path, OUTLIVES_ITS_PARENT, name="grandchild.py")
+    call = [sys.executable, str(parent), str(parent_marker), str(child), str(child_marker)]
+    with pytest.raises(subprocess.TimeoutExpired):
+        _run(call, timeout=1.0)
+    assert _ended_within(_pid_of(child_marker))
+
+
+def test_a_slow_client_with_open_streams_still_stops_at_the_deadline(tmp_path):
+    call, marker = _call(tmp_path, QUIET_BUT_SLOW)
+    start = time.monotonic()
+    with pytest.raises(subprocess.TimeoutExpired):
+        _run(call, timeout=1.0)
+    assert time.monotonic() - start < 4.0
+    assert _gone(marker)
+
+
+LEAVES_A_QUIET_CHILD = "\n".join(
+    (
+        "import os, subprocess, sys",
+        "open(sys.argv[1], 'w').write(str(os.getpid()))",
+        "subprocess.Popen([sys.executable, sys.argv[2], sys.argv[3]])",
+        "sys.exit(0)",
+    )
+)
+QUIET_GRANDCHILD = "\n".join(
+    (
+        "import os, sys, time",
+        "open(sys.argv[1], 'w').write(str(os.getpid()))",
+        "os.close(1)",
+        "os.close(2)",
+        "time.sleep(30)",
+    )
+)
+
+
+def test_a_finished_client_leaves_no_child_of_its_own_behind(tmp_path, monkeypatch):
+    marker = tmp_path / "grandchild-pid"
+    parent = _program(tmp_path, LEAVES_A_QUIET_CHILD, name="quiet-parent.py")
+    child = _program(tmp_path, QUIET_GRANDCHILD, name="quiet-grandchild.py")
+    binary = tmp_path / "ssh-stub"
+    binary.write_text(
+        "#!/bin/sh\nexec %s %s %s %s %s\n"
+        % (sys.executable, parent, tmp_path / "parent-pid", child, marker),
+        encoding="utf-8",
+    )
+    binary.chmod(0o755)
+    monkeypatch.setattr(ssh_module, "SSH_BINARY", str(binary))
+    result = run_command(
+        HOST, PORT, LOGIN, FakeCredential(), HOST_KEY_LINE, COMMAND, timeout_seconds=20.0,
+    )
+    grandchild = _pid_of(marker)
+    assert result.rc == 0
+    assert _ended(grandchild)
