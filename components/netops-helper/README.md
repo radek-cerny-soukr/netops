@@ -1,6 +1,6 @@
 # NetOps Helper
 
-The current release is `netops-helper/v0.3.1` (2026-09-20), which pins `netops-core==0.2.0`; `netops-helper/v0.3.0` (2026-09-19) preceded it.
+The current release is `netops-helper/v0.3.2` (2026-09-20), which pins `netops-core==0.2.1` and vendors `src/netops_core` inside its own release archive.
 
 NetOps Helper phase 1 is a security-focused, read-only MCP server for bounded network troubleshooting. It gives any compatible MCP client explicitly enrolled diagnostic visibility without exposing a configuration path. It is intentionally not a general CLI, configuration reader, log browser, or network-discovery service.
 
@@ -34,7 +34,7 @@ The remote FastMCP server registers exactly 10 tools: two control-plane tools an
 
 - Device discovery through `helper_status` and enrolled-scope inspection through `target_scope`.
 - DNS, TCP, ICMP, and certificate-verifying TLS diagnostics.
-- Named SSH troubleshooting queries for FortiOS, Extreme Switch Engine, Cisco IOS, IOS-XE and NX-OS, Arista EOS, Junos, and Linux.
+- Named SSH troubleshooting queries for FortiOS, Extreme Switch Engine, Cisco IOS, IOS-XE and NX-OS, Arista EOS, Junos, Linux, and Ruckus Unleashed.
 - Opt-in ARP/neighbor, MAC/FDB, and LLDP/CDP queries where a reviewed platform command exists.
 - Typed parameters selected from per-device interface, service, address, and switch inventories.
 - SNMPv2c GET with a dedicated community record that is never the device secret.
@@ -44,7 +44,7 @@ The remote FastMCP server registers exactly 10 tools: two control-plane tools an
 
 `target_scope` does not return the device address, the login, any credential name, the secret, the community, or the host key pin. It intentionally returns enrolled inventories, SFTP metadata/listing roots, and egress addresses; this can reveal target addressing and other operational topology. Treat it as credential-free but environment-sensitive data.
 
-See [Tool reference](docs/tools.md), [Read-only accounts](docs/read-only-accounts.md), [Configuration](docs/configuration.md), and [Installation](docs/installation.md).
+See [Tool reference](docs/tools.md), [Read-only accounts](docs/read-only-accounts.md), [Configuration](docs/configuration.md), [Onboarding](docs/onboarding.md), and [Installation](docs/installation.md).
 
 ## Deliberate non-capabilities
 
@@ -58,9 +58,11 @@ A future Phase 2 may consider configuration or other body reads only under a sep
 
 - The helper exposes no listening port; MCP uses SSH-tunneled stdio.
 - The container runs non-root with a read-only root filesystem, no Linux capabilities, `no-new-privileges`, resource limits, and no Docker socket.
+- The Compose file mounts `/tmp` and `/run` `noexec`, so the image installs a packaged askpass program at a dedicated executable path (`/usr/local/bin/netops-askpass`, outside those mounts) and points `NETOPS_ASKPASS_PROGRAM` at it; without it, password authentication would have nowhere it is allowed to execute an askpass helper.
 - Every device must declare `account_role: "read-only"` in its helper section; the operator must separately verify the actual device-side role over the same access path.
 - Every request is checked against the exact helper section and per-tool egress scope before a credential is forwarded.
-- FortiOS sessions use a no-paging-write driver and require preverified `output standard`.
+- No platform in the query catalogue sends a paging preamble any more; `ssh_read` sends exactly the one reviewed command and nothing else. FortiOS sessions still require preverified `output standard`, because FortiOS itself pages and the helper never writes into device configuration to turn that off.
+- SSH-family reads inherit `netops-core`'s bounded receive: a device that keeps sending past the capture budget is killed and the call is refused with nothing of what it sent returned. This runs ahead of, and independently from, the helper's own later 2 MB snapshot cap on the decoded output.
 - SSH and SFTP refuse the `ssh-rsa` host key algorithm and SHA-1 key exchange for every device. A device which offers only `ssh-rsa` needs the named per-device exception `legacy_ssh: "rsa-sha1"` in its inventory entry; there is no global switch and no algorithm list in configuration. See [Legacy SSH algorithms](docs/configuration.md#legacy-ssh-algorithms).
 - Host key trust is a pin in the inventory, verified on the server before any credential is used, and the runner is pinned the same way; there is no `known_hosts` file and no first-use acceptance.
 - The client supplies query names and typed parameters, never raw commands.
@@ -68,12 +70,13 @@ A future Phase 2 may consider configuration or other body reads only under a sep
 - IP, IPv6, MAC, hostname, username, email, and serial values remain visible because troubleshooting requires correlation.
 - Injected credentials and recognized secret forms are redacted on a best-effort basis; policy and remote permissions must keep secret-bearing data out of scope.
 - Every device response is marked as untrusted data and must run in a dedicated read-only agent/session.
+- Proxy and transport failures are reported by a fixed classified category (for example `ssh_host_key`, `auth_material`, `rate_limit`) and a fixed public message, never the device's or the SSH client's own words; raw stderr is sanitized before use and never relayed.
 - Mandatory audit writes a durable `started` record before a device operation and a terminal record afterward; interrupted attempts can remain visibly incomplete.
 - Audit JSONL contains allowlisted metadata only and rotates into five 2 MB segments.
 
 Read [Security model](docs/security-model.md), [Egress control](docs/egress-control.md), [Security policy](../../SECURITY.md), and the release-specific [known vulnerability findings](docs/known-vulnerabilities.md) before deployment.
 
-**0.3.0 ships a known, unfixed Critical vulnerability in the OpenSSH client it runs (CVE-2026-60002 in Debian trixie's `openssh-client`; fixed upstream in OpenSSH 10.4, which trixie does not ship).** It is a reviewed, dated exception, not a fix; the findings document says what it exposes, what contains it and what to do if that is not acceptable.
+**This release ships Debian trixie's `openssh-client` with one Critical finding Debian marks wont-fix (CVE-2026-60002; fixed upstream in OpenSSH 10.4, which trixie does not ship), the only entry the release gate ignores in this image.** It is a reviewed, dated exception, not a fix; the [findings document](docs/known-vulnerabilities.md) says what it exposes, what contains it, what to do if that is not acceptable, and why two further `openssh-client` entries the scanner reports as High are `sshd` code this image does not carry.
 
 ## Requirements
 
@@ -90,7 +93,7 @@ This sequence deliberately creates the Compose network and container in a stoppe
 
 1. Clone and verify the same release on the proxy host and runner as needed.
 2. Create dedicated target accounts and independently test both allowed reads and denied configuration, export, maintenance, and shell actions. Follow [Read-only accounts](docs/read-only-accounts.md).
-3. Create the four operator files: `vault.json` with mode `600`, `inventory.json` with one entry per device, `egress-policy.json`, and `runner.json`. Follow [the four operator files](docs/configuration.md#the-four-operator-files) and [credentials and protocol use](docs/configuration.md#credentials-and-protocol-use). Name a separate `snmp_credential` only for devices that need SNMP. Write the host key fingerprint of the runner and of every device into those files. Then run `python3 scripts/check_operator_config.py` to validate all four before continuing - see [Onboarding](docs/onboarding.md) for the guided walkthrough of this whole sequence and for migrating an older configuration.
+3. Create the four operator files: `vault.json` with mode `600`, `inventory.json` with one entry per device, `egress-policy.json`, and `runner.json`. Follow [the four operator files](docs/configuration.md#the-four-operator-files) and [credentials and protocol use](docs/configuration.md#credentials-and-protocol-use). Name a separate `snmp_credential` only for devices that need SNMP. Write the host key fingerprint of the runner and of every device into those files. Then run `python3 scripts/check_operator_config.py`, a read-only preflight validator that reads only those four files and never contacts a device or opens a network connection, to validate all four before continuing - see [Onboarding](docs/onboarding.md) for the guided walkthrough of this whole sequence and for migrating an older configuration.
 4. On the runner, build the image and create the network and container without starting the service:
 
    ```bash

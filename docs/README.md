@@ -10,4 +10,4 @@ This directory is mostly a signpost. Documentation lives with the component it d
 
 Cross-component: [`verified-support.md`](verified-support.md) — per platform, what firmware, transport, authentication and account privilege the family has actually measured against a device, versus catalogue only.
 
-Repository-level policy is in [`../SECURITY.md`](../SECURITY.md) and [`../CONTRIBUTING.md`](../CONTRIBUTING.md); the release shape of the family is in [`../README.md`](../README.md).
+Repository-level policy is in [`../SECURITY.md`](../SECURITY.md) and [`../CONTRIBUTING.md`](../CONTRIBUTING.md); the release shape of the family is in [`../README.md`](../README.md), including the rule that this repository keeps exactly one release page per component - three at any moment - while tags of superseded versions stay where they are. Documentation inside a published archive is fixed at the moment that archive was signed; the documentation in this tree is the current one.

@@ -20,6 +20,7 @@ from netops_core import hostkey
 from netops_core import inventory as core_inventory
 from netops_core import vault as core_vault
 from netops_helper import inventory as helper_inventory
+from netops_helper import legacy_configuration
 
 FILES = ("inventory.json", "vault.json", "egress-policy.json", "runner.json")
 RUNNER_VERSION = 1
@@ -207,6 +208,14 @@ def main() -> int:
         "egress-policy.json": arguments.egress_policy,
         "runner.json": arguments.runner,
     }
+    legacy = legacy_configuration.legacy_configuration_detail(paths["inventory.json"].parent)
+    if legacy is not None:
+        print(
+            "operator_config_check=failed detail=%s: %s"
+            % (legacy, legacy_configuration.LEGACY_CONFIGURATION_MESSAGE),
+            file=sys.stderr,
+        )
+        return 1
     try:
         summary = check(paths)
     except PreflightError as error:

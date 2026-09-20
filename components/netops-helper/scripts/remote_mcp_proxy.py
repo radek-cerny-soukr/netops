@@ -33,6 +33,7 @@ for SOURCE_ROOT in (
 from netops_core import hostkey
 from netops_core import vault as core_vault
 from netops_helper import inventory as helper_inventory
+from netops_helper import legacy_configuration
 
 if __package__:
     from .proxy_sanitize import sanitize_object, sanitize_text
@@ -52,15 +53,9 @@ EGRESS_POLICY = _configured_path(
     "NETOPS_EGRESS_POLICY_PATH", INVENTORY.parent / "egress-policy.json",
 )
 RUNNER = _configured_path("NETOPS_RUNNER_PATH", INVENTORY.parent / "runner.json")
-REMOVED_VARIABLES = (
-    "NETOPS_TARGET_POLICY_PATH", "NETOPS_KNOWN_HOSTS_PATH", "NETOPS_MASTER_ALIAS",
-)
-REMOVED_FILES = ("target-policy.json",)
-LEGACY_CONFIGURATION_MESSAGE = (
-    "Enroll the devices in inventory.json, the runner in runner.json and the firewall"
-    " inputs in egress-policy.json; target-policy.json, NETOPS_TARGET_POLICY_PATH,"
-    " NETOPS_KNOWN_HOSTS_PATH and NETOPS_MASTER_ALIAS are gone."
-)
+REMOVED_VARIABLES = legacy_configuration.REMOVED_VARIABLES
+REMOVED_FILES = legacy_configuration.REMOVED_FILES
+LEGACY_CONFIGURATION_MESSAGE = legacy_configuration.LEGACY_CONFIGURATION_MESSAGE
 VAULT_MODES = (0o600, 0o400)
 RUNNER_VERSION = 1
 RUNNER_FIELDS = ("version", "host", "port", "credential", "host_key_fingerprint")
@@ -2031,12 +2026,6 @@ def _ssh_command(
     ]
 
 
-def _legacy_configuration() -> bool:
-    if any(variable in os.environ for variable in REMOVED_VARIABLES):
-        return True
-    return any((INVENTORY.parent / name).exists() for name in REMOVED_FILES)
-
-
 def _private_directory() -> str:
     return tempfile.mkdtemp(prefix="netops-helper-proxy-")
 
@@ -2191,7 +2180,7 @@ def main() -> int:
         return _run_askpass()
     argparse.ArgumentParser().parse_args()
     proxy = Proxy()
-    if _legacy_configuration():
+    if legacy_configuration.legacy_configuration_detail(INVENTORY.parent) is not None:
         _write_transport_diagnostic(
             LegacyConfigurationError.category, LegacyConfigurationError.public_message,
         )

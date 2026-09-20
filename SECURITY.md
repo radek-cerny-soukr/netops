@@ -2,7 +2,7 @@
 
 ## Supported versions
 
-Security fixes are maintained for the latest tagged minor release of each component. Pre-1.0 releases may make breaking configuration changes when required to fail closed. Version 0.2.0 intentionally rejects legacy target-policy records that omit the mandatory platform, query, or egress contract, and rejects the removed `https_endpoints` key.
+Security fixes are maintained for the latest tagged minor release of each component. Pre-1.0 releases may make breaking configuration changes when required to fail closed. `netops-helper` intentionally rejects legacy target-policy records that omit the mandatory platform, query, or egress contract, and rejects the removed `https_endpoints` key.
 
 ## Reporting a vulnerability
 

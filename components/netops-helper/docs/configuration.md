@@ -22,7 +22,7 @@ A device belongs to the helper when its `helper` field is an object. The alias a
 | Field | Required | Exact contract |
 | --- | --- | --- |
 | `account_role` | yes | `"read-only"`; any other value is `role_rejected` |
-| `ssh_platform` | yes | a canonical platform name of `netops_core.platforms` (`fortios`, `exos`, `linux`, `cisco_ios`, `cisco_xe`, `cisco_nxos`, `arista_eos`, `juniper_junos`, `juniper_junos_els`) or `null`. An alias such as `fortinet` is refused here; the inventory carries canonical names |
+| `ssh_platform` | yes | a canonical platform name of `netops_core.platforms` (`fortios`, `exos`, `linux`, `cisco_ios`, `cisco_xe`, `cisco_nxos`, `arista_eos`, `juniper_junos`, `juniper_junos_els`, `ruckus_unleashed`) or `null`. An alias such as `fortinet` is refused here; the inventory carries canonical names |
 | `enabled_queries` | yes | an opt-in subset of that platform's catalogue, unique, at most 256 names; empty when `ssh_platform` is `null` |
 | `egress` | yes | exactly the eight fields below |
 | `read_inventory` | no (`{}`) | `interfaces`, `services`, `addresses`, `switches`; every value canonical for its category |

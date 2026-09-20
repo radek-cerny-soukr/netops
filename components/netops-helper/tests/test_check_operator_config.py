@@ -342,5 +342,51 @@ class MainCliTests(unittest.TestCase):
             self.assertNotIn("Traceback", stderr.getvalue())
 
 
+class LegacyConfigurationTests(unittest.TestCase):
+    def test_a_leftover_target_policy_file_fails_preflight_and_names_it(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            directory_path = Path(directory)
+            paths = _good_paths(directory_path)
+            (directory_path / "target-policy.json").write_text("{}", encoding="utf-8")
+            argv = [
+                "check_operator_config.py",
+                "--inventory", str(paths["inventory.json"]),
+                "--vault", str(paths["vault.json"]),
+                "--egress-policy", str(paths["egress-policy.json"]),
+                "--runner", str(paths["runner.json"]),
+            ]
+            with mock.patch.object(sys, "argv", argv), redirect_stdout(StringIO()) as stdout, redirect_stderr(
+                StringIO()
+            ) as stderr:
+                self.assertEqual(checker.main(), 1)
+            self.assertEqual(stdout.getvalue(), "")
+            self.assertIn("operator_config_check=failed detail=target-policy.json:", stderr.getvalue())
+
+    def test_a_removed_environment_variable_fails_preflight_the_same_way_as_the_proxy(self) -> None:
+        for variable in checker.legacy_configuration.REMOVED_VARIABLES:
+            with tempfile.TemporaryDirectory() as directory:
+                directory_path = Path(directory)
+                paths = _good_paths(directory_path)
+                argv = [
+                    "check_operator_config.py",
+                    "--inventory", str(paths["inventory.json"]),
+                    "--vault", str(paths["vault.json"]),
+                    "--egress-policy", str(paths["egress-policy.json"]),
+                    "--runner", str(paths["runner.json"]),
+                ]
+                with mock.patch.dict("os.environ", {variable: "set-by-an-old-deployment"}):
+                    with mock.patch.object(sys, "argv", argv), redirect_stdout(
+                        StringIO()
+                    ) as stdout, redirect_stderr(StringIO()) as stderr:
+                        self.assertEqual(checker.main(), 1)
+                self.assertEqual(stdout.getvalue(), "")
+                self.assertIn(
+                    "operator_config_check=failed detail=%s:" % variable, stderr.getvalue(),
+                )
+                self.assertIn(
+                    checker.legacy_configuration.LEGACY_CONFIGURATION_MESSAGE, stderr.getvalue(),
+                )
+
+
 if __name__ == "__main__":
     unittest.main()

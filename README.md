@@ -4,15 +4,21 @@ Tools that give an AI agent the narrowest possible hands and usable eyes on netw
 
 | Component | What it does | Released |
 |---|---|---|
-| [`netops-helper`](components/netops-helper/) | Read-only MCP server for bounded network troubleshooting | `netops-helper/v0.3.1` (2026-09-20) |
-| [`netops-auditor`](components/netops-auditor/) | Configuration audit; collects the configuration from the device itself | `netops-auditor/v0.2.1` (2026-09-20) |
-| [`netops-core`](components/netops-core/) | Shared access layer the other components build on: inventory, credential store, host key trust, SSH transport, audit records | `netops-core/v0.2.0` (2026-09-20) |
+| [`netops-helper`](components/netops-helper/) | Read-only MCP server for bounded network troubleshooting | `netops-helper/v0.3.2` (2026-09-20) |
+| [`netops-auditor`](components/netops-auditor/) | Configuration audit; collects the configuration from the device itself | `netops-auditor/v0.2.2` (2026-09-20) |
+| [`netops-core`](components/netops-core/) | Shared access layer the other components build on: inventory, credential store, host key trust, SSH transport, audit records | `netops-core/v0.2.1` (2026-09-20) |
 
 `netops-admin` (device writes, refuses to start without the auditor) is designed but not built. It will appear under `components/` when it carries code; an empty directory guarantees nothing.
 
 ## Releases
 
-Every component has its own version, its own tag prefix `netops-<component>/vX.Y.Z`, and its own release page with its own assets. The tags `v0.1.0`, `v0.2.0`, and `v0.2.1` without a prefix are netops-helper history and are never moved. A component release archive is self-contained: it carries the component tree, its own `LICENSE`, and its own changelog. Self-contained does not mean identical in shape: the `netops-helper` archive additionally vendors `src/netops_core`, the `netops-auditor` archive pins `netops-core==0.2.0` and needs the core archive installed beside it, and `netops-core` is a library archive with no image of its own. Repository-level files (this page, `SECURITY.md`, `CONTRIBUTING.md`, CI) live here and are not part of a component archive.
+Every component has its own version, its own tag prefix `netops-<component>/vX.Y.Z`, and its own release page with its own assets.
+
+**This repository advertises exactly one version per component: one release page and one tag.** When a component is released, the release page and the tag of its previous version are deleted, so at any moment there are exactly three release pages and three tags here - one per component - and they are the ones listed in the table above.
+
+Nothing of the history is lost by that. Every release is one commit on `main`, its message names the component and the version it released, and it stays reachable in the history with its own signature, so any past release can still be read, checked out and verified by commit. What is gone is the tag and the downloadable assets of a superseded version.
+
+A component release archive is self-contained: it carries the component tree, its own `LICENSE`, and its own changelog. Self-contained does not mean identical in shape: the `netops-helper` archive additionally vendors `src/netops_core`, the `netops-auditor` archive pins `netops-core==0.2.1` and needs the core archive installed beside it, and `netops-core` is a library archive with no image of its own. Repository-level files (this page, `SECURITY.md`, `CONTRIBUTING.md`, CI) live here and are not part of a component archive.
 
 ## Repository gate
 

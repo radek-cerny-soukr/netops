@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.3.2 - 2026-09-20
+
+Follows `netops-core` 0.2.1, pinned as `netops-core==0.2.1`.
+
+- The proxy startup preflight and `scripts/check_operator_config.py` now share one function,
+  `netops_helper.legacy_configuration.legacy_configuration_detail`, to detect a leftover
+  `target-policy.json` or a retired `NETOPS_*` variable: the preflight used to accept a
+  configuration directory the proxy then refused at startup, and both paths now fail closed with
+  the same explanation before either one touches a device or the network
+  (`docs/onboarding.md`).
+- The image is built on a refreshed digest of the `python:3.13.15-slim-trixie` base image. The scan
+  of the rebuilt image carries one reviewed Critical entry under `ignoredMatches` (CVE-2026-60002 in
+  `openssh-client`, the accepted exception) and actively 51 High, 58 Medium, 10 Low, 68 Negligible
+  and 1 Unknown entries under `matches`; the seven Critical entries of the base image that the gate
+  used to ignore are fixed in the refreshed base and no longer appear. `docs/known-vulnerabilities.md`
+  now describes the current image only: its scan, the one exception and its end condition, and why
+  two `openssh-client` entries the scanner rates High describe `sshd` code the image does not carry.
+- `docs/read-only-accounts.md` and the repository's `docs/verified-support.md` record that the
+  slotted `inline_power_port` query was measured under the user-level ExtremeXOS account (exit
+  status 0, 195 bytes for one enrolled port), so every query of that catalogue has now met the
+  device under that account; `docs/configuration.md` lists `ruckus_unleashed` among the canonical
+  `ssh_platform` names.
+
 ## 0.3.1 - 2026-09-20
 
 Follows `netops-core` 0.2.0, pinned as `netops-core==0.2.0`.

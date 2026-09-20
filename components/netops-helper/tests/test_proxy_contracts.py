@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 from base64 import b64encode, urlsafe_b64decode
+import ast
 import copy
 import hashlib
 import hmac
@@ -1487,6 +1488,31 @@ def check_a_dead_child_is_reported_while_stdin_stays_open(module, directory: Pat
     assert b"netops_proxy_transport" not in remaining
 
 
+def _main_function_call_names(source_path: Path) -> set[str]:
+    tree = ast.parse(source_path.read_text(encoding="utf-8"))
+    main_function = next(
+        node for node in tree.body
+        if isinstance(node, ast.FunctionDef) and node.name == "main"
+    )
+    names: set[str] = set()
+    for node in ast.walk(main_function):
+        if not isinstance(node, ast.Call):
+            continue
+        target = node.func
+        if isinstance(target, ast.Attribute):
+            names.add(target.attr)
+        elif isinstance(target, ast.Name):
+            names.add(target.id)
+    return names
+
+
+def check_shared_legacy_configuration_detection() -> None:
+    proxy_calls = _main_function_call_names(SCRIPT)
+    preflight_calls = _main_function_call_names(ROOT / "scripts" / "check_operator_config.py")
+    assert "legacy_configuration_detail" in proxy_calls
+    assert "legacy_configuration_detail" in preflight_calls
+
+
 def main() -> int:
     module = _load_proxy()
     assert stat.S_IMODE(SCRIPT.stat().st_mode) == 0o755
@@ -1551,6 +1577,7 @@ def main() -> int:
         check_ssh_launch_hardening(module, directory)
         check_end_to_end_over_a_fake_ssh(module, directory)
         check_a_dead_child_is_reported_while_stdin_stays_open(module, directory)
+    check_shared_legacy_configuration_detection()
     print("proxy_contract_tests=passed")
     return 0
 
