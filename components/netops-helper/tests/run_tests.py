@@ -43,6 +43,7 @@ DEPENDENCY_FREE_TESTS = (
     "tests/test_apply_egress_rules.py",
     "tests/test_supply_chain.py",
     "tests/test_policy_parity.py",
+    "tests/test_check_operator_config.py",
 )
 
 

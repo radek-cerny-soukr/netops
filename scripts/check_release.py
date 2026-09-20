@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import ipaddress
 from pathlib import Path
+import posixpath
 import re
 import subprocess
 import sys
@@ -33,6 +34,7 @@ ROOT_FILES = {
     "README.md",
     "SECURITY.md",
     "docs/README.md",
+    "docs/verified-support.md",
     "scripts/check_release.py",
     "tests/test_release_gate.py",
 }
@@ -126,6 +128,10 @@ CREDENTIAL_MARKERS = (
     re.compile(r"\bsk-[A-Za-z0-9]{20,}\b"),
     re.compile(r"\bssh-(?:ed25519|rsa|dss) AAAA[0-9A-Za-z+/]{40,}"),
 )
+MARKDOWN_FENCE_PATTERN = re.compile(r"^(`{3,}|~{3,})")
+MARKDOWN_INLINE_CODE_PATTERN = re.compile(r"`[^`\n]*`")
+MARKDOWN_LINK_PATTERN = re.compile(r"\[[^\]\n]*\]\(([^)\n]*)\)")
+LINK_FORBIDDEN_CHARACTERS = frozenset("{}()[]|")
 
 
 def _live_yaml(text: str) -> str:
@@ -439,6 +445,55 @@ def _privacy_errors(root: Path, tracked: set[str]) -> list[str]:
     return errors
 
 
+def _markdown_link_targets(text: str) -> list[str]:
+    targets: list[str] = []
+    in_fence = False
+    for line in text.splitlines():
+        if MARKDOWN_FENCE_PATTERN.match(line.strip()):
+            in_fence = not in_fence
+            continue
+        if in_fence:
+            continue
+        visible = MARKDOWN_INLINE_CODE_PATTERN.sub("", line)
+        for match in MARKDOWN_LINK_PATTERN.finditer(visible):
+            targets.append(match.group(1))
+    return targets
+
+
+def _link_errors(root: Path, tracked: set[str]) -> list[str]:
+    errors: list[str] = []
+    for relative in sorted(tracked):
+        if not relative.endswith(".md"):
+            continue
+        try:
+            text = (root / relative).read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            continue
+        directory = posixpath.dirname(relative)
+        for target in _markdown_link_targets(text):
+            if not target or target.startswith("/"):
+                continue
+            if re.match(r"^[A-Za-z][A-Za-z0-9+.-]*://", target):
+                continue
+            if target.startswith("mailto:") or target.startswith("#"):
+                continue
+            if any(character.isspace() for character in target):
+                continue
+            if any(character in LINK_FORBIDDEN_CHARACTERS for character in target):
+                continue
+            stripped = target.split("#", 1)[0]
+            if not stripped:
+                continue
+            resolved = posixpath.normpath(posixpath.join(directory, stripped))
+            if resolved == ".." or resolved.startswith("../"):
+                errors.append(f"relative link target is missing: {relative} -> {target}")
+                continue
+            if resolved in tracked or (root / resolved).is_dir():
+                continue
+            errors.append(f"relative link target is missing: {relative} -> {target}")
+    return errors
+
+
 def check(root: Path = ROOT) -> list[str]:
     names = component_names(root)
     if not names:
@@ -450,6 +505,7 @@ def check(root: Path = ROOT) -> list[str]:
     errors.extend(_license_errors(root, names))
     errors.extend(_workflow_errors(root, names))
     errors.extend(_privacy_errors(root, tracked))
+    errors.extend(_link_errors(root, tracked))
     errors.extend(_gate_errors(root, names))
     return errors
 

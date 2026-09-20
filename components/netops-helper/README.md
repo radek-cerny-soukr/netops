@@ -1,5 +1,7 @@
 # NetOps Helper
 
+The current release is `netops-helper/v0.3.1` (2026-09-20), which pins `netops-core==0.2.0`; `netops-helper/v0.3.0` (2026-09-19) preceded it.
+
 NetOps Helper phase 1 is a security-focused, read-only MCP server for bounded network troubleshooting. It gives any compatible MCP client explicitly enrolled diagnostic visibility without exposing a configuration path. It is intentionally not a general CLI, configuration reader, log browser, or network-discovery service.
 
 Operators address explicitly enrolled devices by name. A local stdio proxy validates the device's `helper` section of the shared inventory, injects that one device's credential after the MCP client boundary, transports the request over SSH to a host-key-pinned runner, and invokes an isolated container there. Device output keeps identifiers needed for correlation while recognized secrets are removed on a best-effort basis.
@@ -88,7 +90,7 @@ This sequence deliberately creates the Compose network and container in a stoppe
 
 1. Clone and verify the same release on the proxy host and runner as needed.
 2. Create dedicated target accounts and independently test both allowed reads and denied configuration, export, maintenance, and shell actions. Follow [Read-only accounts](docs/read-only-accounts.md).
-3. Create the four operator files: `vault.json` with mode `600`, `inventory.json` with one entry per device, `egress-policy.json`, and `runner.json`. Follow [the four operator files](docs/configuration.md#the-four-operator-files) and [credentials and protocol use](docs/configuration.md#credentials-and-protocol-use). Name a separate `snmp_credential` only for devices that need SNMP. Write the host key fingerprint of the runner and of every device into those files.
+3. Create the four operator files: `vault.json` with mode `600`, `inventory.json` with one entry per device, `egress-policy.json`, and `runner.json`. Follow [the four operator files](docs/configuration.md#the-four-operator-files) and [credentials and protocol use](docs/configuration.md#credentials-and-protocol-use). Name a separate `snmp_credential` only for devices that need SNMP. Write the host key fingerprint of the runner and of every device into those files. Then run `python3 scripts/check_operator_config.py` to validate all four before continuing - see [Onboarding](docs/onboarding.md) for the guided walkthrough of this whole sequence and for migrating an older configuration.
 4. On the runner, build the image and create the network and container without starting the service:
 
    ```bash
@@ -141,7 +143,7 @@ PYTHONPATH=src:../netops-core/src python tests/run_tests.py
 python scripts/check_public_release.py
 ```
 
-The base image is digest-pinned. Runtime dependencies are hash-locked, and release metadata includes CycloneDX SBOM data. A clean test run is necessary but not sufficient; review the source diff, effective target permissions, complete vulnerability report, license inventory, egress behavior on the actual ARM64 runner, and residual risks.
+The base image is digest-pinned and runtime dependencies are hash-locked, but the image is not fully reproducible: the one distribution package it installs, `openssh-client`, is deliberately left unpinned so a rebuild keeps receiving its security updates - see [Reproducibility of the image](docs/releasing.md#reproducibility-of-the-image). Release metadata includes CycloneDX SBOM data. A clean test run is necessary but not sufficient; review the source diff, effective target permissions, complete vulnerability report, license inventory, egress behavior on the actual ARM64 runner, and residual risks.
 
 ## License
 

@@ -54,6 +54,27 @@ What this means for an operator, stated plainly:
 - If that exposure is not acceptable in your environment, do not deploy 0.3.0 as published. Rebuild the image on a base that ships OpenSSH 10.4 or newer (the Dockerfile takes the base image as its first line), or wait for a release whose base carries the fix.
 - The exception is re-reviewed at every release and is dropped the moment trixie ships OpenSSH 10.4 or newer; the release notes of every later version say whether it still applies.
 
+## 0.3.1: OpenSSH's exception grows to three findings, all wont-fix
+
+The published 0.3.1 Grype report carries 8 reviewed Critical entries under `ignoredMatches` - the same count as 0.3.0 - and actively 65 High, 64 Medium, 11 Low and 68 Negligible entries under `matches`. Fifteen of those 65 active High entries already have a fixed version in Debian, so a rebuild on a refreshed base image digest clears them without any other change in this project:
+
+| Package | Fixed High findings |
+| --- | --- |
+| perl-base | 6 |
+| libpcre2 | 3 |
+| libsqlite3 | 2 |
+| libc | 2 |
+| gzip | 1 |
+| python | 1 |
+
+The remaining 50 active High entries, and every Medium, Low and Negligible entry, are marked not fixed in this Debian trixie snapshot.
+
+`openssh-client` carries three of the reviewed and active findings: CVE-2026-60002 (Critical, reviewed under `ignoredMatches`, as in 0.3.0) and two entries new since 0.3.0, CVE-2026-59999 and CVE-2026-60000 (both High, active under `matches`). Debian marks all three **wont-fix**.
+
+References: https://security-tracker.debian.org/tracker/CVE-2026-60002, https://security-tracker.debian.org/tracker/CVE-2026-59999, https://security-tracker.debian.org/tracker/CVE-2026-60000
+
+**The exception ends at a fixed package, not at an upstream version number.** In this image the installed `openssh-client` package reports `1:10.0p1-7+deb13u4`, while the binary itself answers `ssh -V` with `OpenSSH_10.0p2 Debian-7+deb13u4` - the package's declared version and the binary's own self-reported version already disagree in this one image, so tracking "upstream reaches 10.4" is not a reliable signal of when trixie carries a fix. The exception is re-reviewed at every release against the state of the Debian package, not against an upstream version number, and is dropped the moment a rebuild's scan shows a fixed `openssh-client` package, whatever version number that package then reports.
+
 ## 0.2.0 and later
 
 Vulnerability counts are scan snapshots and must not be copied forward as immutable gates. Database updates, base-image rebuilds, package changes, and matching changes can alter every severity.

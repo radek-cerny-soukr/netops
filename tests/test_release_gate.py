@@ -39,6 +39,7 @@ def _fixture(tmp_path: Path) -> Path:
     (root / ".gitignore").write_text("dist/\n", encoding="utf-8")
     (root / "docs").mkdir()
     (root / "docs/README.md").write_text("# Documentation map\n", encoding="utf-8")
+    (root / "docs/verified-support.md").write_text("# Verified platform support\n", encoding="utf-8")
     (root / "scripts").mkdir()
     shutil.copy2(ROOT / "scripts/check_release.py", root / "scripts/check_release.py")
     (root / "tests").mkdir()
@@ -391,6 +392,59 @@ def test_gate_rejects_a_text_file_that_is_not_utf8() -> None:
         assert (
             "tracked text file holds a NUL byte: components/demo/src/module.py" in errors
         ), errors
+
+
+def test_gate_accepts_relative_markdown_links_to_a_file_and_a_directory() -> None:
+    with tempfile.TemporaryDirectory() as directory:
+        root = _fixture(Path(directory))
+        (root / "docs/README.md").write_text(
+            "# Documentation map\n\n"
+            "See [security policy](../SECURITY.md) and [demo component](../components/demo/).\n",
+            encoding="utf-8",
+        )
+        subprocess.run(["git", "-C", str(root), "add", "-A"], check=True)
+        assert _gate_for(root).check(root) == []
+
+
+def test_gate_rejects_a_broken_relative_markdown_link() -> None:
+    with tempfile.TemporaryDirectory() as directory:
+        root = _fixture(Path(directory))
+        (root / "SECURITY.md").write_text(
+            "# Security policy\n\nSee [egress control](docs/egress-control.md).\n",
+            encoding="utf-8",
+        )
+        errors = _gate_for(root).check(root)
+        assert (
+            "relative link target is missing: SECURITY.md -> docs/egress-control.md" in errors
+        ), errors
+
+
+def test_gate_ignores_link_like_text_in_code_spans_and_fenced_code_blocks() -> None:
+    with tempfile.TemporaryDirectory() as directory:
+        root = _fixture(Path(directory))
+        (root / "docs/README.md").write_text(
+            "# Documentation map\n\n"
+            "A label is `[a-z0-9-]([a-z0-9-]{0,61}[a-z0-9])`, not a link.\n\n"
+            "```\n"
+            "[missing](docs/does-not-exist.md)\n"
+            "```\n",
+            encoding="utf-8",
+        )
+        subprocess.run(["git", "-C", str(root), "add", "-A"], check=True)
+        assert _gate_for(root).check(root) == []
+
+
+def test_gate_ignores_scheme_links_and_pure_anchors() -> None:
+    with tempfile.TemporaryDirectory() as directory:
+        root = _fixture(Path(directory))
+        (root / "docs/README.md").write_text(
+            "# Documentation map\n\n"
+            "See [upstream](https://example.invalid/docs) and"
+            " [a section below](#missing-heading).\n",
+            encoding="utf-8",
+        )
+        subprocess.run(["git", "-C", str(root), "add", "-A"], check=True)
+        assert _gate_for(root).check(root) == []
 
 
 def test_gate_reads_ci_without_its_comments() -> None:

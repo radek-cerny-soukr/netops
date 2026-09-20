@@ -75,9 +75,7 @@ _SSH_TRANSPORTS = {
     "juniper_junos_els": _TRANSPORT_EXEC,
     "ruckus_unleashed": _TRANSPORT_PTY,
 }
-_PLATFORM_PREAMBLE: dict[str, tuple[str, ...]] = {
-    "extreme_exos": ("disable cli paging",),
-}
+_PLATFORM_PREAMBLE: dict[str, tuple[str, ...]] = {}
 _RUCKUS_LOGIN_PROMPT = b"Please login:"
 _RUCKUS_PASSWORD_PROMPT = b"assword"
 _RUCKUS_USER_PROMPT = b"ruckus>"

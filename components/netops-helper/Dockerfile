@@ -33,6 +33,9 @@ WORKDIR /app
 COPY ${COMPONENT_DIR}/requirements.lock ./
 COPY ${COMPONENT_DIR}/src ./src
 COPY ${CORE_PACKAGE_DIR} ./src/netops_core
+RUN install --mode=0755 --owner=root --group=root \
+    /app/src/netops_core/askpass.py /usr/local/bin/netops-askpass
+ENV NETOPS_ASKPASS_PROGRAM=/usr/local/bin/netops-askpass
 RUN python -m pip install --no-cache-dir --require-hashes -r requirements.lock \
     && python -m pip uninstall -y pip
 

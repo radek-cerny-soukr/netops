@@ -278,12 +278,13 @@ def test_the_first_keyscan_of_a_device_is_paced_like_any_other_connection(
     assert clock.sleeps[0] == pytest.approx(5.0)
 
 
-def test_the_extreme_exos_preamble_is_paced_like_the_query_itself(wire, monkeypatch) -> None:
+def test_a_populated_platform_preamble_is_paced_like_the_query_itself(wire, monkeypatch) -> None:
     clock = _install_clock(monkeypatch)
     monkeypatch.setattr(
         engine, "_CONNECTION_SPACING_SECONDS",
         {**engine._CONNECTION_SPACING_SECONDS, "extreme_exos": 5.0},
     )
+    monkeypatch.setattr(engine, "_PLATFORM_PREAMBLE", {"extreme_exos": ("disable cli paging",)})
     _warm_host_key_cache(clock)
     query_name, _ = _plain_query("extreme_exos")
     target = _target("extreme_exos", query_name)

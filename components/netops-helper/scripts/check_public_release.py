@@ -59,8 +59,10 @@ REQUIRED_RELEASE_PATHS = {
     "scripts/check_egress_rules.py",
     "scripts/generate_egress_rules.py",
     "scripts/render_query_catalog_docs.py",
+    "scripts/check_operator_config.py",
     "tests/test_apply_egress_rules.py",
     "tests/test_egress_scripts.py",
+    "tests/test_check_operator_config.py",
     "tests/test_engine_contracts.py",
     "tests/test_ssh_wire_safety.py",
     "tests/test_connection_pacing.py",
@@ -568,6 +570,114 @@ def _markdown_h2_headings(text: str) -> list[str]:
     return headings
 
 
+def _compose_service_lines(compose_lines: list[str], service_header: str) -> list[str] | None:
+    service_roots = [
+        index for index, line in enumerate(compose_lines)
+        if line == "services:"
+    ]
+    if len(service_roots) != 1:
+        return None
+    section_start = service_roots[0] + 1
+    section_end = len(compose_lines)
+    for index in range(section_start, len(compose_lines)):
+        line = compose_lines[index]
+        if (
+            line.strip()
+            and not line.lstrip().startswith("#")
+            and not line[0].isspace()
+        ):
+            section_end = index
+            break
+    service_headers = [
+        index for index in range(section_start, section_end)
+        if compose_lines[index] == service_header
+    ]
+    if len(service_headers) != 1:
+        return None
+    service_start = service_headers[0] + 1
+    service_end = section_end
+    for index in range(service_start, section_end):
+        line = compose_lines[index]
+        if not line.strip() or line.lstrip().startswith("#"):
+            continue
+        indentation = len(line) - len(line.lstrip(" "))
+        if indentation <= 2:
+            service_end = index
+            break
+    return compose_lines[service_start:service_end]
+
+
+def _compose_mapping_lines(lines: list[str], indent: int, key: str) -> list[str] | None:
+    header = (" " * indent) + key + ":"
+    headers = [index for index, line in enumerate(lines) if line == header]
+    if len(headers) != 1:
+        return None
+    start = headers[0] + 1
+    end = len(lines)
+    for index in range(start, len(lines)):
+        line = lines[index]
+        if not line.strip() or line.lstrip().startswith("#"):
+            continue
+        indentation = len(line) - len(line.lstrip(" "))
+        if indentation <= indent:
+            end = index
+            break
+    return lines[start:end]
+
+
+def _compose_scalar(lines: list[str], indent: int, key: str) -> str | None:
+    pattern = re.compile(
+        r"^" + (" " * indent) + re.escape(key) + r":[ \t]+([^#\s]+)[ \t]*(?:#.*)?$"
+    )
+    values = [match.group(1) for line in lines if (match := pattern.fullmatch(line))]
+    return values[0] if len(values) == 1 else None
+
+
+def _compose_build_target_errors(root: Path) -> list[str]:
+    compose_path = root / "compose.yaml"
+    try:
+        compose_lines = compose_path.read_text(encoding="utf-8").splitlines()
+    except (OSError, UnicodeError):
+        return ["Compose netops-helper build block is unavailable or invalid"]
+
+    service_lines = _compose_service_lines(compose_lines, "  netops-helper:")
+    if service_lines is None:
+        return ["Compose netops-helper build block is unavailable or invalid"]
+
+    build_lines = _compose_mapping_lines(service_lines, 4, "build")
+    if build_lines is None:
+        return ["Compose netops-helper build block is unavailable or invalid"]
+
+    context_value = _compose_scalar(build_lines, 6, "context")
+    if context_value is None:
+        return ["Compose netops-helper build context is unavailable or invalid"]
+    context_directory = (compose_path.parent / context_value).resolve()
+
+    dockerfile_value = _compose_scalar(build_lines, 6, "dockerfile") or "Dockerfile"
+    dockerfile_path = (context_directory / dockerfile_value).resolve()
+
+    errors: list[str] = []
+    if not dockerfile_path.is_file():
+        errors.append(
+            "Compose netops-helper build dockerfile does not exist relative to "
+            f"its context: {dockerfile_value}"
+        )
+
+    args_lines = _compose_mapping_lines(build_lines, 6, "args") or []
+    core_package_value = (
+        _compose_scalar(args_lines, 8, "CORE_PACKAGE_DIR") or "src/netops_core"
+    )
+    core_package_init = (
+        context_directory / core_package_value / "__init__.py"
+    ).resolve()
+    if not core_package_init.is_file():
+        errors.append(
+            "Compose netops-helper build CORE_PACKAGE_DIR does not hold "
+            f"__init__.py relative to its context: {core_package_value}"
+        )
+    return errors
+
+
 def _version_invariant_errors(root: Path) -> list[str]:
     errors: list[str] = []
     try:
@@ -603,47 +713,11 @@ def _version_invariant_errors(root: Path) -> list[str]:
     except (OSError, UnicodeError):
         errors.append("Compose netops-helper image label is unavailable or invalid")
     else:
-        service_roots = [
-            index for index, line in enumerate(compose_lines)
-            if line == "services:"
-        ]
-        compose_image = None
-        if len(service_roots) == 1:
-            section_start = service_roots[0] + 1
-            section_end = len(compose_lines)
-            for index in range(section_start, len(compose_lines)):
-                line = compose_lines[index]
-                if (
-                    line.strip()
-                    and not line.lstrip().startswith("#")
-                    and not line[0].isspace()
-                ):
-                    section_end = index
-                    break
-            service_headers = [
-                index for index in range(section_start, section_end)
-                if compose_lines[index] == "  netops-helper:"
-            ]
-            if len(service_headers) == 1:
-                service_start = service_headers[0] + 1
-                service_end = section_end
-                for index in range(service_start, section_end):
-                    line = compose_lines[index]
-                    if not line.strip() or line.lstrip().startswith("#"):
-                        continue
-                    indentation = len(line) - len(line.lstrip(" "))
-                    if indentation <= 2:
-                        service_end = index
-                        break
-                image_values = []
-                for line in compose_lines[service_start:service_end]:
-                    match = re.fullmatch(
-                        r"    image:[ 	]+([^#\s]+)[ 	]*(?:#.*)?", line
-                    )
-                    if match is not None:
-                        image_values.append(match.group(1))
-                if len(image_values) == 1:
-                    compose_image = image_values[0]
+        service_lines = _compose_service_lines(compose_lines, "  netops-helper:")
+        compose_image = (
+            _compose_scalar(service_lines, 4, "image")
+            if service_lines is not None else None
+        )
         if compose_image != f"local/netops-helper:{project_version}":
             errors.append("Compose netops-helper image label does not match project metadata")
 
@@ -1026,6 +1100,7 @@ def check(root: Path = ROOT) -> list[str]:
     errors.extend(_ssh_wire_errors(root))
     errors.extend(_run_query_catalog_docs(root))
     errors.extend(_run_policy_parity(root))
+    errors.extend(_compose_build_target_errors(root))
     return errors
 
 

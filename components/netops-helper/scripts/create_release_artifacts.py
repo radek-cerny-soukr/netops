@@ -103,17 +103,33 @@ TESTS = {
     "tests/test_vendor_references.py",
     "tests/test_sanitize.py", "tests/test_security.py",
     "tests/test_sftp_safety.py", "tests/test_supply_chain.py",
+    "tests/test_check_operator_config.py",
 }
 SCRIPTS = {
     "scripts/apply_egress_rules.py", "scripts/check_egress_rules.py",
     "scripts/check_public_release.py", "scripts/create_release_artifacts.py",
     "scripts/generate_egress_rules.py", "scripts/generate_sbom.py",
     "scripts/render_query_catalog_docs.py", "scripts/proxy_sanitize.py", "scripts/remote_mcp_proxy.py",
+    "scripts/check_operator_config.py",
 }
 
 
 CORE_PACKAGE = ROOT.parent / "netops-core" / "src" / "netops_core"
 CORE_DESTINATION = "src/netops_core"
+CORE_EXECUTABLE = frozenset({"askpass.py"})
+
+COMPOSE_REPOSITORY_BUILD_BLOCK = (
+    "    build:\n"
+    "      context: ../..\n"
+    "      dockerfile: components/netops-helper/Dockerfile\n"
+    "      args:\n"
+    "        COMPONENT_DIR: components/netops-helper\n"
+    "        CORE_PACKAGE_DIR: components/netops-core/src/netops_core\n"
+)
+COMPOSE_EXPORT_BUILD_BLOCK = (
+    "    build:\n"
+    "      context: .\n"
+)
 
 
 PUBLIC_CONFIG_FILES = frozenset({
@@ -235,6 +251,18 @@ def digest(path: Path) -> str:
     return hashlib.sha256(_read_regular_bytes(path)).hexdigest()
 
 
+def _rewrite_export_compose(destination: Path) -> None:
+    compose_path = destination / "compose.yaml"
+    text = _read_regular_bytes(compose_path).decode("utf-8")
+    if text.count(COMPOSE_REPOSITORY_BUILD_BLOCK) != 1:
+        raise ReleaseSelectionError("compose build block is not the known one")
+    compose_path.write_text(
+        text.replace(COMPOSE_REPOSITORY_BUILD_BLOCK, COMPOSE_EXPORT_BUILD_BLOCK, 1),
+        encoding="utf-8",
+    )
+    compose_path.chmod(0o644)
+
+
 def _prepare_output_root(path: Path) -> Path:
     output_root = Path(os.path.abspath(os.fspath(path)))
     parts = output_root.parts
@@ -336,10 +364,19 @@ def main() -> int:
             target = destination / CORE_DESTINATION / source.relative_to(CORE_PACKAGE)
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_bytes(_read_regular_bytes(source))
-            target.chmod(0o644)
+            target.chmod(0o755 if source.name in CORE_EXECUTABLE else 0o644)
     except (OSError, ReleaseSelectionError):
         print(
             "release_export=failed detail=shared access layer copy rejected",
+            file=sys.stderr,
+        )
+        return 1
+
+    try:
+        _rewrite_export_compose(destination)
+    except (OSError, ReleaseSelectionError, UnicodeError):
+        print(
+            "release_export=failed detail=compose build block is not the known one",
             file=sys.stderr,
         )
         return 1

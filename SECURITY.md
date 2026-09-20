@@ -22,11 +22,17 @@ Do not open a public issue for a vulnerability that could expose credentials, de
 
 ## Required deployment boundary
 
-Every target account must be restricted to read-only permissions by the target platform. Local templates and `account_role` enrollment are defense in depth, not substitutes for remote authorization.
+The family has three roles, not one, and they do not share a boundary. A read-only MCP surface is a claim about that one surface, not about every account behind it.
 
-Use a dedicated agent/session with no mutating MCP tools, generic shell, write-capable file tools, or deployment integrations. Client-side safety instructions help handle untrusted device text, but prompt instructions are not a security boundary.
+**The helper's target account.** Every account the helper's MCP surface uses to reach a device must be restricted to read-only permissions by the target platform. Local templates and `account_role` enrollment are defense in depth, not substitutes for remote authorization.
 
-Apply and verify an explicit host-firewall egress policy. The generated DOCKER-USER contract restricts forwarded traffic from the stable `nh-egress0` bridge, but it is not full containment and does not govern traffic from that bridge to runner-local services through INPUT. See [Egress control](docs/egress-control.md).
+**The auditor's collector.** Reading a complete configuration needs an account the platform will not grant read-only permissions to: FortiOS requires a `super_admin` administrator, and ExtremeXOS requires an administrator account because a user-level account is refused `show configuration`. This is a decided, documented project position, not an oversight; see [Collection channels](components/netops-auditor/docs/channels.md). Because that account could write, the read-only boundary for its traffic is the tool's fixed command table and the pinned host key, not the account's own permissions. Run the collector as its own process, under its own dedicated credential, separate from the helper's target accounts and from the auditor's own MCP surface below. A shared credential-store format (the vault schema of `netops_core.vault`) does not mean a component should be handed the whole store: the operator must point the collector at a vault holding only the collector's own records, never the shared vault used by other components.
+
+**The auditor's MCP surface.** This one holds no credentials and reaches no device: it opens an already-written audit database read-only and serves findings from it. It runs as its own process, separate from the collector, and needs no device account at all.
+
+Use a dedicated agent/session with no mutating MCP tools, generic shell, write-capable file tools, or deployment integrations, for whichever of these MCP surfaces is in use. Client-side safety instructions help handle untrusted device text, but prompt instructions are not a security boundary.
+
+Apply and verify an explicit host-firewall egress policy for the helper. The generated DOCKER-USER contract restricts forwarded traffic from the stable `nh-egress0` bridge, but it is not full containment and does not govern traffic from that bridge to runner-local services through INPUT. See [Egress control](components/netops-helper/docs/egress-control.md).
 
 ## Residual risk
 

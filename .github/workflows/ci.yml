@@ -56,6 +56,21 @@ jobs:
           python scripts/check_public_release.py
           python scripts/create_release_artifacts.py --output dist
 
+      - name: Verify the exported archive stands alone
+        run: |
+          mapfile -t exported < <(find dist -mindepth 1 -maxdepth 1 -type d)
+          if [ "${#exported[@]}" -ne 1 ]; then
+            echo "expected exactly one exported directory in dist/, found: ${exported[*]}" >&2
+            exit 1
+          fi
+          target="$RUNNER_TEMP/netops-helper-standalone"
+          rm -rf "$target"
+          cp -a "${exported[0]}" "$target"
+          test -f "$target/compose.yaml"
+          test -f "$target/Dockerfile"
+          test -f "$target/src/netops_core/__init__.py"
+          (cd "$target" && python -B scripts/check_public_release.py)
+
   netops-auditor:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
@@ -86,6 +101,18 @@ jobs:
           python scripts/check_gates.py
           python scripts/create_release_artifacts.py --output dist
 
+      - name: Verify the exported archive stands alone
+        run: |
+          mapfile -t exported < <(find dist -mindepth 1 -maxdepth 1 -type d)
+          if [ "${#exported[@]}" -ne 1 ]; then
+            echo "expected exactly one exported directory in dist/, found: ${exported[*]}" >&2
+            exit 1
+          fi
+          target="$RUNNER_TEMP/netops-auditor-standalone"
+          rm -rf "$target"
+          cp -a "${exported[0]}" "$target"
+          (cd "$target" && PYTHONPATH="$GITHUB_WORKSPACE/components/netops-core/src" python -B scripts/check_gates.py)
+
   netops-core:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
@@ -113,3 +140,15 @@ jobs:
           git diff --exit-code -- sbom.cdx.json
           python scripts/check_gates.py
           python scripts/create_release_artifacts.py --output dist
+
+      - name: Verify the exported archive stands alone
+        run: |
+          mapfile -t exported < <(find dist -mindepth 1 -maxdepth 1 -type d)
+          if [ "${#exported[@]}" -ne 1 ]; then
+            echo "expected exactly one exported directory in dist/, found: ${exported[*]}" >&2
+            exit 1
+          fi
+          target="$RUNNER_TEMP/netops-core-standalone"
+          rm -rf "$target"
+          cp -a "${exported[0]}" "$target"
+          (cd "$target" && python -B scripts/check_gates.py)

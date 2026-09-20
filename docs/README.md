@@ -1,11 +1,13 @@
 # Documentation map
 
-This directory is a signpost. Documentation lives with the component it describes, so it is released, versioned, and reviewed together with the code it documents.
+This directory is mostly a signpost. Documentation lives with the component it describes, so it is released, versioned, and reviewed together with the code it documents; the one exception is a page that is about more than one component and therefore belongs to none of them.
 
 | Component | Documentation |
 |---|---|
 | `netops-helper` | [`components/netops-helper/docs/`](../components/netops-helper/docs/) — security model, egress control, installation, configuration, tools, query catalogue, vendor CLI references, releasing, known vulnerabilities |
 | `netops-auditor` | [`components/netops-auditor/docs/`](../components/netops-auditor/docs/) — collection channels and their documented limits |
 | `netops-core` | [`components/netops-core/docs/`](../components/netops-core/docs/) — inventory and credential schemas, the SSH transport, the audit record, releasing |
+
+Cross-component: [`verified-support.md`](verified-support.md) — per platform, what firmware, transport, authentication and account privilege the family has actually measured against a device, versus catalogue only.
 
 Repository-level policy is in [`../SECURITY.md`](../SECURITY.md) and [`../CONTRIBUTING.md`](../CONTRIBUTING.md); the release shape of the family is in [`../README.md`](../README.md).

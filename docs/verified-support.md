@@ -1,0 +1,53 @@
+# Verified platform support
+
+One row per platform or channel the family actually names in its own catalogues. "Verified
+end-to-end" means this code reached a real device over the real network and did the real thing
+being claimed. "Unit/wire-tested only" or "catalogue only" means the claim rests on a substituted
+client, a fixture, or a dump taken by something other than this code - not on this code meeting a
+device. Every cell below is filled from a statement already written down elsewhere in this
+repository; follow the links for the exact wording, the exact byte counts and the exact dates.
+
+## Helper platforms (`netops-helper` catalogue)
+
+The helper's target account is expected to be read-only on the device (see
+[`../SECURITY.md`](../SECURITY.md)); the columns below say, per platform, how far that expectation
+has actually been checked against a real target.
+
+| Platform | Firmware / baseline | Transport | Authentication exercised | Account privilege used | Verified end-to-end vs. unit-tested only |
+|---|---|---|---|---|---|
+| `linux` | No vendor baseline - a generic Linux/OpenSSH target; every catalogue source is "Project contract; upstream source audit pending" | exec | ssh-key and password, both exercised against this platform in the wire-substituted test suite | Not documented or measured against a real host | **Catalogue and wire-simulated only.** `tests/test_ssh_wire_safety.py` substitutes `ssh`/`ssh-keyscan` on `PATH`; no real Linux host is named anywhere in the repository's docs. See [query catalogue](../components/netops-helper/docs/query-catalog.md#linux). |
+| `fortinet` (`fortios` alias) | Catalogue baseline FortiOS 7.6.x and 8.0.0; live measurement on FortiOS 8.0.0 build0167 | exec | ssh-key and password, both proven live (`get system status`, rc 0, 1576 bytes, identical for both kinds) | A read-only custom access profile: every permission group `read`, `cli-get enable`, `cli-show enable`, `cli-diagnose enable`, `cli-exec disable`, `cli-config disable` - measured 17 September 2026 | **End-to-end, largely.** All 40 catalogue queries of that date answered exit 0 under the read-only profile; `config system global`, `execute ping` and `execute dhcp lease-list` were refused. See [Read-only accounts - FortiOS](../components/netops-helper/docs/read-only-accounts.md#fortios) and [SSH transport](../components/netops-core/docs/ssh.md#measured-against). |
+| `extreme_exos` (`extreme_switch_engine` alias) | Catalogue baseline Switch Engine 33.7.1; live measurement on ExtremeXOS 33.7.1 (transport-only measurement recorded as "33.7") | exec | ssh-key and password, both proven live (`show version`, 443 bytes, byte-identical for both kinds); `legacy_ssh: "rsa-sha1"` required, the switch offers only `ssh-rsa` | A user-level account (`create account user <name> <password>`) - measured 17 September 2026 | **End-to-end for most of the catalogue.** 46 of 47 catalogue queries of that date answered byte-identical to an administrator account; `show accounts` and `show configuration` were correctly refused. One query (`inline_power_port`) was still unmeasured under this account as of that date. See [Read-only accounts - Extreme](../components/netops-helper/docs/read-only-accounts.md#extreme-switch-engine--extremexos) and [SSH transport](../components/netops-core/docs/ssh.md#measured-against). |
+| `ruckus_unleashed` | Unleashed 200.13 | PTY (`-tt`, `netops_core.session.Session`) | password only (asked for again inside the shell) | **Not verified.** Whatever account was used for the one measured run, no read-only account model for this platform has been established | **Wire mechanics verified live, account model not.** One device, 16 September 2026: login prompt, password, `ruckus>`, `enable`, `show sysinfo` returned 724 bytes; the 104-byte login phase was discarded. The four enrolled commands live in the same privileged context as `reboot`, `upgrade` and configuration, so the boundary is the helper's own command set, not the account. See [Read-only accounts - Ruckus](../components/netops-helper/docs/read-only-accounts.md#ruckus-unleashed) and [session transport](../components/netops-core/docs/session.md#measured-against). |
+| `cisco_ios` | Catalyst IOS 15.2(7)E on Catalyst 2960-X | exec | None against a real device | Not measured | **Catalogue and wire-simulated only.** Source-reviewed; live model/image, AAA authorization, paging and bytes-on-wire validation are named as still required. See [vendor CLI references](../components/netops-helper/docs/vendor-cli-references.md#audited-profiles). |
+| `cisco_xe` | Catalyst IOS-XE 17.15.x on Catalyst 9300 | exec | None against a real device | Not measured | **Catalogue and wire-simulated only.** Reviewed separately from IOS; live target and wire validation are named as still required. See [vendor CLI references](../components/netops-helper/docs/vendor-cli-references.md#audited-profiles). |
+| `cisco_nxos` | Nexus 9000 NX-OS 10.5(x) | exec | None against a real device | Not measured | **Catalogue and wire-simulated only.** Reviewed separately from IOS/IOS-XE; live Nexus model, feature, AAA and wire validation are named as still required. See [vendor CLI references](../components/netops-helper/docs/vendor-cli-references.md#audited-profiles). |
+| `arista_eos` | EOS 4.36.x, primarily 4.36.2F | exec | None against a real device | Not measured | **Catalogue and wire-simulated only.** Live model, licensed-feature, RBAC/AAA, paging and bytes-on-wire validation are named as still required. See [vendor CLI references](../components/netops-helper/docs/vendor-cli-references.md#audited-profiles). |
+| `juniper_junos` | Junos OS 23.4R2, common cross-family profile | exec | None against a real device | Not measured | **Catalogue and wire-simulated only.** Live product-family, login-class/AAA, fixed-pipe and bytes-on-wire validation are named as still required. See [vendor CLI references](../components/netops-helper/docs/vendor-cli-references.md#audited-profiles). |
+| `juniper_junos_els` | Junos OS 23.4R2, EX/QFX ELS superset | exec | None against a real device | Not measured | **Catalogue and wire-simulated only**, and named as an explicit switch-only superset; model capability and live wire validation are named as required before selection. See [vendor CLI references](../components/netops-helper/docs/vendor-cli-references.md#audited-profiles). |
+
+## Auditor channels (`netops-auditor` collector)
+
+The auditor's collector deliberately does **not** run under a read-only account - see
+[`../SECURITY.md`](../SECURITY.md) and [Collection channels](../components/netops-auditor/docs/channels.md).
+
+| Channel / platform | Firmware / baseline | Transport | Authentication exercised | Account privilege used | Verified end-to-end vs. unit-tested only |
+|---|---|---|---|---|---|
+| `ssh` / `fortios` | FortiGate 60F and 80F, FortiOS v8.0.0 build0167 (GA.F) | exec, no PTY (confirmed: `-tt` is not among the bound options) | ssh-key confirmed directly for this channel (one-shot run, 7.7 s, key authentication); password authentication has been available on this channel since 0.2.0 and is proven for the shared transport against the same device family - see [SSH transport](../components/netops-core/docs/ssh.md#measured-against) | A `super_admin` administrator - a decided, documented project position (17 September 2026), because a weaker profile silently omits parts of `system admin`, `system api-user`, `system accprofile` and `system automation-action` | **End-to-end.** `show` collected from both FortiGate 60F and 80F on 12 September 2026 (2,421 and 2,163 sections); a repeat nine days apart was byte identical. The FortiOS rule catalogue runs on these same collected dumps. |
+| `ssh` / `exos` | Extreme X440-G2-12p (two units), ExtremeXOS 33.7.1.6; the administrator-account decision was measured separately on ExtremeXOS 33.7.1 | exec, no PTY (confirmed: 0 prompt bytes in a one-shot answer, measured 17 September 2026) | Authentication kind not restated in the auditor's own table; `legacy_ssh: "rsa-sha1"` is required because both switches offer only `ssh-rsa`. Both ssh-key and password are proven for the shared transport against ExtremeXOS - see [SSH transport](../components/netops-core/docs/ssh.md#measured-against) | An administrator account - a decided, documented project position (measured 17 September 2026), because a user-level account is refused `show configuration` (`This user does not have permissions for this command.`) | **The collection is end-to-end; the rule catalogue is not.** `show configuration` was collected from both real switches on 12 September 2026 (1.7 s and 2.3 s). **The four `exos.json` rules have never been run against a device with this code**: they were tested against a dump taken by a backup job and against fixtures with inserted defects, never against a live `collect` of this platform in one run. |
+| `fortios-rest` | Historical figures only, from a different tool, against FortiOS v8.0.0 | REST over HTTPS (not SSH) | API token in an `Authorization: Bearer` header; TLS pinning verified only against a local self-signed test server | Depends on the API user's access profile; a weaker profile (`api_migration_rw`) silently omits the `super_admin` scope and returns fewer lines (16,115) than a `super_admin` token (17,323) over the same endpoint | **Not verified against a real device with this code.** This collector "has never talked to a FortiGate"; the byte counts and completeness numbers above were measured with a different tool. |
+
+## What "verified" does not cover here
+
+- **`fortios-rest` has never met a device with this code**, at all - the whole row above is a
+  catalogue-and-unit-test claim plus numbers borrowed from a different tool.
+- **The EXOS rule catalogue has never run against a live collection in one pass.** The transport
+  reaches a real switch; the four rules have only ever read a dump taken some other way.
+- **`ruckus_unleashed` has no verified read-only account model.** The wire mechanics are proven live;
+  whether a genuinely restricted Ruckus account can still do it has not been checked.
+- **Every helper platform below FortiOS and Extreme in the table above has never met a device at
+  all** - source review and a substituted `ssh` binary are not the same thing as a target agreeing to
+  answer.
+- A platform's row here can go stale exactly like any other measured fact: a firmware upgrade, a new
+  catalogue command, or a changed AAA policy can outdate the specific numbers cited without changing
+  this page. Treat every cell as dated evidence, not a standing guarantee, and follow its link.

@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.3.1 - 2026-09-20
+
+Follows `netops-core` 0.2.0, pinned as `netops-core==0.2.0`.
+
+- The release export's `compose.yaml` now builds from the archive root (`context: .`) with the
+  Dockerfile's own defaults, instead of `context: ../..`: an unpacked archive builds with
+  `docker compose build --pull=false` on its own, without the two build arguments the
+  in-repository Compose file passes. `scripts/check_public_release.py` gates the exported `build:`
+  block itself - the context, the Dockerfile relative to it, and `CORE_PACKAGE_DIR/__init__.py` -
+  so a compose file that stops building stops the release, not just the running container.
+- The image installs the packaged askpass program, `netops_core/askpass.py`, as
+  `/usr/local/bin/netops-askpass`, and sets `NETOPS_ASKPASS_PROGRAM` to it, so password
+  authentication keeps working under this Compose file's `noexec` `/tmp` and `/run`
+  (`docs/installation.md`).
+
 ## 0.3.0 - 2026-09-19
 
 The helper moves onto `netops-core`, the shared access layer of the family. Enrollment is now one inventory and one credential store shared with the other components, host key trust is a pin instead of a file, and the runner is named by a file of its own.

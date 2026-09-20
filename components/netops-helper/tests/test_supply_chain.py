@@ -8,12 +8,16 @@ import os
 from pathlib import Path
 import re
 import shutil
+import stat
 import subprocess
 import sys
 import tempfile
 
 
 ROOT = Path(__file__).parents[1]
+for _SOURCE in (ROOT / "src", ROOT.parent / "netops-core" / "src"):
+    if str(_SOURCE) not in sys.path:
+        sys.path.insert(0, str(_SOURCE))
 
 CGNAT_SAMPLE = str(ipaddress.ip_address(0x64400307))
 LINK_LOCAL_SAMPLE = str(ipaddress.ip_address(0xFE800000000000000000000000000001))
@@ -58,6 +62,8 @@ def test_healthcheck_uses_system_trust_without_private_ca_name() -> None:
     assert "get_default_verify_paths" in source
     assert "/usr/local/share/ca-certificates/" not in source
     assert not any(isinstance(node, ast.Assert) for node in ast.walk(ast.parse(source)))
+    assert "askpass_unsafe" in source
+    assert "ASKPASS_PROGRAM_ENV" in source
 
 
 def test_healthcheck_fails_closed_under_python_optimize() -> None:
@@ -87,7 +93,14 @@ raise SystemExit(0 if module.main() != 0 else 91)
             str(ROOT / "src/netops_helper/selftest.py"),
         ],
         cwd=ROOT,
-        env={**os.environ, "PYTHONOPTIMIZE": "1", "PYTHONDONTWRITEBYTECODE": "1"},
+        env={
+            **os.environ,
+            "PYTHONOPTIMIZE": "1",
+            "PYTHONDONTWRITEBYTECODE": "1",
+            "PYTHONPATH": os.pathsep.join(
+                (str(ROOT / "src"), str(ROOT.parent / "netops-core" / "src"))
+            ),
+        },
         stdin=subprocess.DEVNULL,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
@@ -96,6 +109,78 @@ raise SystemExit(0 if module.main() != 0 else 91)
         check=False,
     )
     assert completed.returncode == 0, (completed.stdout, completed.stderr)
+
+
+def _load_selftest():
+    specification = importlib.util.spec_from_file_location(
+        "netops_helper_selftest_under_test",
+        ROOT / "src/netops_helper/selftest.py",
+    )
+    assert specification is not None and specification.loader is not None
+    module = importlib.util.module_from_spec(specification)
+    specification.loader.exec_module(module)
+    return module
+
+
+def test_the_health_check_itself_refuses_an_unsafe_askpass_program() -> None:
+    tree = ast.parse((ROOT / "src/netops_helper/selftest.py").read_text())
+    main = next(
+        node for node in tree.body
+        if isinstance(node, ast.FunctionDef) and node.name == "main"
+    )
+    refusals = [
+        node for node in main.body
+        if isinstance(node, ast.If)
+        and isinstance(node.test, ast.Call)
+        and isinstance(node.test.func, ast.Name)
+        and node.test.func.id == "askpass_unsafe"
+        and len(node.body) == 1
+        and isinstance(node.body[0], ast.Return)
+        and isinstance(node.body[0].value, ast.Constant)
+        and node.body[0].value.value == 1
+    ]
+    assert len(refusals) == 1, ast.dump(main)
+
+
+def test_askpass_unsafe_is_false_when_the_variable_is_not_set() -> None:
+    module = _load_selftest()
+    variable = module.ssh_module.ASKPASS_PROGRAM_ENV
+    previous = os.environ.pop(variable, None)
+    try:
+        assert module.askpass_unsafe() is False
+    finally:
+        if previous is not None:
+            os.environ[variable] = previous
+
+
+def test_askpass_unsafe_reuses_the_shared_core_validation(tmp_path: Path) -> None:
+    module = _load_selftest()
+    variable = module.ssh_module.ASKPASS_PROGRAM_ENV
+    previous = os.environ.pop(variable, None)
+    try:
+        program = tmp_path / "netops-askpass"
+        program.write_text("#!/bin/sh\ncat \"$NETOPS_ASKPASS_FILE\"\n", encoding="utf-8")
+
+        program.chmod(0o755)
+        os.environ[variable] = str(program)
+        assert module.askpass_unsafe() is False
+
+        program.chmod(0o644)
+        assert module.askpass_unsafe() is True
+
+        program.chmod(0o757)
+        assert module.askpass_unsafe() is True
+
+        os.environ[variable] = str(tmp_path / "missing-askpass")
+        assert module.askpass_unsafe() is True
+
+        os.environ[variable] = str(tmp_path)
+        assert module.askpass_unsafe() is True
+    finally:
+        if previous is None:
+            os.environ.pop(variable, None)
+        else:
+            os.environ[variable] = previous
 
 
 def test_proxy_transport_guard_is_not_an_optimized_assert() -> None:
@@ -168,7 +253,7 @@ def _replace_exact(path: Path, before: str, after: str) -> None:
 
 def _replace_current_changelog_heading(path: Path, version: str) -> None:
     text = path.read_text(encoding="utf-8")
-    pattern = re.compile(r"^## 0\.3\.0(?P<suffix> - [^\n]+)$", re.MULTILINE)
+    pattern = re.compile(r"^## 0\.3\.1(?P<suffix> - [^\n]+)$", re.MULTILINE)
     path.write_text(
         pattern.sub(lambda match: f"## {version}{match.group('suffix')}", text),
         encoding="utf-8",
@@ -215,7 +300,7 @@ def test_version_invariant_rejects_changed_pyproject(tmp_path: Path) -> None:
     root = _version_fixture(tmp_path)
     _replace_exact(
         root / "pyproject.toml",
-        "version = \"0.3.0\"",
+        "version = \"0.3.1\"",
         "version = \"not-a-release\"",
     )
     errors = _load_release_module("check_public_release")._version_invariant_errors(root)
@@ -228,8 +313,8 @@ def test_version_invariant_rejects_changed_package_version(tmp_path: Path) -> No
     root = _version_fixture(tmp_path)
     _replace_exact(
         root / "src/netops_helper/__init__.py",
-        "__version__ = \"0.3.0\"",
         "__version__ = \"0.3.1\"",
+        "__version__ = \"0.3.2\"",
     )
     errors = _load_release_module("check_public_release")._version_invariant_errors(root)
     assert "package __version__ does not match project metadata" in errors
@@ -243,7 +328,7 @@ def test_version_invariant_rejects_nested_and_function_version_bindings(
         "nested": "\nif True:\n    __version__ = \"9.9.9\"\n",
         "function": (
             "\ndef version_decoy():\n"
-            "    __version__ = \"0.3.0\"\n"
+            "    __version__ = \"0.3.1\"\n"
             "    return __version__\n"
         ),
     }
@@ -281,8 +366,8 @@ def test_version_invariant_rejects_changed_compose_image(tmp_path: Path) -> None
     root = _version_fixture(tmp_path)
     _replace_exact(
         root / "compose.yaml",
-        "image: local/netops-helper:0.3.0",
         "image: local/netops-helper:0.3.1",
+        "image: local/netops-helper:0.3.2",
     )
     errors = _load_release_module("check_public_release")._version_invariant_errors(root)
     assert "Compose netops-helper image label does not match project metadata" in errors
@@ -303,7 +388,7 @@ def test_version_invariant_rejects_changed_sbom_root(tmp_path: Path) -> None:
     root = _version_fixture(tmp_path)
     sbom_path = root / "sbom.cdx.json"
     sbom = json.loads(sbom_path.read_text(encoding="utf-8"))
-    sbom["metadata"]["component"]["version"] = "0.3.1"
+    sbom["metadata"]["component"]["version"] = "0.3.2"
     sbom_path.write_text(json.dumps(sbom), encoding="utf-8")
     errors = _load_release_module("check_public_release")._version_invariant_errors(root)
     assert "source SBOM root application metadata does not match project metadata" in errors
@@ -334,11 +419,11 @@ def test_version_invariant_ignores_backtick_fenced_heading_decoy(
     tmp_path: Path,
 ) -> None:
     root = _version_fixture(tmp_path)
-    _replace_current_changelog_heading(root / "CHANGELOG.md", "0.3.1")
+    _replace_current_changelog_heading(root / "CHANGELOG.md", "0.3.2")
     _replace_exact(
         root / "CHANGELOG.md",
         "# Changelog\n\n",
-        "# Changelog\n\n```md\n## 0.3.0 - fenced decoy\n```\n\n",
+        "# Changelog\n\n```md\n## 0.3.1 - fenced decoy\n```\n\n",
     )
     errors = _load_release_module("check_public_release")._version_invariant_errors(root)
     assert "changelog current release heading does not match project metadata" in errors
@@ -348,15 +433,15 @@ def test_version_invariant_respects_tilde_fence_closing_length(
     tmp_path: Path,
 ) -> None:
     root = _version_fixture(tmp_path)
-    _replace_current_changelog_heading(root / "CHANGELOG.md", "0.3.1")
+    _replace_current_changelog_heading(root / "CHANGELOG.md", "0.3.2")
     _replace_exact(
         root / "CHANGELOG.md",
         "# Changelog\n\n",
         (
             "# Changelog\n\n~~~~~markdown\n"
-            "## 0.3.0 - first fenced decoy\n"
+            "## 0.3.1 - first fenced decoy\n"
             "~~~~\n"
-            "## 0.3.0 - still fenced after short closer\n"
+            "## 0.3.1 - still fenced after short closer\n"
             "~~~~~~\n\n"
         ),
     )
@@ -369,7 +454,7 @@ def test_version_invariant_rejects_wrong_or_duplicate_changelog_heading(
 ) -> None:
     gate = _load_release_module("check_public_release")
     wrong = _version_fixture(tmp_path / "wrong")
-    _replace_current_changelog_heading(wrong / "CHANGELOG.md", "0.3.1")
+    _replace_current_changelog_heading(wrong / "CHANGELOG.md", "0.3.2")
     errors = gate._version_invariant_errors(wrong)
     assert "changelog current release heading does not match project metadata" in errors
 
@@ -430,8 +515,8 @@ def test_public_allowlist_contains_all_0_2_contracts() -> None:
         path.relative_to(ROOT).as_posix()
         for path in exporter.selected_files(ROOT)
     }
-    assert len(selected) == 90
-    assert exporter.VERSION == "0.3.0"
+    assert len(selected) == 93
+    assert exporter.VERSION == "0.3.1"
     assert required_tests <= exporter.TESTS
     assert required_tests <= gate.REQUIRED_RELEASE_PATHS
     assert dependency_free_required <= dependency_free_tests
@@ -462,14 +547,14 @@ def _public_source_fixture(tmp_path: Path) -> Path:
         check=True,
         text=True,
     )
-    exported = output / "netops-helper-0.3.0"
+    exported = output / "netops-helper-0.3.1"
     manifest = json.loads(
         (exported / "release-manifest.json").read_text(encoding="utf-8")
     )
     core_modules = sorted(
         name for name in manifest["files"] if name.startswith("src/netops_core/")
     )
-    assert len(manifest["files"]) == 90 + len(core_modules)
+    assert len(manifest["files"]) == 93 + len(core_modules)
     assert "src/netops_core/audit.py" in core_modules
     (exported / "release-manifest.json").unlink()
     (exported / "SHA256SUMS").unlink()
@@ -624,7 +709,7 @@ def test_release_selection_rejects_unsafe_entries(tmp_path: Path) -> None:
 
 def test_release_export_preserves_existing_destination(tmp_path: Path) -> None:
     output = tmp_path / "existing-output"
-    destination = output / "netops-helper-0.3.0"
+    destination = output / "netops-helper-0.3.1"
     destination.mkdir(parents=True)
     marker = destination / "marker"
     marker_bytes = SELECTION_MARKER.encode("utf-8")
@@ -673,7 +758,7 @@ def test_release_export_rejects_symlinked_output(tmp_path: Path) -> None:
     parent_link.symlink_to(actual, target_is_directory=True)
 
     cases = {
-        "direct": (direct_link, actual / "netops-helper-0.3.0"),
+        "direct": (direct_link, actual / "netops-helper-0.3.1"),
         "parent": (
             parent_link / "nested-output",
             actual / "nested-output",
@@ -718,7 +803,7 @@ def test_release_gate_rejects_missing_vendor_contract(tmp_path: Path) -> None:
         ],
         check=True,
     )
-    exported = output / "netops-helper-0.3.0"
+    exported = output / "netops-helper-0.3.1"
     (exported / "release-manifest.json").unlink()
     gate = _load_release_module("check_public_release")
 
@@ -841,7 +926,7 @@ def test_release_tree_integrity_fails_closed(tmp_path: Path) -> None:
         ],
         check=True,
     )
-    exported = output / "netops-helper-0.3.0"
+    exported = output / "netops-helper-0.3.1"
     gate = _load_release_module("check_public_release")
     assert gate._release_tree_integrity_errors(exported) == []
 
@@ -1138,7 +1223,7 @@ def test_public_export_contains_no_python_bytecode(tmp_path: Path) -> None:
         ],
         check=True,
     )
-    exported = tmp_path / "netops-helper-0.3.0"
+    exported = tmp_path / "netops-helper-0.3.1"
     assert not [path for path in exported.rglob("*") if "__pycache__" in path.parts]
     assert not list(exported.rglob("*.pyc"))
     assert not list(exported.rglob("*.pyo"))
@@ -1171,11 +1256,114 @@ def test_gate_flags_credential_shaped_and_private_network_markers() -> None:
     assert gate._secret_and_network_marker_errors("tests/fixture.py", "peer " + LINK_LOCAL_SAMPLE) == []
 
 
+def test_release_export_compose_builds_from_archive_root(tmp_path: Path) -> None:
+    tmp_path.mkdir(parents=True, exist_ok=True)
+    output = tmp_path / "compose-build-root"
+    subprocess.run(
+        [
+            sys.executable,
+            "-B",
+            str(ROOT / "scripts/create_release_artifacts.py"),
+            "--output",
+            str(output),
+        ],
+        check=True,
+    )
+    exported = output / "netops-helper-0.3.1"
+    compose_text = (exported / "compose.yaml").read_text(encoding="utf-8")
+    assert "      context: .\n" in compose_text
+    assert "../.." not in compose_text
+    assert "dockerfile:" not in compose_text
+    assert "args:" not in compose_text
+
+
+def test_release_export_keeps_askpass_executable(tmp_path: Path) -> None:
+    tmp_path.mkdir(parents=True, exist_ok=True)
+    output = tmp_path / "compose-build-modes"
+    subprocess.run(
+        [
+            sys.executable,
+            "-B",
+            str(ROOT / "scripts/create_release_artifacts.py"),
+            "--output",
+            str(output),
+        ],
+        check=True,
+    )
+    exported = output / "netops-helper-0.3.1"
+    askpass_mode = stat.S_IMODE(
+        (exported / "src/netops_core/askpass.py").stat().st_mode
+    )
+    ssh_mode = stat.S_IMODE((exported / "src/netops_core/ssh.py").stat().st_mode)
+    assert askpass_mode == 0o755
+    assert ssh_mode == 0o644
+
+
+def test_release_export_rejects_unknown_compose_build_block(tmp_path: Path) -> None:
+    tmp_path.mkdir(parents=True, exist_ok=True)
+    mutated = tmp_path / "netops-helper-mutated"
+    shutil.copytree(ROOT, mutated)
+    _replace_exact(
+        mutated / "compose.yaml",
+        "      context: ../..\n",
+        "      context: ../../..\n",
+    )
+    completed = subprocess.run(
+        [
+            sys.executable,
+            "-B",
+            str(mutated / "scripts/create_release_artifacts.py"),
+            "--output",
+            str(tmp_path / "mutated-output"),
+        ],
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        check=False,
+        text=True,
+    )
+    assert completed.returncode != 0
+    assert (
+        "release_export=failed detail=compose build block is not the known one"
+        in completed.stderr
+    )
+    assert "Traceback" not in completed.stdout + completed.stderr
+
+
+def test_compose_build_gate_rejects_missing_dockerfile(tmp_path: Path) -> None:
+    tmp_path.mkdir(parents=True, exist_ok=True)
+    root = tmp_path / "compose-build-gate"
+    root.mkdir()
+    (root / "compose.yaml").write_text(
+        "services:\n"
+        "  netops-helper:\n"
+        "    build:\n"
+        "      context: .\n"
+        "    image: local/netops-helper:0.3.1\n",
+        encoding="utf-8",
+    )
+    gate = _load_release_module("check_public_release")
+    errors = gate._compose_build_target_errors(root)
+    assert any(
+        "dockerfile does not exist relative to its context" in error
+        for error in errors
+    ), errors
+
+    (root / "Dockerfile").write_text("FROM scratch\n", encoding="utf-8")
+    (root / "src/netops_core").mkdir(parents=True)
+    (root / "src/netops_core/__init__.py").write_text("", encoding="utf-8")
+    assert gate._compose_build_target_errors(root) == []
+
+
 def main() -> int:
     test_sbom_contains_all_direct_dependencies()
     test_release_license_is_mit()
     test_healthcheck_uses_system_trust_without_private_ca_name()
     test_healthcheck_fails_closed_under_python_optimize()
+    test_the_health_check_itself_refuses_an_unsafe_askpass_program()
+    test_askpass_unsafe_is_false_when_the_variable_is_not_set()
+    with tempfile.TemporaryDirectory(prefix="netops-selftest-askpass-") as directory:
+        test_askpass_unsafe_reuses_the_shared_core_validation(Path(directory))
     test_proxy_transport_guard_is_not_an_optimized_assert()
     test_base_image_is_pinned_and_lock_uses_hashes()
     test_release_tools_are_pinned()
@@ -1237,6 +1425,18 @@ def main() -> int:
         )
         test_public_gate_privacy_scan_has_bounded_runtime(temporary / "privacy-performance")
         test_public_export_contains_no_python_bytecode(temporary)
+        test_release_export_compose_builds_from_archive_root(
+            temporary / "compose-build-root"
+        )
+        test_release_export_keeps_askpass_executable(
+            temporary / "compose-build-modes"
+        )
+        test_release_export_rejects_unknown_compose_build_block(
+            temporary / "compose-build-mutated"
+        )
+        test_compose_build_gate_rejects_missing_dockerfile(
+            temporary / "compose-build-gate"
+        )
     test_runtime_image_drops_pip_and_carries_oci_labels()
     test_gate_flags_credential_shaped_and_private_network_markers()
     print("supply_chain_contract_tests=passed")

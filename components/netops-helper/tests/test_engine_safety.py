@@ -175,14 +175,25 @@ def test_a_transport_failure_of_the_client_still_refuses(monkeypatch) -> None:
         engine.read_from_device(auth(), "linux", "hostname")
 
 
-def test_the_exos_preamble_is_one_extra_command_before_the_query(monkeypatch) -> None:
+def test_the_extreme_exos_read_sends_only_the_query(monkeypatch) -> None:
     captured: list = []
     monkeypatch.setattr(
         engine.core_ssh, "run_command", recording_run_command(captured),
     )
     engine.read_from_device(auth(), "extreme_exos", "show version")
+    assert [call["command"] for call in captured] == ["show version"]
+    assert {call["host_key_line"] for call in captured} == {HOST_KEY_LINE}
+
+
+def test_a_populated_platform_preamble_is_still_sent_before_the_query(monkeypatch) -> None:
+    captured: list = []
+    monkeypatch.setattr(
+        engine.core_ssh, "run_command", recording_run_command(captured),
+    )
+    monkeypatch.setattr(engine, "_PLATFORM_PREAMBLE", {"fortinet": ("terminal length 0",)})
+    engine.read_from_device(auth(), "fortinet", "get system status")
     assert [call["command"] for call in captured] == [
-        "disable cli paging", "show version",
+        "terminal length 0", "get system status",
     ]
     assert {call["host_key_line"] for call in captured} == {HOST_KEY_LINE}
 
@@ -195,8 +206,7 @@ def test_transport_table_matches_the_canonical_authority() -> None:
         for platform, transport in engine._SSH_TRANSPORTS.items()
         if platform != "ruckus_unleashed"
     )
-    assert set(engine._PLATFORM_PREAMBLE) == {"extreme_exos"}
-    assert engine._PLATFORM_PREAMBLE["extreme_exos"] == ("disable cli paging",)
+    assert engine._PLATFORM_PREAMBLE == {}
 
 
 @pytest.mark.parametrize(
@@ -808,7 +818,8 @@ def test_sftp_reports_a_closed_connection_without_inventing_a_cause(
     result = asyncio.run(engine.sftp_stat(auth(), "/safe/log"))
     assert result["ok"] is False
     assert LegacySshProfileRequired.__name__ not in result["error"]
-    assert "Connection closed" in result["error"]
+    assert "the device closed the connection" in result["error"]
+    assert "192.0.2.20 port 22" not in result["error"]
 
 
 def test_written_audit_log_shows_an_enrolled_legacy_profile(tmp_path, monkeypatch) -> None:
