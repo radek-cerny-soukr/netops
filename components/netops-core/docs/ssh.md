@@ -41,15 +41,21 @@ The client **executes** the askpass program, so it must live on a filesystem tha
 By default the program is the small script `<workspace>/askpass`, written with mode 0700 next to the
 secret. That is right on an ordinary host and wrong in a hardened container: the helper's Compose
 file mounts `/tmp` and `/run` `noexec`, the workspace is created under `/tmp`, and a program written
-there cannot be executed at all. Historical measurement in the Helper 0.3.0 image on 19 September 2026 (that release,
-tag and image download have since been removed): an
+there cannot be executed at all. Measured on 19 September 2026 in a Helper image built the way the
+published one is, with the same `noexec` `/tmp` and `/run` mounts its `compose.yaml` declares (that
+release, its tag and its image download have since been removed): an
 execute-permission check on the written script answers false and `execve` fails with `EACCES`, while
 a program outside those mounts runs and reads a file inside them without trouble - `noexec` stops
 execution, not reading.
 
 A deployment that mounts its temporary directory `noexec` therefore ships the program elsewhere and
-names it in `NETOPS_ASKPASS_PROGRAM`; the helper image installs `netops_core/askpass.py` as
-`/usr/local/bin/netops-askpass` and sets that variable. The named program must be a regular file,
+names it in `NETOPS_ASKPASS_PROGRAM`. There are two ways to have it. Installing the distribution
+puts the program on the path as the command **`netops-askpass`**, executable and owned by the
+installing environment, so `NETOPS_ASKPASS_PROGRAM="$(command -v netops-askpass)"` is enough on a
+host that installed the package; the module file `netops_core/askpass.py` inside `site-packages` is
+**not** a substitute, because an installer writes package files without the execute bit and the
+check below refuses it. The helper image takes the other way and installs `netops_core/askpass.py`
+as `/usr/local/bin/netops-askpass` itself, with mode 0755, and sets the variable. The named program must be a regular file,
 executable by this process, and not writable by group or other, because it is the program the
 password is handed to. The secret itself stays in the workspace either way.
 

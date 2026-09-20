@@ -409,6 +409,56 @@ def _address_errors(relative: str, text: str, domains: bool) -> list[str]:
     return errors
 
 
+def staged_blob(root: Path, relative: str) -> bytes | None:
+    """Return the content git would commit for a path, or None when it has none."""
+    try:
+        completed = subprocess.run(
+            ["git", "-C", str(root), "show", ":%s" % relative],
+            capture_output=True, check=False, timeout=60,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if completed.returncode != 0:
+        return None
+    return completed.stdout
+
+
+def _staged_privacy_errors(root: Path, tracked: set[str]) -> list[str]:
+    errors: list[str] = []
+    for relative in sorted(tracked):
+        if Path(relative).suffix.lower() not in TEXT_SUFFIXES:
+            continue
+        staged = staged_blob(root, relative)
+        if staged is None:
+            continue
+        path = root / relative
+        try:
+            on_disk = path.read_bytes()
+        except OSError:
+            on_disk = None
+        if staged == on_disk:
+            continue
+        try:
+            text = staged.decode("utf-8")
+        except UnicodeDecodeError:
+            errors.append(f"staged text file is not valid UTF-8: {relative}")
+            continue
+        if any(marker.search(text) for marker in PRIVATE_MARKERS):
+            errors.append(f"private marker in the staged content of {relative}")
+        if any(marker.search(text) for marker in CREDENTIAL_MARKERS):
+            errors.append(f"credential-shaped material in the staged content of {relative}")
+        errors.extend(
+            "staged %s" % error for error in _pem_material_errors(relative, text)
+        )
+        errors.extend(
+            "staged %s" % error
+            for error in _address_errors(
+                relative, text, Path(relative).suffix.lower() in DOMAIN_SUFFIXES
+            )
+        )
+    return errors
+
+
 def _privacy_errors(root: Path, tracked: set[str]) -> list[str]:
     errors: list[str] = []
     for relative in sorted(tracked):
@@ -507,6 +557,7 @@ def check(root: Path = ROOT) -> list[str]:
     errors.extend(_license_errors(root, names))
     errors.extend(_workflow_errors(root, names))
     errors.extend(_privacy_errors(root, tracked))
+    errors.extend(_staged_privacy_errors(root, tracked))
     errors.extend(_link_errors(root, tracked))
     errors.extend(_gate_errors(root, names))
     return errors

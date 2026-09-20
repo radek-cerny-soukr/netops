@@ -499,6 +499,26 @@ def test_component_selector_cannot_disarm_the_gate() -> None:
         ), errors
 
 
+def test_gate_reads_what_git_would_commit_not_only_the_working_tree() -> None:
+    with tempfile.TemporaryDirectory() as directory:
+        root = _fixture(Path(directory))
+        module = root / "components/demo/src/module.py"
+        module.write_text(
+            f"VALUE = 1\n# the runner is {RFC1918_TEST_ADDRESS}\n", encoding="utf-8"
+        )
+        subprocess.run(
+            ["git", "-C", str(root), "add", "components/demo/src/module.py"], check=True
+        )
+        module.write_text("VALUE = 1\n# target 192.0.2.10\n", encoding="utf-8")
+        errors = _gate_for(root).check(root)
+        assert any("staged components/demo/src/module.py" in error for error in errors), errors
+        assert any(RFC1918_TEST_ADDRESS in error for error in errors), errors
+        subprocess.run(
+            ["git", "-C", str(root), "add", "components/demo/src/module.py"], check=True
+        )
+        assert _gate_for(root).check(root) == []
+
+
 def test_repository_gate_covers_the_real_tree() -> None:
     gate = _load_gate()
     tracked, errors = gate.tracked_files(ROOT)

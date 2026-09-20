@@ -1,7 +1,10 @@
 import json
 import re
+import shutil
 import tomllib
 from pathlib import Path
+
+import pytest
 
 COMPONENT = Path(__file__).resolve().parents[1]
 SBOM = COMPONENT / "sbom.cdx.json"
@@ -101,3 +104,20 @@ def test_release_lock_pins_every_requirement_with_hashes():
         assert "==" in line
         assert line.rstrip().endswith("\\")
     assert any("--hash=sha256:" in line for line in lines)
+
+
+def test_the_distribution_installs_the_askpass_program_as_a_command():
+    scripts = tomllib.loads(PYPROJECT.read_text(encoding="utf-8"))["project"].get("scripts", {})
+    assert scripts.get("netops-askpass") == "netops_core.askpass:main", scripts
+    from netops_core import askpass
+
+    assert callable(askpass.main)
+
+
+def test_the_askpass_program_a_deployment_names_is_reachable_without_the_source_tree():
+    from netops_core import ssh
+
+    program = shutil.which("netops-askpass")
+    if program is None:
+        pytest.skip("netops-askpass is not installed in this environment")
+    assert ssh._named_askpass(program) == program

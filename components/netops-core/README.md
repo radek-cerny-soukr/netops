@@ -1,6 +1,6 @@
 # netops-core
 
-The current release is `netops-core/v0.2.1` (2026-09-20); `netops-auditor` 0.2.2 and `netops-helper` 0.3.2 pin exactly that version.
+The current release is `netops-core/v0.2.2` (2026-09-20); `netops-auditor` 0.2.3 and `netops-helper` 0.3.3 pin exactly that version.
 
 The shared access layer of the `netops` family. It holds every piece a component needs to reach a
 device and to record what happened: the inventory of devices, the credential store, host key trust,
@@ -35,7 +35,7 @@ it" below for what that means in practice.
 | `vault.py` | the credential document (file version 2), its four kinds, and a credential whose value never reaches a representation |
 | `inventory.py` | the device document (file version 2), the common device fields, and the per-consumer sections |
 | `ssh.py` | the OpenSSH subprocess transport with key and password authentication |
-| `askpass.py` | the standalone askpass program a deployment names in `NETOPS_ASKPASS_PROGRAM` when its workspace cannot execute a freshly written script |
+| `askpass.py` | the standalone askpass program a deployment names in `NETOPS_ASKPASS_PROGRAM` when its workspace cannot execute a freshly written script; installing the distribution puts it on the path as the command `netops-askpass` |
 | `sftp.py` | the OpenSSH `sftp` client: metadata of one remote path, same hardening and same workspace |
 | `session.py` | the interactive terminal session on the same client, for devices without an exec channel |
 | `prompt.py` | the device prompt removed from a one-shot answer, one rule for every component |

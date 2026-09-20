@@ -1,8 +1,8 @@
 # Release process
 
 Release tags follow the component scheme `<name>/v<version>`, where `<name>` is the project name
-declared in this component's `pyproject.toml`: this component tags `netops-core/v0.2.1`, and the
-release title is `netops-core 0.2.1`. Tags of another component are never touched by this procedure.
+declared in this component's `pyproject.toml`: this component tags `netops-core/v0.2.2`, and the
+release title is `netops-core 0.2.2`. Tags of another component are never touched by this procedure.
 A tag is deleted together with its release page when a newer version of the same component is
 published, so the repository carries exactly one tag and one release page per component. The canonical origin is
 `https://github.com/radek-cerny-soukr/netops`.
@@ -22,7 +22,7 @@ credentials, host keys, or inventory and vault files. The release export is a po
 the component gate also reads the content of every released file and, outside a repository, holds the
 exported tree to exactly the released selection.
 
-## What 0.2.1 releases
+## What 0.2.2 releases
 
 This component releases **from source; it ships no container image**, because it is a library and
 nothing in it runs on its own. The release carries four assets:

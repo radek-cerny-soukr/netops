@@ -72,6 +72,31 @@ jobs:
           test -f "$target/src/netops_core/__init__.py"
           (cd "$target" && python -B scripts/check_public_release.py)
 
+      - name: Install on a proxy host and run the documented preflight
+        run: |
+          source="$(find dist -mindepth 1 -maxdepth 1 -type d)"
+          rm -rf "$RUNNER_TEMP/core-export"
+          (cd ../netops-core && python -B scripts/create_release_artifacts.py --output "$RUNNER_TEMP/core-export")
+          core="$(find "$RUNNER_TEMP/core-export" -mindepth 1 -maxdepth 1 -type d)"
+          venv="$RUNNER_TEMP/netops-helper-installed"
+          rm -rf "$venv"
+          python -m venv "$venv"
+          "$venv/bin/python" -m pip install --quiet "$core" "$source"
+          "$venv/bin/netops-helper-proxy" --help > /dev/null
+          home="$RUNNER_TEMP/netops-helper-config"
+          rm -rf "$home"
+          mkdir -p "$home/netops-helper"
+          cp config/inventory.example.json "$home/netops-helper/inventory.json"
+          cp config/vault.example.json "$home/netops-helper/vault.json"
+          cp config/egress-policy.example.json "$home/netops-helper/egress-policy.json"
+          cp config/runner.example.json "$home/netops-helper/runner.json"
+          chmod 600 "$home/netops-helper/vault.json"
+          XDG_CONFIG_HOME="$home" "$venv/bin/python" "$source/scripts/check_operator_config.py"
+          "$venv/bin/python" "$source/scripts/generate_egress_rules.py" \
+            --inventory "$home/netops-helper/inventory.json" \
+            --policy "$home/netops-helper/egress-policy.json" \
+            --output "$RUNNER_TEMP/netops-helper-egress.json"
+
   netops-auditor:
     if: ${{ !startsWith(github.ref, 'refs/tags/') || startsWith(github.ref, 'refs/tags/netops-auditor/') }}
     runs-on: ubuntu-24.04
@@ -115,6 +140,26 @@ jobs:
           cp -a "${exported[0]}" "$target"
           (cd "$target" && PYTHONPATH="$GITHUB_WORKSPACE/components/netops-core/src" python -B scripts/check_gates.py)
 
+      - name: Audit a configuration from an installed distribution
+        run: |
+          source="$(find dist -mindepth 1 -maxdepth 1 -type d)"
+          rm -rf "$RUNNER_TEMP/core-export"
+          (cd ../netops-core && python -B scripts/create_release_artifacts.py --output "$RUNNER_TEMP/core-export")
+          core="$(find "$RUNNER_TEMP/core-export" -mindepth 1 -maxdepth 1 -type d)"
+          venv="$RUNNER_TEMP/netops-auditor-installed"
+          rm -rf "$venv"
+          python -m venv "$venv"
+          "$venv/bin/python" -m pip install --quiet "$core" "$source"
+          for platform in fortios exos; do
+            "$venv/bin/netops-auditor" run \
+              --platform "$platform" \
+              --tenant ci \
+              --device ci-device \
+              --config "tests/fixtures/${platform}_clean.conf" \
+              --json > "$RUNNER_TEMP/installed-$platform.json"
+          done
+          "$venv/bin/python" -c "import json,os,sys; [json.load(open(os.environ['RUNNER_TEMP'] + '/installed-%s.json' % name)) for name in ('fortios', 'exos')]"
+
   netops-core:
     if: ${{ !startsWith(github.ref, 'refs/tags/') || startsWith(github.ref, 'refs/tags/netops-core/') }}
     runs-on: ubuntu-24.04
@@ -155,3 +200,15 @@ jobs:
           rm -rf "$target"
           cp -a "${exported[0]}" "$target"
           (cd "$target" && python -B scripts/check_gates.py)
+
+      - name: Hand a password to the client from an installed distribution
+        run: |
+          source="$(find dist -mindepth 1 -maxdepth 1 -type d)"
+          venv="$RUNNER_TEMP/netops-core-installed"
+          rm -rf "$venv"
+          python -m venv "$venv"
+          "$venv/bin/python" -m pip install --quiet "$source"
+          printf 'secret-of-this-ci-run\n' > "$RUNNER_TEMP/askpass-secret"
+          answer="$(NETOPS_ASKPASS_FILE="$RUNNER_TEMP/askpass-secret" "$venv/bin/netops-askpass")"
+          test "$answer" = "secret-of-this-ci-run"
+          PATH="$PATH:$venv/bin" python -m pytest -q tests/test_supply_chain.py

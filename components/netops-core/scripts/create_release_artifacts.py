@@ -34,6 +34,7 @@ EXECUTABLE = {
     "scripts/check_gates.py",
     "scripts/create_release_artifacts.py",
     "scripts/generate_sbom.py",
+    "src/netops_core/askpass.py",
 }
 
 

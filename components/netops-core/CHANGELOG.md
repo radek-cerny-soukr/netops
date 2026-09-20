@@ -1,6 +1,23 @@
 # Changelog
 
-Only `netops-core/v0.2.1` is currently published. Older entries below are historical source records, not available releases or tags; their release pages, tags and downloadable artifacts have been removed. Use commit history to inspect old source and the current [release procedure](docs/releasing.md) for new releases.
+Only `netops-core/v0.2.2` is currently published. Older entries below are historical source records, not available releases or tags; their release pages, tags and downloadable artifacts have been removed. Use commit history to inspect old source and the current [release procedure](docs/releasing.md) for new releases.
+
+## 0.2.2 - 2026-09-20
+
+The distribution now carries the askpass program as a command, and the source export keeps the
+executable bit of every program it ships.
+
+- `netops-askpass` is installed as a console script. A deployment whose temporary directory is
+  mounted `noexec` names an askpass program in `NETOPS_ASKPASS_PROGRAM`, and until now an installed
+  distribution offered none: the module file inside `site-packages` is written without the execute
+  bit, so the transport refused it and such a host could not hand a password to the client at all.
+  The command is installed executable and `NETOPS_ASKPASS_PROGRAM="$(command -v netops-askpass)"`
+  is now a complete answer on any host that installed the package.
+- The source export marks `src/netops_core/askpass.py` executable, as the repository does. The
+  archives of 0.2.0 and 0.2.1 shipped it with mode 0644, which failed the packaged-program test of
+  the archive itself and left the program unusable where it was needed most.
+- A test compares the executable bit of every exported file against its source, so an export can no
+  longer quietly drop or add one.
 
 ## 0.2.1 - 2026-09-20
 

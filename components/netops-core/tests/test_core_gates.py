@@ -492,3 +492,22 @@ def test_component_passes_every_gate():
     for gate in GATE_NAMES:
         assert _passed(result, gate), result.stdout
     assert _lines(result)[-1] == "core_gates=passed"
+
+
+def test_the_export_hands_on_the_executable_bit_of_every_program(tmp_path):
+    export = _export(tmp_path)
+    for path in sorted(export.rglob("*")):
+        if not path.is_file():
+            continue
+        relative = path.relative_to(export)
+        source = COMPONENT / relative
+        if not source.is_file():
+            continue
+        assert bool(source.stat().st_mode & 0o100) == bool(
+            path.stat().st_mode & 0o100
+        ), relative.as_posix()
+
+
+def test_the_packaged_askpass_program_stays_executable_in_the_export(tmp_path):
+    export = _export(tmp_path)
+    assert (export / "src/netops_core/askpass.py").stat().st_mode & 0o111
