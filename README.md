@@ -4,9 +4,9 @@ Tools that give an AI agent the narrowest possible hands and usable eyes on netw
 
 | Component | What it does | Released |
 |---|---|---|
-| [`netops-helper`](components/netops-helper/) | Read-only MCP server for bounded network troubleshooting | [`netops-helper/v0.3.2`](https://github.com/radek-cerny-soukr/netops/releases/tag/netops-helper%2Fv0.3.2) (2026-09-20) |
-| [`netops-auditor`](components/netops-auditor/) | Configuration audit; collects the configuration from the device itself | [`netops-auditor/v0.2.2`](https://github.com/radek-cerny-soukr/netops/releases/tag/netops-auditor%2Fv0.2.2) (2026-09-20) |
-| [`netops-core`](components/netops-core/) | Shared access layer the other components build on: inventory, credential store, host key trust, SSH transport, audit records | [`netops-core/v0.2.1`](https://github.com/radek-cerny-soukr/netops/releases/tag/netops-core%2Fv0.2.1) (2026-09-20) |
+| [`netops-helper`](components/netops-helper/) | Read-only MCP server for bounded network troubleshooting | [`netops-helper/v0.3.3`](https://github.com/radek-cerny-soukr/netops/releases/tag/netops-helper%2Fv0.3.3) (2026-09-20) |
+| [`netops-auditor`](components/netops-auditor/) | Configuration audit; collects the configuration from the device itself | [`netops-auditor/v0.2.3`](https://github.com/radek-cerny-soukr/netops/releases/tag/netops-auditor%2Fv0.2.3) (2026-09-20) |
+| [`netops-core`](components/netops-core/) | Shared access layer the other components build on: inventory, credential store, host key trust, SSH transport, audit records | [`netops-core/v0.2.2`](https://github.com/radek-cerny-soukr/netops/releases/tag/netops-core%2Fv0.2.2) (2026-09-20) |
 
 `netops-admin` (device writes, refuses to start without the auditor) is designed but not built. It will appear under `components/` when it carries code; an empty directory guarantees nothing.
 
@@ -18,9 +18,11 @@ Every component has its own version, its own tag prefix `netops-<component>/vX.Y
 
 Source history remains reachable on `main` by commit. Superseded release pages, tags, tag signatures and downloadable assets are no longer available from GitHub. Checking out an old commit recovers its source, not its original image, SBOM, scan or artifact signature; preserve verified artifacts locally if rollback or historical verification is required. Changelog entries describe source history, not additional available releases.
 
-A component release archive is self-contained: it carries the component tree, its own `LICENSE`, and its own changelog. Self-contained does not mean identical in shape: the `netops-helper` archive additionally vendors `src/netops_core`, the `netops-auditor` archive pins `netops-core==0.2.1` and needs the core archive installed beside it, and `netops-core` is a library archive with no image of its own. Repository-level files (this page, `SECURITY.md`, `CONTRIBUTING.md`, CI) live here and are not part of a component archive.
+A component release archive is self-contained: it carries the component tree, its own `LICENSE`, and its own changelog. Self-contained does not mean identical in shape: the `netops-helper` archive additionally vendors `src/netops_core`, the `netops-auditor` archive pins `netops-core==0.2.2` and needs the core archive installed beside it - so does the `netops-helper` archive, whose vendored copy of `netops_core` is there for the image build and does not satisfy that pin for `pip`, and `netops-core` is a library archive with no image of its own. Repository-level files (this page, `SECURITY.md`, `CONTRIBUTING.md`, CI) live here and are not part of a component archive.
 
 ## Repository gate
+
+A tag run of CI tests the component that tag names, plus the repository gate; the jobs of the other two components are skipped, and a skipped job is not a test that passed. The state of the whole tree at that commit is what the `main` run of the same commit reports.
 
 `scripts/check_release.py` is the gate for the tree as a whole. It fails closed when a tracked file belongs to no component release and to no reviewed repository file, when a component has no release selector or no gate of its own, when a component `LICENSE` differs from the repository one, when CI does not cover a component, or when any tracked file carries a private address, host name, path, or credential-shaped string. Each component then runs its own gate over its own tree: `components/netops-helper/scripts/check_public_release.py`, `components/netops-auditor/scripts/check_gates.py`, and `components/netops-core/scripts/check_gates.py`.
 

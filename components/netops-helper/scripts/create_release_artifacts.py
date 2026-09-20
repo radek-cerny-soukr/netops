@@ -109,8 +109,9 @@ SCRIPTS = {
     "scripts/apply_egress_rules.py", "scripts/check_egress_rules.py",
     "scripts/check_public_release.py", "scripts/create_release_artifacts.py",
     "scripts/generate_egress_rules.py", "scripts/generate_sbom.py",
-    "scripts/render_query_catalog_docs.py", "scripts/proxy_sanitize.py", "scripts/remote_mcp_proxy.py",
+    "scripts/render_query_catalog_docs.py", "scripts/remote_mcp_proxy.py",
     "scripts/check_operator_config.py",
+    "src/netops_helper/proxy.py",
 }
 
 

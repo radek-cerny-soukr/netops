@@ -129,7 +129,7 @@ def _inspect_host(bundle: dict[str, Any], runner: RunCallable) -> dict[str, Any]
         raise EgressApplyError("backend_indeterminate")
     if "docker-bridges" in nft_tables:
         raise EgressApplyError("native_nftables_unsupported")
-    _, ipv4_save = _run(runner, ["iptables-save", "--wait", "10"])
+    _, ipv4_save = _run(runner, ["iptables-save"])
     return {
         "backend": "iptables",
         "network_name": manifest["network_name"],

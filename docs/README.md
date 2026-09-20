@@ -4,7 +4,7 @@ This directory is mostly a signpost. Documentation lives with the component it d
 
 | Component | Documentation |
 |---|---|
-| `netops-helper` | [`components/netops-helper/docs/`](../components/netops-helper/docs/) — security model, egress control, installation, configuration, tools, query catalogue, vendor CLI references, releasing, known vulnerabilities |
+| `netops-helper` | [`components/netops-helper/docs/`](../components/netops-helper/docs/) — security model, egress control, installation, onboarding, configuration, read-only accounts, tools, query catalogue, vendor CLI references, releasing, known vulnerabilities |
 | `netops-auditor` | [`components/netops-auditor/docs/`](../components/netops-auditor/docs/) — collection channels, configuration, inventory, releasing and their documented limits |
 | `netops-core` | [`components/netops-core/docs/`](../components/netops-core/docs/) — inventory and credential schemas, the SSH transport, the audit record, releasing |
 

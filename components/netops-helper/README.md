@@ -1,6 +1,6 @@
 # NetOps Helper
 
-The current release is `netops-helper/v0.3.2` (2026-09-20), which pins `netops-core==0.2.1` and vendors `src/netops_core` inside its own release archive.
+The current release is `netops-helper/v0.3.3` (2026-09-20), which pins `netops-core==0.2.2` and vendors `src/netops_core` inside its own release archive.
 
 NetOps Helper phase 1 is a security-focused, read-only MCP server for bounded network troubleshooting. It gives any compatible MCP client explicitly enrolled diagnostic visibility without exposing a configuration path. It is intentionally not a general CLI, configuration reader, log browser, or network-discovery service.
 
@@ -130,7 +130,7 @@ This sequence deliberately creates the Compose network and container in a stoppe
    docker compose ps
    ```
 
-8. Configure `scripts/remote_mcp_proxy.py` as a stdio MCP server in a dedicated read-only profile of any compatible client. The proxy needs `netops_core` and `netops_helper` on its path; see [Installation](docs/installation.md#2-install-the-shared-access-layer-on-the-proxy-host). Start a fresh session, call `helper_status`, inspect `target_scope` for one listed device, and test one harmless enrolled query against a controlled test target.
+8. Configure the proxy as a stdio MCP server in a dedicated read-only profile of any compatible client: the command `netops-helper-proxy` when the component is installed, or `scripts/remote_mcp_proxy.py` when it is run from an unpacked archive. The proxy needs `netops_core` and `netops_helper` on its path; see [Installation](docs/installation.md#2-install-the-shared-access-layer-on-the-proxy-host). Start a fresh session, call `helper_status`, inspect `target_scope` for one listed device, and test one harmless enrolled query against a controlled test target.
 
 A device credential reuses its login and secret across SSH, SFTP, FTPS, and plain FTP; plain FTP transmits them without encryption. SNMPv2c sends its separate community in plaintext at the protocol layer. The stock image validates public trust; `tls_probe` and system-trust FTPS will normally reject private-CA or self-signed devices until a private image contains an independently verified trust anchor and the device certificate has a matching SAN. Follow the [credential](docs/configuration.md#credentials-and-protocol-use) and [private CA and FTPS pin](docs/configuration.md#private-tls-and-ftps-ca-san-and-pins) procedures; verification must not be disabled.
 

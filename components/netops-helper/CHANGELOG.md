@@ -1,6 +1,44 @@
 # Changelog
 
-Only `netops-helper/v0.3.2` is currently published. Older entries below are historical source records, not available releases or tags; their release pages, tags and downloadable artifacts have been removed. Use commit history to inspect old source and the current [release procedure](docs/releasing.md) for new releases.
+Only `netops-helper/v0.3.3` is currently published. Older entries below are historical source records, not available releases or tags; their release pages, tags and downloadable artifacts have been removed. Use commit history to inspect old source and the current [release procedure](docs/releasing.md) for new releases.
+
+Versions on this page are `netops-helper` versions; its tags are `netops-helper/vX.Y.Z`.
+A bare number here is not a tag of another component that happens to share it.
+
+## 0.3.3 - 2026-09-20
+
+Follows `netops-core` 0.2.2, pinned as `netops-core==0.2.2`. The proxy is installed as a command,
+and the egress apply helper works on a host whose `iptables-save` is the nftables one.
+
+- `netops-helper-proxy` is installed as a console script. The proxy moved into the package as
+  `netops_helper.proxy` (with `netops_helper.proxy_sanitize`), and `scripts/remote_mcp_proxy.py`
+  stays as the launcher that runs it from an unpacked archive without installing anything. A client
+  is now configured with a command rather than an absolute path into an archive.
+- The proxy no longer requires its own file to be executable when it authenticates the runner with
+  a key. It hands the runner password to the client by re-executing itself as the askpass program,
+  and the check for that was made before the credential kind was known, so an installed proxy -
+  whose module file has no execute bit - refused to start even with a key. The program is now the
+  first executable entry point among `sys.argv[0]` and the module file, and it is required only for
+  a password.
+- `scripts/apply_egress_rules.py` called `iptables-save --wait 10`. That utility has no such option
+  in iptables 1.8.10, so the apply step ended in `host_command_failed` on any host with the
+  nftables-based tools, and the documented installation could not be completed there. The option is
+  gone, the lock the script already holds is what serialises it, and the fake runner in the tests
+  now rejects options the real utility does not know.
+- `ssh_read` is documented as taking the catalogue platform name, the one `target_scope` reports,
+  not the canonical inventory name.
+- `installation.md` and the root README say that the helper archive needs the core archive
+  installed beside it: its vendored copy of `netops_core` is there for the image build and does not
+  satisfy the pin for `pip`.
+- `known-vulnerabilities.md` records that CVE-2026-82049 is a package match without a reachable
+  path: the flaw is in `tarfile`, which no runtime source and no release script imports.
+- `read-only-accounts.md` states what was measured on Unleashed 200.13: its configuration context has
+  no command that creates a second administrator or assigns a role, so the platform cannot offer a
+  read-only account at all. That is a property of the device, and an enrollment always carries the one
+  administrator.
+- The support matrix records three live measurements taken with this code: the `linux` platform
+  answering `kernel` and `hostname` on a real host, SNMPv2c against ExtremeXOS with a temporary
+  read-only community, and the EXOS rule catalogue running over a live `collect`.
 
 ## 0.3.2 - 2026-09-20
 

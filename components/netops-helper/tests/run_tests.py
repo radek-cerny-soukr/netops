@@ -125,10 +125,9 @@ def _run_core_contracts() -> None:
         {},
     )
 
-    proxy_path = ROOT / "scripts/remote_mcp_proxy.py"
-    sys.path.insert(0, str(proxy_path.parent))
+    proxy_path = ROOT / "src/netops_helper/proxy.py"
     specification = importlib.util.spec_from_file_location(
-        "remote_mcp_proxy_smoke",
+        "netops_helper.proxy",
         proxy_path,
     )
     assert specification is not None and specification.loader is not None

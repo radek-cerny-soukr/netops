@@ -9,11 +9,8 @@ from pathlib import Path
 import pytest
 
 
-SCRIPT = Path(__file__).parents[1] / "scripts" / "remote_mcp_proxy.py"
-SPEC = importlib.util.spec_from_file_location("remote_mcp_proxy", SCRIPT)
-MODULE = importlib.util.module_from_spec(SPEC)
-assert SPEC.loader is not None
-SPEC.loader.exec_module(MODULE)
+SCRIPT = Path(__file__).parents[1] / "src" / "netops_helper" / "proxy.py"
+from netops_helper import proxy as MODULE
 
 DEVICE_PIN = "SHA256:" + "A" * 43
 RUNNER_PIN = "SHA256:" + "B" * 43

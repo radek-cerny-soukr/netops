@@ -153,6 +153,16 @@ class FakeRunner:
             output = "table ip docker-bridges" if self.native_nft else "table inet filter"
             return SimpleNamespace(returncode=0, stdout=output, stderr="")
         if executable in {"iptables-save", "ip6tables-save"}:
+            unsupported = [
+                option for option in command[1:]
+                if option in {"--wait", "-w"} or option.isdigit()
+            ]
+            if unsupported:
+                return SimpleNamespace(
+                    returncode=1,
+                    stdout="",
+                    stderr="%s: unrecognized option '%s'\n" % (executable, unsupported[0]),
+                )
             family = "ip6" if executable.startswith("ip6") else "ip"
             output = self.current[family]
             if self.post_drift and self.restore_counts[family] and family == "ip":

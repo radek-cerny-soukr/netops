@@ -20,7 +20,8 @@ import tempfile
 
 
 ROOT = Path(__file__).parents[1]
-SCRIPT = ROOT / "scripts" / "remote_mcp_proxy.py"
+SCRIPT = ROOT / "src" / "netops_helper" / "proxy.py"
+LAUNCHER = ROOT / "scripts" / "remote_mcp_proxy.py"
 DEVICE_PIN = "SHA256:" + "A" * 43
 RUNNER_PIN = "SHA256:" + "B" * 43
 DEVICE_SECRET = "ssh-password"
@@ -30,7 +31,7 @@ RUNNER_HOST_KEY = b64encode(b"runner-host-key-material").decode("ascii")
 
 
 def _load_proxy():
-    spec = importlib.util.spec_from_file_location("remote_mcp_proxy_contracts", SCRIPT)
+    spec = importlib.util.spec_from_file_location("netops_helper.proxy", SCRIPT)
     module = importlib.util.module_from_spec(spec)
     assert spec.loader is not None
     spec.loader.exec_module(module)
@@ -966,7 +967,7 @@ def check_standalone_isolated_help(directory: Path) -> None:
     }
     environment["PYTHONNOUSERSITE"] = "1"
     completed = subprocess.run(
-        [sys.executable, "-I", "-B", str(SCRIPT), "--help"],
+        [sys.executable, "-I", "-B", str(LAUNCHER), "--help"],
         cwd=directory,
         env=environment,
         stdin=subprocess.DEVNULL,
@@ -1371,7 +1372,7 @@ def check_end_to_end_over_a_fake_ssh(module, directory: Path) -> None:
         }) + b"\n",
     ))
     completed = subprocess.run(
-        [sys.executable, "-B", str(SCRIPT)],
+        [sys.executable, "-B", str(LAUNCHER)],
         cwd=directory,
         env=_proxy_environment(module, directory, binaries, record),
         input=calls,
@@ -1423,7 +1424,7 @@ def check_end_to_end_over_a_fake_ssh(module, directory: Path) -> None:
     record.unlink()
     _write(runner_path, _runner())
     refused = subprocess.run(
-        [sys.executable, "-B", str(SCRIPT)],
+        [sys.executable, "-B", str(LAUNCHER)],
         cwd=directory,
         env=_proxy_environment(module, directory, binaries, record),
         input=calls,
@@ -1461,7 +1462,7 @@ def check_a_dead_child_is_reported_while_stdin_stays_open(module, directory: Pat
     dead.chmod(0o755)
     record = directory / "fake-ssh-record.json"
     process = subprocess.Popen(
-        [sys.executable, "-B", str(SCRIPT)],
+        [sys.executable, "-B", str(LAUNCHER)],
         cwd=directory,
         env=_proxy_environment(module, directory, binaries, record),
         stdin=subprocess.PIPE,

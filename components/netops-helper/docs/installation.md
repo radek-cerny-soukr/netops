@@ -22,6 +22,10 @@ The same device credential is used for SSH, SFTP, FTPS, and plain FTP. Plain FTP
 
 The proxy and the egress generator import `netops_core` and `netops_helper`. Both come from the tree of this repository, not from an index: install `components/netops-core` and `components/netops-helper` into the environment that runs the proxy, or put `components/netops-core/src` and `components/netops-helper/src` on `PYTHONPATH`. The scripts add both directories themselves when they are started from a checkout, so a checkout needs no further setup.
 
+From a release export the same two ways apply to the unpacked archives: `python -m pip install <netops-core directory> <netops-helper directory>` into the environment that runs the proxy, or their `src` directories on `PYTHONPATH`. **Both archives are needed for that path**, and in that order: the helper archive carries a copy of `netops_core` for the image build, but its metadata still pins `netops-core==0.2.2`, which no index serves, so `pip install <netops-helper directory>` on its own ends in `No matching distribution found for netops-core`. That is the pin doing its job, not a damaged archive.
+
+Installing has two practical advantages over `PYTHONPATH` on a proxy host. It puts the proxy on the path as the command **`netops-helper-proxy`**, which is what a client is then configured to launch instead of an absolute path into an unpacked archive. And it puts the askpass program on the path as **`netops-askpass`**, which `NETOPS_ASKPASS_PROGRAM` may name on a host whose temporary directory is mounted `noexec`; without it, such a host cannot hand a password to the client at all, because the program written beside the secret cannot be executed there.
+
 ## 3. Prepare configuration and trust on the proxy host
 
 Use `$XDG_CONFIG_HOME/netops-helper` or set the documented `NETOPS_*` variables. All four files are described in [Configuration](configuration.md#the-four-operator-files).

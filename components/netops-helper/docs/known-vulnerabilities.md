@@ -12,7 +12,7 @@ The image is built from the digest-pinned official Python 3.13.15 slim-trixie AR
 | reviewed and ignored (`ignoredMatches`) | 1 | 0 | 0 | 0 | 0 | 0 |
 
 - The one ignored Critical entry is CVE-2026-60002 in `openssh-client`, described in the next section. It is the only ignore rule the release gate applies to this image; every Critical entry Debian has since fixed in the base image is gone from the scan rather than ignored.
-- Of the 51 active High entries, one has a fixed version anywhere: CVE-2026-82049 in the `python` interpreter itself, fixed in Python 3.14.0b1 and in no 3.13 release the base image could carry. The other 50, and every Medium, Low, Negligible and Unknown entry, are marked not fixed in Debian trixie.
+- Of the 51 active High entries, one has a fixed version anywhere: CVE-2026-82049 in the `python` interpreter itself, fixed in Python 3.14.0b1 and in no 3.13 release the base image could carry. That entry is a package match, not a reachable path: the flaw is in `tarfile`, and neither the runtime sources of any component nor the release scripts import `tarfile` or `shutil.unpack_archive` (`grep -rn 'tarfile' src scripts` over the three components returns nothing). The other 50, and every Medium, Low, Negligible and Unknown entry, are marked not fixed in Debian trixie.
 - The one Unknown entry is CVE-2026-82560 in `perl-base`, which Debian has not assessed; the helper does not invoke Perl.
 
 The release gate requires both `matches` and `ignoredMatches` in the report, counts every severity, fails on an active Critical entry, and requires an applied ignore rule with a written risk review for every ignored Critical entry. Active High and Medium entries do not fail the gate; they are disclosed here and stay part of the operator's review.
@@ -25,7 +25,7 @@ The image installs `openssh-client` because the SSH transport of the family is t
 
 | Finding | Package and version | Debian assessment | Runtime relevance |
 | --- | --- | --- | --- |
-| CVE-2026-60002 | openssh-client 1:10.0p1-7+deb13u4 | no-DSA, minor; fixed upstream in OpenSSH 10.4, trixie stays on 10.0 | Client-side use-after-free when the *server* changes its host key during a key re-exchange. The only servers the helper talks to are enrolled devices with a pinned host key, each call is one short `ssh`/`sftp` process (timeouts of seconds, snapshots capped at 2 MB, no multiplexing), and the process runs as an unprivileged user in a read-only container with every capability dropped. A device that triggers the bug is a compromised enrolled device, which the security model already treats as a hostile input source; the exposure is the collector process, not the host. |
+| CVE-2026-60002 | openssh-client 1:10.0p1-7+deb13u4 | no-DSA, minor; fixed upstream in OpenSSH 10.4, trixie stays on 10.0 | Client-side use-after-free when the *server* changes its host key during a key re-exchange. The only servers the helper talks to are enrolled devices with a pinned host key, each call is one short `ssh`/`sftp` process (timeouts of seconds, snapshots capped at 2 MB, no multiplexing), and the process runs as an unprivileged user in a read-only container with every capability dropped. A device that triggers the bug is a compromised enrolled device, which the security model already treats as a hostile input source; the exposure is the short-lived `ssh`/`sftp` process of one query, not the host. |
 
 Reference: https://security-tracker.debian.org/tracker/CVE-2026-60002
 

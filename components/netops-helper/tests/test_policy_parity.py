@@ -19,7 +19,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 
 import generate_egress_rules as generator
 from netops_core.hostkey import fingerprint_of
-import remote_mcp_proxy as proxy_module
+from netops_helper import proxy as proxy_module
 from netops_helper.auth import TargetAuth
 from netops_helper import inventory as helper_inventory
 from netops_helper import read_policy
