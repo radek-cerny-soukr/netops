@@ -47,7 +47,9 @@ component runs from the unpacked archive on any Python 3.13 host.
 The auditor reads the inventory, the credential store, the host key trust and the SSH
 transport from `netops-core`, and `pyproject.toml` pins it as `netops-core==0.2.1`. There is no index
 to resolve that pin against: **the operator installs the `netops-core` source archive of exactly that
-version next to the auditor** - unpack `netops-core-0.2.1-source.tar.gz`, verify its checksums, and
+version next to the auditor**. Download it from the current
+[`netops-core/v0.2.1`](https://github.com/radek-cerny-soukr/netops/releases/tag/netops-core%2Fv0.2.1)
+release, unpack `netops-core-0.2.1-source.tar.gz`, verify its checksums, and
 either install the unpacked directory into the same environment or put its `src` on `PYTHONPATH`. In
 this repository the archive is the tree, so the tests and the CI job take the component from
 `../netops-core/src`: `pyproject.toml` carries it in `[tool.pytest.ini_options] pythonpath` and
