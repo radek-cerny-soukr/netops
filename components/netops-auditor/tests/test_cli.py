@@ -11,7 +11,9 @@ from netops_auditor import cli
 from netops_auditor.collect import ChannelEvent, CollectError, Snapshot
 from netops_auditor.engine import CATALOG_DIR
 from netops_auditor.store import Store
-from netops_auditor.suppressions import fingerprint_of
+from netops_auditor.findings import fingerprint_of, fingerprint_v1
+from netops_auditor.suppressions import FILE_VERSION as SUPPRESSION_FILE_VERSION
+from netops_auditor.suppressions import SuppressionError, load_for_tenant
 from netops_core.ssh import SshError, UNKNOWN_REASON, reason
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -20,7 +22,6 @@ TENANT = "tenant-a"
 DEVICE = "fw-example"
 WAN_RULE = "fortios.mgmt.wan-admin-access"
 UTM_RULE = "fortios.policy.utm-without-ssl"
-UNBOUND_SUPPRESSIONS_NOTICE = "suppressions: %s is not bound to a tenant\n"
 
 
 def clean_text():
@@ -259,10 +260,10 @@ def rule_version(rule_id):
     return {item["id"]: item["version"] for item in document["rules"]}[rule_id]
 
 
-def suppression(rule_id, object_key, expires, reason="ticket NET-1", author="radek", device=DEVICE):
+def suppression(rule_id, object_key, expires, reason="ticket NET-1", author="radek", device=DEVICE, tenant=TENANT):
     version = rule_version(rule_id)
     return {
-        "fingerprint": fingerprint_of(rule_id, version, device, object_key),
+        "fingerprint": fingerprint_of(rule_id, version, tenant, device, object_key),
         "rule_id": rule_id,
         "rule_version": version,
         "device": device,
@@ -274,13 +275,35 @@ def suppression(rule_id, object_key, expires, reason="ticket NET-1", author="rad
     }
 
 
-def write_suppressions(directory, items, name="suppressions.json", tenant=None):
-    document = {"version": 1, "suppressions": items}
+def write_suppressions(directory, items, name="suppressions.json", tenant=TENANT, version=SUPPRESSION_FILE_VERSION):
+    document = {"version": version, "suppressions": items}
     if tenant is not None:
         document["tenant"] = tenant
     path = directory / name
     path.write_text(json.dumps(document), encoding="utf-8")
     return path
+
+
+def write_v1_suppressions(directory, items, name="v1.json"):
+    document = {"version": 1, "suppressions": items}
+    path = directory / name
+    path.write_text(json.dumps(document), encoding="utf-8")
+    return path
+
+
+def v1_suppression(rule_id, object_key, expires, reason="ticket NET-1", author="radek", device=DEVICE):
+    version = rule_version(rule_id)
+    return {
+        "fingerprint": fingerprint_v1(rule_id, version, device, object_key),
+        "rule_id": rule_id,
+        "rule_version": version,
+        "device": device,
+        "object_key": object_key,
+        "reason": reason,
+        "author": author,
+        "created": CREATED,
+        "expires": expires,
+    }
 
 
 def full_args(path, store=None, as_json=False, suppressions=None, accept=None, tenant=TENANT, device=DEVICE):
@@ -457,7 +480,7 @@ def test_active_suppression_takes_the_finding_out_of_new(tmp_path, capsys):
     text_code, text_out, _ = invoke(capsys, full_args(path, suppressions=waivers))
     assert code == 0
     assert text_code == 0
-    assert err == UNBOUND_SUPPRESSIONS_NOTICE % waivers
+    assert err == ""
     report = json.loads(out)
     states = states_by_rule(report)
     assert states[WAN_RULE] == "suppressed"
@@ -471,7 +494,16 @@ def test_broken_suppression_file_stops_the_run(tmp_path, capsys):
     path = write_config(tmp_path, dirty_text())
     database = tmp_path / "audit.sqlite"
     broken = tmp_path / "broken.json"
-    broken.write_text(json.dumps({"version": 1, "suppressions": [{"rule_id": WAN_RULE}]}), encoding="utf-8")
+    broken.write_text(
+        json.dumps(
+            {
+                "version": SUPPRESSION_FILE_VERSION,
+                "tenant": TENANT,
+                "suppressions": [{"rule_id": WAN_RULE}],
+            }
+        ),
+        encoding="utf-8",
+    )
     code, out, err = invoke(capsys, full_args(path, as_json=True, store=database, suppressions=broken))
     assert code == 2
     assert out == ""
@@ -490,7 +522,9 @@ def test_missing_suppression_file_stops_the_run(tmp_path, capsys):
 def test_a_suppression_file_bound_to_another_tenant_is_refused_naming_both(tmp_path, capsys):
     path = write_config(tmp_path, dirty_text())
     waivers = write_suppressions(
-        tmp_path, [suppression(WAN_RULE, WAN_OBJECT, FUTURE)], tenant="tenant-b",
+        tmp_path,
+        [suppression(WAN_RULE, WAN_OBJECT, FUTURE, tenant="tenant-b")],
+        tenant="tenant-b",
     )
     code, out, err = invoke(capsys, full_args(path, as_json=True, suppressions=waivers))
     assert code == 2
@@ -498,6 +532,28 @@ def test_a_suppression_file_bound_to_another_tenant_is_refused_naming_both(tmp_p
     assert err.startswith("error: ")
     assert TENANT in err
     assert "tenant-b" in err
+
+
+def test_a_suppression_file_without_a_tenant_is_refused_and_names_the_migration(tmp_path, capsys):
+    path = write_config(tmp_path, dirty_text())
+    waivers = write_suppressions(
+        tmp_path, [suppression(WAN_RULE, WAN_OBJECT, FUTURE)], tenant=None,
+    )
+    code, out, err = invoke(capsys, full_args(path, as_json=True, suppressions=waivers))
+    assert code == 2
+    assert out == ""
+    assert "missing document fields: tenant" in err
+    assert "migrate-suppressions" in err
+
+
+def test_a_version_1_suppression_file_is_refused_and_names_the_migration(tmp_path, capsys):
+    path = write_config(tmp_path, dirty_text())
+    waivers = write_v1_suppressions(tmp_path, [v1_suppression(WAN_RULE, WAN_OBJECT, FUTURE)])
+    code, out, err = invoke(capsys, full_args(path, as_json=True, suppressions=waivers))
+    assert code == 2
+    assert out == ""
+    assert "version 1 is refused" in err
+    assert "migrate-suppressions" in err
 
 
 def test_a_suppression_file_bound_to_the_running_tenant_works_with_no_notice(tmp_path, capsys):
@@ -547,7 +603,7 @@ def test_report_stays_byte_identical_with_states_and_suppressions(tmp_path, caps
         _, three, err_three = invoke(capsys, full_args(path, as_json=as_json, store=database, suppressions=waivers))
         assert one.encode("utf-8") == two.encode("utf-8")
         assert one.encode("utf-8") == three.encode("utf-8")
-        assert err_one == err_two == err_three == UNBOUND_SUPPRESSIONS_NOTICE % waivers
+        assert err_one == err_two == err_three == ""
 
 
 def test_states_and_suppressions_do_not_carry_the_configuration(tmp_path, capsys):
@@ -979,7 +1035,7 @@ def test_completeness_measures_a_snapshot_with_the_platform_it_carries(tmp_path)
     record, section = cli._inventory_record(path, DEVICE)
     text = "#\n# Module vlan configuration.\n#\nconfigure vlan Mgmt tag 10\n"
     snapshot = snapshot_of(text, "file", str(path), cli.DEFAULT_PROFILE, platform="exos")
-    assert cli._completeness(record, section, snapshot) is None
+    assert cli._completeness(TENANT, record, section, snapshot) is None
 
 
 def test_a_complete_view_lets_the_other_rules_run(tmp_path, capsys):
@@ -1590,7 +1646,7 @@ def test_a_suppression_reaches_the_collected_findings(tmp_path, capsys):
     waivers = write_suppressions(tmp_path, [suppression(WAN_RULE, WAN_OBJECT, FUTURE)])
     code, out, err = gather(capsys, inventory_path, as_json=True, suppressions=waivers)
     assert code == 0
-    assert err == UNBOUND_SUPPRESSIONS_NOTICE % waivers
+    assert err == ""
     report = json.loads(out)
     assert states_by_rule(report)[WAN_RULE] == "suppressed"
     assert states_by_rule(report)[UTM_RULE] == "new"
@@ -1708,3 +1764,119 @@ def test_collect_still_refuses_a_platform_without_a_catalogue(tmp_path, capsys):
     assert out == ""
     assert "the auditor holds no rule catalog for it" in err
     assert "linux" in err
+
+
+def test_migrate_suppressions_writes_a_bound_file_and_leaves_the_input_alone(tmp_path, capsys):
+    source = write_v1_suppressions(tmp_path, [v1_suppression(WAN_RULE, WAN_OBJECT, FUTURE)])
+    before = source.read_bytes()
+    target = tmp_path / "waivers-v2.json"
+    code, out, err = invoke(
+        capsys,
+        [
+            "migrate-suppressions",
+            "--input",
+            str(source),
+            "--output",
+            str(target),
+            "--tenant",
+            TENANT,
+        ],
+    )
+    assert code == 0
+    assert err == ""
+    assert out == "migrated 1 suppressions of tenant %s into %s\n" % (TENANT, target)
+    assert source.read_bytes() == before
+    document = json.loads(target.read_text(encoding="utf-8"))
+    assert document["version"] == SUPPRESSION_FILE_VERSION
+    assert document["tenant"] == TENANT
+    assert document["suppressions"][0]["fingerprint"] == fingerprint_of(
+        WAN_RULE, rule_version(WAN_RULE), TENANT, DEVICE, WAN_OBJECT
+    )
+
+
+def test_migrate_suppressions_prints_nothing_of_the_document_it_reads(tmp_path, capsys):
+    item = v1_suppression(WAN_RULE, WAN_OBJECT, FUTURE, reason=CANARY)
+    item["created"] = "not a moment"
+    source = write_v1_suppressions(tmp_path, [item])
+    code, out, err = invoke(
+        capsys,
+        [
+            "migrate-suppressions",
+            "--input",
+            str(source),
+            "--output",
+            str(tmp_path / "waivers-v2.json"),
+            "--tenant",
+            TENANT,
+        ],
+    )
+    assert code == 2
+    assert out == ""
+    assert CANARY not in err
+    assert not (tmp_path / "waivers-v2.json").exists()
+
+
+def test_the_migrated_file_silences_the_finding_it_was_written_for(tmp_path, capsys):
+    source = write_v1_suppressions(tmp_path, [v1_suppression(WAN_RULE, WAN_OBJECT, FUTURE)])
+    target = tmp_path / "waivers-v2.json"
+    invoke(
+        capsys,
+        ["migrate-suppressions", "--input", str(source), "--output", str(target), "--tenant", TENANT],
+    )
+    path = write_config(tmp_path, dirty_text())
+    code, out, err = invoke(capsys, full_args(path, as_json=True, suppressions=target))
+    assert code == 0
+    assert err == ""
+    assert states_by_rule(json.loads(out))[WAN_RULE] == "suppressed"
+
+
+def old_store(tmp_path, capsys, name="audit.sqlite"):
+    path = write_config(tmp_path, dirty_text())
+    database = tmp_path / name
+    code, _, _ = invoke(capsys, full_args(path, store=database))
+    assert code == 0
+    connection = sqlite3.connect(str(database), isolation_level=None)
+    connection.execute("PRAGMA user_version = 0")
+    connection.close()
+    return path, database
+
+
+def test_an_unmigrated_store_stops_the_run_and_names_the_migration(tmp_path, capsys):
+    path, database = old_store(tmp_path, capsys)
+    code, out, err = invoke(capsys, full_args(path, store=database))
+    assert code == 2
+    assert out == ""
+    assert "schema version 1" in err
+    assert "migrate-store" in err
+
+
+def test_migrate_store_lets_the_cli_open_the_store_again(tmp_path, capsys):
+    path, database = old_store(tmp_path, capsys)
+    code, out, err = invoke(capsys, ["migrate-store", "--store", str(database)])
+    assert code == 0
+    assert err == ""
+    assert out.startswith("migrated ")
+    assert "baseline entries" in out
+    code, out, err = invoke(capsys, full_args(path, as_json=True, store=database))
+    assert code == 0
+    assert json.loads(out)["states"]["gone"] == 0
+
+
+def test_migrate_store_needs_a_store_that_exists(tmp_path, capsys):
+    code, out, err = invoke(capsys, ["migrate-store", "--store", str(tmp_path / "nowhere.sqlite")])
+    assert code == 2
+    assert out == ""
+    assert err.startswith("error: ")
+
+
+def test_the_cli_and_the_read_only_surface_refuse_the_same_file_alike(tmp_path):
+    waivers = write_suppressions(
+        tmp_path,
+        [suppression(WAN_RULE, WAN_OBJECT, FUTURE, tenant="tenant-b")],
+        tenant="tenant-b",
+    )
+    with pytest.raises(SuppressionError) as shared:
+        load_for_tenant(waivers, TENANT)
+    with pytest.raises(cli.Failure) as through_cli:
+        cli._load_suppressions(waivers, TENANT)
+    assert str(shared.value) in str(through_cli.value)

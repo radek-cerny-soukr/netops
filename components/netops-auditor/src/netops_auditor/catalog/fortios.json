@@ -11,7 +11,10 @@
       "evidence_fields": ["vdoms"],
       "title": "The configuration is organized into VDOMs, a scope this catalog does not read, so no other rule of the catalog was evaluated over it.",
       "remediation": "Export and audit the configuration of each VDOM separately until the catalog learns to descend into VDOM scopes.",
-      "refs": [],
+      "refs": [
+        "FortiOS 8.0.0 CLI Reference: config system global (vdom-mode)",
+        "FortiOS 8.0.0 CLI Reference: config system vdom"
+      ],
       "known_false_positives": "The rule fires on any configuration carrying a vdom section, a single-VDOM one included, and the count is the number of edit entries the parser gathered from every vdom block of the text; whether an export taken from a device names each VDOM in such a block has not been checked."
     },
     {
@@ -23,7 +26,19 @@
       "evidence_fields": ["policy", "attribute", "value"],
       "title": "A firewall policy references an address, service, schedule, interface or zone that the configuration does not define.",
       "remediation": "Define the missing object or repoint the policy at an object that exists.",
-      "refs": [],
+      "refs": [
+        "FortiOS 8.0.0 CLI Reference: config firewall policy (srcintf, dstintf, srcaddr, dstaddr, service, schedule)",
+        "FortiOS 8.0.0 CLI Reference: config firewall address",
+        "FortiOS 8.0.0 CLI Reference: config firewall addrgrp",
+        "FortiOS 8.0.0 CLI Reference: config firewall service custom",
+        "FortiOS 8.0.0 CLI Reference: config firewall service group",
+        "FortiOS 8.0.0 CLI Reference: config firewall schedule onetime",
+        "FortiOS 8.0.0 CLI Reference: config firewall schedule recurring",
+        "FortiOS 8.0.0 CLI Reference: config firewall schedule group",
+        "FortiOS 8.0.0 CLI Reference: config system interface",
+        "FortiOS 8.0.0 CLI Reference: config system zone",
+        "FortiOS 8.0.0 CLI Reference: config system sdwan (zone)"
+      ],
       "known_false_positives": "Over the output of show, which does not print defaults, built-in objects may be missing from the text and every reference to them then looks dangling, so the supported input is show full-configuration; the built-in names and the sections a name may come from (addresses and groups, services and groups, schedules including groups, interfaces, zones and the zones of system sdwan) are a working list, and a name defined in a section the list does not carry yet is reported as dangling."
     },
     {
@@ -35,7 +50,9 @@
       "evidence_fields": ["interface", "services"],
       "title": "An interface with role wan permits administrative access over http, https, ssh or telnet.",
       "remediation": "Remove the administrative services from allowaccess on the wan interface and reach the device over VPN or from an internal interface.",
-      "refs": [],
+      "refs": [
+        "FortiOS 8.0.0 CLI Reference: config system interface (role, allowaccess)"
+      ],
       "known_false_positives": "The rule reads role and allowaccess and nothing else, so an interface whose exposure is narrowed elsewhere, or whose role is set to wan on an internal link, is reported just the same; how far such a narrowing reaches has not been measured against a device."
     },
     {
@@ -47,7 +64,9 @@
       "evidence_fields": ["policy", "name"],
       "title": "A policy turns UTM inspection on without attaching an ssl-ssh-profile.",
       "remediation": "Attach an ssl-ssh-profile to the policy so that the security profiles also see encrypted sessions.",
-      "refs": [],
+      "refs": [
+        "FortiOS 8.0.0 CLI Reference: config firewall policy (utm-status, ssl-ssh-profile)"
+      ],
       "known_false_positives": "A policy whose profiles never touch TLS is reported as well, and whether an inspection profile can take effect without the attribute appearing in the exported text is unverified and waits for a check against a real device."
     },
     {
@@ -59,7 +78,9 @@
       "evidence_fields": ["reason"],
       "title": "The device sends no logs to a syslog collector.",
       "remediation": "Enable log syslogd setting and point it at the address of the collector.",
-      "refs": [],
+      "refs": [
+        "FortiOS 8.0.0 CLI Reference: config log syslogd setting (status, server)"
+      ],
       "known_false_positives": "The rule reads the section log syslogd setting only, so a device shipping its logs over another channel would be reported as well; which other channels a given build offers is unverified and waits for a check against a real device."
     },
     {
@@ -71,7 +92,9 @@
       "evidence_fields": ["reason"],
       "title": "The device does not synchronize its clock over NTP.",
       "remediation": "Enable ntpsync and configure at least one ntpserver entry that carries a server address.",
-      "refs": [],
+      "refs": [
+        "FortiOS 8.0.0 CLI Reference: config system ntp (ntpsync, type, ntpserver)"
+      ],
       "known_false_positives": "The rule reports a missing server only when type is custom; when type is absent the rule deliberately abstains, because the CLI Reference 8.0.0 documents set type [fortiguard|custom] without stating which value applies when the attribute is not set, and that default has not been verified against a device. A device that keeps type custom, carries no ntpserver entry and still holds its clock from elsewhere would be reported."
     }
   ]

@@ -4,7 +4,12 @@ import json
 import sqlite3
 from datetime import datetime, timezone
 
+from .findings import fingerprint_of
+
 MOMENT_FORMAT = "%Y-%m-%dT%H:%M:%SZ"
+SCHEMA_VERSION = 2
+PREVIOUS_SCHEMA_VERSION = 1
+MIGRATE_COMMAND = "netops-auditor migrate-store --store <file>"
 
 SCHEMA = (
     """CREATE TABLE IF NOT EXISTS runs (
@@ -151,6 +156,99 @@ class StoreError(Exception):
     pass
 
 
+def _has_schema(connection) -> bool:
+    row = connection.execute(
+        "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'runs'"
+    ).fetchone()
+    return row is not None
+
+
+def schema_version(connection) -> int:
+    if not _has_schema(connection):
+        return 0
+    return int(connection.execute("PRAGMA user_version").fetchone()[0]) or PREVIOUS_SCHEMA_VERSION
+
+
+def checked_schema(connection) -> int:
+    version = schema_version(connection)
+    if version in (0, SCHEMA_VERSION):
+        return version
+    raise StoreError(
+        "store schema version %d, expected %d: the fingerprint of a finding carries the tenant"
+        " since version %d; migrate the store with %s"
+        % (version, SCHEMA_VERSION, SCHEMA_VERSION, MIGRATE_COMMAND)
+    )
+
+
+_SELECT_MIGRATED_FINDINGS = (
+    "SELECT findings.id, findings.fingerprint, findings.rule_id, findings.rule_version,"
+    " findings.device, findings.object_key, runs.tenant FROM findings"
+    " LEFT JOIN runs ON runs.id = findings.run_id ORDER BY findings.id"
+)
+
+_SELECT_MIGRATED_BASELINE = "SELECT id, tenant, fingerprint FROM baseline ORDER BY id"
+
+
+def _migrated_findings(connection) -> tuple:
+    mapping, count = {}, 0
+    for row in connection.execute(_SELECT_MIGRATED_FINDINGS).fetchall():
+        tenant = row["tenant"]
+        if not isinstance(tenant, str) or not tenant.strip():
+            raise StoreError(
+                "finding %d belongs to no run that names a tenant, the store cannot be migrated"
+                % row["id"]
+            )
+        fresh = fingerprint_of(
+            row["rule_id"], row["rule_version"], tenant, row["device"], row["object_key"]
+        )
+        mapping[(tenant, row["fingerprint"])] = fresh
+        connection.execute("UPDATE findings SET fingerprint = ? WHERE id = ?", (fresh, row["id"]))
+        count += 1
+    return mapping, count
+
+
+def _migrated_baseline(connection, mapping) -> int:
+    count = 0
+    for row in connection.execute(_SELECT_MIGRATED_BASELINE).fetchall():
+        fresh = mapping.get((row["tenant"], row["fingerprint"]))
+        if fresh is None:
+            raise StoreError(
+                "baseline entry %d names a fingerprint no finding of its tenant carries, the store"
+                " cannot be migrated" % row["id"]
+            )
+        connection.execute("UPDATE baseline SET fingerprint = ? WHERE id = ?", (fresh, row["id"]))
+        count += 1
+    return count
+
+
+def migrate(path) -> dict:
+    connection = sqlite3.connect(str(path), isolation_level=None)
+    connection.row_factory = sqlite3.Row
+    try:
+        version = schema_version(connection)
+        if version == 0:
+            raise StoreError("store %s holds no audit schema" % path)
+        if version == SCHEMA_VERSION:
+            raise StoreError("store %s already holds schema version %d" % (path, SCHEMA_VERSION))
+        if version != PREVIOUS_SCHEMA_VERSION:
+            raise StoreError(
+                "store %s holds schema version %d, the migration reads version %d"
+                % (path, version, PREVIOUS_SCHEMA_VERSION)
+            )
+        connection.execute("BEGIN IMMEDIATE")
+        try:
+            mapping, findings = _migrated_findings(connection)
+            baseline = _migrated_baseline(connection, mapping)
+            connection.execute("PRAGMA user_version = %d" % SCHEMA_VERSION)
+            connection.execute("COMMIT")
+        except BaseException:
+            connection.execute("ROLLBACK")
+            raise
+    finally:
+        connection.close()
+    return {"findings": findings, "baseline": baseline}
+
+
 def _now_utc() -> str:
     return datetime.now(timezone.utc).strftime(MOMENT_FORMAT)
 
@@ -211,8 +309,14 @@ class Store:
         self._connection = sqlite3.connect(str(path), isolation_level=None)
         self._connection.row_factory = sqlite3.Row
         self._connection.execute("PRAGMA foreign_keys = ON")
+        try:
+            checked_schema(self._connection)
+        except StoreError:
+            self._connection.close()
+            raise
         for statement in SCHEMA:
             self._connection.execute(statement)
+        self._connection.execute("PRAGMA user_version = %d" % SCHEMA_VERSION)
 
     def close(self):
         self._connection.close()
@@ -252,6 +356,10 @@ class Store:
                 if item["device"] != device:
                     raise StoreError(
                         "finding belongs to device %r, run covers device %r" % (item["device"], device)
+                    )
+                if item["tenant"] != tenant:
+                    raise StoreError(
+                        "finding belongs to tenant %r, run covers tenant %r" % (item["tenant"], tenant)
                     )
                 connection.execute(
                     _INSERT_FINDING,

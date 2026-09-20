@@ -80,7 +80,7 @@ def folder_of(rule_id):
 
 
 def audit(text):
-    return run(parse(text), DEVICE, RULES)
+    return run(parse(text), TENANT, DEVICE, RULES)
 
 
 def dumped(value):

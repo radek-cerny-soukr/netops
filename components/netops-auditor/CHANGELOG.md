@@ -1,5 +1,49 @@
 # Changelog
 
+## 0.2.2 - 2026-09-20
+
+Follows `netops-core` 0.2.1, pinned as `netops-core==0.2.1`. Two breaking changes to files the
+auditor reads: the suppression file goes to version 2 and the store carries a schema version. Both
+are refused fail-closed with the migration command in the message, and both migrations are explicit
+CLI steps that never run on the side.
+
+- **Bounded REST body.** The `fortios-rest` collector assembled the answer block by block with a
+  time limit and no byte limit; a synthetic answer of 300 blocks of 65,536 bytes was accepted whole,
+  19,660,800 bytes of it. A budget is now measured **before** each block is kept, so an oversized
+  answer is dropped while it is still arriving: `--max-response-bytes` of `collect`, default
+  `8388608` (8 MiB), a number sized for a configuration export rather than copied from the 2 MB cap
+  `netops-helper` puts on the output of a command. The request, the response headers and every block
+  of the body now share one deadline instead of the body alone carrying it, an HTTP status other
+  than `200` ends the call after a small head of the answer that is thrown away rather than after
+  the whole body, and both refusals name a reason from a closed list and the limit - never a word
+  the peer wrote. The `ssh` channel keeps its own cap, the bounded receive of `netops_core.ssh`.
+- **The tenant is part of a finding's identity.** The fingerprint is the sha256 over `rule_id`,
+  `rule_version`, `tenant`, `device` and `object_key`, joined by `\x1f` in that order, and it is
+  computed by one function that the report, the store and the suppression reader all call - the
+  second copy that lived in `suppressions.py` is gone. The same device audited for two tenants now
+  produces two different fingerprints, so one tenant's waiver can no longer reach the other's
+  finding. The version of the rule catalogue stays out of the fingerprint on purpose.
+- **Suppression file version 2 (breaking).** `tenant` is a required document field; a version 1 file
+  and a file without a tenant are both refused, naming
+  `netops-auditor migrate-suppressions --input <old file> --output <new file> --tenant <tenant>`.
+  That command rewrites every fingerprint for one tenant, checks each item against its old
+  fingerprint first, never writes over its input or over an existing output, and prints a count and
+  a path - nothing out of the document it read. A file written for two tenants was never one file;
+  migrate it once per tenant.
+- **The CLI and the MCP surface refuse alike.** Both load a suppression file through one function,
+  `suppressions.load_for_tenant`, so the read-only server can no longer stay silent where the CLI
+  refuses. The MCP surface stays read-only: it holds no migration and writes nothing.
+- **Store schema version 2 (breaking).** The database carries `PRAGMA user_version`. Opening an
+  older store is a readable error instead of a silent run - on the CLI and on the read-only server
+  alike - and `netops-auditor migrate-store --store <file>` recomputes the fingerprint of every
+  stored finding from the tenant of its own run and rewrites the baseline with the same mapping in
+  one transaction, so the count of findings, the baseline and the four states survive it and nothing
+  appears twice. A finding whose run names no tenant stops the migration and changes nothing.
+  Recording a finding whose tenant is not the run's tenant is now a store error, as it already was
+  for the device.
+- The six FortiOS rules carry `refs` into the *FortiOS 8.0.0 CLI Reference*, the release running on
+  the devices this catalogue was written for.
+
 ## 0.2.1 - 2026-09-20
 
 Follows `netops-core` 0.2.0, pinned as `netops-core==0.2.0`.

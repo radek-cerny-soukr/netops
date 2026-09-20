@@ -11,6 +11,7 @@ from netops_auditor.state import (
     classify,
 )
 
+TENANT = "tenant-a"
 DEVICE = "fw-a.example.invalid"
 NOW = datetime(2026, 9, 12, 6, 0, 0, tzinfo=timezone.utc)
 LATER = NOW + timedelta(days=30)
@@ -29,10 +30,11 @@ class FakeSuppression:
         return now < self.expires
 
 
-def make_finding(rule_id="L1-001", object_key="firewall policy/1", severity="high", rule_version=1):
+def make_finding(rule_id="L1-001", object_key="firewall policy/1", severity="high", rule_version=1, tenant=TENANT):
     return Finding(
         rule_id=rule_id,
         rule_version=rule_version,
+        tenant=tenant,
         device=DEVICE,
         object_key=object_key,
         severity=severity,

@@ -14,8 +14,8 @@ from . import checks_exos
 from . import checks_fortios
 from . import query
 from .engine import CatalogError, load_catalog
-from .store import Store
-from .suppressions import SuppressionError
+from .store import SCHEMA_VERSION, Store, schema_version
+from .suppressions import SuppressionError, load_for_tenant
 from .suppressions import load as load_suppressions
 
 STORE_VARIABLE = "NETOPS_AUDITOR_STORE"
@@ -78,6 +78,14 @@ class ReadOnlyStore(Store):
             isolation_level=None,
         )
         self._connection.row_factory = sqlite3.Row
+        version = schema_version(self._connection)
+        if version != SCHEMA_VERSION:
+            self._connection.close()
+            raise ConfigurationError(
+                "%s names %s, which holds schema version %d instead of %d; this server never"
+                " writes, so the store is migrated with the CLI"
+                % (STORE_VARIABLE, location, version, SCHEMA_VERSION)
+            )
 
 
 def available_platforms() -> tuple:
@@ -114,12 +122,10 @@ def _suppressions_path(values, tenant):
     raw = _text(values, SUPPRESSIONS_VARIABLE)
     if not raw:
         return None
-    location = Path(raw).expanduser()
     try:
-        load_suppressions(location, tenant)
+        return load_for_tenant(raw, tenant)[0]
     except SuppressionError as error:
         raise ConfigurationError("%s: %s" % (SUPPRESSIONS_VARIABLE, error)) from None
-    return location
 
 
 def configure(values=None) -> Configuration:

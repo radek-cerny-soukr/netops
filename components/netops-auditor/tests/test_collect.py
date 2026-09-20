@@ -270,6 +270,7 @@ def test_completeness_finding_has_the_shape_the_engine_takes():
     built = Finding(
         rule_id="fortios.snapshot.incomplete",
         rule_version=1,
+        tenant="tenant-a",
         device=DEVICE,
         object_key=finding["object_key"],
         severity="high",
@@ -445,11 +446,16 @@ from netops_auditor.collect import (
     CHANNEL_REST,
     CHANNEL_SSH,
     PLATFORM_FORTIOS,
+    READ_CHUNK_BYTES,
+    REST_ERROR_HEAD_BYTES,
+    REST_MAX_BODY_BYTES,
     REST_METHOD,
     REST_TARGET,
     REST_TIMEOUT_SECONDS,
     SSH_STEPS,
     SSH_TIMEOUT_SECONDS,
+    ResponseTooLarge,
+    _RestConnection,
     collect_fortios_rest,
     collect_ssh,
 )
@@ -523,8 +529,8 @@ class FakeConnection:
             raise self._fingerprint
         return self._fingerprint
 
-    def request(self, method, target, headers):
-        self.log.append(("request", method, target, dict(headers)))
+    def request(self, method, target, headers, max_bytes=REST_MAX_BODY_BYTES):
+        self.log.append(("request", method, target, dict(headers), max_bytes))
         if self._error is not None:
             raise self._error
         return self._status, self._body
@@ -1818,3 +1824,118 @@ def test_a_snapshot_command_that_reports_a_nonzero_exit_status_is_refused():
     assert "exit status 250" in str(error)
     assert error.event.outcome == "failed"
     assert config_text() not in str(error)
+
+
+class FakeHttpResponse:
+    def __init__(self, status, blocks):
+        self.status = status
+        self._blocks = list(blocks)
+        self.reads = []
+
+    def read(self, amount):
+        self.reads.append(amount)
+        return self._blocks.pop(0) if self._blocks else b""
+
+
+class FakeHttpConnection:
+    def __init__(self, response):
+        self._response = response
+        self.log = []
+        self.closed = False
+
+    def request(self, method, target, headers=None):
+        self.log.append(("request", method, target))
+
+    def getresponse(self):
+        self.log.append(("getresponse",))
+        return self._response
+
+    def close(self):
+        self.closed = True
+
+
+def http_blocks(count, size=READ_CHUNK_BYTES):
+    return [b"c" * size] * count
+
+
+def rest_connection(response, timeout=REST_TIMEOUT_SECONDS):
+    return _RestConnection(FakeHttpConnection(response), timeout)
+
+
+def test_rest_body_within_the_budget_is_assembled_whole():
+    response = FakeHttpResponse(200, http_blocks(3))
+    status, body = rest_connection(response).request(
+        REST_METHOD, REST_TARGET, {}, READ_CHUNK_BYTES * 4
+    )
+    assert status == 200
+    assert len(body) == READ_CHUNK_BYTES * 3
+    assert len(response.reads) == 4
+
+
+def test_rest_body_over_the_budget_is_refused_before_the_block_is_kept():
+    response = FakeHttpResponse(200, http_blocks(300))
+    budget = READ_CHUNK_BYTES * 8
+    with pytest.raises(ResponseTooLarge):
+        rest_connection(response).request(REST_METHOD, REST_TARGET, {}, budget)
+    assert len(response.reads) == 9
+    assert sum(response.reads) <= budget + READ_CHUNK_BYTES
+
+
+def test_rest_budget_is_measured_before_the_block_is_added():
+    response = FakeHttpResponse(200, http_blocks(2))
+    with pytest.raises(ResponseTooLarge):
+        rest_connection(response).request(
+            REST_METHOD, REST_TARGET, {}, READ_CHUNK_BYTES + READ_CHUNK_BYTES // 2
+        )
+    assert len(response.reads) == 2
+
+
+def test_rest_error_status_reads_at_most_a_head_and_keeps_nothing():
+    response = FakeHttpResponse(500, http_blocks(300))
+    status, body = rest_connection(response).request(REST_METHOD, REST_TARGET, {})
+    assert status == 500
+    assert body == b""
+    assert response.reads == [REST_ERROR_HEAD_BYTES]
+
+
+def test_rest_default_budget_bounds_the_collector():
+    assert REST_MAX_BODY_BYTES == 8 * 1024 * 1024
+    response = FakeHttpResponse(200, http_blocks(300))
+    with pytest.raises(ResponseTooLarge):
+        rest_connection(response).request(REST_METHOD, REST_TARGET, {}, REST_MAX_BODY_BYTES // 8)
+
+
+def test_rest_oversized_answer_fails_the_collection_without_the_peers_words():
+    body = b"x" * 4096
+    error = rest_failure(FakeOpener(body=body), max_response_bytes=1024)
+    assert "answered with more than 1024 bytes" in str(error)
+    assert body.decode("utf-8") not in str(error)
+    assert error.event.outcome == "failed"
+    assert error.event.response_bytes == len(body)
+    assert error.event.response_sha256 == hashlib.sha256(body).hexdigest()
+
+
+def test_rest_budget_reaches_the_connection():
+    opener = FakeOpener()
+    rest_call(opener, max_response_bytes=1024 * 1024)
+    assert tuple(entry[4] for entry in opener.log if entry[0] == "request") == (1024 * 1024,)
+    opener = FakeOpener()
+    rest_call(opener)
+    assert tuple(entry[4] for entry in opener.log if entry[0] == "request") == (REST_MAX_BODY_BYTES,)
+
+
+@pytest.mark.parametrize("budget", (0, -1, 1.5, True, False, None, "1024", [1024], {}))
+def test_rest_refuses_a_budget_that_is_not_a_positive_whole_number(budget):
+    opener = FakeOpener()
+    with pytest.raises(CollectError) as caught:
+        rest_call(opener, max_response_bytes=budget)
+    assert caught.value.event is None
+    assert opener.calls == []
+    assert "max_response_bytes must be a positive whole number of bytes" in str(caught.value)
+
+
+def test_rest_one_deadline_covers_the_request_and_the_body():
+    response = FakeHttpResponse(200, http_blocks(3))
+    with pytest.raises(TimeoutError):
+        rest_connection(response, timeout=-1.0).request(REST_METHOD, REST_TARGET, {})
+    assert response.reads == []

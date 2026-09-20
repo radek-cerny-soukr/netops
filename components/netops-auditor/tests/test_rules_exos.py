@@ -7,6 +7,7 @@ from netops_auditor.engine import load_catalog, registered_checks, run
 from netops_auditor.l1_exos import parse
 
 FIXTURES = Path(__file__).parent / "fixtures"
+TENANT = "tenant-rules"
 DEVICE = "sw-example"
 PLATFORM = "exos"
 
@@ -32,7 +33,7 @@ def canary_text():
 
 
 def audit(text):
-    return run(parse(text), DEVICE, load_catalog(PLATFORM))
+    return run(parse(text), TENANT, DEVICE, load_catalog(PLATFORM))
 
 
 def mutate(text, old, new):

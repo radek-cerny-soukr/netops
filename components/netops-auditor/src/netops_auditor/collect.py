@@ -28,6 +28,8 @@ REST_PORT = 443
 REST_TIMEOUT_SECONDS = 30.0
 REST_ACCEPT = "text/plain"
 READ_CHUNK_BYTES = 65536
+REST_MAX_BODY_BYTES = 8 * 1024 * 1024
+REST_ERROR_HEAD_BYTES = 4096
 TLS_FINGERPRINT_LENGTH = 64
 TLS_FINGERPRINT_CHARS = frozenset("0123456789abcdef")
 SSH_PORT = 22
@@ -38,6 +40,10 @@ class CollectError(Exception):
     def __init__(self, message: str, event=None):
         super().__init__(message)
         self.event = event
+
+
+class ResponseTooLarge(Exception):
+    pass
 
 
 @dataclass(frozen=True)
@@ -159,6 +165,14 @@ def _checked_timeout(value) -> float:
     return seconds
 
 
+def _checked_budget(value) -> int:
+    if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
+        raise CollectError(
+            "max_response_bytes must be a positive whole number of bytes, got %r" % (value,)
+        )
+    return value
+
+
 def _checked_credential(value):
     if isinstance(value, (str, bytes, bytearray)) or not callable(getattr(value, "use", None)):
         raise CollectError(
@@ -217,19 +231,30 @@ class _RestConnection:
             return None
         return hashlib.sha256(certificate).hexdigest()
 
-    def request(self, method, target, headers):
+    def request(self, method, target, headers, max_bytes=REST_MAX_BODY_BYTES):
         deadline = time.monotonic() + self._timeout
         self._connection.request(method, target, headers=headers)
         response = self._connection.getresponse()
-        chunks = []
+        self._within(deadline)
+        if response.status != 200:
+            response.read(REST_ERROR_HEAD_BYTES)
+            return response.status, b""
+        chunks, size = [], 0
         while True:
+            self._within(deadline)
             chunk = response.read(READ_CHUNK_BYTES)
             if not chunk:
                 break
+            if size + len(chunk) > max_bytes:
+                raise ResponseTooLarge(max_bytes)
             chunks.append(chunk)
-            if time.monotonic() > deadline:
-                raise TimeoutError("the device did not finish the answer within the timeout")
+            size += len(chunk)
         return response.status, b"".join(chunks)
+
+    @staticmethod
+    def _within(deadline) -> None:
+        if time.monotonic() > deadline:
+            raise TimeoutError("the device did not finish the answer within the timeout")
 
     def close(self):
         self._connection.close()
@@ -267,11 +292,12 @@ def _verified(connection, pin, source, failed) -> None:
         )
 
 
-def _call(connection, credential):
+def _call(connection, credential, max_bytes):
     return connection.request(
         REST_METHOD,
         REST_TARGET,
         {"Authorization": "Bearer %s" % credential.use(), "Accept": REST_ACCEPT},
+        max_bytes,
     )
 
 
@@ -282,6 +308,7 @@ def collect_fortios_rest(
     profile,
     tls_fingerprint=None,
     timeout=REST_TIMEOUT_SECONDS,
+    max_response_bytes=REST_MAX_BODY_BYTES,
     opener=None,
     now=None,
 ) -> tuple:
@@ -290,6 +317,7 @@ def collect_fortios_rest(
     name, port, source = _rest_target(host)
     pin = _checked_tls_fingerprint(tls_fingerprint)
     seconds = _checked_timeout(timeout)
+    budget = _checked_budget(max_response_bytes)
     _checked_credential(credential)
     connect = _open if opener is None else opener
     request = "%s %s%s" % (REST_METHOD, source, REST_TARGET)
@@ -316,7 +344,13 @@ def collect_fortios_rest(
             "cannot read the certificate of %s (%s)" % (source, type(error).__name__), failed()
         ) from None
     try:
-        answer = _call(connection, credential)
+        answer = _call(connection, credential, budget)
+    except ResponseTooLarge:
+        raise CollectError(
+            "%s %s answered with more than %d bytes, the collector read no further"
+            % (REST_METHOD, source, budget),
+            failed(),
+        ) from None
     except Exception as error:
         raise CollectError(
             "%s %s failed (%s)" % (REST_METHOD, source, type(error).__name__), failed()
@@ -336,6 +370,12 @@ def collect_fortios_rest(
         )
     data = bytes(body)
     digest = hashlib.sha256(data).hexdigest()
+    if len(data) > budget:
+        raise CollectError(
+            "%s %s answered with more than %d bytes, the collector read no further"
+            % (REST_METHOD, source, budget),
+            failed(digest, len(data)),
+        )
     if status != 200:
         raise CollectError(
             "%s %s returned http status %s" % (REST_METHOD, source, status),

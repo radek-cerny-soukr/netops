@@ -4,8 +4,16 @@ from types import SimpleNamespace
 
 import pytest
 
-from netops_auditor.findings import Finding
-from netops_auditor.store import Store, StoreError
+from netops_auditor.findings import Finding, fingerprint_of, fingerprint_v1
+from netops_auditor.store import (
+    MIGRATE_COMMAND,
+    PREVIOUS_SCHEMA_VERSION,
+    SCHEMA_VERSION,
+    Store,
+    StoreError,
+    migrate,
+    schema_version,
+)
 
 TENANT = "tenant-a"
 DEVICE = "fw-a.example.invalid"
@@ -37,10 +45,11 @@ INSERT_FINDING = (
 )
 
 
-def make_finding(rule_id="L1-001", object_key="firewall policy/1", evidence=(("srcaddr", "192.0.2.0/24"),), device=DEVICE):
+def make_finding(rule_id="L1-001", object_key="firewall policy/1", evidence=(("srcaddr", "192.0.2.0/24"),), device=DEVICE, tenant=TENANT):
     return Finding(
         rule_id=rule_id,
         rule_version=1,
+        tenant=tenant,
         device=device,
         object_key=object_key,
         severity="high",
@@ -85,10 +94,19 @@ def test_schema_keeps_no_configuration_and_has_both_indexes():
 
 def test_finding_round_trips_as_dict():
     item = make_finding()
+    stored = {key: value for key, value in item.as_dict().items() if key != "tenant"}
     with Store(":memory:") as store:
         run_id = record(store, (item,))
-        assert store.findings_for_run(TENANT, run_id) == (item.as_dict(),)
+        assert store.findings_for_run(TENANT, run_id) == (stored,)
+        assert store.last_run(TENANT, DEVICE)["tenant"] == item.tenant
         assert store.findings_for_run(TENANT, run_id + 1000) == ()
+
+
+def test_a_finding_of_another_tenant_never_enters_a_run():
+    with Store(":memory:") as store:
+        with pytest.raises(StoreError, match="finding belongs to tenant"):
+            record(store, (make_finding(tenant="tenant-b"),), tenant="tenant-a")
+        assert store.last_run("tenant-a", DEVICE) is None
 
 
 def test_run_metadata_is_read_back():
@@ -179,8 +197,10 @@ def test_tenant_isolation_on_the_same_device_name():
 
 def test_findings_for_run_is_scoped_to_the_tenant():
     with Store(":memory:") as store:
-        mine = record(store, (make_finding(),), tenant="tenant-a")
-        theirs = record(store, (make_finding(rule_id="L1-002"),), tenant="tenant-b")
+        mine = record(store, (make_finding(tenant="tenant-a"),), tenant="tenant-a")
+        theirs = record(
+            store, (make_finding(rule_id="L1-002", tenant="tenant-b"),), tenant="tenant-b"
+        )
         assert len(store.findings_for_run("tenant-a", mine)) == 1
         assert store.findings_for_run("tenant-b", mine) == ()
         assert store.findings_for_run("tenant-a", theirs) == ()
@@ -454,14 +474,16 @@ def test_accept_baseline_refuses_a_run_of_another_tenant():
 
 
 def test_baseline_is_scoped_to_the_tenant_and_the_device():
-    item = make_finding()
+    ours = make_finding(tenant="tenant-a")
+    theirs = make_finding(tenant="tenant-b")
+    assert ours.fingerprint() != theirs.fingerprint()
     with Store(":memory:") as store:
-        mine = record(store, (item,), tenant="tenant-a")
-        theirs = record(store, (item,), tenant="tenant-b")
+        mine = record(store, (ours,), tenant="tenant-a")
+        other = record(store, (theirs,), tenant="tenant-b")
         assert accept(store, mine, tenant="tenant-a") == 1
-        assert accept(store, theirs, tenant="tenant-b") == 1
-        assert store.baseline_fingerprints("tenant-a", DEVICE) == frozenset((item.fingerprint(),))
-        assert store.baseline_fingerprints("tenant-b", DEVICE) == frozenset((item.fingerprint(),))
+        assert accept(store, other, tenant="tenant-b") == 1
+        assert store.baseline_fingerprints("tenant-a", DEVICE) == frozenset((ours.fingerprint(),))
+        assert store.baseline_fingerprints("tenant-b", DEVICE) == frozenset((theirs.fingerprint(),))
         assert store.baseline_fingerprints("tenant-c", DEVICE) == frozenset()
         assert store.baseline_fingerprints("tenant-a", "fw-z.example.invalid") == frozenset()
         assert store.baseline_entries("tenant-c", DEVICE) == ()
@@ -1049,3 +1071,136 @@ def test_channel_events_run_id_is_a_foreign_key():
             (TENANT, DEVICE, None, "ssh", REQUEST, DIGEST, 4096, "2026-09-12T05:00:00Z", "2026-09-12T05:00:02Z", "ok"),
         )
         assert channel_event_count(store) == 1
+
+
+OTHER_TENANT = "tenant-b"
+
+
+def downgraded(path):
+    connection = sqlite3.connect(str(path), isolation_level=None)
+    connection.row_factory = sqlite3.Row
+    for row in connection.execute(
+        "SELECT id, rule_id, rule_version, device, object_key FROM findings"
+    ).fetchall():
+        connection.execute(
+            "UPDATE findings SET fingerprint = ? WHERE id = ?",
+            (fingerprint_v1(row["rule_id"], row["rule_version"], row["device"], row["object_key"]), row["id"]),
+        )
+    for row in connection.execute("SELECT id, rule_id, object_key, device FROM baseline").fetchall():
+        connection.execute(
+            "UPDATE baseline SET fingerprint = ? WHERE id = ?",
+            (fingerprint_v1(row["rule_id"], 1, row["device"], row["object_key"]), row["id"]),
+        )
+    connection.execute("PRAGMA user_version = 0")
+    connection.close()
+    return path
+
+
+def version_one_store(tmp_path, name="v1.sqlite3"):
+    path = tmp_path / name
+    with Store(path) as store:
+        for tenant in (TENANT, OTHER_TENANT):
+            item = make_finding(tenant=tenant)
+            second = make_finding(rule_id="L1-002", object_key="firewall policy/2", tenant=tenant)
+            run_id = record(store, (item, second), tenant=tenant)
+            store.accept_baseline(tenant, DEVICE, run_id, "radek", "prevzato")
+    return downgraded(path)
+
+
+def fingerprints(path, table):
+    connection = sqlite3.connect(str(path))
+    connection.row_factory = sqlite3.Row
+    rows = connection.execute("SELECT tenant, fingerprint FROM %s" % table).fetchall() if table == "baseline" else connection.execute(
+        "SELECT runs.tenant AS tenant, findings.fingerprint AS fingerprint FROM findings"
+        " JOIN runs ON runs.id = findings.run_id ORDER BY findings.id"
+    ).fetchall()
+    connection.close()
+    return tuple((row["tenant"], row["fingerprint"]) for row in rows)
+
+
+def test_a_fresh_store_carries_the_schema_version(tmp_path):
+    path = tmp_path / "audit.sqlite3"
+    with Store(path) as store:
+        assert schema_version(store._connection) == SCHEMA_VERSION
+    connection = sqlite3.connect(str(path))
+    assert connection.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION
+    connection.close()
+
+
+def test_opening_a_version_1_store_is_refused_and_names_the_migration(tmp_path):
+    path = version_one_store(tmp_path)
+    before = fingerprints(path, "findings")
+    with pytest.raises(StoreError) as caught:
+        Store(path)
+    assert "schema version %d" % PREVIOUS_SCHEMA_VERSION in str(caught.value)
+    assert MIGRATE_COMMAND in str(caught.value)
+    assert fingerprints(path, "findings") == before
+
+
+def test_migration_recomputes_every_fingerprint_from_the_tenant_of_its_run(tmp_path):
+    path = version_one_store(tmp_path)
+    before = fingerprints(path, "findings")
+    assert len({fingerprint for _, fingerprint in before}) == 2
+    counts = migrate(path)
+    assert counts == {"findings": 4, "baseline": 4}
+    after = fingerprints(path, "findings")
+    assert len(after) == len(before) == 4
+    assert len({fingerprint for _, fingerprint in after}) == 4
+    for tenant, fingerprint in after:
+        assert fingerprint in (
+            fingerprint_of("L1-001", 1, tenant, DEVICE, "firewall policy/1"),
+            fingerprint_of("L1-002", 1, tenant, DEVICE, "firewall policy/2"),
+        )
+
+
+def test_migration_keeps_the_baseline_pointing_at_the_same_findings(tmp_path):
+    path = version_one_store(tmp_path)
+    migrate(path)
+    with Store(path) as store:
+        for tenant in (TENANT, OTHER_TENANT):
+            run = store.last_run(tenant, DEVICE)
+            stored = store.findings_for_run(tenant, run["id"])
+            assert len(stored) == 2
+            assert store.baseline_fingerprints(tenant, DEVICE) == frozenset(
+                item["fingerprint"] for item in stored
+            )
+        assert store.baseline_fingerprints(TENANT, DEVICE) != store.baseline_fingerprints(
+            OTHER_TENANT, DEVICE
+        )
+
+
+def test_migration_is_an_explicit_step_that_runs_once(tmp_path):
+    path = version_one_store(tmp_path)
+    migrate(path)
+    with pytest.raises(StoreError, match="already holds schema version"):
+        migrate(path)
+    with Store(path) as store:
+        assert schema_version(store._connection) == SCHEMA_VERSION
+
+
+def stored_fingerprints(path):
+    connection = sqlite3.connect(str(path))
+    rows = connection.execute("SELECT fingerprint FROM findings ORDER BY id").fetchall()
+    connection.close()
+    return tuple(row[0] for row in rows)
+
+
+def test_migration_refuses_a_finding_whose_run_names_no_tenant(tmp_path):
+    path = version_one_store(tmp_path)
+    before = stored_fingerprints(path)
+    connection = sqlite3.connect(str(path), isolation_level=None)
+    connection.execute("UPDATE findings SET run_id = 9999 WHERE id = 1")
+    connection.close()
+    with pytest.raises(StoreError, match="belongs to no run that names a tenant"):
+        migrate(path)
+    connection = sqlite3.connect(str(path))
+    assert connection.execute("PRAGMA user_version").fetchone()[0] == 0
+    connection.close()
+    assert stored_fingerprints(path) == before
+
+
+def test_migration_needs_a_store_that_holds_the_schema(tmp_path):
+    empty = tmp_path / "empty.sqlite3"
+    empty.touch()
+    with pytest.raises(StoreError, match="holds no audit schema"):
+        migrate(empty)

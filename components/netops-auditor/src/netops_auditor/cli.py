@@ -19,8 +19,9 @@ from .engine import CATALOG_DIR, CatalogError, CheckError, load_catalog, run
 from .findings import Finding
 from .state import STATE_GONE, STATE_NEW, STATE_OPEN_KNOWN, STATE_SUPPRESSED, classify
 from .store import Store, StoreError
-from .suppressions import MOMENT_FORMAT, SuppressionError, declared_tenant
-from .suppressions import load as load_suppressions
+from .store import migrate as migrate_store
+from .suppressions import MOMENT_FORMAT, SuppressionError, load_for_tenant
+from .suppressions import migrate_file as migrate_suppressions
 
 PLATFORMS = {
     "exos": (checks_exos, l1_exos),
@@ -118,6 +119,12 @@ def _parser() -> argparse.ArgumentParser:
     gather.add_argument("--device", required=True)
     gather.add_argument("--tenant", required=True)
     gather.add_argument("--vault")
+    gather.add_argument(
+        "--max-response-bytes",
+        dest="max_response_bytes",
+        type=int,
+        default=collect.REST_MAX_BODY_BYTES,
+    )
     gather.add_argument("--store")
     gather.add_argument("--suppressions")
     gather.add_argument("--baseline-accept", action="store_true", dest="baseline_accept")
@@ -137,6 +144,14 @@ def _parser() -> argparse.ArgumentParser:
     )
     freshness.add_argument("--json", action="store_true", dest="as_json")
     freshness.set_defaults(handler=_command_status)
+    waivers = commands.add_parser("migrate-suppressions")
+    waivers.add_argument("--input", required=True, dest="source")
+    waivers.add_argument("--output", required=True, dest="destination")
+    waivers.add_argument("--tenant", required=True)
+    waivers.set_defaults(handler=_command_migrate_suppressions)
+    database = commands.add_parser("migrate-store")
+    database.add_argument("--store", required=True)
+    database.set_defaults(handler=_command_migrate_store)
     return parser
 
 
@@ -172,13 +187,13 @@ def _rules_version(platform: str, rules) -> str:
     return "%s:%d:%s" % (platform, len(rules), digest)
 
 
-def _audit(platform: str, text: str, device: str, rules) -> tuple:
+def _audit(platform: str, text: str, tenant: str, device: str, rules) -> tuple:
     try:
         tree = PLATFORMS[platform][1].parse(text)
     except PARSE_ERRORS as error:
         raise Failure("cannot parse configuration: %s" % error)
     try:
-        return run(tree, device, rules)
+        return run(tree, tenant, device, rules)
     except CheckError as error:
         raise Failure("catalog does not match the checks: %s" % error)
 
@@ -193,14 +208,16 @@ def _checked_options(args):
         raise Failure("--accepted-by and --note need --baseline-accept")
 
 
+def _checked_budget(value) -> None:
+    if value <= 0:
+        raise Failure("--max-response-bytes must be positive, got %r" % (value,))
+
+
 def _load_suppressions(path, tenant):
     if path is None:
         return ()
     try:
-        items = load_suppressions(path, tenant)
-        if declared_tenant(path) is None:
-            sys.stderr.write("suppressions: %s is not bound to a tenant\n" % path)
-        return items
+        return load_for_tenant(path, tenant)[1]
     except SuppressionError as error:
         raise Failure("suppressions: %s" % error)
 
@@ -414,7 +431,7 @@ def _command_run(args) -> int:
     rules = _load_rules(args.platform)
     rules_version = _rules_version(args.platform, rules)
     suppression_items = _load_suppressions(args.suppressions, args.tenant)
-    findings = _audit(args.platform, text, args.device, rules)
+    findings = _audit(args.platform, text, args.tenant, args.device, rules)
     previous, baseline, accepted = (), frozenset(), None
     if args.store:
         previous, baseline, accepted = _record(args, digest, rules_version, findings)
@@ -524,7 +541,7 @@ def _credential(record, section, path):
     return credential
 
 
-def _gathered(record, section, credential) -> tuple:
+def _gathered(record, section, credential, max_response_bytes) -> tuple:
     if section.channel == inventory.CHANNEL_FILE:
         snapshot, event = collect.collect_file(
             record.name, record.platform, section.source, DEFAULT_PROFILE
@@ -537,6 +554,7 @@ def _gathered(record, section, credential) -> tuple:
             credential,
             DEFAULT_PROFILE,
             tls_fingerprint=section.tls_fingerprint,
+            max_response_bytes=max_response_bytes,
         )
         return snapshot, (event,)
     snapshot, events = collect.collect_ssh(
@@ -564,13 +582,13 @@ def _traced(args, record, events) -> str:
 
 def _collected(args, record, section, credential) -> tuple:
     try:
-        return _gathered(record, section, credential)
+        return _gathered(record, section, credential, args.max_response_bytes)
     except collect.CollectError as error:
         events = () if error.event is None else (error.event,)
         raise Failure("channel %s: %s%s" % (section.channel, error, _traced(args, record, events)))
 
 
-def _completeness(record, section, snapshot):
+def _completeness(tenant, record, section, snapshot):
     try:
         missing = collect.missing_sections(
             snapshot.text, section.required_sections, snapshot.platform
@@ -583,6 +601,7 @@ def _completeness(record, section, snapshot):
     return Finding(
         rule_id=COMPLETENESS_RULE % record.platform,
         rule_version=COMPLETENESS_RULE_VERSION,
+        tenant=tenant,
         device=record.name,
         object_key=item["object_key"],
         severity=COMPLETENESS_SEVERITY,
@@ -631,6 +650,7 @@ def _collection(snapshot, record, credential) -> dict:
 
 def _command_collect(args) -> int:
     _checked_options(args)
+    _checked_budget(args.max_response_bytes)
     record, section = _inventory_record(args.inventory, args.device)
     platform = _catalog_platform(record)
     rules = _load_rules(platform)
@@ -638,9 +658,11 @@ def _command_collect(args) -> int:
     suppression_items = _load_suppressions(args.suppressions, args.tenant)
     credential = _credential(record, section, args.vault)
     snapshot, events = _collected(args, record, section, credential)
-    gate = _completeness(record, section, snapshot)
+    gate = _completeness(args.tenant, record, section, snapshot)
     findings = (
-        (gate,) if gate is not None else _audit(platform, snapshot.text, record.name, rules)
+        (gate,)
+        if gate is not None
+        else _audit(platform, snapshot.text, args.tenant, record.name, rules)
     )
     previous, baseline, accepted = (), frozenset(), None
     if args.store:
@@ -655,6 +677,31 @@ def _command_collect(args) -> int:
     sys.stdout.write(_render(report, args.as_json, _text_report))
     if accepted is not None:
         sys.stderr.write("baseline: accepted %d of %d findings\n" % (accepted, len(findings)))
+    return EXIT_OK
+
+
+def _command_migrate_suppressions(args) -> int:
+    try:
+        count = migrate_suppressions(args.source, args.destination, args.tenant)
+    except SuppressionError as error:
+        raise Failure("suppressions: %s" % error)
+    sys.stdout.write(
+        "migrated %d suppressions of tenant %s into %s\n"
+        % (count, args.tenant, args.destination)
+    )
+    return EXIT_OK
+
+
+def _command_migrate_store(args) -> int:
+    path = _store_path(args.store, True)
+    try:
+        counts = migrate_store(path)
+    except StoreError as error:
+        raise Failure("store: %s" % error)
+    sys.stdout.write(
+        "migrated %d findings and %d baseline entries in %s\n"
+        % (counts["findings"], counts["baseline"], path)
+    )
     return EXIT_OK
 
 

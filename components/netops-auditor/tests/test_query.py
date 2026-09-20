@@ -67,10 +67,12 @@ def make_finding(
     evidence=(("attribute", "srcaddr"), ("value", "192.0.2.0/24")),
     section="firewall policy",
     line=12,
+    tenant=TENANT,
 ):
     return Finding(
         rule_id=rule_id,
         rule_version=rule_version,
+        tenant=tenant,
         device=device,
         object_key=object_key,
         severity=severity,
@@ -112,6 +114,7 @@ def suppression(finding, expires=None, device=DEVICE, author="radek", reason="ti
         fingerprint=finding.fingerprint(),
         rule_id=finding.rule_id,
         rule_version=finding.rule_version,
+        tenant=finding.tenant,
         device=device,
         object_key=finding.object_key,
         reason=reason,
@@ -219,6 +222,7 @@ def populated(tmp_path):
         object_key=OBJECT_FOREIGN,
         severity="high",
         evidence=(("attribute", "dstaddr"), ("value", OTHER_CANARY)),
+        tenant=OTHER_TENANT,
     )
     foreign = record(opened, (stranger,), tenant=OTHER_TENANT, started_at=RUN_TWO_AT)
     yield SimpleNamespace(

@@ -15,7 +15,7 @@ document of `netops-core`, file version 2**, and its schema is
 [`../../netops-core/docs/vault.md`](../../netops-core/docs/vault.md). This document ships in the
 `netops-core` archive, not in the auditor archive: that relative path resolves in a repository
 checkout; from a standalone auditor archive the same file is published at
-[`netops-core/v0.2.0`](https://github.com/radek-cerny-soukr/netops/blob/netops-core/v0.2.0/components/netops-core/docs/vault.md).
+[`netops-core/v0.2.1`](https://github.com/radek-cerny-soukr/netops/blob/netops-core/v0.2.1/components/netops-core/docs/vault.md).
 What follows is what the auditor adds to it.
 
 ```json
@@ -35,7 +35,7 @@ What follows is what the auditor adds to it.
 | `credentials` | an object; the key is the record name an inventory entry refers to in `credential` |
 | `credentials.<name>.kind` | one of `password`, `ssh-key`, `api-token`, `snmp-community` |
 | `credentials.<name>.login` | the account name, **required** for `password` and `ssh-key`, **forbidden** for the other two |
-| `credentials.<name>.value` | the secret itself; for `ssh-key` the whole private key text, header line and all, newlines written as `\n` - the example above is a placeholder, and the real shape is in [`../../netops-core/docs/vault.md`](../../netops-core/docs/vault.md) (from a standalone archive, published at [`netops-core/v0.2.0`](https://github.com/radek-cerny-soukr/netops/blob/netops-core/v0.2.0/components/netops-core/docs/vault.md)) |
+| `credentials.<name>.value` | the secret itself; for `ssh-key` the whole private key text, header line and all, newlines written as `\n` - the example above is a placeholder, and the real shape is in [`../../netops-core/docs/vault.md`](../../netops-core/docs/vault.md) (from a standalone archive, published at [`netops-core/v0.2.1`](https://github.com/radek-cerny-soukr/netops/blob/netops-core/v0.2.1/components/netops-core/docs/vault.md)) |
 
 The file is read at mode `0600` or `0400` and at no other mode, and a vault path that is a symbolic
 link is refused before the mode is read.
@@ -70,15 +70,16 @@ removed when the call ends.
 
 ## Suppressions
 
-A suppression silences one finding on one device until a date. The file is JSON, `version` and
-`suppressions`, and every item carries all nine fields:
+A suppression silences one finding of one tenant on one device until a date. The file is JSON,
+`version`, `tenant` and `suppressions`, and every item carries all nine fields:
 
 ```json
 {
-  "version": 1,
+  "version": 2,
+  "tenant": "tenant-a",
   "suppressions": [
     {
-      "fingerprint": "33ada9e38cd292f102d92833ae24ae3366f45eb5462f307b9edd31f6993034a1",
+      "fingerprint": "2aa12a59e584e7c28ed33cf55508fa350f8415652984bdaa18dc7ddc072a80d6",
       "rule_id": "fortios.mgmt.wan-admin-access",
       "rule_version": 1,
       "device": "fw-a.example.invalid",
@@ -94,6 +95,8 @@ A suppression silences one finding on one device until a date. The file is JSON,
 
 | field | value |
 |---|---|
+| `version` | `2`; a version `1` file is refused, naming the migration command - see below |
+| `tenant` | the tenant the file belongs to, **required**; a file without it is refused |
 | `fingerprint` | 64 hex characters, the fingerprint of the finding - see below |
 | `rule_id` | the rule the finding came from |
 | `rule_version` | the `version` of that rule, an integer |
@@ -107,9 +110,17 @@ A suppression silences one finding on one device until a date. The file is JSON,
 ### What it binds to
 
 A suppression does not match by rule or by device. It matches one fingerprint, and that fingerprint
-is the sha256 over four values joined by the unit separator `\x1f`: `rule_id`, `rule_version`,
-`device`, `object_key`. Raise the rule version, move the finding to another interface or meet the
-same rule on another device, and the suppression stops applying - by construction, not by policy.
+is the sha256 over five values joined by the unit separator `\x1f`, in this order: `rule_id`,
+`rule_version`, `tenant`, `device`, `object_key`. Raise the rule version, move the finding to another
+interface, meet the same rule on another device **or run the same device for another tenant**, and
+the suppression stops applying - by construction, not by policy.
+
+The tenant sits inside the fingerprint since 0.2.2, and that is the whole point of file version 2:
+before it, two tenants that happened to name a device the same way computed the same fingerprint for
+the same finding, so one file could silence a finding for both. One function computes it,
+`netops_auditor.findings.fingerprint_of`, and both the report and the file reader call that one -
+there is no second copy to drift. The version of the rule catalogue (`rules_version`) is deliberately
+**not** part of it: a finding keeps its identity when an unrelated rule is added to the catalogue.
 
 Nobody computes it by hand: every report prints the fingerprint of each finding, so the way to write
 a suppression is to run the audit and copy it out. The file is checked against its own components
@@ -117,47 +128,64 @@ when it is loaded, so a copied fingerprint next to an edited `object_key` is ref
 quietly binding to nothing:
 
 ```
-error: suppressions: suppression 0: fingerprint '0000000000000000000000000000000000000000000000000000000000000000' does not match components, expected 33ada9e38cd292f102d92833ae24ae3366f45eb5462f307b9edd31f6993034a1
+error: suppressions: suppression 0: fingerprint '0000000000000000000000000000000000000000000000000000000000000000' does not match components, expected 2aa12a59e584e7c28ed33cf55508fa350f8415652984bdaa18dc7ddc072a80d6
 ```
 
 Two items with the same fingerprint are an error as well.
 
 ### Tenant binding
 
-The fingerprint above does not carry a tenant: it is `rule_id`, `rule_version`, `device` and
-`object_key`, nothing more. Two tenants that happen to name a device the same way compute the same
-fingerprint for the same finding, so one suppression file loaded for both would silence it for both
-- a cross-tenant leak through a file that was only ever meant for one of them.
-
-Putting the tenant into the fingerprint would fix that, but it is a breaking change to every
-fingerprint already written down in every existing suppression file and report, and it is
-deliberately deferred. What exists today is a guard, not the fix: an optional top-level `tenant`
-field.
-
-```json
-{
-  "version": 1,
-  "tenant": "tenant-a",
-  "suppressions": [ ]
-}
-```
-
-When `tenant` is present, loading the file fails closed unless it matches the tenant the run is for,
-naming both:
+A suppression file belongs to exactly one tenant, and says so in `tenant`. Three refusals hold that,
+all of them fail-closed and all of them the same for every reader - the CLI and the read-only MCP
+surface go through one function, `netops_auditor.suppressions.load_for_tenant`, so neither can be
+lenient where the other is strict:
 
 ```
 error: suppressions: suppression file waivers.json is bound to tenant 'tenant-a', this run is for tenant 'tenant-b'
+error: suppressions: suppression file waivers.json: missing document fields: tenant; a suppression file binds to one tenant, which the fingerprint carries; migrate an older file with netops-auditor migrate-suppressions --input <old file> --output <new file> --tenant <tenant>
+error: suppressions: suppression file waivers.json: version 1 is refused, a fingerprint carries the tenant since version 2; migrate the file with netops-auditor migrate-suppressions --input <old file> --output <new file> --tenant <tenant>
 ```
 
-When `tenant` is absent, the file loads exactly as before - matched by fingerprint alone, against
-any tenant - and the CLI says once, to stderr, that the file is not bound to a tenant:
+There is no unbound file any more. A file written for two tenants was never one file: migrate it
+once per tenant, into two files.
+
+### Migrating a version 1 file
+
+```sh
+netops-auditor migrate-suppressions --input waivers.json --output waivers-tenant-a.json --tenant tenant-a
+```
+
+The command reads a version 1 document, checks every item against its **old** fingerprint - so an
+item that was already edited out of shape is refused rather than carried over - recomputes each
+fingerprint with the tenant, and writes a version 2 document. It never writes over its input and
+never writes over an existing output; it prints a count and the path, and nothing out of the
+document it read, so a reason or a device name never lands in a log because of a failed migration.
+It does not run by itself: no command migrates a file on the side.
 
 ```
-suppressions: waivers.json is not bound to a tenant
+migrated 3 suppressions of tenant tenant-a into waivers-tenant-a.json
 ```
 
-A suppression file belongs to one tenant; bind it with the field, and never let one file be shared
-between two tenants' runs.
+### Migrating the store
+
+The database behind `--store` carries a schema version, and the fingerprints inside it are the same
+ones. Opening a store written before 0.2.2 is a readable error rather than a silent run, on the CLI
+and on the MCP surface alike:
+
+```
+error: store: store schema version 1, expected 2: the fingerprint of a finding carries the tenant since version 2; migrate the store with netops-auditor migrate-store --store <file>
+```
+
+```sh
+netops-auditor migrate-store --store audit.sqlite3
+```
+
+The migration recomputes the fingerprint of every stored finding from the tenant of **its own run**
+and rewrites the baseline with the same mapping, in one transaction: the number of findings does not
+change, a baseline entry keeps pointing at the finding it accepted, and nothing turns up twice
+because an old and a new fingerprint met in one store. A finding whose run names no tenant stops the
+migration and changes nothing - there is no guess about whose finding it was. Running it twice is an
+error, not a second rewrite.
 
 ### What expiry does, and what it does not
 
@@ -185,7 +213,7 @@ device, and the `legacy_ssh` exception are in [`inventory.md`](inventory.md); th
 document is in [`../../netops-core/docs/inventory.md`](../../netops-core/docs/inventory.md), which
 ships in the `netops-core` archive, not the auditor archive: from a standalone auditor archive the
 same file is published at
-[`netops-core/v0.2.0`](https://github.com/radek-cerny-soukr/netops/blob/netops-core/v0.2.0/components/netops-core/docs/inventory.md).
+[`netops-core/v0.2.1`](https://github.com/radek-cerny-soukr/netops/blob/netops-core/v0.2.1/components/netops-core/docs/inventory.md).
 
 ## The platform picks the parser and the catalogue
 
@@ -202,6 +230,35 @@ There is no detection: a dump handed to the wrong platform is parsed by the wron
 comes back is findings about commands that are not there rather than an error. The platform of a
 device belongs in the inventory, where `collect` reads it, and `run` is the command that asks for it
 on the command line.
+
+## How much of an answer the REST channel accepts
+
+The `fortios-rest` collector assembles the answer block by block, and a budget bounds the total
+**before** each block is kept, so an answer that will not fit is dropped while it is still arriving
+rather than after it is whole. The budget is the option `--max-response-bytes` of
+`collect`, a whole number of bytes, and its default is `8388608` - 8 MiB. A value that is not a
+positive whole number ends the command before the inventory is opened.
+
+The number is sized for a configuration export, not copied from elsewhere: the largest dump measured
+in [`channels.md`](channels.md) is `show full-configuration` at 57,258 lines, and the REST backup of
+a `super_admin` token is a superset of the CLI dump, so even at a generous hundred bytes per line the
+answer stays under 6 MB. 8 MiB leaves room over that and still bounds what one collection can hold in
+memory; `netops-helper`'s 2 MB cap is not the right number here, because that one bounds the output of
+a command, not a whole configuration backup carrying private key material. Raise it for a device
+whose export is genuinely bigger, and raise it knowingly - the limit is what keeps a device, or
+something answering in its place, from filling the collector's memory.
+
+An oversized answer is refused with the limit and nothing of the peer's words:
+
+```
+error: channel fortios-rest: POST https://192.0.2.20 answered with more than 8388608 bytes, the collector read no further
+```
+
+An answer whose HTTP status is not `200` never reaches the budget at all, because its body is never
+assembled: the collector reads at most a small head of it, throws that away and reports the status
+alone, so an error page cannot grow large and cannot reach a log. The `ssh` channel is not bounded here - its cap is
+the bounded receive of `netops_core.ssh`, described in the core's own documentation - and the `file`
+channel reads a local file the operator already has.
 
 ## Exit codes
 
@@ -246,7 +303,7 @@ of it. `findings: 1` in that report is not the statement "this device has one pr
   object: snapshot/fw-a.example.invalid
   section: snapshot
   line: 0
-  fingerprint: a50261f4e3c8fd2aeae097d274d8378257a280e9c8fc6b1f88e31338e5450249
+  fingerprint: 3335636531940adb768f40b7834fdb2cdcdb3e94ae8e138cbd2568a3c421da4e
   evidence: missing_count=1 missing_sections="system global"
 ```
 

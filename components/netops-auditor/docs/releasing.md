@@ -2,10 +2,16 @@
 
 Release tags follow the component scheme `<name>/v<version>`, where `<name>` is the project name
 declared in this component's `pyproject.toml`: this component tags
-`netops-auditor/v0.2.1`, and the release title is `netops-auditor 0.2.1`. Tags of another component
-are never touched by this procedure, and the unprefixed tags `v0.1.0`, `v0.2.0`, `v0.2.1` are the
-history of `netops-helper`; they are never moved, deleted, or recreated. The canonical origin is
+`netops-auditor/v0.2.2`, and the release title is `netops-auditor 0.2.2`. Tags of another component
+are never touched by this procedure. A tag is deleted together with its release page when a newer
+version of the same component is published. The canonical origin is
 `https://github.com/radek-cerny-soukr/netops`.
+
+**This repository keeps exactly one release page and one tag per component.** Publishing a version
+removes the release page, the four downloadable assets and the tag of the version it replaces. Every
+release stays in the history as one signed commit on `main` whose message names the component and the
+version, so a reader who wants an earlier version works from that commit and this procedure, never
+from a page, a tag or an asset link that no longer exists.
 
 This component lives in the `netops` monorepo under `components/netops-auditor/`. Every command below
 runs in that directory unless stated otherwise. The repository as a whole has its own gate,
@@ -17,10 +23,10 @@ Hosted CI performs portable source checks only; it is not the release builder.
 
 Never publish surrounding private project context, environment-specific certificates, live reports,
 credentials, host keys, or inventory and vault files. The release export is a positive allowlist, and
-since 0.1.0 the component gate also reads the content of every released file and, outside a
+the component gate also reads the content of every released file and, outside a
 repository, holds the exported tree to exactly the released selection.
 
-## What 0.2.0 releases
+## What 0.2.2 releases
 
 This component releases **from source; it ships no container image**. The release carries four assets:
 
@@ -36,10 +42,10 @@ component runs from the unpacked archive on any Python 3.13 host.
 
 ### It needs `netops-core` beside it
 
-Since 0.2.0 the auditor reads the inventory, the credential store, the host key trust and the SSH
-transport from `netops-core`, and `pyproject.toml` pins it as `netops-core==0.2.0`. There is no index
+The auditor reads the inventory, the credential store, the host key trust and the SSH
+transport from `netops-core`, and `pyproject.toml` pins it as `netops-core==0.2.1`. There is no index
 to resolve that pin against: **the operator installs the `netops-core` source archive of exactly that
-version next to the auditor** - unpack `netops-core-0.1.0-source.tar.gz`, verify its checksums, and
+version next to the auditor** - unpack `netops-core-0.2.1-source.tar.gz`, verify its checksums, and
 either install the unpacked directory into the same environment or put its `src` on `PYTHONPATH`. In
 this repository the archive is the tree, so the tests and the CI job take the component from
 `../netops-core/src`: `pyproject.toml` carries it in `[tool.pytest.ini_options] pythonpath` and
@@ -49,7 +55,7 @@ this repository the archive is the tree, so the tests and the CI job take the co
 ## Procedure
 
 1. Review every source change and freeze the release metadata, including the release date. Version
-   `0.2.0` must agree in `pyproject.toml`, `src/netops_auditor/__init__.py`, and the root of
+   `0.2.2` must agree in `pyproject.toml`, `src/netops_auditor/__init__.py`, and the root of
    `sbom.cdx.json`; the gate `version_metadata` compares those three. The pinned version of
    `netops-core` must agree with the version of the component that is released beside it; the SBOM
    carries the pin as the one required dependency of the root component. The changelog heading is not
@@ -78,9 +84,9 @@ this repository the archive is the tree, so the tests and the CI job take the co
    (cd path/to/new-output/netops-auditor-<version> && python3 -B scripts/check_gates.py)
    ```
 3. Create the final trusted signed commit on clean `main`, then, under a separate explicit
-   authorization, the signed annotated tag `netops-auditor/v0.2.1` on that exact commit. Verify the
+   authorization, the signed annotated tag `netops-auditor/v0.2.2` on that exact commit. Verify the
    tag resolves to a tag object, carries a trusted signature, and peels to the signed commit. Neither
-   step authorizes a push, a build, or a transparency-log upload. The tag names `0.2.0`.
+   step authorizes a push, a build, or a transparency-log upload. The tag names `0.2.2`.
 4. On the builder, place a clone of the repository at the released commit in `repos/netops-auditor`
    and run the source-only profile:
 
@@ -101,7 +107,7 @@ this repository the archive is the tree, so the tests and the CI job take the co
 6. Publish in three separately authorized steps - `preflight`, `create-draft`, `publish-draft` - and
    then verify the published release independently: download every asset from the release page and
    check it against the local `SHA256SUMS`. The tag contains a slash, so in a download URL it is
-   encoded as `netops-auditor%2Fv0.2.0`.
+   encoded as `netops-auditor%2Fv0.2.2`.
 
 ## Determinism
 

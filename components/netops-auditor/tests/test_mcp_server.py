@@ -16,8 +16,9 @@ from netops_auditor import mcp_server, query
 from netops_auditor.engine import load_catalog
 from netops_auditor.findings import Finding
 from netops_auditor.state import STATE_GONE, STATE_NEW, STATE_OPEN_KNOWN, STATE_SUPPRESSED
-from netops_auditor.store import MOMENT_FORMAT, Store
-from netops_auditor.suppressions import fingerprint_of
+from netops_auditor.findings import fingerprint_of
+from netops_auditor.store import MOMENT_FORMAT, SCHEMA_VERSION, Store
+from netops_auditor.suppressions import FILE_VERSION as SUPPRESSION_FILE_VERSION
 
 TENANT = "tenant-a"
 DEVICE = "fw-a.example.invalid"
@@ -55,10 +56,11 @@ print(json.dumps(sorted(name for name in sys.modules if name.startswith("netops_
 """
 
 
-def _finding(rule_id, object_key, severity="high", device=DEVICE, rule_version=1):
+def _finding(rule_id, object_key, severity="high", device=DEVICE, rule_version=1, tenant=TENANT):
     return Finding(
         rule_id=rule_id,
         rule_version=rule_version,
+        tenant=tenant,
         device=device,
         object_key=object_key,
         severity=severity,
@@ -112,7 +114,7 @@ def audited(tmp_path):
         first_run=first_run,
         second_run=second_run,
         other_run=other_run,
-        suppressed_fingerprint=fingerprint_of("L1-003", 1, DEVICE, "system dns"),
+        suppressed_fingerprint=fingerprint_of("L1-003", 1, TENANT, DEVICE, "system dns"),
     )
 
 
@@ -137,7 +139,8 @@ def configured(audited):
 def suppressed(audited, tmp_path):
     path = tmp_path / "suppressions.json"
     document = {
-        "version": 1,
+        "version": SUPPRESSION_FILE_VERSION,
+        "tenant": TENANT,
         "suppressions": [
             {
                 "fingerprint": audited.suppressed_fingerprint,
@@ -497,7 +500,8 @@ def test_configure_rejects_an_unreadable_suppression_file(audited, tmp_path):
 def test_configure_rejects_a_suppression_file_bound_to_another_tenant(audited, tmp_path):
     bound = tmp_path / "suppressions.json"
     bound.write_text(
-        json.dumps({"version": 1, "tenant": "tenant-b", "suppressions": []}), encoding="utf-8"
+        json.dumps({"version": SUPPRESSION_FILE_VERSION, "tenant": "tenant-b", "suppressions": []}),
+        encoding="utf-8",
     )
     with pytest.raises(mcp_server.ConfigurationError) as error:
         mcp_server.configure(_environment(audited, bound))
@@ -506,10 +510,41 @@ def test_configure_rejects_a_suppression_file_bound_to_another_tenant(audited, t
     assert "tenant-b" in message
 
 
+def test_configure_rejects_a_suppression_file_without_a_tenant(audited, tmp_path):
+    unbound = tmp_path / "suppressions.json"
+    unbound.write_text(
+        json.dumps({"version": SUPPRESSION_FILE_VERSION, "suppressions": []}), encoding="utf-8"
+    )
+    with pytest.raises(mcp_server.ConfigurationError) as error:
+        mcp_server.configure(_environment(audited, unbound))
+    assert "missing document fields: tenant" in str(error.value)
+    assert "migrate-suppressions" in str(error.value)
+
+
+def test_configure_rejects_a_version_1_suppression_file(audited, tmp_path):
+    old = tmp_path / "suppressions.json"
+    old.write_text(json.dumps({"version": 1, "suppressions": []}), encoding="utf-8")
+    with pytest.raises(mcp_server.ConfigurationError) as error:
+        mcp_server.configure(_environment(audited, old))
+    assert "version 1 is refused" in str(error.value)
+    assert "migrate-suppressions" in str(error.value)
+
+
+def test_configure_rejects_a_store_that_was_never_migrated(audited):
+    connection = sqlite3.connect(str(audited.path), isolation_level=None)
+    connection.execute("PRAGMA user_version = 0")
+    connection.close()
+    with pytest.raises(mcp_server.ConfigurationError) as error:
+        mcp_server.configure(_environment(audited))
+    assert "schema version 1" in str(error.value)
+    assert "instead of %d" % SCHEMA_VERSION in str(error.value)
+
+
 def test_configure_accepts_a_suppression_file_bound_to_its_own_tenant(audited, tmp_path):
     bound = tmp_path / "suppressions.json"
     bound.write_text(
-        json.dumps({"version": 1, "tenant": TENANT, "suppressions": []}), encoding="utf-8"
+        json.dumps({"version": SUPPRESSION_FILE_VERSION, "tenant": TENANT, "suppressions": []}),
+        encoding="utf-8",
     )
     mcp_server.configure(_environment(audited, bound))
     assert mcp_server.suppressions() == ()

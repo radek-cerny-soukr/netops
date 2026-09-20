@@ -17,6 +17,9 @@ Both device channels share the same rules:
   never the peer's words,
 - the peer is verified before the credential is sent,
 - the timeout is mandatory and finite,
+- the answer is bounded in bytes as well as in time: `fortios-rest` holds its own budget (see
+  below), `ssh` inherits the bounded receive of `netops_core.ssh`, and neither channel grows a
+  buffer until the host runs out of memory,
 - the transport is injectable, so the test suite never touches the network,
 - the auditor never changes a device. Not a policy, not an interface, not even a console setting.
 
@@ -51,7 +54,21 @@ as nobody, `collection-profile` is `unknown`.
   unused. A pin is not "TLS plus a fingerprint", it is a fingerprint **instead of** a chain.
   Measured against a local server with a self-signed certificate: without a pin the connection ends
   in `CERTIFICATE_VERIFY_FAILED`, with a pin it is established and the fingerprint decides.
-- Default timeout 30 s, applied to the connection and to reading the answer.
+- Default timeout 30 s, and it is **one** deadline: the request, the response headers and every
+  block of the body are measured against the same moment, so a peer cannot hold the collection open
+  by answering slowly in small pieces.
+- **Bounded body, measured before a block is kept.** The answer is assembled block by block, and the
+  running total is compared against `--max-response-bytes` of `collect` before each block is added,
+  so a body that will not fit is refused while it is still arriving. The default is `8388608`,
+  8 MiB - sized for a configuration export rather than copied from the 2 MB cap of `netops-helper`,
+  which bounds the output of a command; the largest dump measured on this page is 57,258 lines, and
+  even at a generous hundred bytes per line that stays under 6 MB. The refusal names the limit and
+  nothing of the peer's words. Why the number is what it is, and how to raise it, is in
+  [`configuration.md`](configuration.md).
+- **An error status ends the call without a body.** When the HTTP status is not `200` the collector
+  reads at most a small head of the answer, throws it away and reports the status alone. An error
+  page is never assembled, never hashed and never anywhere near a log, and the channel event of such
+  a call therefore records zero bytes - which is exactly what was taken from it.
 
 ### What it does not do, and what it costs
 
@@ -86,7 +103,7 @@ the hardening options, the workspace and the two kinds of authentication are des
 [`../../netops-core/docs/ssh.md`](../../netops-core/docs/ssh.md) and measured there against real
 devices. These documents ship in the `netops-core` archive, not in the auditor archive: that relative
 path resolves in a repository checkout; from a standalone auditor archive the same file is published
-at [`netops-core/v0.2.0`](https://github.com/radek-cerny-soukr/netops/blob/netops-core/v0.2.0/components/netops-core/docs/ssh.md).
+at [`netops-core/v0.2.1`](https://github.com/radek-cerny-soukr/netops/blob/netops-core/v0.2.1/components/netops-core/docs/ssh.md).
 What the auditor adds is the step table of the platform, the preflight and the `ChannelEvent` of
 every command; the prompt cleaning is `netops_core.prompt`. It adds **nothing** to the options of
 the client.
@@ -282,7 +299,7 @@ read-only account the prompt stayed in the snapshot - and in its hash.
 
 So the answer is cleaned by [`netops_core.prompt`](../../netops-core/docs/prompt.md) (published, for
 a standalone archive, at
-[`netops-core/v0.2.0`](https://github.com/radek-cerny-soukr/netops/blob/netops-core/v0.2.0/components/netops-core/docs/prompt.md)),
+[`netops-core/v0.2.1`](https://github.com/radek-cerny-soukr/netops/blob/netops-core/v0.2.1/components/netops-core/docs/prompt.md)),
 which the helper uses as well, by a rule that is deliberately narrow:
 
 - **only the first line** can lose a prefix, and only when that line starts with a prompt shape: at
@@ -375,14 +392,17 @@ That table is the anchor: if the channel does not work for you, this is the hard
 where the behaviour was observed. The measurements above were taken with the collector of 0.1.0, which
 carried its own copy of the transport; the transport of 0.2.0 is `netops_core.ssh`, measured on the
 same devices - including the password authentication this channel had not had before - in
-[`../../netops-core/docs/ssh.md`](../../netops-core/docs/ssh.md). The commands and the preflight above
-are the auditor's and did not change; the prompt cleaning moved to
+[`../../netops-core/docs/ssh.md`](../../netops-core/docs/ssh.md). The FortiOS commands and preflight
+above are the auditor's and did not change. The EXOS preflight shown in that table, `disable cli
+paging`, did: the measurement described
+[above](#the-pager-and-why-it-is-not-one-universal-command) found it unnecessary, and since 0.2.1 the
+auditor sends nothing before `show configuration` on EXOS. The prompt cleaning moved to
 [`../../netops-core/docs/prompt.md`](../../netops-core/docs/prompt.md) unchanged except for the `$`
 marker. Both relative paths resolve in a repository checkout; from a standalone auditor archive the
 same two files are published at
-[`netops-core/v0.2.0`](https://github.com/radek-cerny-soukr/netops/blob/netops-core/v0.2.0/components/netops-core/docs/ssh.md)
+[`netops-core/v0.2.1`](https://github.com/radek-cerny-soukr/netops/blob/netops-core/v0.2.1/components/netops-core/docs/ssh.md)
 and
-[`netops-core/v0.2.0`](https://github.com/radek-cerny-soukr/netops/blob/netops-core/v0.2.0/components/netops-core/docs/prompt.md).
+[`netops-core/v0.2.1`](https://github.com/radek-cerny-soukr/netops/blob/netops-core/v0.2.1/components/netops-core/docs/prompt.md).
 
 ## Channel `file`
 

@@ -7,6 +7,7 @@ from netops_auditor.engine import CheckError, Rule, load_catalog, registered_che
 from netops_auditor.l1_fortios import parse
 
 FIXTURES = Path(__file__).parent / "fixtures"
+TENANT = "tenant-rules"
 DEVICE = "fw-example"
 VDOM_RULE = "fortios.scope.vdom-unsupported"
 
@@ -44,7 +45,7 @@ def clean_text():
 
 
 def audit(text):
-    return run(parse(text), DEVICE, load_catalog("fortios"))
+    return run(parse(text), TENANT, DEVICE, load_catalog("fortios"))
 
 
 def mutate(text, old, new):
@@ -96,6 +97,14 @@ def test_catalog_declares_every_registered_check():
     registered = set(registered_checks())
     assert declared <= registered
     assert {name for name in registered if hasattr(checks_fortios, name)} == declared
+
+
+def test_every_rule_names_the_reference_of_the_running_release():
+    for rule in load_catalog("fortios"):
+        assert rule.refs
+        for reference in rule.refs:
+            assert reference.startswith("FortiOS 8.0.0 CLI Reference: config ")
+        assert rule.known_false_positives.strip()
 
 
 def test_dangling_reference_reports_the_missing_object():
@@ -211,14 +220,14 @@ def test_scope_gate_rule_silences_the_other_rules():
     tree = parse(wrapped_in_vdom(clean_text()))
     gate = rule_for("vdom_unsupported", ("vdoms",), scope_gate=True)
     other = rule_for("no_syslog_target", ("reason",))
-    assert [finding.rule_id for finding in run(tree, DEVICE, (other, gate))] == ["test.vdom_unsupported"]
+    assert [finding.rule_id for finding in run(tree, TENANT, DEVICE, (other, gate))] == ["test.vdom_unsupported"]
 
 
 def test_without_the_scope_gate_flag_every_rule_runs():
     tree = parse(wrapped_in_vdom(clean_text()))
     gate = rule_for("vdom_unsupported", ("vdoms",))
     other = rule_for("no_syslog_target", ("reason",))
-    reported = [finding.rule_id for finding in run(tree, DEVICE, (other, gate))]
+    reported = [finding.rule_id for finding in run(tree, TENANT, DEVICE, (other, gate))]
     assert reported == ["test.no_syslog_target", "test.vdom_unsupported"]
 
 
@@ -226,7 +235,7 @@ def test_scope_gate_without_a_finding_lets_the_other_rules_run():
     tree = parse(mutate(clean_text(), "set ntpsync enable", "set ntpsync disable"))
     gate = rule_for("vdom_unsupported", ("vdoms",), scope_gate=True)
     other = rule_for("no_ntp_sync", ("reason",))
-    assert [finding.rule_id for finding in run(tree, DEVICE, (gate, other))] == ["test.no_ntp_sync"]
+    assert [finding.rule_id for finding in run(tree, TENANT, DEVICE, (gate, other))] == ["test.no_ntp_sync"]
 
 
 def test_checks_carry_no_gate_of_their_own():
@@ -274,4 +283,4 @@ def test_undeclared_evidence_is_refused():
         known_false_positives="",
     )
     with pytest.raises(CheckError):
-        run(parse(text), DEVICE, (rule,))
+        run(parse(text), TENANT, DEVICE, (rule,))
