@@ -15,7 +15,7 @@ document of `netops-core`, file version 2**, and its schema is
 [`../../netops-core/docs/vault.md`](../../netops-core/docs/vault.md). This document ships in the
 `netops-core` archive, not in the auditor archive: that relative path resolves in a repository
 checkout; from a standalone auditor archive the same file is published at
-[the Core 0.2.1 source commit](https://github.com/radek-cerny-soukr/netops/blob/2caf06ffd9df8d51a509d400c657c80db582ad82/components/netops-core/docs/vault.md).
+[`netops-core/v0.2.2`](https://github.com/radek-cerny-soukr/netops/blob/netops-core/v0.2.2/components/netops-core/docs/vault.md).
 What follows is what the auditor adds to it.
 
 ```json
@@ -35,7 +35,7 @@ What follows is what the auditor adds to it.
 | `credentials` | an object; the key is the record name an inventory entry refers to in `credential` |
 | `credentials.<name>.kind` | one of `password`, `ssh-key`, `api-token`, `snmp-community` |
 | `credentials.<name>.login` | the account name, **required** for `password` and `ssh-key`, **forbidden** for the other two |
-| `credentials.<name>.value` | the secret itself; for `ssh-key` the whole private key text, header line and all, newlines written as `\n` - the example above is a placeholder, and the real shape is in [`../../netops-core/docs/vault.md`](../../netops-core/docs/vault.md) (from a standalone archive, published at [the Core 0.2.1 source commit](https://github.com/radek-cerny-soukr/netops/blob/2caf06ffd9df8d51a509d400c657c80db582ad82/components/netops-core/docs/vault.md)) |
+| `credentials.<name>.value` | the secret itself; for `ssh-key` the whole private key text, header line and all, newlines written as `\n` - the example above is a placeholder, and the real shape is in [`../../netops-core/docs/vault.md`](../../netops-core/docs/vault.md) (from a standalone archive, published at [`netops-core/v0.2.2`](https://github.com/radek-cerny-soukr/netops/blob/netops-core/v0.2.2/components/netops-core/docs/vault.md)) |
 
 The file is read at mode `0600` or `0400` and at no other mode, and a vault path that is a symbolic
 link is refused before the mode is read.
@@ -67,6 +67,23 @@ The value stays inside the object it was loaded into. A credential prints as
 secret in `argv`: a key reaches the client as a file of mode 0600 in a throwaway directory, a password
 through an askpass script reading a file of mode 0600 in that same directory, and the directory is
 removed when the call ends.
+
+## Running the MCP surface
+
+The command line is the whole auditor; the MCP surface is the same queries over the same store for an
+agent, and it is started as a module:
+
+```sh
+python -m netops_auditor.mcp_server
+```
+
+It reads the same environment as the command line - the store, the tenant, the catalogue and the
+suppression file - and refuses to start when any of them is missing or of the wrong schema version,
+naming the variable. It needs `fastmcp`, which the auditor does not install itself: the pin lives in
+`requirements-mcp.txt` (`fastmcp==4.0.3`, the version `netops-helper` ships, so both MCP surfaces of
+the family speak one library). Started without it, the module says so in one line and exits with
+status 2 rather than raising an import error. Nothing on this surface writes to a device: the six
+tools read the store and the catalogue.
 
 ## Suppressions
 
@@ -115,7 +132,7 @@ is the sha256 over five values joined by the unit separator `\x1f`, in this orde
 interface, meet the same rule on another device **or run the same device for another tenant**, and
 the suppression stops applying - by construction, not by policy.
 
-The tenant sits inside the fingerprint since 0.2.2, and that is the whole point of file version 2:
+The tenant sits inside the fingerprint, and that is the whole point of file version 2:
 before it, two tenants that happened to name a device the same way computed the same fingerprint for
 the same finding, so one file could silence a finding for both. One function computes it,
 `netops_auditor.findings.fingerprint_of`, and both the report and the file reader call that one -
@@ -158,7 +175,9 @@ netops-auditor migrate-suppressions --input waivers.json --output waivers-tenant
 The command reads a version 1 document, checks every item against its **old** fingerprint - so an
 item that was already edited out of shape is refused rather than carried over - recomputes each
 fingerprint with the tenant, and writes a version 2 document. It never writes over its input and
-never writes over an existing output; it prints a count and the path, and nothing out of the
+never writes over an existing output - the output is published as a whole under a name that must not
+exist yet, so a destination that appears while the migration works is refused instead of truncated,
+and a destination that is a symbolic link is refused before anything is read; it prints a count and the path, and nothing out of the
 document it read, so a reason or a device name never lands in a log because of a failed migration.
 It does not run by itself: no command migrates a file on the side.
 
@@ -169,7 +188,7 @@ migrated 3 suppressions of tenant tenant-a into waivers-tenant-a.json
 ### Migrating the store
 
 The database behind `--store` carries a schema version, and the fingerprints inside it are the same
-ones. Opening a store written before 0.2.2 is a readable error rather than a silent run, on the CLI
+ones. Opening a store without `PRAGMA user_version` set to the current schema is a readable error rather than a silent run, on the CLI
 and on the MCP surface alike:
 
 ```
@@ -213,7 +232,7 @@ device, and the `legacy_ssh` exception are in [`inventory.md`](inventory.md); th
 document is in [`../../netops-core/docs/inventory.md`](../../netops-core/docs/inventory.md), which
 ships in the `netops-core` archive, not the auditor archive: from a standalone auditor archive the
 same file is published at
-[the Core 0.2.1 source commit](https://github.com/radek-cerny-soukr/netops/blob/2caf06ffd9df8d51a509d400c657c80db582ad82/components/netops-core/docs/inventory.md).
+[`netops-core/v0.2.2`](https://github.com/radek-cerny-soukr/netops/blob/netops-core/v0.2.2/components/netops-core/docs/inventory.md).
 
 ## The platform picks the parser and the catalogue
 

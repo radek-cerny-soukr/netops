@@ -1,6 +1,10 @@
 import hashlib
+import http.client
 import os
 import re
+import socket
+import threading
+import time
 from pathlib import Path
 from dataclasses import dataclass, fields
 from datetime import datetime, timedelta, timezone
@@ -1939,3 +1943,69 @@ def test_rest_one_deadline_covers_the_request_and_the_body():
     with pytest.raises(TimeoutError):
         rest_connection(response, timeout=-1.0).request(REST_METHOD, REST_TARGET, {})
     assert response.reads == []
+
+
+TRICKLE_BUDGET = 0.2
+TRICKLE_PAUSE = 0.05
+TRICKLE_DRIPS = 40
+
+
+class TricklingPeer:
+    def __init__(self, status, headers, drips):
+        self.left, self._right = socket.socketpair()
+        self._status = status
+        self._headers = headers
+        self._drips = drips
+        self._worker = threading.Thread(target=self._serve, daemon=True)
+        self._worker.start()
+
+    def _serve(self):
+        try:
+            self._right.sendall(b"HTTP/1.1 %d Trickle\r\n" % self._status)
+            for number in range(self._headers):
+                time.sleep(TRICKLE_PAUSE)
+                self._right.sendall(b"X-Drip-%d: filler\r\n" % number)
+            self._right.sendall(b"Content-Length: %d\r\n\r\n" % self._drips)
+            for _ in range(self._drips):
+                time.sleep(TRICKLE_PAUSE)
+                self._right.sendall(b"x")
+        except OSError:
+            pass
+        finally:
+            self._right.close()
+
+    def request(self, method, target, headers=None):
+        pass
+
+    def getresponse(self):
+        answer = http.client.HTTPResponse(self.sock)
+        answer.begin()
+        return answer
+
+    def close(self):
+        self.left.close()
+        self._worker.join(timeout=TRICKLE_BUDGET * 10)
+
+
+def trickling_call(status, headers, drips):
+    peer = TricklingPeer(status, headers, drips)
+    peer.sock = peer.left
+    started = time.monotonic()
+    try:
+        with pytest.raises(TimeoutError):
+            _RestConnection(peer, TRICKLE_BUDGET).request(REST_METHOD, REST_TARGET, {})
+        return time.monotonic() - started
+    finally:
+        peer.close()
+
+
+def test_rest_body_that_arrives_in_drips_stops_at_the_deadline():
+    assert trickling_call(200, 0, TRICKLE_DRIPS) < TRICKLE_BUDGET * 3
+
+
+def test_rest_error_status_that_arrives_in_drips_stops_at_the_deadline():
+    assert trickling_call(500, 0, TRICKLE_DRIPS) < TRICKLE_BUDGET * 3
+
+
+def test_rest_headers_that_arrive_in_drips_stop_at_the_deadline():
+    assert trickling_call(200, TRICKLE_DRIPS, 1) < TRICKLE_BUDGET * 3

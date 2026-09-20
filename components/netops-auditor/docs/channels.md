@@ -56,7 +56,11 @@ as nobody, `collection-profile` is `unknown`.
   in `CERTIFICATE_VERIFY_FAILED`, with a pin it is established and the fingerprint decides.
 - Default timeout 30 s, and it is **one** deadline: the request, the response headers and every
   block of the body are measured against the same moment, so a peer cannot hold the collection open
-  by answering slowly in small pieces.
+  by answering slowly in small pieces. The deadline reaches the socket itself: every receive is
+  given only the time that is left, so the budget bounds the **sum** of the waits and not the idle
+  time of one read, and an error status is read under the same clock. Measured against a local peer
+  that answered one byte every 50 ms on a 0.2 s budget: the call ended after 0.201 s for a slow
+  body, a slow error status and slow headers alike.
 - **Bounded body, measured before a block is kept.** The answer is assembled block by block, and the
   running total is compared against `--max-response-bytes` of `collect` before each block is added,
   so a body that will not fit is refused while it is still arriving. The default is `8388608`,
@@ -103,7 +107,7 @@ the hardening options, the workspace and the two kinds of authentication are des
 [`../../netops-core/docs/ssh.md`](../../netops-core/docs/ssh.md) and measured there against real
 devices. These documents ship in the `netops-core` archive, not in the auditor archive: that relative
 path resolves in a repository checkout; from a standalone auditor archive the same file is published
-at [the Core 0.2.1 source commit](https://github.com/radek-cerny-soukr/netops/blob/2caf06ffd9df8d51a509d400c657c80db582ad82/components/netops-core/docs/ssh.md).
+at [`netops-core/v0.2.2`](https://github.com/radek-cerny-soukr/netops/blob/netops-core/v0.2.2/components/netops-core/docs/ssh.md).
 What the auditor adds is the step table of the platform, the preflight and the `ChannelEvent` of
 every command; the prompt cleaning is `netops_core.prompt`. It adds **nothing** to the options of
 the client.
@@ -297,7 +301,7 @@ read-only account the prompt stayed in the snapshot - and in its hash.
 
 So the answer is cleaned by [`netops_core.prompt`](../../netops-core/docs/prompt.md) (published, for
 a standalone archive, at
-[the Core 0.2.1 source commit](https://github.com/radek-cerny-soukr/netops/blob/2caf06ffd9df8d51a509d400c657c80db582ad82/components/netops-core/docs/prompt.md)),
+[`netops-core/v0.2.2`](https://github.com/radek-cerny-soukr/netops/blob/netops-core/v0.2.2/components/netops-core/docs/prompt.md)),
 which the helper uses as well, by a rule that is deliberately narrow:
 
 - **only the first line** can lose a prefix, and only when that line starts with a prompt shape: at
@@ -396,9 +400,9 @@ auditor sends nothing before `show configuration` on EXOS. The prompt cleaning m
 [`../../netops-core/docs/prompt.md`](../../netops-core/docs/prompt.md) unchanged except for the `$`
 marker. Both relative paths resolve in a repository checkout; from a standalone auditor archive the
 same two files are published at
-[the Core 0.2.1 source commit](https://github.com/radek-cerny-soukr/netops/blob/2caf06ffd9df8d51a509d400c657c80db582ad82/components/netops-core/docs/ssh.md)
+[`netops-core/v0.2.2`](https://github.com/radek-cerny-soukr/netops/blob/netops-core/v0.2.2/components/netops-core/docs/ssh.md)
 and
-[the Core 0.2.1 source commit](https://github.com/radek-cerny-soukr/netops/blob/2caf06ffd9df8d51a509d400c657c80db582ad82/components/netops-core/docs/prompt.md).
+[`netops-core/v0.2.2`](https://github.com/radek-cerny-soukr/netops/blob/netops-core/v0.2.2/components/netops-core/docs/prompt.md).
 
 ## Channel `file`
 

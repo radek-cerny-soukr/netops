@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import http.client
+import io
 import ssl
 import time
 from dataclasses import dataclass, field, replace
@@ -30,6 +31,7 @@ REST_ACCEPT = "text/plain"
 READ_CHUNK_BYTES = 65536
 REST_MAX_BODY_BYTES = 8 * 1024 * 1024
 REST_ERROR_HEAD_BYTES = 4096
+REST_TIMEOUT_REASON = "the device did not finish the answer within the timeout"
 TLS_FINGERPRINT_LENGTH = 64
 TLS_FINGERPRINT_CHARS = frozenset("0123456789abcdef")
 SSH_PORT = 22
@@ -219,6 +221,40 @@ def _rest_target(host) -> tuple:
     return name, port, "%s%s" % (REST_SCHEME, text)
 
 
+class _BoundedReceive(io.RawIOBase):
+    def __init__(self, peer, deadline):
+        self._peer = peer
+        self._deadline = deadline
+
+    def readable(self) -> bool:
+        return True
+
+    def readinto(self, buffer) -> int:
+        left = self._deadline - time.monotonic()
+        if left <= 0:
+            raise TimeoutError(REST_TIMEOUT_REASON)
+        self._peer.settimeout(left)
+        try:
+            return self._peer.recv_into(buffer)
+        except TimeoutError:
+            raise TimeoutError(REST_TIMEOUT_REASON) from None
+
+
+class _BoundedSocket:
+    def __init__(self, peer, deadline):
+        self._peer = peer
+        self._deadline = deadline
+
+    def __getattr__(self, name):
+        return getattr(self._peer, name)
+
+    def makefile(self, mode="rb", buffering=None, **named):
+        if "b" not in mode or "w" in mode or "+" in mode:
+            return self._peer.makefile(mode, buffering, **named)
+        size = buffering if isinstance(buffering, int) and buffering > 0 else io.DEFAULT_BUFFER_SIZE
+        return io.BufferedReader(_BoundedReceive(self._peer, self._deadline), size)
+
+
 class _RestConnection:
     def __init__(self, connection, timeout):
         self._connection = connection
@@ -233,16 +269,15 @@ class _RestConnection:
 
     def request(self, method, target, headers, max_bytes=REST_MAX_BODY_BYTES):
         deadline = time.monotonic() + self._timeout
-        self._connection.request(method, target, headers=headers)
-        response = self._connection.getresponse()
-        self._within(deadline)
+        self._bounded(deadline, self._connection.request, method, target, headers=headers)
+        self._bound_receive(deadline)
+        response = self._bounded(deadline, self._connection.getresponse)
         if response.status != 200:
-            response.read(REST_ERROR_HEAD_BYTES)
+            self._bounded(deadline, response.read, REST_ERROR_HEAD_BYTES)
             return response.status, b""
         chunks, size = [], 0
         while True:
-            self._within(deadline)
-            chunk = response.read(READ_CHUNK_BYTES)
+            chunk = self._bounded(deadline, response.read, READ_CHUNK_BYTES)
             if not chunk:
                 break
             if size + len(chunk) > max_bytes:
@@ -251,10 +286,30 @@ class _RestConnection:
             size += len(chunk)
         return response.status, b"".join(chunks)
 
+    def _bound_receive(self, deadline) -> None:
+        peer = getattr(self._connection, "sock", None)
+        if peer is None or isinstance(peer, _BoundedSocket):
+            return
+        self._connection.sock = _BoundedSocket(peer, deadline)
+
+    def _bounded(self, deadline, call, *arguments, **named):
+        left = deadline - time.monotonic()
+        if left <= 0:
+            raise TimeoutError(REST_TIMEOUT_REASON)
+        peer = getattr(self._connection, "sock", None)
+        if peer is not None:
+            peer.settimeout(left)
+        try:
+            answer = call(*arguments, **named)
+        except TimeoutError:
+            raise TimeoutError(REST_TIMEOUT_REASON) from None
+        self._within(deadline)
+        return answer
+
     @staticmethod
     def _within(deadline) -> None:
         if time.monotonic() > deadline:
-            raise TimeoutError("the device did not finish the answer within the timeout")
+            raise TimeoutError(REST_TIMEOUT_REASON)
 
     def close(self):
         self._connection.close()

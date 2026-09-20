@@ -4,14 +4,20 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "netops-auditor"
-version = "0.2.2"
+version = "0.2.3"
 description = "Configuration audit for network devices, with the collection path inside the tool"
 license = { text = "MIT" }
 requires-python = ">=3.13"
-dependencies = ["netops-core==0.2.1"]
+dependencies = ["netops-core==0.2.2"]
+
+[project.scripts]
+netops-auditor = "netops_auditor.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+netops_auditor = ["catalog/*.json"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

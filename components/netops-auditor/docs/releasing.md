@@ -2,7 +2,7 @@
 
 Release tags follow the component scheme `<name>/v<version>`, where `<name>` is the project name
 declared in this component's `pyproject.toml`: this component tags
-`netops-auditor/v0.2.2`, and the release title is `netops-auditor 0.2.2`. Tags of another component
+`netops-auditor/v0.2.3`, and the release title is `netops-auditor 0.2.3`. Tags of another component
 are never touched by this procedure. A tag is deleted together with its release page when a newer
 version of the same component is published. The canonical origin is
 `https://github.com/radek-cerny-soukr/netops`.
@@ -28,7 +28,7 @@ credentials, host keys, or inventory and vault files. The release export is a po
 the component gate also reads the content of every released file and, outside a
 repository, holds the exported tree to exactly the released selection.
 
-## What 0.2.2 releases
+## What 0.2.3 releases
 
 This component releases **from source; it ships no container image**. The release carries four assets:
 
@@ -45,16 +45,22 @@ component runs from the unpacked archive on any Python 3.13 host.
 ### It needs `netops-core` beside it
 
 The auditor reads the inventory, the credential store, the host key trust and the SSH
-transport from `netops-core`, and `pyproject.toml` pins it as `netops-core==0.2.1`. There is no index
+transport from `netops-core`, and `pyproject.toml` pins it as `netops-core==0.2.2`. There is no index
 to resolve that pin against: **the operator installs the `netops-core` source archive of exactly that
 version next to the auditor**. Download it from the current
-[`netops-core/v0.2.1`](https://github.com/radek-cerny-soukr/netops/releases/tag/netops-core%2Fv0.2.1)
-release, unpack `netops-core-0.2.1-source.tar.gz`, verify its checksums, and
+[`netops-core/v0.2.2`](https://github.com/radek-cerny-soukr/netops/releases/tag/netops-core%2Fv0.2.2)
+release, unpack `netops-core-0.2.2-source.tar.gz`, verify its checksums, and
 either install the unpacked directory into the same environment or put its `src` on `PYTHONPATH`. In
 this repository the archive is the tree, so the tests and the CI job take the component from
 `../netops-core/src`: `pyproject.toml` carries it in `[tool.pytest.ini_options] pythonpath` and
 `tests/conftest.py` inserts it. Nothing else is required: `netops-core` is standard library only, and
 `fastmcp` is needed solely for the MCP surface.
+
+Either way works, and both are covered by the CI job. Installing the two unpacked directories into
+one environment - `python -m pip install <netops-core directory> <netops-auditor directory>` - puts
+the rule catalogues inside the installed package and puts the command `netops-auditor` on the path,
+which is the name every message and every example in these documents uses. Running from the unpacked
+tree with `src` on `PYTHONPATH` and `python -m netops_auditor` is the same program.
 
 ## Procedure
 

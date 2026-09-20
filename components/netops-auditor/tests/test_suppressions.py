@@ -522,3 +522,40 @@ def test_migration_needs_a_tenant(tmp_path):
     for value in (None, "", "   ", 1, True):
         with pytest.raises(SuppressionError, match="tenant must be a non-empty string"):
             migrate_file(source, tmp_path / "v2.json", value)
+
+
+def test_migration_refuses_a_destination_that_is_a_symbolic_link(tmp_path):
+    source = write_v1(tmp_path, [v1_entry()])
+    elsewhere = tmp_path / "elsewhere.json"
+    link = tmp_path / "v2.json"
+    link.symlink_to(elsewhere)
+    with pytest.raises(SuppressionError, match="is a symbolic link"):
+        migrate_file(source, link, TENANT_A)
+    assert not elsewhere.exists()
+
+
+def test_migration_refuses_a_destination_that_appears_while_it_works(tmp_path, monkeypatch):
+    import netops_auditor.suppressions as module
+
+    source = write_v1(tmp_path, [v1_entry()])
+    target = tmp_path / "v2.json"
+    original = module._migrated_item
+
+    def racing(index, item, tenant):
+        target.write_text("reviewed content of another process", encoding="utf-8")
+        return original(index, item, tenant)
+
+    monkeypatch.setattr(module, "_migrated_item", racing)
+    with pytest.raises(SuppressionError, match="the migration never writes over a file"):
+        migrate_file(source, target, TENANT_A)
+    assert target.read_text(encoding="utf-8") == "reviewed content of another process"
+
+
+def test_migration_leaves_no_partial_file_behind(tmp_path):
+    source = write_v1(tmp_path, [v1_entry()])
+    target = tmp_path / "v2.json"
+    assert migrate_file(source, target, TENANT_A) == 1
+    assert sorted(one.name for one in tmp_path.iterdir()) == sorted(
+        [source.name, target.name]
+    )
+    assert json.loads(target.read_text(encoding="utf-8"))["version"] == FILE_VERSION

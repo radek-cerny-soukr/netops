@@ -6,7 +6,7 @@ credential name, host key pin and legacy SSH exception - is read by `netops_core
 documented in [`../../netops-core/docs/inventory.md`](../../netops-core/docs/inventory.md). This
 document ships in the `netops-core` archive, not in the auditor archive: that relative path resolves
 in a repository checkout; from a standalone auditor archive the same file is published at
-[the Core 0.2.1 source commit](https://github.com/radek-cerny-soukr/netops/blob/2caf06ffd9df8d51a509d400c657c80db582ad82/components/netops-core/docs/inventory.md).
+[`netops-core/v0.2.2`](https://github.com/radek-cerny-soukr/netops/blob/netops-core/v0.2.2/components/netops-core/docs/inventory.md).
 That page is the schema of everything this one does not repeat.
 
 What each component needs for itself lives in a section of its own name. The auditor owns the
@@ -152,9 +152,9 @@ options behind a profile name are in
 [`../../netops-core/docs/inventory.md`](../../netops-core/docs/inventory.md) and
 [`../../netops-core/docs/ssh.md`](../../netops-core/docs/ssh.md). Both relative paths resolve in a
 repository checkout; from a standalone auditor archive the same two files are published at
-[the Core 0.2.1 source commit](https://github.com/radek-cerny-soukr/netops/blob/2caf06ffd9df8d51a509d400c657c80db582ad82/components/netops-core/docs/inventory.md)
+[`netops-core/v0.2.2`](https://github.com/radek-cerny-soukr/netops/blob/netops-core/v0.2.2/components/netops-core/docs/inventory.md)
 and
-[the Core 0.2.1 source commit](https://github.com/radek-cerny-soukr/netops/blob/2caf06ffd9df8d51a509d400c657c80db582ad82/components/netops-core/docs/ssh.md).
+[`netops-core/v0.2.2`](https://github.com/radek-cerny-soukr/netops/blob/netops-core/v0.2.2/components/netops-core/docs/ssh.md).
 What matters here:
 
 - The `ssh` channel talks with the algorithms a current OpenSSH client offers by default. Some

@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import os
+import tempfile
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -239,11 +241,44 @@ def _migrated_item(index: int, item, tenant: str) -> dict:
     return migrated
 
 
+def _published(target: Path, text: str) -> None:
+    try:
+        handle, temporary = tempfile.mkstemp(
+            dir=target.parent, prefix="." + target.name + ".", suffix=".part"
+        )
+    except OSError as error:
+        raise SuppressionError("cannot write suppression file %s: %s" % (target, error)) from None
+    try:
+        with os.fdopen(handle, "w", encoding="utf-8") as stream:
+            stream.write(text)
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.chmod(temporary, 0o644)
+        try:
+            os.link(temporary, target)
+        except FileExistsError:
+            raise SuppressionError(
+                "suppression file %s exists, the migration never writes over a file" % target
+            ) from None
+    except OSError as error:
+        raise SuppressionError("cannot write suppression file %s: %s" % (target, error)) from None
+    finally:
+        try:
+            os.unlink(temporary)
+        except OSError:
+            pass
+
+
 def migrate_file(source, destination, tenant) -> int:
     origin, target = Path(source), Path(destination)
     _checked_tenant(tenant)
     if origin.resolve() == target.resolve():
         raise SuppressionError("the migration never writes back into %s" % origin)
+    if target.is_symlink():
+        raise SuppressionError(
+            "suppression file %s is a symbolic link, the migration writes only a plain file"
+            % target
+        )
     if target.exists():
         raise SuppressionError(
             "suppression file %s exists, the migration never writes over a file" % target
@@ -277,12 +312,7 @@ def migrate_file(source, destination, tenant) -> int:
         seen[migrated["fingerprint"]] = index
         items.append(migrated)
     written = {"version": FILE_VERSION, "tenant": tenant, "suppressions": items}
-    try:
-        target.write_text(
-            json.dumps(written, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
-        )
-    except OSError as error:
-        raise SuppressionError("cannot write suppression file %s: %s" % (target, error)) from None
+    _published(target, json.dumps(written, ensure_ascii=False, indent=2) + "\n")
     return len(items)
 
 

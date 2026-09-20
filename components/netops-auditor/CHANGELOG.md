@@ -1,6 +1,26 @@
 # Changelog
 
-Only `netops-auditor/v0.2.2` is currently published. Older entries below are historical source records, not available releases or tags; their release pages, tags and downloadable artifacts have been removed. Use commit history to inspect old source and the current [release procedure](docs/releasing.md) for new releases.
+Only `netops-auditor/v0.2.3` is currently published. Older entries below are historical source records, not available releases or tags; their release pages, tags and downloadable artifacts have been removed. Use commit history to inspect old source and the current [release procedure](docs/releasing.md) for new releases.
+
+## 0.2.3 - 2026-09-20
+
+Follows `netops-core` 0.2.2, pinned as `netops-core==0.2.2`.
+
+- The installed distribution carries the rule catalogues. `catalog/fortios.json` and
+  `catalog/exos.json` were not package data, so a `pip install` produced a package whose `run`
+  ended with exit code 2 on a missing catalogue; tests running from `src` never touched that path.
+- The command line is installed as `netops-auditor`, the name every message and every example in
+  the documents already used.
+- The REST collector holds one deadline over the whole answer. The clock was checked between reads,
+  but a read blocks on the socket's idle timeout rather than on the remaining budget, and the
+  response headers were parsed before any check at all: a peer answering one byte at a time held a
+  collection roughly five times past its timeout, measured. The deadline now reaches every receive.
+- `migrate-suppressions` publishes its output atomically under a name that must not exist yet: a
+  destination created between the check and the write was silently truncated, and a dangling
+  symbolic link was followed to wherever it pointed. Both are refused now.
+- The MCP surface started without `fastmcp` says so in one line and exits with status 2, instead of
+  raising an import error, and `docs/configuration.md` documents how it is started.
+- Six FortiOS rules carry the `refs` of the running release, mirroring the EXOS rules.
 
 ## 0.2.2 - 2026-09-20
 

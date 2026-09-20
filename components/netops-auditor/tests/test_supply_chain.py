@@ -1,7 +1,10 @@
 import json
 import re
 import tomllib
+from fnmatch import fnmatch
 from pathlib import Path
+
+from netops_auditor.suppressions import MIGRATE_COMMAND
 
 COMPONENT = Path(__file__).resolve().parents[1]
 SBOM = COMPONENT / "sbom.cdx.json"
@@ -12,7 +15,7 @@ URL = re.compile(r"[a-z][a-z0-9+.-]*://[^\s\"]*")
 ABSOLUTE_PATH = re.compile(r"(?<![A-Za-z0-9_.~-])/[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)+")
 WINDOWS_PATH = re.compile(r"[A-Za-z]:\\\\?[A-Za-z0-9_.-]")
 CORE_NAME = "netops-core"
-CORE_VERSION = "0.2.1"
+CORE_VERSION = "0.2.2"
 CORE_REQUIREMENT = "%s==%s" % (CORE_NAME, CORE_VERSION)
 CORE_PURL = "pkg:pypi/%s@%s" % (CORE_NAME, CORE_VERSION)
 
@@ -117,3 +120,31 @@ def test_release_lock_pins_every_requirement_with_hashes():
         assert "==" in line
         assert line.rstrip().endswith("\\")
     assert any("--hash=sha256:" in line for line in lines)
+
+
+def _configuration():
+    return tomllib.loads(PYPROJECT.read_text(encoding="utf-8"))
+
+
+def test_every_file_the_package_reads_at_runtime_travels_in_the_distribution():
+    package = COMPONENT / "src" / "netops_auditor"
+    data = sorted(
+        path.relative_to(package).as_posix()
+        for path in package.rglob("*")
+        if path.is_file()
+        and path.suffix != ".py"
+        and "__pycache__" not in path.parts
+        and not path.name.endswith(".egg-info")
+    )
+    assert data, "the package has no data files, this test guards the wrong path"
+    declared = _configuration()["tool"]["setuptools"].get("package-data", {})
+    patterns = declared.get("netops_auditor", [])
+    assert patterns, "pyproject declares no package data, the wheel would ship none"
+    for name in data:
+        assert any(fnmatch(name, pattern) for pattern in patterns), name
+
+
+def test_the_documented_command_is_installed_by_the_distribution():
+    scripts = _configuration()["project"].get("scripts", {})
+    assert scripts.get("netops-auditor") == "netops_auditor.cli:main", scripts
+    assert MIGRATE_COMMAND.startswith("netops-auditor ")

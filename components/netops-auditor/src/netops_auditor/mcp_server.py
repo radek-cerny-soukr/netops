@@ -8,7 +8,15 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from fastmcp import FastMCP
+try:
+    from fastmcp import FastMCP
+except ModuleNotFoundError:
+    sys.stderr.write(
+        "netops-auditor mcp: the MCP surface needs fastmcp, which the auditor does not install"
+        " itself; install the pin in requirements-mcp.txt (fastmcp==4.0.3). The command line"
+        " runs without it.\n"
+    )
+    raise SystemExit(2) from None
 
 from . import checks_exos
 from . import checks_fortios
