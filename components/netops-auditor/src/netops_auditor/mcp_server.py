@@ -110,13 +110,13 @@ def _rules(platform: str) -> tuple:
         raise ConfigurationError("catalog %s is not readable JSON: %s" % (platform, error)) from None
 
 
-def _suppressions_path(values):
+def _suppressions_path(values, tenant):
     raw = _text(values, SUPPRESSIONS_VARIABLE)
     if not raw:
         return None
     location = Path(raw).expanduser()
     try:
-        load_suppressions(location)
+        load_suppressions(location, tenant)
     except SuppressionError as error:
         raise ConfigurationError("%s: %s" % (SUPPRESSIONS_VARIABLE, error)) from None
     return location
@@ -137,12 +137,13 @@ def configure(values=None) -> Configuration:
             "%s names %s, which is not a readable file" % (STORE_VARIABLE, store_path)
         )
     platform = _text(environment, CATALOG_VARIABLE)
+    tenant = _text(environment, TENANT_VARIABLE)
     current = Configuration(
         store_path=store_path,
-        tenant=_text(environment, TENANT_VARIABLE),
+        tenant=tenant,
         platform=platform,
         rules=_rules(platform),
-        suppressions_path=_suppressions_path(environment),
+        suppressions_path=_suppressions_path(environment, tenant),
     )
     ReadOnlyStore(current.store_path).close()
     _CONFIGURATION = current
@@ -163,8 +164,9 @@ def open_store() -> ReadOnlyStore:
 
 
 def suppressions() -> tuple:
-    location = configuration().suppressions_path
-    return () if location is None else load_suppressions(location)
+    current = configuration()
+    location = current.suppressions_path
+    return () if location is None else load_suppressions(location, current.tenant)
 
 
 def _now() -> datetime:

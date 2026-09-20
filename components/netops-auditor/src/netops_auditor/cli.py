@@ -19,7 +19,7 @@ from .engine import CATALOG_DIR, CatalogError, CheckError, load_catalog, run
 from .findings import Finding
 from .state import STATE_GONE, STATE_NEW, STATE_OPEN_KNOWN, STATE_SUPPRESSED, classify
 from .store import Store, StoreError
-from .suppressions import MOMENT_FORMAT, SuppressionError
+from .suppressions import MOMENT_FORMAT, SuppressionError, declared_tenant
 from .suppressions import load as load_suppressions
 
 PLATFORMS = {
@@ -193,11 +193,14 @@ def _checked_options(args):
         raise Failure("--accepted-by and --note need --baseline-accept")
 
 
-def _load_suppressions(path):
+def _load_suppressions(path, tenant):
     if path is None:
         return ()
     try:
-        return load_suppressions(path)
+        items = load_suppressions(path, tenant)
+        if declared_tenant(path) is None:
+            sys.stderr.write("suppressions: %s is not bound to a tenant\n" % path)
+        return items
     except SuppressionError as error:
         raise Failure("suppressions: %s" % error)
 
@@ -410,7 +413,7 @@ def _command_run(args) -> int:
     text, digest = _read_config(Path(args.config))
     rules = _load_rules(args.platform)
     rules_version = _rules_version(args.platform, rules)
-    suppression_items = _load_suppressions(args.suppressions)
+    suppression_items = _load_suppressions(args.suppressions, args.tenant)
     findings = _audit(args.platform, text, args.device, rules)
     previous, baseline, accepted = (), frozenset(), None
     if args.store:
@@ -632,7 +635,7 @@ def _command_collect(args) -> int:
     platform = _catalog_platform(record)
     rules = _load_rules(platform)
     rules_version = _rules_version(platform, rules)
-    suppression_items = _load_suppressions(args.suppressions)
+    suppression_items = _load_suppressions(args.suppressions, args.tenant)
     credential = _credential(record, section, args.vault)
     snapshot, events = _collected(args, record, section, credential)
     gate = _completeness(record, section, snapshot)

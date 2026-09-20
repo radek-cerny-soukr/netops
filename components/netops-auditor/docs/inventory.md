@@ -3,8 +3,11 @@
 The inventory is the list of devices the family may reach. Since 0.2.0 it is **the shared document of
 `netops-core`, file version 2**: the common part of a device - its name, platform, address, role,
 credential name, host key pin and legacy SSH exception - is read by `netops_core.inventory` and is
-documented in [`../netops-core/docs/inventory.md`](../netops-core/docs/inventory.md). That page is the
-schema of everything this one does not repeat.
+documented in [`../../netops-core/docs/inventory.md`](../../netops-core/docs/inventory.md). This
+document ships in the `netops-core` archive, not in the auditor archive: that relative path resolves
+in a repository checkout; from a standalone auditor archive the same file is published at
+[`netops-core/v0.2.0`](https://github.com/radek-cerny-soukr/netops/blob/netops-core/v0.2.0/components/netops-core/docs/inventory.md).
+That page is the schema of everything this one does not repeat.
 
 What each component needs for itself lives in a section of its own name. The auditor owns the
 `auditor` section, and this page is its schema. **A device is the auditor's when its `auditor` field is
@@ -146,8 +149,13 @@ reached the device, and until then the same entry loads without a word.
 
 The field is part of the common device, so the whole family reads it the same way; the rules and the
 options behind a profile name are in
-[`../netops-core/docs/inventory.md`](../netops-core/docs/inventory.md) and
-[`../netops-core/docs/ssh.md`](../netops-core/docs/ssh.md). What matters here:
+[`../../netops-core/docs/inventory.md`](../../netops-core/docs/inventory.md) and
+[`../../netops-core/docs/ssh.md`](../../netops-core/docs/ssh.md). Both relative paths resolve in a
+repository checkout; from a standalone auditor archive the same two files are published at
+[`netops-core/v0.2.0`](https://github.com/radek-cerny-soukr/netops/blob/netops-core/v0.2.0/components/netops-core/docs/inventory.md)
+and
+[`netops-core/v0.2.0`](https://github.com/radek-cerny-soukr/netops/blob/netops-core/v0.2.0/components/netops-core/docs/ssh.md).
+What matters here:
 
 - The `ssh` channel talks with the algorithms a current OpenSSH client offers by default. Some
   switches that are still in service offer only `ssh-rsa` - RSA with SHA-1 - and with that default the

@@ -12,8 +12,11 @@ reached. The inventory has a page of its own: [`inventory.md`](inventory.md).
 
 The inventory names a credential, the store holds its value. Since 0.2.0 the store is **the shared
 document of `netops-core`, file version 2**, and its schema is
-[`../netops-core/docs/vault.md`](../netops-core/docs/vault.md). What follows is what the auditor adds
-to it.
+[`../../netops-core/docs/vault.md`](../../netops-core/docs/vault.md). This document ships in the
+`netops-core` archive, not in the auditor archive: that relative path resolves in a repository
+checkout; from a standalone auditor archive the same file is published at
+[`netops-core/v0.2.0`](https://github.com/radek-cerny-soukr/netops/blob/netops-core/v0.2.0/components/netops-core/docs/vault.md).
+What follows is what the auditor adds to it.
 
 ```json
 {
@@ -32,7 +35,7 @@ to it.
 | `credentials` | an object; the key is the record name an inventory entry refers to in `credential` |
 | `credentials.<name>.kind` | one of `password`, `ssh-key`, `api-token`, `snmp-community` |
 | `credentials.<name>.login` | the account name, **required** for `password` and `ssh-key`, **forbidden** for the other two |
-| `credentials.<name>.value` | the secret itself; for `ssh-key` the whole private key text, header line and all, newlines written as `\n` - the example above is a placeholder, and the real shape is in [`../netops-core/docs/vault.md`](../netops-core/docs/vault.md) |
+| `credentials.<name>.value` | the secret itself; for `ssh-key` the whole private key text, header line and all, newlines written as `\n` - the example above is a placeholder, and the real shape is in [`../../netops-core/docs/vault.md`](../../netops-core/docs/vault.md) (from a standalone archive, published at [`netops-core/v0.2.0`](https://github.com/radek-cerny-soukr/netops/blob/netops-core/v0.2.0/components/netops-core/docs/vault.md)) |
 
 The file is read at mode `0600` or `0400` and at no other mode, and a vault path that is a symbolic
 link is refused before the mode is read.
@@ -119,6 +122,43 @@ error: suppressions: suppression 0: fingerprint '0000000000000000000000000000000
 
 Two items with the same fingerprint are an error as well.
 
+### Tenant binding
+
+The fingerprint above does not carry a tenant: it is `rule_id`, `rule_version`, `device` and
+`object_key`, nothing more. Two tenants that happen to name a device the same way compute the same
+fingerprint for the same finding, so one suppression file loaded for both would silence it for both
+- a cross-tenant leak through a file that was only ever meant for one of them.
+
+Putting the tenant into the fingerprint would fix that, but it is a breaking change to every
+fingerprint already written down in every existing suppression file and report, and it is
+deliberately deferred. What exists today is a guard, not the fix: an optional top-level `tenant`
+field.
+
+```json
+{
+  "version": 1,
+  "tenant": "tenant-a",
+  "suppressions": [ ]
+}
+```
+
+When `tenant` is present, loading the file fails closed unless it matches the tenant the run is for,
+naming both:
+
+```
+error: suppressions: suppression file waivers.json is bound to tenant 'tenant-a', this run is for tenant 'tenant-b'
+```
+
+When `tenant` is absent, the file loads exactly as before - matched by fingerprint alone, against
+any tenant - and the CLI says once, to stderr, that the file is not bound to a tenant:
+
+```
+suppressions: waivers.json is not bound to a tenant
+```
+
+A suppression file belongs to one tenant; bind it with the field, and never let one file be shared
+between two tenants' runs.
+
 ### What expiry does, and what it does not
 
 An active suppression moves a finding into state `suppressed`. It does not remove it: the finding is
@@ -142,7 +182,10 @@ becomes visible. The two lists are independent and an item can be on both.
 
 Not repeated here. The `auditor` section field by field, what each channel requires of the common
 device, and the `legacy_ssh` exception are in [`inventory.md`](inventory.md); the common part of the
-document is in [`../netops-core/docs/inventory.md`](../netops-core/docs/inventory.md).
+document is in [`../../netops-core/docs/inventory.md`](../../netops-core/docs/inventory.md), which
+ships in the `netops-core` archive, not the auditor archive: from a standalone auditor archive the
+same file is published at
+[`netops-core/v0.2.0`](https://github.com/radek-cerny-soukr/netops/blob/netops-core/v0.2.0/components/netops-core/docs/inventory.md).
 
 ## The platform picks the parser and the catalogue
 

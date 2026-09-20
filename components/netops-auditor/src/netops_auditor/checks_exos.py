@@ -69,6 +69,10 @@ def exos_no_sntp_client(configuration):
         return
     if _configured(configuration, "configure", "sntp-client", "primary"):
         return
+    if configuration.first("enable", "ntp") is not None:
+        return
+    if _configured(configuration, "configure", "ntp", "server", "add"):
+        return
     yield {
         "object_key": SECTION_SNTP,
         "section": SECTION_SNTP,

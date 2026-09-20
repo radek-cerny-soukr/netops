@@ -13,6 +13,8 @@ Both device channels share the same rules:
   the raw answer,
 - every command sent to a device is one `ChannelEvent`, with the request written down verbatim,
 - the credential never appears in the request, in the audit trail, in a `repr` or in an error text,
+  and neither does anything the device wrote on standard error: an error names a classified reason,
+  never the peer's words,
 - the peer is verified before the credential is sent,
 - the timeout is mandatory and finite,
 - the transport is injectable, so the test suite never touches the network,
@@ -81,7 +83,10 @@ until someone runs it against a device and writes the result here.
 
 The transport is `netops_core.ssh`, shared with the rest of the family since 0.2.0: the client call,
 the hardening options, the workspace and the two kinds of authentication are described in
-[`../netops-core/docs/ssh.md`](../netops-core/docs/ssh.md) and measured there against real devices.
+[`../../netops-core/docs/ssh.md`](../../netops-core/docs/ssh.md) and measured there against real
+devices. These documents ship in the `netops-core` archive, not in the auditor archive: that relative
+path resolves in a repository checkout; from a standalone auditor archive the same file is published
+at [`netops-core/v0.2.0`](https://github.com/radek-cerny-soukr/netops/blob/netops-core/v0.2.0/components/netops-core/docs/ssh.md).
 What the auditor adds is the step table of the platform, the preflight and the `ChannelEvent` of
 every command; the prompt cleaning is `netops_core.prompt`. It adds **nothing** to the options of
 the client.
@@ -95,7 +100,7 @@ the client.
   | platform | first command | what it is for | second command |
   |---|---|---|---|
   | `fortios` | `get system console` | read-only check, must answer `output ... standard` | `show` |
-  | `exos` | `disable cli paging` | session setting, allowed to be sent | `show configuration` |
+  | `exos` | *(none)* | no preamble is sent - see below | `show configuration` |
 
 - Cleans the device prompt out of the answer with `netops_core.prompt`, the rule the family
   shares - see below.
@@ -164,13 +169,19 @@ Two details that measurement decided rather than reasoning:
   was the OpenSSH `chacha20-poly1305`, so no legacy key exchange or cipher profile is needed. If a box
   turns up that needs one, it gets its own named profile, measured first.
 
-### When the client fails, it says what it said
+### When the client fails, it says why - in its own words, not the device's
 
 `ssh` reports a failed negotiation on stderr and exits with 255. An answer of the exit code alone
 would leave an operator with `failed with exit code 255` and no way to see that a legacy profile was
-missing, so the message carries what the client wrote on stderr, cut to 200 characters with control
-characters replaced. The answer itself - stdout - is still never logged, but
-a device that writes into stderr can put its words into the error message.
+missing, so the message names a reason. That reason comes from the closed list in `netops_core.ssh`,
+matched against what the client wrote; the raw stderr itself never reaches the message, because
+stderr is written by the other side and a device can put a secret - or an instruction addressed to an
+agent - into it. A failure whose text matches nothing in the list is reported as one this transport
+does not recognize.
+
+The raw text is not thrown away: it stays on the exception as `said`, where an operator-side log can
+take it. What leaves the auditor - a `CollectError`, a CLI message, a report - carries the classified
+sentence. The answer itself, stdout, is never logged at all.
 
 When the client refused to negotiate and the device has no profile, the message also names the
 device and says how the exception is written down - the field, the profile names, and that there is
@@ -197,19 +208,27 @@ So the auditor asks for `show`.
 
 ### The pager, and why it is not one universal command
 
-Both platforms page long output, and that is where they differ in a way the tool has to respect:
+FortiOS pages long output over this channel, and EXOS does not, which is where the two platforms
+differ in a way the tool has to respect:
 
 - **FortiOS**: turning the pager off means `config system console` / `set output standard`, which is
   **a write into the device configuration**. The auditor must not do that, so it only asks
   `get system console` and reads `output`. Anything other than `standard` and the collection is
   refused with a message that says what to set. The auditor would rather not run than change a
   device for its own convenience.
-- **EXOS**: `disable cli paging` is **a property of the session, not of the configuration** -
-  verified on the switch, where `show configuration | include "paging"` returns nothing after it was
-  sent. So the auditor is allowed to send it, and does.
+- **EXOS**: over a non-interactive exec channel the switch does not page at all - measured on
+  19 September 2026 against ExtremeXOS 33.7.1: `show configuration` returned 10,728 bytes with zero
+  `--More--` markers and a complete final module, and the byte count was identical across three
+  shapes - with no preamble, in a fresh session after `disable cli paging` had been sent in a
+  separate session, and with both commands sent in one session. `disable cli paging` used to be sent
+  as its own step before the snapshot, on the reasoning that it was at worst a harmless property of
+  the session rather than of the configuration (verified on the switch, where
+  `show configuration | include "paging"` returned nothing after it was sent). The measurement above
+  shows it was also unnecessary: the switch never paged over this channel regardless. The auditor
+  sends nothing for EXOS now.
 
-One universal "turn the pager off" command would have to be a write on FortiOS. That is the reason
-the commands live in a per-platform table.
+One universal "turn the pager off" command would still have to be a write on FortiOS, which is why
+FortiOS keeps its own preflight command; EXOS needs no command at all.
 
 ### A one-shot command needs no PTY
 
@@ -261,8 +280,10 @@ exec channel: the `super_admin` account answers with `<hostname> # `, and an acc
 profile answers with `<hostname> $ `. Until this release the cleaner knew `#` alone, so under a
 read-only account the prompt stayed in the snapshot - and in its hash.
 
-So the answer is cleaned by [`netops_core.prompt`](../../netops-core/docs/prompt.md), which the helper
-uses as well, by a rule that is deliberately narrow:
+So the answer is cleaned by [`netops_core.prompt`](../../netops-core/docs/prompt.md) (published, for
+a standalone archive, at
+[`netops-core/v0.2.0`](https://github.com/radek-cerny-soukr/netops/blob/netops-core/v0.2.0/components/netops-core/docs/prompt.md)),
+which the helper uses as well, by a rule that is deliberately narrow:
 
 - **only the first line** can lose a prefix, and only when that line starts with a prompt shape: at
   least one character that is neither `#` nor `$`, a space, then `#` or `$` and a space. A first line
@@ -354,9 +375,14 @@ That table is the anchor: if the channel does not work for you, this is the hard
 where the behaviour was observed. The measurements above were taken with the collector of 0.1.0, which
 carried its own copy of the transport; the transport of 0.2.0 is `netops_core.ssh`, measured on the
 same devices - including the password authentication this channel had not had before - in
-[`../netops-core/docs/ssh.md`](../netops-core/docs/ssh.md). The commands and the preflight above are
-the auditor's and did not change; the prompt cleaning moved to
-[`../netops-core/docs/prompt.md`](../netops-core/docs/prompt.md) unchanged except for the `$` marker.
+[`../../netops-core/docs/ssh.md`](../../netops-core/docs/ssh.md). The commands and the preflight above
+are the auditor's and did not change; the prompt cleaning moved to
+[`../../netops-core/docs/prompt.md`](../../netops-core/docs/prompt.md) unchanged except for the `$`
+marker. Both relative paths resolve in a repository checkout; from a standalone auditor archive the
+same two files are published at
+[`netops-core/v0.2.0`](https://github.com/radek-cerny-soukr/netops/blob/netops-core/v0.2.0/components/netops-core/docs/ssh.md)
+and
+[`netops-core/v0.2.0`](https://github.com/radek-cerny-soukr/netops/blob/netops-core/v0.2.0/components/netops-core/docs/prompt.md).
 
 ## Channel `file`
 
@@ -398,7 +424,7 @@ there and what stands in the positions the vendor documentation gives that comma
 
 | rule | severity | what silences it |
 |---|---|---|
-| `exos.time.no-sntp-client` | medium | `enable sntp-client`, or a `configure sntp-client primary` entry carrying a host |
+| `exos.time.no-sntp-client` | medium | `enable sntp-client`, `enable ntp`, or a `configure sntp-client primary` or `configure ntp server add` entry carrying a host |
 | `exos.logging.no-syslog-target` | medium | a `configure syslog add` entry carrying a target |
 | `exos.snmp.default-community` | high | no community entry whose plainly written index, name or string is in the dictionary `public`, `private` |
 | `exos.mgmt.telnet-enabled` | medium | `disable telnet`, as the last of the Telnet commands in the dump |
@@ -417,9 +443,11 @@ the rule:
   `Default: Enabled`), so the absence of any Telnet command is a finding, not silence. A dump that
   was truncated before the `telnetd` module is reported the same way, which is the fail-closed side
   of that choice.
-- **The SNTP client and the NTP client are two features.** The time rule reads the SNTP client only,
-  so a switch that holds its clock over `enable ntp` and `configure ntp server add` is reported.
-  This is the one known false positive that was seen over a real dump, and it is in the catalogue.
+- **The SNTP client and the NTP client are two features, and the time rule reads both.** Version 1 of
+  the rule read the SNTP client alone and reported a switch that holds its clock over `enable ntp`
+  and `configure ntp server add` - the one false positive seen over a real dump. Version 2 accepts
+  either client: the rule asks whether the switch synchronizes from some server, not which of the two
+  features it uses. It still does not judge whether that server is the right one, or reachable.
 
 A community string never reaches a finding. The evidence of `exos.snmp.default-community` says which
 field of the entry matched - `community index`, `community name` or `community string` - the fixed
@@ -431,8 +459,10 @@ the evidence, not in the object key and not in the report; an entry written with
 
 Over a real `show configuration` of two switches running ExtremeXOS 33.7.1.6, read from a backup and
 never sent to a device: one switch produced **no finding**, the second produced **one**,
-`exos.time.no-sntp-client`, and it is the known false positive above - that switch synchronizes over
-the NTP client. Four defects inserted into a copy of the first dump - the SNTP server removed, the
+`exos.time.no-sntp-client`. That was version 1 of the rule and the finding was the known false
+positive above - that switch synchronizes over the NTP client. Version 2 accepts the NTP client, so
+the same dump would produce no finding; that has not been measured again over the dump itself, only
+over a fixture carrying the same two commands. Four defects inserted into a copy of the first dump - the SNTP server removed, the
 syslog target removed, a `public` community added, `disable telnet` removed - each produced **exactly
 one** new finding, and two runs over the same dump produced a byte identical report.
 

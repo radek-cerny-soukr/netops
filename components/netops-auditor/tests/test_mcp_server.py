@@ -494,6 +494,27 @@ def test_configure_rejects_an_unreadable_suppression_file(audited, tmp_path):
     assert mcp_server.SUPPRESSIONS_VARIABLE in str(error.value)
 
 
+def test_configure_rejects_a_suppression_file_bound_to_another_tenant(audited, tmp_path):
+    bound = tmp_path / "suppressions.json"
+    bound.write_text(
+        json.dumps({"version": 1, "tenant": "tenant-b", "suppressions": []}), encoding="utf-8"
+    )
+    with pytest.raises(mcp_server.ConfigurationError) as error:
+        mcp_server.configure(_environment(audited, bound))
+    message = str(error.value)
+    assert TENANT in message
+    assert "tenant-b" in message
+
+
+def test_configure_accepts_a_suppression_file_bound_to_its_own_tenant(audited, tmp_path):
+    bound = tmp_path / "suppressions.json"
+    bound.write_text(
+        json.dumps({"version": 1, "tenant": TENANT, "suppressions": []}), encoding="utf-8"
+    )
+    mcp_server.configure(_environment(audited, bound))
+    assert mcp_server.suppressions() == ()
+
+
 def test_configure_accepts_the_full_environment(suppressed):
     current = mcp_server.configuration()
     assert current.tenant == TENANT

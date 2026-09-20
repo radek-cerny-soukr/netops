@@ -8,6 +8,7 @@ from netops_auditor.suppressions import (
     Suppression,
     SuppressionError,
     active_fingerprints,
+    declared_tenant,
     expired,
     fingerprint_of,
     load,
@@ -21,6 +22,8 @@ REASON = "schvalena vyjimka, sprava jen z jump hostu 192.0.2.10"
 AUTHOR = "radek"
 CREATED = "2026-09-12T10:00:00Z"
 EXPIRES = "2026-12-31T00:00:00Z"
+TENANT_A = "tenant-a"
+TENANT_B = "tenant-b"
 
 CREATED_AT = datetime(2026, 9, 12, 10, 0, 0, tzinfo=timezone.utc)
 EXPIRES_AT = datetime(2026, 12, 31, 0, 0, 0, tzinfo=timezone.utc)
@@ -135,6 +138,35 @@ def test_unknown_document_field_is_an_error(tmp_path):
     path = write(tmp_path, [entry()], extra={"default_expires": EXPIRES})
     with pytest.raises(SuppressionError, match="unknown document fields: default_expires"):
         load(path)
+
+
+def test_an_unbound_file_still_works(tmp_path):
+    path = write(tmp_path, [entry()])
+    assert declared_tenant(path) is None
+    assert len(load(path)) == 1
+    assert len(load(path, TENANT_A)) == 1
+    assert len(load(path, TENANT_B)) == 1
+
+
+def test_a_bound_file_matching_the_tenant_works(tmp_path):
+    path = write(tmp_path, [entry()], extra={"tenant": TENANT_A})
+    assert declared_tenant(path) == TENANT_A
+    loaded = load(path, TENANT_A)
+    assert len(loaded) == 1
+    assert loaded[0].fingerprint == fingerprint_of(RULE_ID, RULE_VERSION, DEVICE, OBJECT_KEY)
+    assert len(load(path)) == 1
+
+
+def test_a_file_bound_to_another_tenant_is_refused_naming_both_tenants(tmp_path):
+    path = write(tmp_path, [entry()], extra={"tenant": TENANT_A})
+    with pytest.raises(SuppressionError, match="%s.*%s" % (TENANT_A, TENANT_B)):
+        load(path, TENANT_B)
+
+
+def test_tenant_must_be_a_non_empty_string_when_present(tmp_path):
+    for value in ("", "   ", 1, True, [], {}, None):
+        with pytest.raises(SuppressionError, match="tenant must be a non-empty string"):
+            load(write(tmp_path, [entry()], extra={"tenant": value}))
 
 
 def test_unknown_item_field_is_an_error(tmp_path):

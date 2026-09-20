@@ -10,6 +10,7 @@ FILE_VERSION = 1
 MOMENT_FORMAT = "%Y-%m-%dT%H:%M:%SZ"
 FINGERPRINT_SEPARATOR = "\x1f"
 DOCUMENT_FIELDS = ("version", "suppressions")
+OPTIONAL_DOCUMENT_FIELDS = ("tenant",)
 TEXT_FIELDS = ("rule_id", "device", "object_key", "reason", "author")
 ITEM_FIELDS = (
     "fingerprint",
@@ -133,7 +134,7 @@ def _document(path: Path) -> dict:
     missing = [name for name in DOCUMENT_FIELDS if name not in document]
     if missing:
         raise SuppressionError("suppression file %s: missing document fields: %s" % (path, ", ".join(missing)))
-    unknown = sorted(set(document) - set(DOCUMENT_FIELDS))
+    unknown = sorted(set(document) - set(DOCUMENT_FIELDS) - set(OPTIONAL_DOCUMENT_FIELDS))
     if unknown:
         raise SuppressionError("suppression file %s: unknown document fields: %s" % (path, ", ".join(unknown)))
     version = document["version"]
@@ -145,12 +146,28 @@ def _document(path: Path) -> dict:
         raise SuppressionError(
             "suppression file %s: suppressions must be a list, got %r" % (path, document["suppressions"])
         )
+    if "tenant" in document and (
+        not isinstance(document["tenant"], str) or not document["tenant"].strip()
+    ):
+        raise SuppressionError(
+            "suppression file %s: tenant must be a non-empty string, got %r" % (path, document["tenant"])
+        )
     return document
 
 
-def load(path) -> tuple:
+def declared_tenant(path) -> str | None:
+    return _document(Path(path)).get("tenant")
+
+
+def load(path, tenant=None) -> tuple:
     location = Path(path)
     document = _document(location)
+    bound = document.get("tenant")
+    if bound is not None and tenant is not None and bound != tenant:
+        raise SuppressionError(
+            "suppression file %s is bound to tenant %r, this run is for tenant %r"
+            % (location, bound, tenant)
+        )
     suppressions, seen = [], {}
     for index, item in enumerate(document["suppressions"]):
         entry = _suppression(index, item)

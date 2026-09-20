@@ -2,7 +2,7 @@
 
 Release tags follow the component scheme `<name>/v<version>`, where `<name>` is the project name
 declared in this component's `pyproject.toml`: this component tags
-`netops-auditor/v0.2.0`, and the release title is `netops-auditor 0.2.0`. Tags of another component
+`netops-auditor/v0.2.1`, and the release title is `netops-auditor 0.2.1`. Tags of another component
 are never touched by this procedure, and the unprefixed tags `v0.1.0`, `v0.2.0`, `v0.2.1` are the
 history of `netops-helper`; they are never moved, deleted, or recreated. The canonical origin is
 `https://github.com/radek-cerny-soukr/netops`.
@@ -37,7 +37,7 @@ component runs from the unpacked archive on any Python 3.13 host.
 ### It needs `netops-core` beside it
 
 Since 0.2.0 the auditor reads the inventory, the credential store, the host key trust and the SSH
-transport from `netops-core`, and `pyproject.toml` pins it as `netops-core==0.1.0`. There is no index
+transport from `netops-core`, and `pyproject.toml` pins it as `netops-core==0.2.0`. There is no index
 to resolve that pin against: **the operator installs the `netops-core` source archive of exactly that
 version next to the auditor** - unpack `netops-core-0.1.0-source.tar.gz`, verify its checksums, and
 either install the unpacked directory into the same environment or put its `src` on `PYTHONPATH`. In
@@ -78,7 +78,7 @@ this repository the archive is the tree, so the tests and the CI job take the co
    (cd path/to/new-output/netops-auditor-<version> && python3 -B scripts/check_gates.py)
    ```
 3. Create the final trusted signed commit on clean `main`, then, under a separate explicit
-   authorization, the signed annotated tag `netops-auditor/v0.2.0` on that exact commit. Verify the
+   authorization, the signed annotated tag `netops-auditor/v0.2.1` on that exact commit. Verify the
    tag resolves to a tag object, carries a trusted signature, and peels to the signed commit. Neither
    step authorizes a push, a build, or a transparency-log upload. The tag names `0.2.0`.
 4. On the builder, place a clone of the repository at the released commit in `repos/netops-auditor`

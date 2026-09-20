@@ -95,16 +95,38 @@ def test_a_secondary_entry_alone_does_not_silence_the_time_rule():
     assert only_new(text).rule_id == SNTP_RULE
 
 
-def test_the_ntp_client_does_not_silence_the_time_rule():
+def test_the_ntp_client_silences_the_time_rule():
     text = mutate(
         clean_text(),
         SNTP_BLOCK,
         "enable ntp vr VR-Default\nconfigure ntp server add 192.0.2.1\n",
     )
+    assert audit(text) == ()
+
+
+def test_an_enabled_ntp_client_alone_silences_the_time_rule():
+    text = mutate(clean_text(), SNTP_BLOCK, "enable ntp vr VR-Default\n")
+    assert audit(text) == ()
+
+
+def test_a_configured_ntp_server_alone_silences_the_time_rule():
+    text = mutate(clean_text(), SNTP_BLOCK, "configure ntp server add 192.0.2.1\n")
+    assert audit(text) == ()
+
+
+def test_an_ntp_server_entry_without_a_host_does_not_silence_the_time_rule():
+    text = mutate(clean_text(), SNTP_BLOCK, "configure ntp server add\n")
     finding = only_new(text)
     assert finding.rule_id == SNTP_RULE
     assert dict(finding.evidence) == {"reason": "no command"}
     assert finding.line == 0
+
+
+def test_no_time_client_at_all_is_still_one_finding():
+    text = mutate(clean_text(), SNTP_BLOCK, "")
+    finding = only_new(text)
+    assert finding.rule_id == SNTP_RULE
+    assert dict(finding.evidence) == {"reason": "no command"}
 
 
 def test_a_missing_syslog_target_is_one_finding_without_a_line():

@@ -3,7 +3,6 @@ from __future__ import annotations
 import hashlib
 import http.client
 import ssl
-import subprocess
 import time
 from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
@@ -388,7 +387,6 @@ SSH_STEPS = {
         _Step(command="show", snapshot=True, prompt=True),
     ),
     PLATFORM_EXOS: (
-        _Step(command="disable cli paging", prompt=True),
         _Step(command="show configuration", snapshot=True, prompt=True),
     ),
 }
@@ -474,8 +472,8 @@ def collect_ssh(
     host_key_fingerprint,
     legacy_ssh=None,
     timeout=SSH_TIMEOUT_SECONDS,
-    run=subprocess.run,
-    keyscan=subprocess.run,
+    run=None,
+    keyscan=None,
     now=None,
 ) -> tuple:
     _checked_text("device", device)

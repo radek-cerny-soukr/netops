@@ -2,14 +2,14 @@
 
 Configuration audit for network devices. The auditor collects the configuration from the device itself, evaluates it against a catalogue of rules, and reports findings without ever carrying the configuration or a credential into its answers.
 
-This component has not been released yet. It is usable from the CLI today, and its shape is fixed by its gates rather than by its documentation.
+The current release is `netops-auditor/v0.2.1` (2026-09-20), which pins `netops-core==0.2.0`; `netops-auditor/v0.2.0` (2026-09-19) preceded it. The component is usable from the CLI, and its shape is fixed by its gates rather than by its documentation.
 
 ## What it does
 
 - **Rules as data.** One catalogue per platform, as JSON: identifier, version, check, class (`fakt` or `usudek`), severity, evidence fields, remediation, and optional compliance references. A rule without a positive and a negative fixture does not enter the catalogue - the gate rejects it.
 - **Two audited platforms.** FortiOS (6 rules over the tree of `config` / `edit` / `set`) and, since 0.2.0, ExtremeXOS and Switch Engine (4 rules over the flat command list of `show configuration`). The platform picks the parser and the catalogue; there is no shared model between them and none is planned until a rule needs one.
 - **Collects its own configuration.** One channel per device, pinned in the `auditor` section of the inventory: `file`, `fortios-rest`, or `ssh`. There is no fallback ladder; a failing channel fails the collection and says why. What each channel cannot do is written down in [`docs/channels.md`](docs/channels.md), and the `auditor` section of the inventory - including what each channel requires of the shared device entry - in [`docs/inventory.md`](docs/inventory.md).
-- **Reaches a device through [`netops-core`](../netops-core/README.md).** Since 0.2.0 the inventory (file version 2), the credential store (file version 2), the host key trust and the SSH transport are the shared access layer of the family, pinned as `netops-core==0.1.0`; the auditor keeps the policy - the `auditor` section of an entry, which kind of credential a channel takes, the step table of a platform and the audit itself.
+- **Reaches a device through [`netops-core`](../netops-core/README.md).** Since 0.2.0 the inventory (file version 2), the credential store (file version 2), the host key trust and the SSH transport are the shared access layer of the family, pinned as `netops-core==0.2.0`; the auditor keeps the policy - the `auditor` section of an entry, which kind of credential a channel takes, the step table of a platform and the audit itself.
 - **Never changes a device.** Not a policy, not an interface, not even a console setting. With an active FortiOS pager the collection refuses instead of disabling it.
 - **Keeps secrets out of findings.** A finding carries an object reference and line numbers, never the configuration text. A canary fixture per platform - twenty marked secrets on FortiOS, eleven on EXOS - must not leak a single one into a finding, an MCP answer, or a CLI report.
 - **Knows what changed.** Baseline in the database, suppressions with a mandatory expiry in a reviewed JSON file, four finding states, and a freshness threshold. The credential store, the suppression file, the exit codes and the two refusals that end a run before the catalogue is reached are in [`docs/configuration.md`](docs/configuration.md).
@@ -29,5 +29,7 @@ python3 scripts/check_gates.py               # the gate of a release
 ## Boundaries
 
 The auditor is not a compliance product: rules may carry `refs` to the vendor command reference or to CIS, ZKB, or DORA, but no profile is built and no compliance is claimed. Rules exist for FortiOS and for EXOS, and the EXOS catalogue is four rules wide - time, logging, SNMP communities and Telnet - which is a beginning, not coverage; what each of them cannot see is in [`docs/channels.md`](docs/channels.md). The EXOS rules have not been measured end to end against a switch with this code: they were verified over a `show configuration` backup, not over a snapshot this collector pulled. A finding of class `usudek` is a judgement and is never emitted at high severity.
+
+The auditor ships no image of its own either, so the `ssh` channel runs the OpenSSH client already installed on the host and inherits that client's own vulnerabilities, unfiltered by any isolating container. Keeping that client current is the operator's responsibility, not this component's.
 
 MIT licensed. Part of the [`netops`](../../README.md) family.

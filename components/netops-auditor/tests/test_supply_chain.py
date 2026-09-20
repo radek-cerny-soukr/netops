@@ -12,7 +12,7 @@ URL = re.compile(r"[a-z][a-z0-9+.-]*://[^\s\"]*")
 ABSOLUTE_PATH = re.compile(r"(?<![A-Za-z0-9_.~-])/[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)+")
 WINDOWS_PATH = re.compile(r"[A-Za-z]:\\\\?[A-Za-z0-9_.-]")
 CORE_NAME = "netops-core"
-CORE_VERSION = "0.1.0"
+CORE_VERSION = "0.2.0"
 CORE_REQUIREMENT = "%s==%s" % (CORE_NAME, CORE_VERSION)
 CORE_PURL = "pkg:pypi/%s@%s" % (CORE_NAME, CORE_VERSION)
 
@@ -82,6 +82,20 @@ def test_the_pinned_core_version_is_the_one_in_the_tree():
     )["project"]
     assert document["name"] == CORE_NAME
     assert document["version"] == CORE_VERSION
+
+
+def test_every_link_into_the_core_archive_names_the_pinned_version():
+    tagged = re.compile(r"netops-core/v([0-9]+\.[0-9]+\.[0-9]+)")
+    seen = 0
+    for document in sorted((COMPONENT / "docs").glob("*.md")):
+        text = document.read_text(encoding="utf-8")
+        for found in tagged.finditer(text):
+            seen += 1
+            assert found.group(1) == CORE_VERSION, (
+                "%s links into netops-core/v%s while this component pins %s"
+                % (document.name, found.group(1), CORE_REQUIREMENT)
+            )
+    assert seen, "the documentation links into no core archive at all"
 
 
 def test_sbom_carries_every_optional_requirement_as_optional():

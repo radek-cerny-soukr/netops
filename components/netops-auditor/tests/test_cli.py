@@ -12,6 +12,7 @@ from netops_auditor.collect import ChannelEvent, CollectError, Snapshot
 from netops_auditor.engine import CATALOG_DIR
 from netops_auditor.store import Store
 from netops_auditor.suppressions import fingerprint_of
+from netops_core.ssh import SshError, UNKNOWN_REASON, reason
 
 FIXTURES = Path(__file__).parent / "fixtures"
 CANARY = "KANARCI-RETEZEC-NESMI-UNIKNOUT"
@@ -19,6 +20,7 @@ TENANT = "tenant-a"
 DEVICE = "fw-example"
 WAN_RULE = "fortios.mgmt.wan-admin-access"
 UTM_RULE = "fortios.policy.utm-without-ssl"
+UNBOUND_SUPPRESSIONS_NOTICE = "suppressions: %s is not bound to a tenant\n"
 
 
 def clean_text():
@@ -272,9 +274,12 @@ def suppression(rule_id, object_key, expires, reason="ticket NET-1", author="rad
     }
 
 
-def write_suppressions(directory, items, name="suppressions.json"):
+def write_suppressions(directory, items, name="suppressions.json", tenant=None):
+    document = {"version": 1, "suppressions": items}
+    if tenant is not None:
+        document["tenant"] = tenant
     path = directory / name
-    path.write_text(json.dumps({"version": 1, "suppressions": items}), encoding="utf-8")
+    path.write_text(json.dumps(document), encoding="utf-8")
     return path
 
 
@@ -452,7 +457,7 @@ def test_active_suppression_takes_the_finding_out_of_new(tmp_path, capsys):
     text_code, text_out, _ = invoke(capsys, full_args(path, suppressions=waivers))
     assert code == 0
     assert text_code == 0
-    assert err == ""
+    assert err == UNBOUND_SUPPRESSIONS_NOTICE % waivers
     report = json.loads(out)
     states = states_by_rule(report)
     assert states[WAN_RULE] == "suppressed"
@@ -480,6 +485,31 @@ def test_missing_suppression_file_stops_the_run(tmp_path, capsys):
     assert code == 2
     assert out == ""
     assert err.startswith("error: ")
+
+
+def test_a_suppression_file_bound_to_another_tenant_is_refused_naming_both(tmp_path, capsys):
+    path = write_config(tmp_path, dirty_text())
+    waivers = write_suppressions(
+        tmp_path, [suppression(WAN_RULE, WAN_OBJECT, FUTURE)], tenant="tenant-b",
+    )
+    code, out, err = invoke(capsys, full_args(path, as_json=True, suppressions=waivers))
+    assert code == 2
+    assert out == ""
+    assert err.startswith("error: ")
+    assert TENANT in err
+    assert "tenant-b" in err
+
+
+def test_a_suppression_file_bound_to_the_running_tenant_works_with_no_notice(tmp_path, capsys):
+    path = write_config(tmp_path, dirty_text())
+    waivers = write_suppressions(
+        tmp_path, [suppression(WAN_RULE, WAN_OBJECT, FUTURE)], tenant=TENANT,
+    )
+    code, out, err = invoke(capsys, full_args(path, as_json=True, suppressions=waivers))
+    assert code == 0
+    assert err == ""
+    report = json.loads(out)
+    assert states_by_rule(report)[WAN_RULE] == "suppressed"
 
 
 def test_orphaned_and_expired_suppressions_are_named_in_the_report(tmp_path, capsys):
@@ -517,7 +547,7 @@ def test_report_stays_byte_identical_with_states_and_suppressions(tmp_path, caps
         _, three, err_three = invoke(capsys, full_args(path, as_json=as_json, store=database, suppressions=waivers))
         assert one.encode("utf-8") == two.encode("utf-8")
         assert one.encode("utf-8") == three.encode("utf-8")
-        assert err_one == err_two == err_three == ""
+        assert err_one == err_two == err_three == UNBOUND_SUPPRESSIONS_NOTICE % waivers
 
 
 def test_states_and_suppressions_do_not_carry_the_configuration(tmp_path, capsys):
@@ -656,6 +686,7 @@ CANARY_TOKEN = "KANARCI-TOKEN-NESMI-UNIKNOUT"
 KEY_HEADER = "-----BEGIN " + "OPENSSH PRIVATE KEY-----"
 KEY_FOOTER = "-----END " + "OPENSSH PRIVATE KEY-----"
 CANARY_KEY = "%s\nKANARCI-KLIC-NESMI-UNIKNOUT\n%s\n" % (KEY_HEADER, KEY_FOOTER)
+CANARY_STDERR = "KANARCI-STDERR-ZARIZENI-NESMI-UNIKNOUT"
 CREDENTIAL_NAME = "fw-example-audit-ro"
 REST_HOST = "192.0.2.10"
 SSH_HOST = "198.51.100.10"
@@ -1066,6 +1097,49 @@ def test_credential_never_reaches_the_trace_of_a_failed_collection(tmp_path, cap
     assert seen["token"] == CANARY_TOKEN
     assert CANARY_TOKEN not in err
     assert CANARY_TOKEN not in database_text(database)
+    with Store(database) as store:
+        assert store.last_run(TENANT, DEVICE) is None
+        events = store.channel_events(TENANT, DEVICE)
+    assert len(events) == 1
+    assert events[0]["outcome"] == "failed"
+    assert events[0]["run_id"] is None
+
+
+def test_a_devices_own_stderr_never_reaches_the_trace_of_a_failed_collection(
+    tmp_path, capsys, monkeypatch
+):
+    inventory_path = write_inventory(tmp_path, [ssh_item()])
+    vault_path = write_ssh_vault(tmp_path)
+    database = tmp_path / "audit.sqlite"
+
+    def fake(device, platform, address, port, credential, host_key_fingerprint, **rest):
+        source = "%s@%s" % (credential.login, address)
+        request = "%s show" % source
+        classified = reason(CANARY_STDERR)
+        error = SshError(
+            "ssh to %s failed with exit code 255; %s" % (address, classified),
+            255,
+            CANARY_STDERR,
+        )
+        raise CollectError(
+            "%s: %s" % (request, error), step_event("ssh", request, outcome="failed"),
+        )
+
+    monkeypatch.setattr(cli.collect, "collect_ssh", fake)
+    code, out, err = gather(
+        capsys,
+        inventory_path,
+        as_json=True,
+        store=database,
+        vault_path=vault_path,
+    )
+    assert code == 2
+    assert out == ""
+    assert err.startswith("error: ")
+    assert UNKNOWN_REASON in err
+    assert CANARY_STDERR not in out
+    assert CANARY_STDERR not in err
+    assert CANARY_STDERR not in database_text(database)
     with Store(database) as store:
         assert store.last_run(TENANT, DEVICE) is None
         events = store.channel_events(TENANT, DEVICE)
@@ -1516,7 +1590,7 @@ def test_a_suppression_reaches_the_collected_findings(tmp_path, capsys):
     waivers = write_suppressions(tmp_path, [suppression(WAN_RULE, WAN_OBJECT, FUTURE)])
     code, out, err = gather(capsys, inventory_path, as_json=True, suppressions=waivers)
     assert code == 0
-    assert err == ""
+    assert err == UNBOUND_SUPPRESSIONS_NOTICE % waivers
     report = json.loads(out)
     assert states_by_rule(report)[WAN_RULE] == "suppressed"
     assert states_by_rule(report)[UTM_RULE] == "new"

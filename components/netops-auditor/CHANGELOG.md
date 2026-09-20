@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.2.1 - 2026-09-20
+
+Follows `netops-core` 0.2.0, pinned as `netops-core==0.2.0`.
+
+- Bounded receive: the `ssh` channel inherits `netops-core`'s bounded receive on every transport it
+  uses - `run_command`, and now the `ssh-keyscan` host key scan as well. `collect_ssh` no longer
+  forces its own uncapped runner onto that scan, so the shared, capped default applies there too.
+- Classified failure reasons: a `CollectError` raised from a failed `ssh` call now carries the
+  reason the shared `ssh` transport of `netops_core` names from a closed list, not the device's own
+  standard error text - that text is the device's to write and can carry attacker-controlled content.
+- `exos.time.no-sntp-client` goes to rule version 2: `enable ntp` or a `configure ntp server add`
+  entry carrying a host now silences it too, closing its one documented false positive - a switch
+  synchronizing its clock over the NTP client instead of SNTP.
+
 ## 0.2.0 - 2026-09-19
 
 The auditor stops carrying its own access layer and takes it from `netops-core`: the inventory, the credential store, the host key trust and the SSH transport are now the shared ones of the family, pinned as `netops-core==0.1.0`. What stays here is the policy - the `auditor` section of an inventory entry, which kind of credential a channel takes, the step table of a platform, and the audit itself. The component is no longer standard library alone; there is no index behind the pin, so the operator installs the `netops-core` source archive of exactly that version beside it (`docs/releasing.md`), and in this repository the tests and CI take it from `../netops-core/src`.
