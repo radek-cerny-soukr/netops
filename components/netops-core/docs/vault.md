@@ -78,3 +78,10 @@ component that needs it.
 | `ssh-key` whose value is not a private key text | names the credential |
 | unknown field in an entry | names the credential and the field |
 | unknown record name asked for | names the name and lists the known ones |
+
+
+## Selecting credentials
+
+`load(path, names=(...))` returns handles only for the named records present in the store. Unknown names remain unavailable through `credential(name)`; they never select a fallback. Omitting `names` retains full validation and loading. The JSON document is parsed in full before filtering, so this API reduces retained handles rather than establishing a process isolation boundary.
+
+Selection validates the selected records, not every unselected record. An empty selection yields no handles. Malformed selections (including a string instead of a collection or empty/non-string names) are refused. Requesting a missing record with `credential(name)` fails; callers must request each required handle explicitly.

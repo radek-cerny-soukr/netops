@@ -1,8 +1,8 @@
 # Release process
 
 Release tags follow the component scheme `<name>/v<version>`, where `<name>` is the project name
-declared in this component's `pyproject.toml`: this component tags `netops-core/v0.2.2`, and the
-release title is `netops-core 0.2.2`. Tags of another component are never touched by this procedure.
+declared in this component's `pyproject.toml`: this component tags `netops-core/v0.2.3`, and the
+release title is `netops-core 0.2.3`. Tags of another component are never touched by this procedure.
 A tag is deleted together with its release page when a newer version of the same component is
 published, so the repository carries exactly one tag and one release page per component. The canonical origin is
 `https://github.com/radek-cerny-soukr/netops`.
@@ -22,7 +22,7 @@ credentials, host keys, or inventory and vault files. The release export is a po
 the component gate also reads the content of every released file and, outside a repository, holds the
 exported tree to exactly the released selection.
 
-## What 0.2.2 releases
+## What 0.2.3 releases
 
 This component releases **from source; it ships no container image**, because it is a library and
 nothing in it runs on its own. The release carries four assets:
@@ -122,3 +122,5 @@ component itself declares none.
 ## Replacing the previous public release
 
 After the new release is published and independently verified, remove only this component's previous release page, its assets and its tag under explicit authorization for those exact deletions. Preserve any required rollback artifacts locally first. Other components' releases and tags remain untouched. Recheck the public release and tag lists, update the current-version links in the repository documentation, and check every release, tag and download URL against those lists. Do not link to a superseded tag: use a commit permalink for historical source.
+
+The 2026-09-20 lock regeneration used Python 3.13.15 and `pip-tools==7.6.1`; the lock header records the command. The matching generator wheel hashes are recorded in the monorepository Helper release procedure.

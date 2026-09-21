@@ -1,6 +1,12 @@
 # Changelog
 
-Only `netops-core/v0.2.2` is currently published. Older entries below are historical source records, not available releases or tags; their release pages, tags and downloadable artifacts have been removed. Use commit history to inspect old source and the current [release procedure](docs/releasing.md) for new releases.
+## 0.2.3 - 2026-09-21
+
+- Add `load(..., names=...)` selection so callers retain only the credential objects their operation needs. The default full-store API remains compatible; the complete JSON is still parsed transiently, so this is not an isolation boundary between stores.
+- Refresh the hash-locked release tooling and document its generator environment; Core still has no runtime dependencies or container image.
+- Verify the installed askpass command outside the checkout with valid and missing-file inputs. The Core suite passed 839 tests with installed askpass available; release export and executable-mode checks passed.
+
+This entry describes the current source version. Earlier entries are historical source records; use the repository release index for current downloads and commit history for superseded source. Previous artifacts may remain visible during a release transition and are retired only after replacement verification and archival. See the [release procedure](docs/releasing.md).
 
 ## 0.2.2 - 2026-09-20
 

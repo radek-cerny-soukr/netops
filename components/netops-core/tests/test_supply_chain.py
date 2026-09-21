@@ -93,7 +93,7 @@ def test_release_requirements_name_only_the_release_toolbox():
         line.strip() for line in REQUIREMENTS.read_text(encoding="utf-8").splitlines()
         if line.strip() and not line.strip().startswith("#")
     ]
-    assert entries == ["cyclonedx-bom==7.3.1", "pytest==9.1.1"]
+    assert entries == ["cyclonedx-bom==7.4.0", "pytest==9.1.1"]
 
 
 def test_release_lock_pins_every_requirement_with_hashes():

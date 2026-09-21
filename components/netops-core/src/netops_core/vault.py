@@ -211,12 +211,20 @@ def _credential(path: Path, name, entry) -> Credential:
         raise VaultError("vault file %s: %s" % (path, error)) from None
 
 
-def load(path) -> Vault:
+def load(path, *, names=None) -> Vault:
+    if names is not None:
+        if isinstance(names, (str, bytes)):
+            raise VaultError("credential selection must be a collection of names")
+        names = tuple(names)
+        if any(not isinstance(name, str) or not name.strip() for name in names):
+            raise VaultError("credential selection must contain non-empty names")
+        names = frozenset(names)
     location = Path(path)
     _checked_file(location)
     document = _document(location, _raw(location))
     credentials = [
         _credential(location, name, document["credentials"][name])
         for name in sorted(document["credentials"])
+        if names is None or name in names
     ]
     return Vault(location, credentials)

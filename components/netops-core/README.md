@@ -1,6 +1,6 @@
 # netops-core
 
-The current release is `netops-core/v0.2.2` (2026-09-20); `netops-auditor` 0.2.3 and `netops-helper` 0.3.3 pin exactly that version.
+The current release is `netops-core/v0.2.3` (2026-09-21); `netops-auditor` 0.2.4 and `netops-helper` 0.3.4 pin exactly that version.
 
 The shared access layer of the `netops` family. It holds every piece a component needs to reach a
 device and to record what happened: the inventory of devices, the credential store, host key trust,

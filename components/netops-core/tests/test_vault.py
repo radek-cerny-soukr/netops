@@ -475,3 +475,30 @@ def test_credential_error_hides_the_value():
         vault.Credential(name=NAME, kind="ssh-password", value=CANARY)
     for text in _shown(caught.value):
         assert CANARY not in text
+
+
+
+def test_selected_load_never_constructs_unrelated_credential_handles(tmp_path, monkeypatch):
+    path = _write(tmp_path, EXAMPLE)
+    created = []
+    original = vault._credential
+
+    def observe(path, name, entry):
+        created.append(name)
+        return original(path, name, entry)
+
+    monkeypatch.setattr(vault, "_credential", observe)
+    selected = vault.load(path, names=("fw-a-api",))
+    assert selected.names() == ("fw-a-api",)
+    assert created == ["fw-a-api"]
+    assert selected.credential("fw-a-api").use() == DUMMY
+    with pytest.raises(vault.VaultError):
+        selected.credential("sw-a-ro")
+    assert vault.load(path, names=()).names() == ()
+    assert vault.load(path, names=("missing",)).names() == ()
+
+
+@pytest.mark.parametrize("names", ("fw-a-api", b"fw-a-api", (None,), ("",), (1,)))
+def test_selected_load_rejects_invalid_selection(tmp_path, names):
+    with pytest.raises(vault.VaultError):
+        vault.load(_write(tmp_path, EXAMPLE), names=names)
