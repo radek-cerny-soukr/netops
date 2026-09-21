@@ -253,7 +253,6 @@ def _published(target: Path, text: str) -> None:
             stream.write(text)
             stream.flush()
             os.fsync(stream.fileno())
-        os.chmod(temporary, 0o644)
         try:
             os.link(temporary, target)
         except FileExistsError:

@@ -559,3 +559,19 @@ def test_migration_leaves_no_partial_file_behind(tmp_path):
         [source.name, target.name]
     )
     assert json.loads(target.read_text(encoding="utf-8"))["version"] == FILE_VERSION
+
+
+@pytest.mark.parametrize("mask", (0o077, 0o022, 0o000))
+def test_migration_output_is_private_under_any_normal_umask(tmp_path, mask):
+    import os
+    import stat
+
+    source = write_v1(tmp_path, [v1_entry()])
+    target = tmp_path / "v2.json"
+    before = os.umask(mask)
+    try:
+        assert migrate_file(source, target, TENANT_A) == 1
+    finally:
+        os.umask(before)
+    assert stat.S_IMODE(target.stat().st_mode) == 0o600
+    assert len(load(target, TENANT_A)) == 1

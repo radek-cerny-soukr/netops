@@ -1880,3 +1880,48 @@ def test_the_cli_and_the_read_only_surface_refuse_the_same_file_alike(tmp_path):
     with pytest.raises(cli.Failure) as through_cli:
         cli._load_suppressions(waivers, TENANT)
     assert str(shared.value) in str(through_cli.value)
+
+
+def test_reciprocal_incomplete_history_preserves_last_evaluated(tmp_path, capsys):
+    from datetime import datetime, timezone
+    from netops_auditor import query
+    from netops_auditor.store import StoreError
+    path = write_config(tmp_path, dirty_text())
+    database = tmp_path / "history.sqlite"
+    complete = file_inventory(tmp_path, path)
+    first = json.loads(gather(capsys, complete, store=database, as_json=True)[1])
+    originals = {item["fingerprint"] for item in first["findings"]}
+    with Store(database) as store:
+        first_id = store.last_run(TENANT, DEVICE)["id"]
+        assert store.accept_baseline(TENANT, DEVICE, first_id, "reviewer", "fixture") == 2
+    narrow = file_inventory(tmp_path, path, sections=SECTIONS + (MISSING_SECTION,), name="narrow.json")
+    for _ in range(2):
+        code, out, err = gather(capsys, narrow, store=database, as_json=True)
+        assert code == 0
+        partial = json.loads(out)
+        assert partial["gone"] == []
+        assert partial["evaluation"] == "not-evaluated"
+        assert {item["fingerprint"] for item in partial["not_evaluated"]} == originals
+        assert cli.main(status_args(database, as_json=True)) == 1
+        assert json.loads(capsys.readouterr().out)["state"] == "incomplete"
+        with Store(database) as store:
+            current_id = store.last_run(TENANT, DEVICE)["id"]
+            listing = query.list_findings(store, TENANT, DEVICE, now=datetime.now(timezone.utc))
+            assert {item["fingerprint"] for item in listing["findings"] if item["state"] == "not-evaluated"} == originals
+            assert listing["gone"] == ()
+            status = query.audit_status(store, TENANT, DEVICE, now=datetime.now(timezone.utc))
+            assert status["devices"][0]["state"] == "incomplete"
+            for fingerprint in originals:
+                assert query.finding_detail(store, TENANT, DEVICE, fingerprint, now=datetime.now(timezone.utc))["state"] == "not-evaluated"
+            with pytest.raises(query.QueryError):
+                query.compare(store, TENANT, DEVICE, first_id, current_id)
+            with pytest.raises(StoreError):
+                store.accept_baseline(TENANT, DEVICE, current_id, "reviewer", "fixture")
+            assert set(store.baseline_fingerprints(TENANT, DEVICE)) == originals
+            assert query.compare(store, TENANT, DEVICE, first_id, first_id)["counts"]["kept"] == 2
+    again = json.loads(gather(capsys, complete, store=database, as_json=True)[1])
+    assert again["gone"] == []
+    assert again["states"]["open-known"] == 2
+    path.write_text(clean_text())
+    cleaned = json.loads(gather(capsys, complete, store=database, as_json=True)[1])
+    assert {item["fingerprint"] for item in cleaned["gone"]} == originals

@@ -811,3 +811,22 @@ def test_every_function_survives_an_empty_store(store):
     assert query.list_rules(()) == ()
     with pytest.raises(query.QueryError):
         query.compare(store, TENANT, DEVICE, 1, 2)
+
+
+@pytest.mark.parametrize("rule_id",["fortios.snapshot.incomplete","exos.snapshot.incomplete","fortios.scope.vdom-unsupported"])
+def test_reciprocal_gate_cannot_resolve_or_accept_baseline(tmp_path, rule_id):
+    from netops_auditor.store import StoreError
+    with Store(tmp_path / "gate.sqlite") as store:
+        original = make_finding()
+        first = record(store, findings=(original,), started_at=RUN_ONE_AT)
+        blocked = record(store, findings=(make_finding(rule_id=rule_id),), started_at=RUN_TWO_AT)
+        with pytest.raises(StoreError):
+            store.accept_baseline(TENANT, DEVICE, blocked, "reviewer", "fixture")
+        with pytest.raises(query.QueryError):
+            query.compare(store, TENANT, DEVICE, first, blocked)
+        with pytest.raises(query.QueryError):
+            query.compare(store, TENANT, DEVICE, blocked, first)
+        assert store.accept_baseline(TENANT, DEVICE, first, "reviewer", "fixture") == 1
+        listing = query.list_findings(store, TENANT, DEVICE, now=NOW)
+        assert not listing["gone"]
+        assert any(f["state"] == "not-evaluated" for f in listing["findings"])

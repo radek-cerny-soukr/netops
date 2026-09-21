@@ -13,7 +13,7 @@ try:
 except ModuleNotFoundError:
     sys.stderr.write(
         "netops-auditor mcp: the MCP surface needs fastmcp, which the auditor does not install"
-        " itself; install the pin in requirements-mcp.txt (fastmcp==4.0.3). The command line"
+        " itself; install the pin in requirements-mcp.txt. The command line"
         " runs without it.\n"
     )
     raise SystemExit(2) from None

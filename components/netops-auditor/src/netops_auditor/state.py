@@ -6,6 +6,7 @@ STATE_NEW = "new"
 STATE_OPEN_KNOWN = "open-known"
 STATE_SUPPRESSED = "suppressed"
 STATE_GONE = "gone"
+STATE_NOT_EVALUATED = "not-evaluated"
 
 STATES = (STATE_NEW, STATE_OPEN_KNOWN, STATE_SUPPRESSED, STATE_GONE)
 
@@ -25,6 +26,28 @@ class Classification:
     orphaned_suppressions: tuple
     expired_suppressions: tuple
     counts: dict
+    not_evaluated: tuple = ()
+
+
+UNEVALUATED_RULES = frozenset((
+    "fortios.snapshot.incomplete", "exos.snapshot.incomplete", "fortios.scope.vdom-unsupported",
+))
+
+
+def evaluation_complete(findings) -> bool:
+    for item in findings:
+        rule_id = item["rule_id"] if hasattr(item, "keys") else getattr(item, "rule_id", None)
+        if rule_id in UNEVALUATED_RULES:
+            return False
+    return True
+
+
+def last_evaluated(store, tenant, runs) -> tuple:
+    for run in runs:
+        findings = store.findings_for_run(tenant, run["id"])
+        if evaluation_complete(findings):
+            return run, findings
+    return None, ()
 
 
 def _today(findings) -> frozenset:
@@ -56,6 +79,8 @@ def _suppression_key(suppression) -> tuple:
 
 
 def classify(findings, baseline_fingerprints, suppressions, previous, now) -> Classification:
+    findings = tuple(findings)
+    evaluated = evaluation_complete(findings)
     today = _today(findings)
     baseline = frozenset(baseline_fingerprints)
     active = set()
@@ -66,7 +91,7 @@ def classify(findings, baseline_fingerprints, suppressions, previous, now) -> Cl
             active.add(suppression.fingerprint)
         else:
             expired.append(suppression)
-        if suppression.fingerprint not in today:
+        if evaluated and suppression.fingerprint not in today:
             orphaned.append(suppression)
     counts = {STATE_NEW: 0, STATE_OPEN_KNOWN: 0, STATE_SUPPRESSED: 0, STATE_GONE: 0}
     states = []
@@ -79,7 +104,8 @@ def classify(findings, baseline_fingerprints, suppressions, previous, now) -> Cl
             state = STATE_NEW
         states.append((fingerprint, state))
         counts[state] += 1
-    gone = _gone(previous, today)
+    absent = _gone(previous, today)
+    gone = absent if evaluated else ()
     counts[STATE_GONE] = len(gone)
     return Classification(
         states=tuple(states),
@@ -87,4 +113,5 @@ def classify(findings, baseline_fingerprints, suppressions, previous, now) -> Cl
         orphaned_suppressions=tuple(sorted(orphaned, key=_suppression_key)),
         expired_suppressions=tuple(sorted(expired, key=_suppression_key)),
         counts=counts,
+        not_evaluated=() if evaluated else absent,
     )

@@ -1,6 +1,14 @@
 # Changelog
 
-Only `netops-auditor/v0.2.3` is currently published. Older entries below are historical source records, not available releases or tags; their release pages, tags and downloadable artifacts have been removed. Use commit history to inspect old source and the current [release procedure](docs/releasing.md) for new releases.
+## 0.2.4 - 2026-09-21
+
+- Keep HTTP sockets alive through complete response consumption, including Connection: close, HTTP/1.0 and EOF-delimited bodies. Reject truncated Content-Length/chunked responses and preserve the absolute deadline for slow peers.
+- Preserve mode 0600 when migrating suppressions, independently of umask, with atomic no-overwrite output.
+- Use stable EXOS SNMP object identities rather than positional keys. `exos.snmp.default-community` advances to rule version 2: review and recreate affected baselines and suppressions from a fresh report; ordinal identities cannot be mapped safely without the original configuration. Digests are identifiers, not encryption.
+- Prevent incomplete collection and scope-limited evaluation from declaring unobserved findings gone. See [configuration and upgrade guidance](docs/configuration.md).
+- Pin Core 0.2.3 and refresh hash-locked tooling and optional MCP dependencies. All 1,097 tests passed; clean source-export installation verified both valid and invalid CLI input. This component remains a source-only release.
+
+This entry describes the current source version. Earlier entries are historical source records; use the repository release index for current downloads and commit history for superseded source. Previous artifacts may remain visible during a release transition and are retired only after replacement verification and archival. See the [release procedure](docs/releasing.md).
 
 ## 0.2.3 - 2026-09-20
 

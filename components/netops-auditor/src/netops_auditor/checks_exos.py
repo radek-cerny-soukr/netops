@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import hashlib
+import json
+
 from .engine import check
 
 SECTION_SNTP = "sntp-client"
@@ -93,19 +96,29 @@ def exos_no_syslog_target(configuration):
     }
 
 
+def _community_key(command):
+    tokens = command.tokens
+    if command.starts_with(*_SNMP_COMMUNITY):
+        identity = ("snmp", tokens[4], tokens[5])
+    elif tokens[4] == _HEX:
+        identity = ("snmpv3", _HEX, tokens[5])
+    else:
+        identity = ("snmpv3", "plain", tokens[4])
+    encoded = json.dumps(identity, ensure_ascii=True, separators=(",", ":")).encode("utf-8")
+    return "%s/community/%s" % (SECTION_SNMP, hashlib.sha256(encoded).hexdigest())
+
+
 @check("exos_default_snmp_community")
 def exos_default_snmp_community(configuration):
-    ordinal = 0
     for command in configuration.commands:
         candidates = _community_candidates(command)
         if candidates is None:
             continue
-        ordinal += 1
         matched = _trivial(candidates)
         if not matched:
             continue
         yield {
-            "object_key": "%s/community/%d" % (SECTION_SNMP, ordinal),
+            "object_key": _community_key(command),
             "section": SECTION_SNMP,
             "line": command.line,
             "evidence": {

@@ -15,7 +15,7 @@ document of `netops-core`, file version 2**, and its schema is
 [`../../netops-core/docs/vault.md`](../../netops-core/docs/vault.md). This document ships in the
 `netops-core` archive, not in the auditor archive: that relative path resolves in a repository
 checkout; from a standalone auditor archive the same file is published at
-[`netops-core/v0.2.2`](https://github.com/radek-cerny-soukr/netops/blob/netops-core/v0.2.2/components/netops-core/docs/vault.md).
+[`netops-core/v0.2.3`](https://github.com/radek-cerny-soukr/netops/blob/netops-core/v0.2.3/components/netops-core/docs/vault.md).
 What follows is what the auditor adds to it.
 
 ```json
@@ -35,7 +35,7 @@ What follows is what the auditor adds to it.
 | `credentials` | an object; the key is the record name an inventory entry refers to in `credential` |
 | `credentials.<name>.kind` | one of `password`, `ssh-key`, `api-token`, `snmp-community` |
 | `credentials.<name>.login` | the account name, **required** for `password` and `ssh-key`, **forbidden** for the other two |
-| `credentials.<name>.value` | the secret itself; for `ssh-key` the whole private key text, header line and all, newlines written as `\n` - the example above is a placeholder, and the real shape is in [`../../netops-core/docs/vault.md`](../../netops-core/docs/vault.md) (from a standalone archive, published at [`netops-core/v0.2.2`](https://github.com/radek-cerny-soukr/netops/blob/netops-core/v0.2.2/components/netops-core/docs/vault.md)) |
+| `credentials.<name>.value` | the secret itself; for `ssh-key` the whole private key text, header line and all, newlines written as `\n` - the example above is a placeholder, and the real shape is in [`../../netops-core/docs/vault.md`](../../netops-core/docs/vault.md) (from a standalone archive, published at [`netops-core/v0.2.3`](https://github.com/radek-cerny-soukr/netops/blob/netops-core/v0.2.3/components/netops-core/docs/vault.md)) |
 
 The file is read at mode `0600` or `0400` and at no other mode, and a vault path that is a symbolic
 link is refused before the mode is read.
@@ -80,7 +80,7 @@ python -m netops_auditor.mcp_server
 It reads the same environment as the command line - the store, the tenant, the catalogue and the
 suppression file - and refuses to start when any of them is missing or of the wrong schema version,
 naming the variable. It needs `fastmcp`, which the auditor does not install itself: the pin lives in
-`requirements-mcp.txt` (`fastmcp==4.0.3`, the version `netops-helper` ships, so both MCP surfaces of
+`requirements-mcp.txt` (`fastmcp==4.0.5`, the version `netops-helper` ships, so both MCP surfaces of
 the family speak one library). Started without it, the module says so in one line and exits with
 status 2 rather than raising an import error. Nothing on this surface writes to a device: the six
 tools read the store and the catalogue.
@@ -232,7 +232,7 @@ device, and the `legacy_ssh` exception are in [`inventory.md`](inventory.md); th
 document is in [`../../netops-core/docs/inventory.md`](../../netops-core/docs/inventory.md), which
 ships in the `netops-core` archive, not the auditor archive: from a standalone auditor archive the
 same file is published at
-[`netops-core/v0.2.2`](https://github.com/radek-cerny-soukr/netops/blob/netops-core/v0.2.2/components/netops-core/docs/inventory.md).
+[`netops-core/v0.2.3`](https://github.com/radek-cerny-soukr/netops/blob/netops-core/v0.2.3/components/netops-core/docs/inventory.md).
 
 ## The platform picks the parser and the catalogue
 
@@ -283,7 +283,7 @@ channel reads a local file the operator already has.
 | code | when |
 |---|---|
 | `0` | `run` and `collect` finished; `status` found the last audit fresh |
-| `1` | `status` only: the last audit is older than `--stale-after-hours` (26 by default), or there is none |
+| `1` | `status` only: the last audit is older than `--stale-after-hours` (26 by default), or there is none, or the latest audit is incomplete |
 | `2` | the run was refused - a bad argument, an unreadable file, a fail-closed schema, a failed channel |
 
 **`run` and `collect` return `0` with findings of severity high.** The code says whether the audit
@@ -302,7 +302,7 @@ $ echo $?
 
 To gate a pipeline on findings, read the report - `--json` prints `summary` and `states` as fields -
 and decide there. `status` is the one command whose code carries a verdict, and that verdict is about
-freshness only: `fresh` is `0`, `stale` and `never` are both `1`.
+freshness and evaluation: `fresh` is `0`; `stale`, `never` and `incomplete` are `1`.
 
 ## Two refusals that end the audit
 
@@ -344,7 +344,8 @@ no other rule was evaluated over it. It fires on any dump that carries a `vdom` 
 single-VDOM one included.
 
 The same dump with and without that section shows the whole effect. `fw-c.conf` is `fw-a.conf` with
-a `config vdom` block in front of it, and the finding that `fw-a.conf` produced is gone:
+a `config vdom` block in front of it. The ordinary finding is absent from this evaluation; that
+is not evidence that the underlying problem was resolved:
 
 ```
 $ PYTHONPATH=src python3 -m netops_auditor run --platform fortios --tenant demo --device fw-c.example.invalid --config fw-c.conf
@@ -366,8 +367,34 @@ state new: 1
 Until the catalogue learns to descend into VDOM scopes, the remedy the rule names is to export and
 audit each VDOM separately.
 
+### History across an unevaluated audit
+
+An incomplete snapshot or `fortios.scope.vdom-unsupported` means the ordinary catalogue was not
+evaluated. Such a report includes `evaluation: "not-evaluated"` and never reports earlier findings
+as `gone`. The `not_evaluated` list carries identities from the last evaluated audit, even across
+several incomplete runs. An absent finding becomes `gone` only after a subsequent complete audit.
+Absence during an incomplete audit also does not mark a suppression as orphaned.
+
+CLI and MCP status report `incomplete` for the latest such run. MCP `list_findings` and
+`finding_detail` expose the carried findings with state `not-evaluated`; these are historical evidence,
+not findings observed in the latest snapshot. Baseline acceptance refuses an unevaluated run without
+changing the existing baseline. MCP comparison refuses either unevaluated endpoint. This also
+applies to existing stored runs identified by their incomplete-snapshot or unsupported-scope finding;
+no database migration is needed.
+
+`run` and `collect` retain exit code 0 when they successfully record a gate finding. Consumers must
+inspect the evaluation marker, findings and status; exit code 0 alone does not establish a completed
+catalogue evaluation.
+
 ## What is not a configuration file
 
 The store behind `--store` is a SQLite database the auditor writes and nobody edits by hand. The rule
 catalogue is data but not configuration: it ships inside the package, it is not read from a path you
 choose, and a rule without a positive and a negative fixture does not enter it - the gate rejects it.
+
+
+### EXOS SNMP identity version 2
+
+The `exos.snmp.default-community` rule now uses a digest of the tokenized community object identity instead of its position in the configuration. Unrelated insertion and reordering preserve its fingerprint. Review a fresh report and recreate affected baseline entries and suppressions after upgrading: version 1 ordinal keys cannot be safely mapped without the original configuration and are not automatically reassigned to new objects.
+
+JSON suppression migration creates its output with owner-only permissions (0600); it never widens the temporary file permissions or replaces an existing destination.

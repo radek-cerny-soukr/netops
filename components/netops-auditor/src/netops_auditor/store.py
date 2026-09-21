@@ -5,6 +5,7 @@ import sqlite3
 from datetime import datetime, timezone
 
 from .findings import fingerprint_of
+from .state import evaluation_complete
 
 MOMENT_FORMAT = "%Y-%m-%dT%H:%M:%SZ"
 SCHEMA_VERSION = 2
@@ -418,6 +419,8 @@ class Store:
             if run["device"] != device:
                 raise StoreError("run %r covers device %r, not %r" % (run_id, run["device"], device))
             identities = connection.execute(_SELECT_RUN_IDENTITIES, (run_id,)).fetchall()
+            if not evaluation_complete(identities):
+                raise StoreError("cannot accept a baseline from an unevaluated audit")
             before = connection.total_changes
             for item in identities:
                 connection.execute(

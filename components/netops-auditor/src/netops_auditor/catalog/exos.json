@@ -3,7 +3,7 @@
   "rules": [
     {
       "id": "exos.snmp.default-community",
-      "version": 1,
+      "version": 2,
       "check": "exos_default_snmp_community",
       "class": "fakt",
       "severity": "high",
@@ -14,7 +14,7 @@
         "ExtremeXOS v33.7.1 Command References, chapter Commands: configure snmp add community",
         "ExtremeXOS v33.7.1 Command References, chapter Commands: configure snmpv3 add community"
       ],
-      "known_false_positives": "The finding never carries the community, only which field of the entry matched and that the value is in the dictionary; the dictionary holds public and private and the comparison ignores letter case, so a community that differs from one of them by case alone is reported too. The rule reads the two forms 33.7.1 documents, configure snmp add community and configure snmpv3 add community, and it reads the plain value: an entry written with the hex or the encrypted keyword is not compared at all. Whether a switch that still carries the community entries of its factory state prints them into show configuration has not been measured against a device with this code, so a device left at those defaults may yield no finding rather than one. The object key numbers the community entries in the order they appear, so removing an entry renumbers the ones behind it and their fingerprints change."
+      "known_false_positives": "The finding never carries the community, only which field of the entry matched and that the value is in the dictionary; the dictionary holds public and private and the comparison ignores letter case, so a community that differs from one of them by case alone is reported too. The rule reads the two forms 33.7.1 documents, configure snmp add community and configure snmpv3 add community, and it reads the plain value: an entry written with the hex or the encrypted keyword is not compared at all. Whether a switch that still carries the community entries of its factory state prints them into show configuration has not been measured against a device with this code, so a device left at those defaults may yield no finding rather than one. Version 2 derives the object key from a SHA-256 digest of the tokenized object identity (SNMP access mode and community, or SNMPv3 community index). Reordering or inserting unrelated entries does not change it. The digest is an identifier, not encryption. Version 1 ordinal identities cannot be mapped safely without their original configuration; review and recreate affected baselines and suppressions from a new report."
     },
     {
       "id": "exos.mgmt.telnet-enabled",

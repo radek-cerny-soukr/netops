@@ -18,6 +18,7 @@ from . import l1_fortios
 from .engine import CATALOG_DIR, CatalogError, CheckError, load_catalog, run
 from .findings import Finding
 from .state import STATE_GONE, STATE_NEW, STATE_OPEN_KNOWN, STATE_SUPPRESSED, classify
+from .state import STATE_NOT_EVALUATED, evaluation_complete, last_evaluated
 from .store import Store, StoreError
 from .store import migrate as migrate_store
 from .suppressions import MOMENT_FORMAT, SuppressionError, load_for_tenant
@@ -235,10 +236,7 @@ def _store_path(value, must_exist: bool) -> Path:
 
 
 def _previous(store, tenant: str, device: str) -> tuple:
-    last = store.last_run(tenant, device)
-    if last is None:
-        return ()
-    return store.findings_for_run(tenant, last["id"])
+    return last_evaluated(store, tenant, store.runs_for_device(tenant, device))[1]
 
 
 def _record(args, digest: str, rules_version: str, findings) -> tuple:
@@ -305,7 +303,7 @@ def _summary(findings) -> dict:
 
 def _report(tenant, device, platform, digest: str, rules_version: str, findings, result) -> dict:
     states = dict(result.states)
-    return {
+    report = {
         "tool": "netops-auditor",
         "platform": platform,
         "tenant": tenant,
@@ -321,6 +319,13 @@ def _report(tenant, device, platform, digest: str, rules_version: str, findings,
             "expired": [_suppression_entry(item) for item in result.expired_suppressions],
         },
     }
+    if not evaluation_complete(findings):
+        report["evaluation"] = STATE_NOT_EVALUATED
+        report["not_evaluated"] = [
+            {**_gone_entry(item), "state": STATE_NOT_EVALUATED}
+            for item in result.not_evaluated
+        ]
+    return report
 
 
 def _scalar(value) -> str:
@@ -402,6 +407,11 @@ def _text_report(report: dict) -> str:
         lines.append("%s suppressions: %d" % (name, len(waivers[name])))
         for item in waivers[name]:
             lines.extend(_suppression_lines(name, item))
+    if "evaluation" in report:
+        lines.append("evaluation: not-evaluated")
+        lines.append("state not-evaluated: %d" % len(report["not_evaluated"]))
+        for item in report["not_evaluated"]:
+            lines.extend(_gone_lines(item))
     return "\n".join(lines) + "\n"
 
 
@@ -478,9 +488,12 @@ def _command_status(args) -> int:
     try:
         with Store(path) as store:
             last = store.last_run(args.tenant, args.device)
+            evaluated = last is None or evaluation_complete(store.findings_for_run(args.tenant, last["id"]))
     except StoreError as error:
         raise Failure("store: %s" % error)
     report = _status_report(args, last, datetime.now(timezone.utc))
+    if not evaluated:
+        report["state"] = "incomplete"
     sys.stdout.write(_render(report, args.as_json, _text_status))
     return EXIT_OK if report["state"] == STATUS_FRESH else EXIT_STALE
 

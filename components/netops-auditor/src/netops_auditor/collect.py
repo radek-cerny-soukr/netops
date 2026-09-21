@@ -225,6 +225,13 @@ class _BoundedReceive(io.RawIOBase):
     def __init__(self, peer, deadline):
         self._peer = peer
         self._deadline = deadline
+        self._reader = peer.makefile("rb", buffering=0)
+
+    def close(self) -> None:
+        try:
+            self._reader.close()
+        finally:
+            super().close()
 
     def readable(self) -> bool:
         return True
@@ -235,7 +242,7 @@ class _BoundedReceive(io.RawIOBase):
             raise TimeoutError(REST_TIMEOUT_REASON)
         self._peer.settimeout(left)
         try:
-            return self._peer.recv_into(buffer)
+            return self._reader.readinto(buffer)
         except TimeoutError:
             raise TimeoutError(REST_TIMEOUT_REASON) from None
 
@@ -272,19 +279,25 @@ class _RestConnection:
         self._bounded(deadline, self._connection.request, method, target, headers=headers)
         self._bound_receive(deadline)
         response = self._bounded(deadline, self._connection.getresponse)
-        if response.status != 200:
-            self._bounded(deadline, response.read, REST_ERROR_HEAD_BYTES)
-            return response.status, b""
-        chunks, size = [], 0
-        while True:
-            chunk = self._bounded(deadline, response.read, READ_CHUNK_BYTES)
-            if not chunk:
-                break
-            if size + len(chunk) > max_bytes:
-                raise ResponseTooLarge(max_bytes)
-            chunks.append(chunk)
-            size += len(chunk)
-        return response.status, b"".join(chunks)
+        try:
+            if response.status != 200:
+                self._bounded(deadline, response.read, REST_ERROR_HEAD_BYTES)
+                return response.status, b""
+            chunks, size = [], 0
+            while True:
+                chunk = self._bounded(deadline, response.read, READ_CHUNK_BYTES)
+                if not chunk:
+                    remaining = getattr(response, "length", None)
+                    if remaining:
+                        raise http.client.IncompleteRead(b"", remaining)
+                    break
+                if size + len(chunk) > max_bytes:
+                    raise ResponseTooLarge(max_bytes)
+                chunks.append(chunk)
+                size += len(chunk)
+            return response.status, b"".join(chunks)
+        finally:
+            _closed(response)
 
     def _bound_receive(self, deadline) -> None:
         peer = getattr(self._connection, "sock", None)

@@ -273,3 +273,15 @@ def test_empty_inputs_give_zero_counts():
     assert result.orphaned_suppressions == ()
     assert result.expired_suppressions == ()
     assert result.counts == {STATE_NEW: 0, STATE_OPEN_KNOWN: 0, STATE_SUPPRESSED: 0, STATE_GONE: 0}
+
+
+def test_reciprocal_unevaluated_absence_keeps_suppression_until_complete():
+    old = make_finding()
+    waiver = FakeSuppression(fingerprint=old.fingerprint(), expires=LATER)
+    previous = (previous_entry(old),)
+    partial = classify((make_finding(rule_id="fortios.snapshot.incomplete"),), (), (waiver,), previous, NOW)
+    assert not partial.gone and not partial.orphaned_suppressions
+    assert {item.fingerprint for item in partial.not_evaluated} == {old.fingerprint()}
+    complete = classify((), (), (waiver,), previous, NOW)
+    assert {item.fingerprint for item in complete.gone} == {old.fingerprint()}
+    assert complete.orphaned_suppressions == (waiver,)

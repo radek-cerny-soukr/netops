@@ -204,7 +204,7 @@ def test_a_community_the_rule_cannot_read_plainly_is_not_compared(line):
     assert audit(mutate(clean_text(), COMMUNITY_LINE, COMMUNITY_LINE + line)) == ()
 
 
-def test_two_trivial_communities_are_two_findings_keyed_by_their_order():
+def test_two_trivial_communities_are_two_findings_with_distinct_keys():
     text = mutate(
         clean_text(),
         COMMUNITY_LINE,
@@ -213,10 +213,9 @@ def test_two_trivial_communities_are_two_findings_keyed_by_their_order():
         + "configure snmp add community readwrite private\n",
     )
     findings = audit(text)
-    assert [finding.object_key for finding in findings] == [
-        "snmp/community/2",
-        "snmp/community/3",
-    ]
+    assert len(findings) == 2
+    assert len({finding.object_key for finding in findings}) == 2
+    assert all(finding.rule_version == 2 for finding in findings)
     assert len({finding.fingerprint() for finding in findings}) == 2
 
 
@@ -251,3 +250,67 @@ def test_the_canary_is_audited_and_carries_no_secret_into_a_finding():
     rendered = "\n".join(str(finding.as_dict()) for finding in findings)
     for marker in MARKERS:
         assert marker not in rendered
+
+
+@pytest.mark.parametrize("line", (
+    "configure snmp add community readonly public\n",
+    "configure snmpv3 add community office-index name private user v1v2c_ro\n",
+))
+def test_community_identity_survives_unrelated_insertions_and_reordering(line):
+    def one(text):
+        return next(f for f in audit(text) if f.rule_id == COMMUNITY_RULE)
+
+    original = one(clean_text() + line)
+    for text in (line + clean_text(), clean_text() + COMMUNITY_LINE + line):
+        after = one(text)
+        assert after.object_key == original.object_key
+        assert after.fingerprint() == original.fingerprint()
+
+
+def test_distinct_community_objects_and_tenants_keep_distinct_identities():
+    text = clean_text() + (
+        "configure snmp add community readonly public\n"
+        "configure snmp add community readonly private\n"
+        "configure snmp add community readwrite public\n"
+        "configure snmpv3 add community first-index name public user v1v2c_ro\n"
+        "configure snmpv3 add community second-index name public user v1v2c_ro\n"
+    )
+    findings = audit(text)
+    assert len(findings) == len({f.object_key for f in findings}) == 5
+    other = run(parse(text), "another-tenant", DEVICE, load_catalog(PLATFORM))
+    assert {f.fingerprint() for f in findings}.isdisjoint(f.fingerprint() for f in other)
+    assert all("public" not in f.object_key and "private" not in f.object_key for f in findings)
+
+
+def test_snmp_identity_preserves_baseline_and_suppression_after_reordering():
+    from datetime import datetime, timezone
+    from types import SimpleNamespace
+    from netops_auditor.state import classify, STATE_OPEN_KNOWN, STATE_SUPPRESSED
+
+    line = "configure snmp add community readonly public\n"
+    before = audit(clean_text() + line)
+    after = audit(line + clean_text())
+    known = frozenset(f.fingerprint() for f in before)
+    previous = tuple(f.as_dict() for f in before)
+    now = datetime(2026, 9, 20, tzinfo=timezone.utc)
+    classified = classify(after, known, (), previous, now)
+    assert {state for _, state in classified.states} == {STATE_OPEN_KNOWN}
+    assert classified.gone == ()
+    suppression = SimpleNamespace(fingerprint=before[0].fingerprint(), is_active=lambda now: True)
+    classified = classify(after, known, (suppression,), previous, now)
+    assert {state for _, state in classified.states} == {STATE_SUPPRESSED}
+    assert classified.orphaned_suppressions == ()
+
+
+def test_old_ordinal_snmp_suppression_does_not_hide_new_identity():
+    from dataclasses import replace
+    from datetime import datetime, timezone
+    from types import SimpleNamespace
+    from netops_auditor.state import classify, STATE_NEW
+
+    current = audit(clean_text() + "configure snmp add community readonly public\n")[0]
+    old = replace(current, rule_version=1, object_key="snmp/community/2")
+    suppression = SimpleNamespace(fingerprint=old.fingerprint(), expires="2026-12-31", author="reviewer", reason="synthetic", is_active=lambda now: True)
+    result = classify((current,), frozenset({old.fingerprint()}), (suppression,), (), datetime(2026, 9, 20, tzinfo=timezone.utc))
+    assert result.states == ((current.fingerprint(), STATE_NEW),)
+    assert result.orphaned_suppressions == (suppression,)

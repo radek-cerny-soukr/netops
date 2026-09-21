@@ -2009,3 +2009,93 @@ def test_rest_error_status_that_arrives_in_drips_stops_at_the_deadline():
 
 def test_rest_headers_that_arrive_in_drips_stop_at_the_deadline():
     assert trickling_call(200, TRICKLE_DRIPS, 1) < TRICKLE_BUDGET * 3
+
+
+@pytest.fixture
+def real_http_peer():
+    from contextlib import contextmanager
+
+    @contextmanager
+    def connect(headers, body, timeout=1.0, delay=0.02):
+        left, right = socket.socketpair()
+        connection = http.client.HTTPConnection("example.invalid")
+        connection.sock = left
+        finished = threading.Event()
+
+        def serve():
+            try:
+                right.recv(4096)
+                right.sendall(headers)
+                if not finished.wait(delay):
+                    right.sendall(body)
+            except OSError:
+                pass
+            finally:
+                right.close()
+
+        worker = threading.Thread(target=serve, daemon=True)
+        worker.start()
+        try:
+            yield _RestConnection(connection, timeout)
+        finally:
+            finished.set()
+            connection.close()
+            worker.join(2)
+            assert not worker.is_alive()
+            assert left.fileno() == -1
+
+    return connect
+
+
+@pytest.mark.parametrize("framing", ("keepalive", "close", "http10", "eof", "chunked"))
+def test_rest_real_http_complete_body_survives_connection_close(real_http_peer, framing):
+    body = config_text().encode() * 80
+    headers = b"HTTP/1.1 200 OK\r\n"
+    wire = body
+    if framing == "http10":
+        headers = b"HTTP/1.0 200 OK\r\n"
+    if framing == "chunked":
+        headers += b"Transfer-Encoding: chunked\r\n"
+        wire = b"%x\r\n" % len(body) + body + b"\r\n0\r\n\r\n"
+    elif framing != "eof":
+        headers += b"Content-Length: %d\r\n" % len(body)
+    if framing == "close":
+        headers += b"Connection: close\r\n"
+    with real_http_peer(headers + b"\r\n", wire) as connection:
+        snapshot, event = rest_call(lambda *args: connection, fingerprint=None)
+        assert snapshot.text.encode() == body
+        assert event.outcome == "ok"
+        assert event.response_bytes == len(body)
+
+
+@pytest.mark.parametrize("framing", ("length", "chunked", "chunked-terminator"))
+def test_rest_real_http_truncated_body_never_becomes_a_snapshot(real_http_peer, framing):
+    body = config_text(canary=True).encode()
+    headers = b"HTTP/1.1 200 OK\r\n"
+    if framing == "length":
+        headers += b"Content-Length: %d\r\n" % (len(body) + 100)
+    else:
+        headers += b"Transfer-Encoding: chunked\r\n"
+        body = b"%x\r\n" % (len(body) + (100 if framing == "chunked" else 0)) + body + b"\r\n"
+    with real_http_peer(headers + b"\r\n", body) as connection:
+        error = rest_failure(lambda *args: connection, fingerprint=None)
+        assert error.event.outcome == "failed"
+        assert CANARY not in str(error)
+        assert CANARY not in repr(error.event)
+
+
+@pytest.mark.parametrize("status", (200, 500))
+def test_rest_real_http_close_retains_deadline(real_http_peer, status):
+    headers = b"HTTP/1.1 %d Response\r\nConnection: close\r\nContent-Length: 20000\r\n\r\n" % status
+    with real_http_peer(headers, b"x" * 20000, timeout=0.15, delay=0.6) as connection:
+        started = time.monotonic()
+        with pytest.raises(TimeoutError):
+            connection.request(REST_METHOD, REST_TARGET, {})
+        assert time.monotonic() - started < 0.45
+
+
+def test_rest_real_http_close_still_rejects_oversized_body(real_http_peer):
+    headers = b"HTTP/1.1 200 OK\r\nConnection: close\r\nContent-Length: 20000\r\n\r\n"
+    with real_http_peer(headers, b"x" * 20000) as connection:
+        with pytest.raises(ResponseTooLarge):
+            connection.request(REST_METHOD, REST_TARGET, {}, 1024)

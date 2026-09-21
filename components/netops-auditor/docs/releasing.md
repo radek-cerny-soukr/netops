@@ -2,7 +2,7 @@
 
 Release tags follow the component scheme `<name>/v<version>`, where `<name>` is the project name
 declared in this component's `pyproject.toml`: this component tags
-`netops-auditor/v0.2.3`, and the release title is `netops-auditor 0.2.3`. Tags of another component
+`netops-auditor/v0.2.4`, and the release title is `netops-auditor 0.2.4`. Tags of another component
 are never touched by this procedure. A tag is deleted together with its release page when a newer
 version of the same component is published. The canonical origin is
 `https://github.com/radek-cerny-soukr/netops`.
@@ -28,7 +28,7 @@ credentials, host keys, or inventory and vault files. The release export is a po
 the component gate also reads the content of every released file and, outside a
 repository, holds the exported tree to exactly the released selection.
 
-## What 0.2.3 releases
+## What 0.2.4 releases
 
 This component releases **from source; it ships no container image**. The release carries four assets:
 
@@ -45,11 +45,11 @@ component runs from the unpacked archive on any Python 3.13 host.
 ### It needs `netops-core` beside it
 
 The auditor reads the inventory, the credential store, the host key trust and the SSH
-transport from `netops-core`, and `pyproject.toml` pins it as `netops-core==0.2.2`. There is no index
+transport from `netops-core`, and `pyproject.toml` pins it as `netops-core==0.2.3`. There is no index
 to resolve that pin against: **the operator installs the `netops-core` source archive of exactly that
 version next to the auditor**. Download it from the current
-[`netops-core/v0.2.2`](https://github.com/radek-cerny-soukr/netops/releases/tag/netops-core%2Fv0.2.2)
-release, unpack `netops-core-0.2.2-source.tar.gz`, verify its checksums, and
+[`netops-core/v0.2.3`](https://github.com/radek-cerny-soukr/netops/releases/tag/netops-core%2Fv0.2.3)
+release, unpack `netops-core-0.2.3-source.tar.gz`, verify its checksums, and
 either install the unpacked directory into the same environment or put its `src` on `PYTHONPATH`. In
 this repository the archive is the tree, so the tests and the CI job take the component from
 `../netops-core/src`: `pyproject.toml` carries it in `[tool.pytest.ini_options] pythonpath` and
@@ -133,3 +133,5 @@ SBOM does not reproduce is not released.
 ## Replacing the previous public release
 
 After the new release is published and independently verified, remove only this component's previous release page, its assets and its tag under explicit authorization for those exact deletions. Preserve any required rollback artifacts locally first. Other components' releases and tags remain untouched. Recheck the public release and tag lists, update the current-version links in the repository documentation, and check every release, tag and download URL against those lists. Do not link to a superseded tag: use a commit permalink for historical source.
+
+The 2026-09-20 lock regeneration used Python 3.13.15 and `pip-tools==7.6.1`; the lock header records the command. The matching generator wheel hashes are recorded in the monorepository Helper release procedure.
