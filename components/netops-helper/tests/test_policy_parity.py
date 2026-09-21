@@ -36,6 +36,9 @@ CANONICAL_PLATFORMS = {"fortinet": "fortios", "extreme_exos": "exos"}
 HOST_KEY_PIN = fingerprint_of(b64encode(b"policy-parity-host-key").decode("ascii"))
 
 REPRESENTATIVE_SLOT_VALUES = {
+    "vlan_name": "Users_10",
+    "managed_switch_serial": "S124FPTF23000001",
+    "certificate_name": "Example_Cert",
     "interface": "port5",
     "service": "sshd",
     "switch": "edge-a",
@@ -297,8 +300,8 @@ class PolicyParityTests(unittest.TestCase):
         }
         expected_counts = {
             "linux": 16,
-            "fortinet": 40,
-            "extreme_exos": 47,
+            "fortinet": 46,
+            "extreme_exos": 49,
             "cisco_ios": 27,
             "cisco_xe": 27,
             "cisco_nxos": 30,
@@ -315,7 +318,7 @@ class PolicyParityTests(unittest.TestCase):
             },
             expected_counts,
         )
-        self.assertEqual(sum(expected_counts.values()), 278)
+        self.assertEqual(sum(expected_counts.values()), 286)
         expected_names = {
             platform: frozenset(queries)
             for platform, queries in read_policy.READ_QUERIES.items()
@@ -366,6 +369,9 @@ class PolicyParityTests(unittest.TestCase):
                         "services": [],
                         "addresses": [],
                         "switches": [],
+                        "vlans": [],
+                        "managed_switches": [],
+                        "certificates": [],
                     }
                     for slot_name, slot in query.slots.items():
                         value = REPRESENTATIVE_SLOT_VALUES[slot.kind]
@@ -421,7 +427,7 @@ class PolicyParityTests(unittest.TestCase):
                     )
                     exercised += 1
 
-        self.assertEqual(exercised, 63)
+        self.assertEqual(exercised, 71)
 
     def test_typed_query_rejections_have_proxy_render_parity(self) -> None:
         cases = (

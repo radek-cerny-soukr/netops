@@ -65,6 +65,8 @@ REQUIRED_RELEASE_PATHS = {
     "tests/test_check_operator_config.py",
     "tests/test_engine_contracts.py",
     "tests/test_ssh_wire_safety.py",
+    "tests/test_cli_errors.py",
+    "tests/test_runtime_tar_safety.py",
     "tests/test_connection_pacing.py",
     "tests/test_policy_parity.py",
     "tests/test_proxy_contracts.py",
@@ -79,6 +81,25 @@ REQUIRED_RELEASE_PATHS = {
     "tests/test_sanitize.py",
     "tests/test_supply_chain.py",
 }
+
+
+def _runtime_dependency_errors(root: Path) -> list[str]:
+    try:
+        dependencies = tomllib.loads((root / "pyproject.toml").read_text())["project"]["dependencies"]
+        runtime = [
+            line.strip() for line in (root / "requirements.txt").read_text().splitlines()
+            if line.strip() and not line.lstrip().startswith("#")
+        ]
+        if not isinstance(dependencies, list) or not all(isinstance(item, str) for item in dependencies):
+            raise ValueError("invalid dependencies")
+        installed = [item for item in dependencies if not item.startswith("netops-core==")]
+        if len(dependencies) - len(installed) != 1:
+            raise ValueError("missing or duplicate Core pin")
+        if len(runtime) != len(set(runtime)) or sorted(installed) != sorted(runtime):
+            raise ValueError("runtime pins differ")
+    except (OSError, ValueError, KeyError, TypeError):
+        return ["runtime requirements and installation dependency pins differ or are invalid"]
+    return []
 
 
 def _load_release_exporter(root: Path) -> Any:
@@ -965,23 +986,8 @@ def _release_tree_integrity_errors(root: Path) -> list[str]:
     return errors
 
 
-def check(root: Path = ROOT) -> list[str]:
-    integrity_errors = _release_tree_integrity_errors(root)
-    if integrity_errors:
-        return integrity_errors
-
-    try:
-        files = _tracked_release_files(root)
-    except Exception as exc:
-        return [f"public release source selection is unavailable or invalid: {exc}"]
-    errors = _version_invariant_errors(root)
-    relative_files = {path.relative_to(root).as_posix() for path in files}
-    for relative in sorted(REQUIRED_RELEASE_PATHS):
-        if not (root / relative).is_file():
-            errors.append(f"required release artifact is missing: {relative}")
-        elif relative not in relative_files:
-            errors.append(f"required release artifact is outside allowlist: {relative}")
-
+def _privacy_errors(root: Path, files: list[Path]) -> list[str]:
+    errors: list[str] = []
     forbidden_names = {
         "vault.json", "inventory.json", "egress-policy.json", "runner.json",
         "known_hosts", ".env",
@@ -1044,6 +1050,28 @@ def check(root: Path = ROOT) -> list[str]:
                         f"{trust_path.relative_to(root)}"
                     )
 
+    return errors
+
+
+def check(root: Path = ROOT) -> list[str]:
+    integrity_errors = _release_tree_integrity_errors(root)
+    if integrity_errors:
+        return integrity_errors
+
+    try:
+        files = _tracked_release_files(root)
+    except Exception as exc:
+        return [f"public release source selection is unavailable or invalid: {exc}"]
+    errors = _version_invariant_errors(root)
+    relative_files = {path.relative_to(root).as_posix() for path in files}
+    for relative in sorted(REQUIRED_RELEASE_PATHS):
+        if not (root / relative).is_file():
+            errors.append(f"required release artifact is missing: {relative}")
+        elif relative not in relative_files:
+            errors.append(f"required release artifact is outside allowlist: {relative}")
+
+    errors.extend(_privacy_errors(root, files))
+
     dockerfile = (root / "Dockerfile").read_text(encoding="utf-8")
     first = dockerfile.splitlines()[0]
     if not re.fullmatch(r"FROM python:[^@\s]+@sha256:[0-9a-f]{64}", first):
@@ -1054,6 +1082,7 @@ def check(root: Path = ROOT) -> list[str]:
     if apt_lines:
         expected_apt = [
             "    && apt-get update \\",
+            "    && apt-get upgrade --yes \\",
             "    && apt-get install --yes --no-install-recommends openssh-client \\",
         ]
         if apt_lines != expected_apt or "rm -rf /var/lib/apt/lists/*" not in dockerfile:
@@ -1077,6 +1106,8 @@ def check(root: Path = ROOT) -> list[str]:
         ):
             errors.append(f"{lock_name} contains an unsafe package source")
 
+    errors.extend(_runtime_dependency_errors(root))
+
     release_input = {
         line.strip()
         for line in (root / "requirements-release.in").read_text().splitlines()
@@ -1084,7 +1115,7 @@ def check(root: Path = ROOT) -> list[str]:
     }
     expected_release_input = {
         "-r requirements.txt",
-        "cyclonedx-bom==7.3.1",
+        "cyclonedx-bom==7.4.0",
         "pytest==9.1.1",
     }
     if release_input != expected_release_input:

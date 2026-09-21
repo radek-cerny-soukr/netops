@@ -92,6 +92,8 @@ TESTS = {
     "tests/test_audit_rotation.py", "tests/test_egress_scripts.py",
     "tests/test_engine_contracts.py", "tests/test_engine_safety.py",
     "tests/test_ssh_wire_safety.py",
+    "tests/test_cli_errors.py",
+    "tests/test_runtime_tar_safety.py",
     "tests/test_connection_pacing.py",
     "tests/test_phase1_surface.py",
     "tests/test_plain_ftp_acknowledgement.py", "tests/test_policy_parity.py",

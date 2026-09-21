@@ -1,9 +1,20 @@
 # Changelog
 
-Only `netops-helper/v0.3.3` is currently published. Older entries below are historical source records, not available releases or tags; their release pages, tags and downloadable artifacts have been removed. Use commit history to inspect old source and the current [release procedure](docs/releasing.md) for new releases.
+## 0.3.4 - 2026-09-21
 
-Versions on this page are `netops-helper` versions; its tags are `netops-helper/vX.Y.Z`.
-A bare number here is not a tag of another component that happens to share it.
+- Add eight opt-in queries: EXOS `vlan_details` and `dhcp_snooping_entries`; FortiOS `certificate_details`; controller `managed_switch_status`, `managed_switch_poe`, `managed_switch_mac`, `managed_switch_stacking` and `managed_switch_lldp`. Selectors require separate `vlans`, `certificates` or `managed_switches` inventories and independent proxy/server checks. No query is enabled automatically.
+- Document the direct CLI evidence and its limits. EXOS VLAN reads preserve valid status 250. Four controller queries returned data with an administrator account; restricted-profile permissions remain unverified. Stacking was correctly refused on non-stacking hardware, and a positive test remains outstanding. The new queries have not been verified end-to-end through MCP. No FortiAP query is added.
+- Report known FortiOS/EXOS CLI refusals as `device_cli_error`, including FortiOS errors with SSH status zero; preserve the actual status and bounded sanitized output, audit failure and prevent failed-result pagination caching.
+- Retain only credentials needed by the selected target or runner. The JSON store is still parsed transiently in full; separate trust domains require separate stores.
+- Enforce FTP/FTPS listing bounds of 500 names, 2,000,000 received bytes and one 30-second deadline, closing both channels on failure. Plain FTP acknowledgement and TLS verification remain required.
+- Pin Core 0.2.3, refresh runtime dependencies including FastMCP 4.0.5, and apply available Debian package upgrades during image builds.
+- Move the ARM64 container and Helper CI to digest-pinned Python 3.14.7 to fix CVE-2026-82049. Regenerate both Helper locks without further package-version changes and add malicious/valid TAR regressions. The host interpreter remains the operator's responsibility.
+- Record 361 passing tests and 321 subtests on Python 3.14.7, clean source-export installation and positive/negative MCP checks in the final image. The Python 3.13 toolbox passes 360 tests and skips the runtime-specific TAR regression, which is checked separately in the shipped image.
+- Disclose the dated scan: 0 active Critical, 50 High, 58 Medium, 10 Low, 68 Negligible and 1 Unknown matches, plus the existing accepted Critical OpenSSH exception. Remaining findings are not claimed fixed; see [known vulnerabilities](docs/known-vulnerabilities.md).
+
+This entry describes the current source version. Earlier entries are historical source records; use the repository release index for current downloads and commit history for superseded source. Previous artifacts may remain visible during a release transition and are retired only after replacement verification and archival. See the [release procedure](docs/releasing.md).
+
+Versions on this page name the Helper component; tags use `netops-helper/vX.Y.Z`.
 
 ## 0.3.3 - 2026-09-20
 

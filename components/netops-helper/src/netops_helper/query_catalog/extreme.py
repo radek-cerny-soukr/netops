@@ -11,6 +11,9 @@ PHYSICAL_PORT = {
 
 
 QUERIES: dict[str, Query] = {
+    "vlan_details": Query("show vlan {vlan}", {"vlan": Slot("vlans", "vlan_name")}, "Show one enrolled VLAN.", high_volume=True),
+    "dhcp_snooping_entries": Query("show ip-security dhcp-snooping entries vlan {vlan}", {"vlan": Slot("vlans", "vlan_name")}, "Show DHCP snooping bindings for one enrolled VLAN.", high_volume=True),
+
     "switch": Query("show switch", NO_SLOTS, "Show switch identity, role, and operating status."),
     "version": Query(
         "show version", NO_SLOTS, "Show hardware and software version information.",

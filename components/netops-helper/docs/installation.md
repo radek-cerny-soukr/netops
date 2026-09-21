@@ -8,6 +8,8 @@ NetOps Helper phase 1 uses three trust zones:
 
 The proxy and execution host may share one machine in a deployment. Device-side authorization, the egress contract, and the dedicated client session remain separate mandatory boundaries.
 
+The published ARM64 container runs digest-pinned Python 3.14.7. The source packages retain Python 3.13 as their minimum; installing them does not upgrade the interpreter or OpenSSH on the proxy host. Keep those host dependencies patched separately. Review the [release findings](known-vulnerabilities.md) for the exact image scan and remaining exposure.
+
 ## 1. Prepare target accounts
 
 Create a dedicated identity on every target and enforce read-only permissions on that platform. Do not reuse administrator, Docker-enabled, sudo-capable, or future write-service credentials. Test both the intended named diagnostics and denial of configuration display/export, configuration mode, file writes, maintenance, privilege escalation, and shell escape over the same SSH/AAA path that NetOps Helper will use.
@@ -22,7 +24,7 @@ The same device credential is used for SSH, SFTP, FTPS, and plain FTP. Plain FTP
 
 The proxy and the egress generator import `netops_core` and `netops_helper`. Both come from the tree of this repository, not from an index: install `components/netops-core` and `components/netops-helper` into the environment that runs the proxy, or put `components/netops-core/src` and `components/netops-helper/src` on `PYTHONPATH`. The scripts add both directories themselves when they are started from a checkout, so a checkout needs no further setup.
 
-From a release export the same two ways apply to the unpacked archives: `python -m pip install <netops-core directory> <netops-helper directory>` into the environment that runs the proxy, or their `src` directories on `PYTHONPATH`. **Both archives are needed for that path**, and in that order: the helper archive carries a copy of `netops_core` for the image build, but its metadata still pins `netops-core==0.2.2`, which no index serves, so `pip install <netops-helper directory>` on its own ends in `No matching distribution found for netops-core`. That is the pin doing its job, not a damaged archive.
+From a release export the same two ways apply to the unpacked archives: `python -m pip install <netops-core directory> <netops-helper directory>` into the environment that runs the proxy, or their `src` directories on `PYTHONPATH`. **Both archives are needed for that path**, and in that order: the helper archive carries a copy of `netops_core` for the image build, but its metadata still pins `netops-core==0.2.3`, which no index serves, so `pip install <netops-helper directory>` on its own ends in `No matching distribution found for netops-core`. That is the pin doing its job, not a damaged archive.
 
 Installing has two practical advantages over `PYTHONPATH` on a proxy host. It puts the proxy on the path as the command **`netops-helper-proxy`**, which is what a client is then configured to launch instead of an absolute path into an unpacked archive. And it puts the askpass program on the path as **`netops-askpass`**, which `NETOPS_ASKPASS_PROGRAM` may name on a host whose temporary directory is mounted `noexec`; without it, such a host cannot hand a password to the client at all, because the program written beside the secret cannot be executed there.
 

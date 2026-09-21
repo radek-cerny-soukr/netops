@@ -317,6 +317,9 @@ _TOKEN_PATTERNS: Mapping[str, re.Pattern[str]] = {
     "interface": SAFE_INTERFACE,
     "service": SAFE_SERVICE,
     "switch": SAFE_SWITCH,
+    "vlan_name": re.compile(r"[A-Za-z][A-Za-z0-9_-]{0,31}"),
+    "certificate_name": re.compile(r"[A-Za-z][A-Za-z0-9_.-]{0,78}"),
+    "managed_switch_serial": re.compile(r"S[A-Z0-9]{11,15}"),
     "extreme_physical_port": re.compile(
         r"[1-9][0-9]{0,2}(?:(?::[1-9][0-9]{0,2}){1,2}|"
         r"/[1-9][0-9]{0,2})?"
@@ -337,6 +340,9 @@ _KIND_INVENTORY = {
     "interface": "interfaces",
     "service": "services",
     "switch": "switches",
+    "vlan_name": "vlans",
+    "managed_switch_serial": "managed_switches",
+    "certificate_name": "certificates",
     "address": "addresses",
     "ipv4_address": "addresses",
     "ipv6_address": "addresses",
@@ -352,6 +358,9 @@ _INVENTORY_KINDS = {
     "services": "service",
     "addresses": "address",
     "switches": "switch",
+    "vlans": "vlan_name",
+    "managed_switches": "managed_switch_serial",
+    "certificates": "certificate_name",
 }
 
 _EXPECTED_PLATFORMS = frozenset({
@@ -385,6 +394,13 @@ _LINUX_COMMANDS = frozenset({
     "bridge fdb show",
 })
 _FORTINET_COMMANDS = frozenset({
+    "get vpn certificate local details {certificate}",
+    'diagnose switch-controller switch-info status {managed_switch}',
+    'diagnose switch-controller switch-info poe summary {managed_switch}',
+    'diagnose switch-controller switch-info mac-table {managed_switch}',
+    'diagnose switch-controller switch-info stacking status {managed_switch}',
+    'diagnose switch-controller switch-info lldp neighbors-summary {managed_switch}',
+
     "get system status",
     "get system performance status",
     "get system ha status",
@@ -498,6 +514,13 @@ def _validate_slot(value: str, kind: str) -> str:
         if canonical is not None:
             return canonical
         raise ValueError(f"invalid typed {kind} value")
+    if kind == "certificate_name" and value.casefold() in {"all", "any", "none", "detail", "details"}:
+        raise ValueError("reserved certificate selector")
+    if kind == "vlan_name" and value.casefold() in {
+        "all", "any", "none", "detail", "ipv4", "ipv6", "tag", "ports",
+        "virtual-router", "statistics",
+    }:
+        raise ValueError("reserved VLAN selector")
     pattern = _TOKEN_PATTERNS.get(kind)
     if pattern is not None and pattern.fullmatch(value):
         return value

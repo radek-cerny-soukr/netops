@@ -81,7 +81,7 @@ Application allowlisting and the host firewall protect different layers. Neither
 
 ## Pagination and rate
 
-An SSH read reports the exit status the device gave the command as `rc` (`null` for the PTY mode, where a device that answers on a terminal reports none). A non-zero status is not an error by itself: an ExtremeXOS switch answers several catalogue commands with status 250 and the complete output, so the output is returned and the status is recorded in the result and in the audit record. Only a failure of the client itself - exit status 255, a timeout, a refused negotiation - fails the read. An offset-0 SSH read captures at most 2 MB after sanitization and retains one of at most eight snapshots for 120 seconds per process only when continuation is needed. Output over the cap fails rather than being silently truncated. A continuation uses the same snapshot, does not reconnect or rerun the command, and fails after expiry. The last page removes the snapshot. No other Phase-1 tool has a body snapshot or continuation path.
+An SSH read reports the exit status the device gave the command as `rc` (`null` for the PTY mode, where a device that answers on a terminal reports none). A non-zero status is not an error by itself: an ExtremeXOS switch answers several catalogue commands with status 250 and the complete output, so the output is returned and the status is recorded in the result and in the audit record. Client failures (exit status 255, a timeout, a refused negotiation) fail the read. Explicit FortiOS CLI refusals (`Command fail.`, `command parse error before`, `Unknown action`) and recognized EXOS permission/syntax errors also return `ok: false` with `error_code: device_cli_error`, even when SSH returns zero. Their sanitized output and original `rc` remain available, the audit records failure, and no continuation is cached. This recognizes specific CLI errors; it does not prove that all other output is semantically successful. An offset-0 SSH read captures at most 2 MB after sanitization and retains one of at most eight snapshots for 120 seconds per process only when continuation is needed. Output over the cap fails rather than being silently truncated. A continuation uses the same snapshot, does not reconnect or rerun the command, and fails after expiry. The last page removes the snapshot. No other Phase-1 tool has a body snapshot or continuation path.
 
 The default proxy limit is 30 device calls per device per 60 seconds (the window is keyed by device name, not by address). A valid `ssh_read` continuation with `offset > 0` does not consume another device rate slot; every other device call does. This per-process limit is not a distributed global quota.
 
@@ -119,3 +119,10 @@ Before relying on a deployment, verify all of the following externally:
 - runner INPUT exposure and embedded DNS behavior were tested on the actual ARM64 host;
 - private CA material and certificate SAN were independently verified;
 - a rate limit, audit failure, expired SSH snapshot, or transport error is interpreted by its typed category rather than as generic credential failure.
+
+
+## Credential scope in the local proxy
+
+A device request materializes credential handles only for that inventory entry's login and optional SNMP community. The runner connection loads only its enrolled runner credential. Missing references are refused; no other record is used as a fallback. The status/preflight path may inspect all records to validate the inventory.
+
+The version 2 JSON store is still parsed as one document before selection. Selection limits retained credential handles and authentication envelopes; it does not isolate secrets from a process that can read the store. Keep separate stores for separate trust boundaries, and keep the store readable only by its owner. Raw values are not included in MCP responses.

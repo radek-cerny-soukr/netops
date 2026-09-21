@@ -636,8 +636,8 @@ def check_query_authority_and_typed_pre_auth(
     }
     expected_counts = {
         "linux": 16,
-        "fortinet": 40,
-        "extreme_exos": 47,
+        "fortinet": 46,
+        "extreme_exos": 49,
         "cisco_ios": 27,
         "cisco_xe": 27,
         "cisco_nxos": 30,
@@ -657,11 +657,14 @@ def check_query_authority_and_typed_pre_auth(
         for name in sorted(names)
     )
     assert hashlib.sha256(name_contract.encode()).hexdigest() == (
-        "86bcc88f4f031239a732d223c7f49c98d90a2b8450d4f3a32c0935f906bb40b2"
+        "bb14ae64915ffb9195fca8a4520057b0c1bfeabd18d198b75d2d2e6f44137a80"
     )
-    assert sum(expected_counts.values()) == 278
+    assert sum(expected_counts.values()) == 286
 
     expected_kind_inventory = {
+        "vlan_name": "vlans",
+        "managed_switch_serial": "managed_switches",
+        "certificate_name": "certificates",
         "address": "addresses",
         "ipv4_address": "addresses",
         "ipv6_address": "addresses",

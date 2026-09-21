@@ -154,18 +154,18 @@
     },
     {
       "bom-ref": "requirements-L42",
-      "description": "requirements line 42: cachetools==7.1.8     --hash=sha256:1221d547a0b24b7f26fa891d40d488b5258beab9aebd8ed68c729be3af849c43     --hash=sha256:a81e3844acaa7355b6567f97bd67a94a14ec3a9bc2cbbdae45b9592cc036775b",
+      "description": "requirements line 42: cachetools==7.2.0     --hash=sha256:3045213f186b89fdd95d94441354c4bd87c570b7a38d8c3fd1d9dd37f6dc90d8     --hash=sha256:bcac1a1b8da6909994a2957238a57b8140dab7c5c5c69a43669654fe87a33c1d",
       "externalReferences": [
         {
           "comment": "implicit dist url",
           "hashes": [
             {
               "alg": "SHA-256",
-              "content": "1221d547a0b24b7f26fa891d40d488b5258beab9aebd8ed68c729be3af849c43"
+              "content": "3045213f186b89fdd95d94441354c4bd87c570b7a38d8c3fd1d9dd37f6dc90d8"
             },
             {
               "alg": "SHA-256",
-              "content": "a81e3844acaa7355b6567f97bd67a94a14ec3a9bc2cbbdae45b9592cc036775b"
+              "content": "bcac1a1b8da6909994a2957238a57b8140dab7c5c5c69a43669654fe87a33c1d"
             }
           ],
           "type": "distribution",
@@ -173,9 +173,9 @@
         }
       ],
       "name": "cachetools",
-      "purl": "pkg:pypi/cachetools@7.1.8",
+      "purl": "pkg:pypi/cachetools@7.2.0",
       "type": "library",
-      "version": "7.1.8"
+      "version": "7.2.0"
     },
     {
       "bom-ref": "requirements-L46",
@@ -996,18 +996,18 @@
     },
     {
       "bom-ref": "requirements-L245",
-      "description": "requirements line 245: cyclopts==4.25.1     --hash=sha256:c01c3c80ed6723566d243057b33ca59d980f8c2ddcbd11554d017a6c91f939a8     --hash=sha256:f9bb00fb2e67f6b8cfb7f39539c177c448fa303dc9cb75f6b6232b3132a237bc",
+      "description": "requirements line 245: cyclopts==4.25.3     --hash=sha256:40e76b3153ea90e885abd8d3a4d8184db5a5eec2fde8540025aae8d72fc973fc     --hash=sha256:7d3a067bc7699a1a65fe2ea0b092a925855bb711a05adc1e65c5b9ba307acea4",
       "externalReferences": [
         {
           "comment": "implicit dist url",
           "hashes": [
             {
               "alg": "SHA-256",
-              "content": "c01c3c80ed6723566d243057b33ca59d980f8c2ddcbd11554d017a6c91f939a8"
+              "content": "40e76b3153ea90e885abd8d3a4d8184db5a5eec2fde8540025aae8d72fc973fc"
             },
             {
               "alg": "SHA-256",
-              "content": "f9bb00fb2e67f6b8cfb7f39539c177c448fa303dc9cb75f6b6232b3132a237bc"
+              "content": "7d3a067bc7699a1a65fe2ea0b092a925855bb711a05adc1e65c5b9ba307acea4"
             }
           ],
           "type": "distribution",
@@ -1015,9 +1015,9 @@
         }
       ],
       "name": "cyclopts",
-      "purl": "pkg:pypi/cyclopts@4.25.1",
+      "purl": "pkg:pypi/cyclopts@4.25.3",
       "type": "library",
-      "version": "4.25.1"
+      "version": "4.25.3"
     },
     {
       "bom-ref": "requirements-L249",
@@ -1121,18 +1121,18 @@
     },
     {
       "bom-ref": "requirements-L265",
-      "description": "requirements line 265: fastmcp==4.0.3     --hash=sha256:0dd50baf070105ee4436c245f087ac3c047e655c32d9e783de16d0bf15783a98     --hash=sha256:f743f43193e1daf606e6497a9dddba5bbaad7df7957a98fd093716ecf4458b99",
+      "description": "requirements line 265: fastmcp==4.0.5     --hash=sha256:1d30e5ba6b711318bf2ddc929cf9c0d6299a6330fbf42b2925dd120984176dc8     --hash=sha256:4234f9dfc396310ed3a04c2b5314f85394cab161023f9de2fa06842be96288cb",
       "externalReferences": [
         {
           "comment": "implicit dist url",
           "hashes": [
             {
               "alg": "SHA-256",
-              "content": "0dd50baf070105ee4436c245f087ac3c047e655c32d9e783de16d0bf15783a98"
+              "content": "1d30e5ba6b711318bf2ddc929cf9c0d6299a6330fbf42b2925dd120984176dc8"
             },
             {
               "alg": "SHA-256",
-              "content": "f743f43193e1daf606e6497a9dddba5bbaad7df7957a98fd093716ecf4458b99"
+              "content": "4234f9dfc396310ed3a04c2b5314f85394cab161023f9de2fa06842be96288cb"
             }
           ],
           "type": "distribution",
@@ -1140,24 +1140,24 @@
         }
       ],
       "name": "fastmcp",
-      "purl": "pkg:pypi/fastmcp@4.0.3",
+      "purl": "pkg:pypi/fastmcp@4.0.5",
       "type": "library",
-      "version": "4.0.3"
+      "version": "4.0.5"
     },
     {
       "bom-ref": "requirements-L269",
-      "description": "requirements line 269: fastmcp-slim==4.0.3     --hash=sha256:3756ed4bd9f82f40adaf51974b7cdd1463ab6b9f479cf69b69b2692969312b87     --hash=sha256:3ce04a82b82cc41ccb12bb3bb366cfd65b52bc797b8fee332a75da9d480f9b74",
+      "description": "requirements line 269: fastmcp-slim[client,server]==4.0.5     --hash=sha256:2bb5bc1ff0a0f3ae063b97f647ea3730d32d5481050231818c161214b9047f67     --hash=sha256:5dc5395bcacb0eb405787393298891210c821d3f66334c2695e5e435d88fe575",
       "externalReferences": [
         {
           "comment": "implicit dist url",
           "hashes": [
             {
               "alg": "SHA-256",
-              "content": "3756ed4bd9f82f40adaf51974b7cdd1463ab6b9f479cf69b69b2692969312b87"
+              "content": "2bb5bc1ff0a0f3ae063b97f647ea3730d32d5481050231818c161214b9047f67"
             },
             {
               "alg": "SHA-256",
-              "content": "3ce04a82b82cc41ccb12bb3bb366cfd65b52bc797b8fee332a75da9d480f9b74"
+              "content": "5dc5395bcacb0eb405787393298891210c821d3f66334c2695e5e435d88fe575"
             }
           ],
           "type": "distribution",
@@ -1165,9 +1165,19 @@
         }
       ],
       "name": "fastmcp-slim",
-      "purl": "pkg:pypi/fastmcp-slim@4.0.3",
+      "properties": [
+        {
+          "name": "cdx:python:package:required-extra",
+          "value": "client"
+        },
+        {
+          "name": "cdx:python:package:required-extra",
+          "value": "server"
+        }
+      ],
+      "purl": "pkg:pypi/fastmcp-slim@4.0.5",
       "type": "library",
-      "version": "4.0.3"
+      "version": "4.0.5"
     },
     {
       "bom-ref": "requirements-L273",
@@ -1246,18 +1256,18 @@
     },
     {
       "bom-ref": "requirements-L288",
-      "description": "requirements line 288: httpcore2==2.12.0     --hash=sha256:7e04258ce01013d7d615e5b910a3b27fac937d7a95038227e79652b4ba3b4ceb     --hash=sha256:9293522bba0aa7c4c8e9e3f040c16575bd8868e155a77fa30c7a9085a5eae648",
+      "description": "requirements line 288: httpcore2==2.13.0     --hash=sha256:2adc8be4fb285fbcd6d894298db3b52c177e74b6674eda3a76bd36be3292a3db     --hash=sha256:35ae5be347aa40467b4a5dc032ac67ebb6d27189fc97e8cebcf99616f6a1bb9e",
       "externalReferences": [
         {
           "comment": "implicit dist url",
           "hashes": [
             {
               "alg": "SHA-256",
-              "content": "7e04258ce01013d7d615e5b910a3b27fac937d7a95038227e79652b4ba3b4ceb"
+              "content": "2adc8be4fb285fbcd6d894298db3b52c177e74b6674eda3a76bd36be3292a3db"
             },
             {
               "alg": "SHA-256",
-              "content": "9293522bba0aa7c4c8e9e3f040c16575bd8868e155a77fa30c7a9085a5eae648"
+              "content": "35ae5be347aa40467b4a5dc032ac67ebb6d27189fc97e8cebcf99616f6a1bb9e"
             }
           ],
           "type": "distribution",
@@ -1265,9 +1275,9 @@
         }
       ],
       "name": "httpcore2",
-      "purl": "pkg:pypi/httpcore2@2.12.0",
+      "purl": "pkg:pypi/httpcore2@2.13.0",
       "type": "library",
-      "version": "2.12.0"
+      "version": "2.13.0"
     },
     {
       "bom-ref": "requirements-L292",
@@ -1296,18 +1306,18 @@
     },
     {
       "bom-ref": "requirements-L296",
-      "description": "requirements line 296: httpx2==2.12.0     --hash=sha256:7631fe9887a8a2275f4a2540e053aa670fcc50742864a9ae7c66e609fdcf12cf     --hash=sha256:cc8b6eecb8661c146b8f89a60e97456ee086e91a784ed31ac450c3a9e613dd36",
+      "description": "requirements line 296: httpx2==2.13.0     --hash=sha256:81bd07dc67a3701729ef1f777a3c00c915d4539604fdb5afd327f8682f6b7b44     --hash=sha256:fc12720cedf72faa26cca6b4ca394e05c894e7d7933fc45cafe767960804e49a",
       "externalReferences": [
         {
           "comment": "implicit dist url",
           "hashes": [
             {
               "alg": "SHA-256",
-              "content": "7631fe9887a8a2275f4a2540e053aa670fcc50742864a9ae7c66e609fdcf12cf"
+              "content": "81bd07dc67a3701729ef1f777a3c00c915d4539604fdb5afd327f8682f6b7b44"
             },
             {
               "alg": "SHA-256",
-              "content": "cc8b6eecb8661c146b8f89a60e97456ee086e91a784ed31ac450c3a9e613dd36"
+              "content": "fc12720cedf72faa26cca6b4ca394e05c894e7d7933fc45cafe767960804e49a"
             }
           ],
           "type": "distribution",
@@ -1315,9 +1325,9 @@
         }
       ],
       "name": "httpx2",
-      "purl": "pkg:pypi/httpx2@2.12.0",
+      "purl": "pkg:pypi/httpx2@2.13.0",
       "type": "library",
-      "version": "2.12.0"
+      "version": "2.13.0"
     },
     {
       "bom-ref": "requirements-L302",
@@ -1346,18 +1356,18 @@
     },
     {
       "bom-ref": "requirements-L306",
-      "description": "requirements line 306: idna==3.19     --hash=sha256:5e0811a4383b21dc5838069f801c4fb62113b7447663d2530d2bd6e77b49bf15     --hash=sha256:815e7be7a7806d54abb586dc943addc79e8b2ee16915059658cbeff4b1b43bf4",
+      "description": "requirements line 306: idna==3.20     --hash=sha256:a7db850025b95ded1eae8a46181a1a6c56c92c96f0e2b005d9ff8dc0210cab44     --hash=sha256:ab7ae7122974553370f0bdb919e1a960b2cd1bc1ef0276416d896db81c14582c",
       "externalReferences": [
         {
           "comment": "implicit dist url",
           "hashes": [
             {
               "alg": "SHA-256",
-              "content": "5e0811a4383b21dc5838069f801c4fb62113b7447663d2530d2bd6e77b49bf15"
+              "content": "a7db850025b95ded1eae8a46181a1a6c56c92c96f0e2b005d9ff8dc0210cab44"
             },
             {
               "alg": "SHA-256",
-              "content": "815e7be7a7806d54abb586dc943addc79e8b2ee16915059658cbeff4b1b43bf4"
+              "content": "ab7ae7122974553370f0bdb919e1a960b2cd1bc1ef0276416d896db81c14582c"
             }
           ],
           "type": "distribution",
@@ -1365,9 +1375,9 @@
         }
       ],
       "name": "idna",
-      "purl": "pkg:pypi/idna@3.19",
+      "purl": "pkg:pypi/idna@3.20",
       "type": "library",
-      "version": "3.19"
+      "version": "3.20"
     },
     {
       "bom-ref": "requirements-L314",
@@ -1846,18 +1856,18 @@
     },
     {
       "bom-ref": "requirements-L402",
-      "description": "requirements line 402: platformdirs==4.11.7     --hash=sha256:4f41487eeeeeb07f3a6625e61d9bc0ae6809f92d3386dbd74392fbb76108104d     --hash=sha256:8a02cb259042c79d1cd0450facc2fe6dc9d303ae7901afbe33bf8ea0b188cef6",
+      "description": "requirements line 402: platformdirs==4.11.11     --hash=sha256:972ea6b2b387155a536226a0750e46923d731d459a387c4a255c583ed2f64547     --hash=sha256:b0befe8a90759e4a9a8b9820d434ae226a6549063210b596da0038a7a05aede4",
       "externalReferences": [
         {
           "comment": "implicit dist url",
           "hashes": [
             {
               "alg": "SHA-256",
-              "content": "4f41487eeeeeb07f3a6625e61d9bc0ae6809f92d3386dbd74392fbb76108104d"
+              "content": "972ea6b2b387155a536226a0750e46923d731d459a387c4a255c583ed2f64547"
             },
             {
               "alg": "SHA-256",
-              "content": "8a02cb259042c79d1cd0450facc2fe6dc9d303ae7901afbe33bf8ea0b188cef6"
+              "content": "b0befe8a90759e4a9a8b9820d434ae226a6549063210b596da0038a7a05aede4"
             }
           ],
           "type": "distribution",
@@ -1865,24 +1875,24 @@
         }
       ],
       "name": "platformdirs",
-      "purl": "pkg:pypi/platformdirs@4.11.7",
+      "purl": "pkg:pypi/platformdirs@4.11.11",
       "type": "library",
-      "version": "4.11.7"
+      "version": "4.11.11"
     },
     {
       "bom-ref": "requirements-L406",
-      "description": "requirements line 406: py-key-value-aio==0.4.5     --hash=sha256:ab862adbcb8c72547d1c57821f22cbbb71ab86509039c96f36e914e0336c8dd7     --hash=sha256:c6563a2c6abe5da5e20f4f9e875c2a9b425a2244a54fadbf46cf140a9eea45d7",
+      "description": "requirements line 406: py-key-value-aio[filetree,keyring,memory]==0.4.6     --hash=sha256:267c03c3e24cb99d3097612f8a5cfd8e11785c6a2975e272db0e303ea1850bfd     --hash=sha256:820b30c7959fc738ea3d00160cdb10cd258f51e38737b2add530defeea1ded77",
       "externalReferences": [
         {
           "comment": "implicit dist url",
           "hashes": [
             {
               "alg": "SHA-256",
-              "content": "ab862adbcb8c72547d1c57821f22cbbb71ab86509039c96f36e914e0336c8dd7"
+              "content": "267c03c3e24cb99d3097612f8a5cfd8e11785c6a2975e272db0e303ea1850bfd"
             },
             {
               "alg": "SHA-256",
-              "content": "c6563a2c6abe5da5e20f4f9e875c2a9b425a2244a54fadbf46cf140a9eea45d7"
+              "content": "820b30c7959fc738ea3d00160cdb10cd258f51e38737b2add530defeea1ded77"
             }
           ],
           "type": "distribution",
@@ -1890,9 +1900,23 @@
         }
       ],
       "name": "py-key-value-aio",
-      "purl": "pkg:pypi/py-key-value-aio@0.4.5",
+      "properties": [
+        {
+          "name": "cdx:python:package:required-extra",
+          "value": "filetree"
+        },
+        {
+          "name": "cdx:python:package:required-extra",
+          "value": "keyring"
+        },
+        {
+          "name": "cdx:python:package:required-extra",
+          "value": "memory"
+        }
+      ],
+      "purl": "pkg:pypi/py-key-value-aio@0.4.6",
       "type": "library",
-      "version": "0.4.5"
+      "version": "0.4.6"
     },
     {
       "bom-ref": "requirements-L410",
@@ -1946,7 +1970,7 @@
     },
     {
       "bom-ref": "requirements-L418",
-      "description": "requirements line 418: pydantic==2.13.5     --hash=sha256:346a034f080da3755d8e9cb5e00e8b07de1d39e4f6e2c87d8ab7cafa0b269a73     --hash=sha256:51a9c5f7b2f8e636f04c6cada605d9b6a3bf1348fdf945a3d8869b19bba0ee08",
+      "description": "requirements line 418: pydantic[email]==2.13.5     --hash=sha256:346a034f080da3755d8e9cb5e00e8b07de1d39e4f6e2c87d8ab7cafa0b269a73     --hash=sha256:51a9c5f7b2f8e636f04c6cada605d9b6a3bf1348fdf945a3d8869b19bba0ee08",
       "externalReferences": [
         {
           "comment": "implicit dist url",
@@ -1965,6 +1989,12 @@
         }
       ],
       "name": "pydantic",
+      "properties": [
+        {
+          "name": "cdx:python:package:required-extra",
+          "value": "email"
+        }
+      ],
       "purl": "pkg:pypi/pydantic@2.13.5",
       "type": "library",
       "version": "2.13.5"
@@ -2518,18 +2548,18 @@
     },
     {
       "bom-ref": "requirements-L559",
-      "description": "requirements line 559: pyjwt==2.13.0     --hash=sha256:41571c89ca91598c79e8ef18a2d07367d4810fbbd6f637794879baf1b7703423     --hash=sha256:66adcc2aff09b3f1bbd95fc1e1577df8ac8723c978552fd43304c8a290ac5728",
+      "description": "requirements line 559: pyjwt[crypto]==2.14.0     --hash=sha256:77283c83fb56ecf566a886c757a714bc83668e38156de2cce8263302f42e0b86     --hash=sha256:ad0cef71c756a56e74863c2919cf0985f72decbcfcb550ee2f422e7c62b5eedc",
       "externalReferences": [
         {
           "comment": "implicit dist url",
           "hashes": [
             {
               "alg": "SHA-256",
-              "content": "41571c89ca91598c79e8ef18a2d07367d4810fbbd6f637794879baf1b7703423"
+              "content": "77283c83fb56ecf566a886c757a714bc83668e38156de2cce8263302f42e0b86"
             },
             {
               "alg": "SHA-256",
-              "content": "66adcc2aff09b3f1bbd95fc1e1577df8ac8723c978552fd43304c8a290ac5728"
+              "content": "ad0cef71c756a56e74863c2919cf0985f72decbcfcb550ee2f422e7c62b5eedc"
             }
           ],
           "type": "distribution",
@@ -2537,9 +2567,15 @@
         }
       ],
       "name": "pyjwt",
-      "purl": "pkg:pypi/pyjwt@2.13.0",
+      "properties": [
+        {
+          "name": "cdx:python:package:required-extra",
+          "value": "crypto"
+        }
+      ],
+      "purl": "pkg:pypi/pyjwt@2.14.0",
       "type": "library",
-      "version": "2.13.0"
+      "version": "2.14.0"
     },
     {
       "bom-ref": "requirements-L563",
@@ -3683,18 +3719,18 @@
     },
     {
       "bom-ref": "requirements-L843",
-      "description": "requirements line 843: uvicorn==0.52.4     --hash=sha256:73acfee47a0b133c5de13d219492d62d8a31e935f4fe6e41a232451a15379f86     --hash=sha256:f86e41a149d7d05a9969337e3946a9c171c06a5d42680896daaba624aeac8da1",
+      "description": "requirements line 843: uvicorn==0.53.0     --hash=sha256:a9356f0cb89b3b8621529c5d5eebd69bfe154f4c3f68b4cf2de47e45fa855c2e     --hash=sha256:e8dca71ec86dce5f04e333f0d56cdedf942446e6643b9cea1af0d6d3a02cb03e",
       "externalReferences": [
         {
           "comment": "implicit dist url",
           "hashes": [
             {
               "alg": "SHA-256",
-              "content": "73acfee47a0b133c5de13d219492d62d8a31e935f4fe6e41a232451a15379f86"
+              "content": "a9356f0cb89b3b8621529c5d5eebd69bfe154f4c3f68b4cf2de47e45fa855c2e"
             },
             {
               "alg": "SHA-256",
-              "content": "f86e41a149d7d05a9969337e3946a9c171c06a5d42680896daaba624aeac8da1"
+              "content": "e8dca71ec86dce5f04e333f0d56cdedf942446e6643b9cea1af0d6d3a02cb03e"
             }
           ],
           "type": "distribution",
@@ -3702,9 +3738,9 @@
         }
       ],
       "name": "uvicorn",
-      "purl": "pkg:pypi/uvicorn@0.52.4",
+      "purl": "pkg:pypi/uvicorn@0.53.0",
       "type": "library",
-      "version": "0.52.4"
+      "version": "0.53.0"
     },
     {
       "bom-ref": "requirements-L849",
@@ -5009,7 +5045,7 @@
       ],
       "name": "netops-helper",
       "type": "application",
-      "version": "0.3.3"
+      "version": "0.3.4"
     },
     "properties": [
       {
@@ -5066,7 +5102,7 @@
           ],
           "name": "cyclonedx-py",
           "type": "application",
-          "version": "7.3.1"
+          "version": "7.4.0"
         },
         {
           "description": "Python library for CycloneDX",

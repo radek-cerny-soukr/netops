@@ -101,9 +101,9 @@ No additional command in this review is approved merely because it appears in ve
 - model-portable optics and environmental sensor detail beyond the accepted NIC, disk, and memory queries;
 - scoped ARP, IPv6-neighbor, and bridge/FDB variants whose interface, VDOM, or software-switch semantics differ across releases;
 - any command that requires an output modifier, interactive paging response, or feature-specific prompt;
-- the FortiSwitch-controller family `diagnose switch-controller switch-info ...`, which needs a managed-switch inventory type that Phase 1 does not have;
+- FortiSwitch-controller operations beyond the five exact, enrolled `managed_switches` templates documented below;
 - a DHCP lease view: the `execute` branch is excluded and no `diagnose` chapter of the 8.0.0 reference prints leases without also printing server configuration;
-- certificate expiry: the reference documents only TPM hardware certificates and the revocation blocklist, neither of which answers the question.
+- certificate operations beyond the enrolled `certificate_details` metadata query below, including all private-key export.
 
 These are research candidates, not callable query names. The accepted table must not be expanded from this section without a separate source and live-test review.
 
@@ -140,3 +140,29 @@ Only first-party Fortinet pages are retained. General CLI references establish t
 | F-CONFIG-SYSTEM-INTERFACE-80 | FortiOS 8.0.0 CLI Reference: `config system interface` | documentation-only interface-name grammar evidence for `interface_details` and `interface_hardware`; the configuration command is not callable | https://docs.fortinet.com/document/fortigate/8.0.0/cli-reference/317104469/config-system-interface |
 | F-TEXT-STRINGS-80 | FortiOS 8.0.0 Administration Guide: Text strings | interface-name character constraints for `interface_details` and `interface_hardware` | https://docs.fortinet.com/document/fortigate/8.0.0/administration-guide/651640/text-strings |
 | F-INTERFACE-SETTINGS-80 | FortiOS 8.0.0 Administration Guide: Interface settings | interface types and naming context for `interface_details` and `interface_hardware` | https://docs.fortinet.com/document/fortigate/8.0.0/administration-guide/574723/interface-settings |
+
+## Scoped diagnostic queries
+
+These opt-in templates are included in Helper 0.3.4. The 20-21 September 2026 results below are direct CLI observations, not end-to-end MCP tests of these additions. Enrollment never derives automatically from device output. The existing dated measurements earlier on this page cover the earlier catalogue only.
+
+| Query | Source | Live result |
+|---|---|---|
+| `certificate_details` | [F-CERT-LOCAL](https://docs.fortinet.com/document/fortigate/latest/administration-guide/822087/automatically-provision-a-certificate) | FortiOS 8.0.0 read-only account returned public certificate details including expiry. |
+| `managed_switch_status` | [F-CHEAT-80](https://docs.fortinet.com/document/fortigate/8.0.0/cli-troubleshooting-cheat-sheet/420966/cli-troubleshooting-cheat-sheet) | FortiOS 8.0.1 controller returned data for an enrolled managed switch. The controller test used an administrator account; restricted-profile permissions require separate deployment validation. |
+| `managed_switch_poe` | [F-CHEAT-80](https://docs.fortinet.com/document/fortigate/8.0.0/cli-troubleshooting-cheat-sheet/420966/cli-troubleshooting-cheat-sheet) | FortiOS 8.0.1 controller returned data for an enrolled managed switch. The controller test used an administrator account; restricted-profile permissions require separate deployment validation. |
+| `managed_switch_mac` | [F-CHEAT-80](https://docs.fortinet.com/document/fortigate/8.0.0/cli-troubleshooting-cheat-sheet/420966/cli-troubleshooting-cheat-sheet) | FortiOS 8.0.1 controller returned data for an enrolled managed switch. The controller test used an administrator account; restricted-profile permissions require separate deployment validation. |
+| `managed_switch_stacking` | [F-CHEAT-80](https://docs.fortinet.com/document/fortigate/8.0.0/cli-troubleshooting-cheat-sheet/420966/cli-troubleshooting-cheat-sheet) | FortiOS 8.0.1 returned -7622 because the tested model is not a stacking switch. A positive test requires stacking-capable hardware; this feature refusal is reported as a failed CLI read. |
+| `managed_switch_lldp` | [F-CHEAT-80](https://docs.fortinet.com/document/fortigate/8.0.0/cli-troubleshooting-cheat-sheet/420966/cli-troubleshooting-cheat-sheet) | FortiOS 8.0.1 controller returned data for an enrolled managed switch. The controller test used an administrator account; restricted-profile permissions require separate deployment validation. |
+
+### Exact query templates
+
+Acceptance here describes the code whitelist only. The live-result limitations above still apply.
+
+| Query name | Exact command template | Inventory slot | Volume | Primary references |
+| --- | --- | --- | --- | --- |
+| `certificate_details` | `get vpn certificate local details {certificate}` | `certificates.certificate_name` | normal | F-CERT-LOCAL |
+| `managed_switch_status` | `diagnose switch-controller switch-info status {managed_switch}` | `managed_switches.managed_switch_serial` | normal | F-CHEAT-80 |
+| `managed_switch_poe` | `diagnose switch-controller switch-info poe summary {managed_switch}` | `managed_switches.managed_switch_serial` | normal | F-CHEAT-80 |
+| `managed_switch_mac` | `diagnose switch-controller switch-info mac-table {managed_switch}` | `managed_switches.managed_switch_serial` | high-volume | F-CHEAT-80 |
+| `managed_switch_stacking` | `diagnose switch-controller switch-info stacking status {managed_switch}` | `managed_switches.managed_switch_serial` | normal | F-CHEAT-80 |
+| `managed_switch_lldp` | `diagnose switch-controller switch-info lldp neighbors-summary {managed_switch}` | `managed_switches.managed_switch_serial` | high-volume | F-CHEAT-80 |

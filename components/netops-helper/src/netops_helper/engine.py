@@ -14,6 +14,7 @@ import json
 import math
 import os
 from pathlib import Path, PurePosixPath
+import re
 import secrets
 import socket
 import threading
@@ -382,6 +383,23 @@ def read_from_device(
     return _exec_read(auth, normalized, command)
 
 
+_CLI_REFUSALS = {
+    "fortinet": re.compile(
+        r"(?mi)^[ \t]*(?:Command fail\.(?:[ \t]+Return code[ \t]+-?[0-9]+)?"
+        r"|command parse error before[^\r\n]*|Unknown action[ \t]+[0-9]+)[ \t]*\r?$"
+    ),
+    "extreme_exos": re.compile(
+        r"(?mi)^[ \t]*(?:This user does not have permissions for this command\."
+        r"|%%[ \t]+(?:Invalid input detected|Unrecognized command|Incomplete command|Ambiguous command)[^\r\n]*)[ \t]*\r?$"
+    ),
+}
+
+
+def _cli_refused(platform: str, output: str) -> bool:
+    pattern = _CLI_REFUSALS.get(platform)
+    return pattern is not None and pattern.search(output) is not None
+
+
 def _safe_error(exc: Exception, auth: TargetAuth) -> str:
     return redact(f"{type(exc).__name__}: {exc}", auth.secrets)
 
@@ -628,6 +646,16 @@ def ssh_read(
                 "query": query, "transport": transport, "rc": rc,
                 "error": "SSH output exceeds the 2000000-byte safety cap",
             }
+    if _cli_refused(normalized, cleaned):
+        with _SSH_CACHE_LOCK:
+            _SSH_PAGE_CACHE.pop(cache_key, None)
+        return {
+            "ok": False, "target": auth.alias, "platform": normalized,
+            "query": query, "transport": transport, "rc": rc,
+            "error_code": "device_cli_error",
+            "error": "The device CLI refused the command; check its supported features and account permissions",
+            "untrusted_device_output": _page_text(cleaned, 0, max_bytes)["untrusted_device_output"],
+        }
     page = _page_text(cleaned, offset, max_bytes)
     if page["next_offset"] is not None:
         if offset == 0:
@@ -923,6 +951,92 @@ def _install_ftp_passive_guard(
     client.makepasv = guarded_makepasv  # type: ignore[method-assign]
 
 
+_FTP_LIST_MAX_BYTES = 2_000_000
+_FTP_LIST_MAX_NAMES = 500
+_FTP_TOTAL_TIMEOUT_SECONDS = 30.0
+
+
+class _FTPBudget:
+    def __init__(self, client):
+        self.client = client
+        self.data = None
+        self.deadline = time.monotonic() + _FTP_TOTAL_TIMEOUT_SECONDS
+        self.expired = False
+        self.timer = threading.Timer(_FTP_TOTAL_TIMEOUT_SECONDS, self._expire)
+        self.timer.daemon = True
+        self.timer.start()
+
+    def _expire(self):
+        self.expired = True
+        for peer in (getattr(self.client, "sock", None), self.data):
+            if peer is not None:
+                try:
+                    peer.shutdown(socket.SHUT_RDWR)
+                except (OSError, AttributeError):
+                    pass
+
+    def remaining(self):
+        left = self.deadline - time.monotonic()
+        if self.expired or left <= 0:
+            raise TimeoutError("FTP operation exceeded its total time budget")
+        self.client.timeout = left
+        for peer in (getattr(self.client, "sock", None), self.data):
+            if peer is not None:
+                peer.settimeout(left)
+        return left
+
+    def call(self, function, *args):
+        self.remaining()
+        answer = function(*args)
+        self.remaining()
+        return answer
+
+    def close(self):
+        self.timer.cancel()
+        self.timer.join()
+
+
+def _bounded_ftp_names(client, remote_path, budget):
+    budget.call(client.voidcmd, "TYPE A")
+    budget.remaining()
+    peer = client.transfercmd("NLST " + remote_path)
+    budget.data = peer
+    names, pending, received = [], bytearray(), 0
+    try:
+        while True:
+            budget.remaining()
+            chunk = peer.recv(min(65536, _FTP_LIST_MAX_BYTES - received + 1))
+            budget.remaining()
+            if not chunk:
+                if pending:
+                    if len(names) == _FTP_LIST_MAX_NAMES:
+                        return names, True
+                    names.append(bytes(pending).removesuffix(b"\r").decode(client.encoding))
+                break
+            received += len(chunk)
+            if received > _FTP_LIST_MAX_BYTES:
+                raise ValueError("FTP listing exceeds the receive byte budget")
+            pending.extend(chunk)
+            while b"\n" in pending:
+                line, _, rest = pending.partition(b"\n")
+                pending = bytearray(rest)
+                if len(names) == _FTP_LIST_MAX_NAMES:
+                    return names, True
+                names.append(bytes(line).removesuffix(b"\r").decode(client.encoding))
+        if isinstance(peer, ssl.SSLSocket):
+            budget.remaining()
+            plain_peer = peer.unwrap()
+            try:
+                budget.remaining()
+            finally:
+                plain_peer.close()
+    finally:
+        peer.close()
+        budget.data = None
+    budget.call(client.voidresp)
+    return names, False
+
+
 @_audit_device_call
 def ftp_list(
     auth: TargetAuth,
@@ -953,13 +1067,14 @@ def ftp_list(
         security_warning = PLAIN_FTP_WARNING
         client = ftplib.FTP(timeout=30)
     _install_ftp_passive_guard(client, auth, control_address)
+    budget = _FTPBudget(client)
     stage = "connect"
     try:
-        client.connect(control_address, port)
+        budget.call(client.connect, control_address, port)
         if isinstance(client, ftplib.FTP_TLS):
             client.host = auth.host
             stage = "tls_handshake"
-            client.auth()
+            budget.call(client.auth)
             if pin_digest is not None:
                 stage = "certificate_pin"
                 peer = client.sock.getpeercert(binary_form=True)
@@ -967,16 +1082,19 @@ def ftp_list(
                 if not peer or not hmac.compare_digest(actual, pin_digest):
                     raise ssl.SSLCertVerificationError("pinned FTPS certificate mismatch")
             stage = "login_over_tls"
-            client.login(auth.login, auth.secret)
+            budget.call(client.login, auth.login, auth.secret)
             stage = "protect_data_channel"
-            client.prot_p()
+            budget.call(client.prot_p)
         else:
             stage = "plain_login"
-            client.login(auth.login, auth.secret)
+            budget.call(client.login, auth.login, auth.secret)
         stage = "directory_list"
-        names = client.nlst(remote_path)
+        names, truncated = _bounded_ftp_names(client, remote_path, budget)
         stage = "quit"
-        client.quit()
+        if truncated:
+            client.close()
+        else:
+            budget.call(client.quit)
     except EgressScopeError:
         try:
             client.close()
@@ -1000,12 +1118,14 @@ def ftp_list(
             "error_type": type(exc).__name__,
             "error": _safe_error(exc, auth),
         }
+    finally:
+        budget.close()
     return {
         "ok": True, "target": auth.alias, "tls": use_tls,
         "transport_encrypted": use_tls,
         "plaintext_acknowledged": not use_tls and acknowledge_unencrypted,
         "security_warning": security_warning,
         "certificate_pinned": pin_digest is not None,
-        "entries": [redact(PurePosixPath(name).name, auth.secrets) for name in names[:500]],
-        "truncated": len(names) > 500,
+        "entries": [redact(PurePosixPath(name).name, auth.secrets) for name in names],
+        "truncated": truncated,
     }

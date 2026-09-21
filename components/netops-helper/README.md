@@ -1,6 +1,6 @@
 # NetOps Helper
 
-The current release is `netops-helper/v0.3.3` (2026-09-20), which pins `netops-core==0.2.2` and vendors `src/netops_core` inside its own release archive.
+The current release is `netops-helper/v0.3.4` (2026-09-21), which pins `netops-core==0.2.3` and vendors `src/netops_core` inside its own release archive.
 
 NetOps Helper phase 1 is a security-focused, read-only MCP server for bounded network troubleshooting. It gives any compatible MCP client explicitly enrolled diagnostic visibility without exposing a configuration path. It is intentionally not a general CLI, configuration reader, log browser, or network-discovery service.
 
@@ -36,7 +36,8 @@ The remote FastMCP server registers exactly 10 tools: two control-plane tools an
 - DNS, TCP, ICMP, and certificate-verifying TLS diagnostics.
 - Named SSH troubleshooting queries for FortiOS, Extreme Switch Engine, Cisco IOS, IOS-XE and NX-OS, Arista EOS, Junos, Linux, and Ruckus Unleashed.
 - Opt-in ARP/neighbor, MAC/FDB, and LLDP/CDP queries where a reviewed platform command exists.
-- Typed parameters selected from per-device interface, service, address, and switch inventories.
+- Typed parameters selected from per-device interface, service, address, software-switch, VLAN, managed-switch and certificate inventories.
+- Opt-in VLAN detail, DHCP snooping, certificate metadata and managed-switch status, PoE, MAC, stacking and LLDP through the FortiGate controller; see [measured limits](docs/configuration.md#scoped-diagnostic-queries).
 - SNMPv2c GET with a dedicated community record that is never the device secret.
 - SFTP metadata under per-device non-root paths; no remote file body download.
 - FTPS directory listing and explicitly acknowledged read-only plain FTP listing.
@@ -71,6 +72,7 @@ A future Phase 2 may consider configuration or other body reads only under a sep
 - Injected credentials and recognized secret forms are redacted on a best-effort basis; policy and remote permissions must keep secret-bearing data out of scope.
 - Every device response is marked as untrusted data and must run in a dedicated read-only agent/session.
 - Proxy and transport failures are reported by a fixed classified category (for example `ssh_host_key`, `auth_material`, `rate_limit`) and a fixed public message, never the device's or the SSH client's own words; raw stderr is sanitized before use and never relayed.
+- Recognized FortiOS and EXOS CLI refusals return `ok: false` with `device_cli_error`, even when SSH returns zero; valid EXOS output with status 250 remains available. See [SSH results](docs/tools.md#pagination-and-snapshots).
 - Mandatory audit writes a durable `started` record before a device operation and a terminal record afterward; interrupted attempts can remain visibly incomplete.
 - Audit JSONL contains allowlisted metadata only and rotates into five 2 MB segments.
 
@@ -138,7 +140,7 @@ The Compose network has `internal: false` so diagnostics can reach targets. Bund
 
 ## Development
 
-Use Python 3.13, install the locked dependencies and pytest in a maintained development environment, then run:
+Use Python 3.14.7 to match the shipped container and Helper CI, install the locked dependencies and pytest in a maintained development environment, then run:
 
 ```bash
 python -m pytest -q

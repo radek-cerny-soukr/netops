@@ -263,7 +263,7 @@ def _normalize_egress(value: object) -> EgressPolicy:
 
 def _normalize_inventory(value: object) -> dict[str, tuple[str, ...]]:
     if not isinstance(value, dict) or any(
-        key not in {"interfaces", "services", "addresses", "switches"}
+        key not in {"interfaces", "services", "addresses", "switches", "vlans", "managed_switches", "certificates"}
         or not isinstance(values, list)
         or not all(isinstance(item, str) for item in values)
         for key, values in value.items()

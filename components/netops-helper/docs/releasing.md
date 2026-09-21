@@ -1,6 +1,6 @@
 # Release process
 
-Release tags follow the component scheme `<project.name>/v<version>`, where `project.name` is the `[project]` `name` from the component's `pyproject.toml`: this component tags `netops-helper/v0.3.3`, and any further component released from this repository uses the same scheme under its own name. The release title is `<project.name> <version>`, for example `netops-helper 0.3.3`. A tag is deleted together with its release page when a newer version of the same component is published, so this repository carries exactly one tag and one release page per component. The repository was renamed from `netops-helper` to `netops` on 2026-09-11; the old URLs redirect, and the canonical origin is `https://github.com/radek-cerny-soukr/netops`.
+Release tags follow the component scheme `<project.name>/v<version>`, where `project.name` is the `[project]` `name` from the component's `pyproject.toml`: this component tags `netops-helper/v0.3.4`, and any further component released from this repository uses the same scheme under its own name. The release title is `<project.name> <version>`, for example `netops-helper 0.3.4`. A tag is deleted together with its release page when a newer version of the same component is published, so this repository carries exactly one tag and one release page per component. The repository was renamed from `netops-helper` to `netops` on 2026-09-11; the old URLs redirect, and the canonical origin is `https://github.com/radek-cerny-soukr/netops`.
 
 This component lives in the `netops` monorepo under `components/netops-helper/`. Every command below runs in that directory; the repository as a whole has its own gate, `scripts/check_release.py` at the repository root, which verifies that no tracked file falls outside a component release and then runs the gate of every component. Run it before freezing a release, from the repository root.
 
@@ -13,7 +13,7 @@ Never publish surrounding private project context, environment-specific certific
 The current published release is linked from the [repository release table](https://github.com/radek-cerny-soukr/netops/blob/main/README.md#releases). The procedure below describes a **new** release: `<version>` means the newly reviewed version from this component's `pyproject.toml`, not an instruction to recreate the current tag. Confirm that its tag and release do not already exist. Published tags and assets must not be moved or overwritten.
 
 1. Review every source change and freeze the release metadata, including the actual release date. Ensure the new version agrees in `pyproject.toml`, `src/netops_helper/__init__.py`, release tooling, Compose image label, SBOM metadata, and changelog. Any later source, release-date, test, ignore-rule, or release-tool change requires a new commit and a complete repeat of the remaining procedure.
-2. Decide whether dependency inputs changed. For an application-code/version-only release, keep both Python 3.13 hash lockfiles byte-identical. If `requirements.txt`, `requirements-release.in`, a dependency, index policy, Python baseline, or lock generator changes, first pin and record the exact reviewed generator environment, then regenerate both locks and review the complete dependency/license diff. The current lock headers identify `pip-compile` and Python 3.13 but do not encode a `pip-tools` version, so do not claim a reproducible regeneration until that tool version is explicitly pinned.
+2. Decide whether dependency inputs changed. For an application-code/version-only release, keep both hash lockfiles byte-identical. If `requirements.txt`, `requirements-release.in`, a dependency, index policy, Python baseline, or lock generator changes, first pin and record the exact reviewed generator environment, then regenerate both locks and review the complete dependency/license diff. The current Helper lock headers record `pip-tools==7.6.1` and Python 3.14.7. The complete reviewed generator environment is recorded below.
 3. Run the portable dependency-free contracts, regenerate the committed CycloneDX dependency SBOM, require a byte-clean SBOM result, run the public release gate, and inspect an allowlisted source export:
 
    ```bash
@@ -90,3 +90,24 @@ This was considered and rejected as a defect to fix. Freezing the distribution l
 ## Replacing the previous public release
 
 After the new release is published and independently verified, remove only this component's previous release page, its assets and its tag under explicit authorization for those exact deletions. Preserve any required rollback artifacts locally first. Other components' releases and tags remain untouched. Recheck the public release and tag lists, update the current-version links in the repository documentation, and check every release, tag and download URL against those lists. Do not link to a superseded tag: use a commit permalink for historical source.
+
+## Lock generator environment
+
+The 2026-09-20 dependency update used Python 3.13.15 and the following hash-pinned generator wheels. Install these exact wheels with `pip install --require-hashes` before invoking the command recorded in each lock header. Package indexes can change; the committed application lockfiles are the authoritative dependency selection.
+
+```text
+build==1.6.1 --hash=sha256:ecd351a4be9d35a9eaaba244a7687143c9c7d4aea6ac964e7e7ddab20cbcf4e7
+click==8.5.0 --hash=sha256:255bc9599cf7748b4b1a446ccc735421bd08a2ae529a8b88597d3de5664ee360
+packaging==26.3 --hash=sha256:d7193f7c8e4e93f444fde0262bf90af30e16fa0ad0ad44cb553c87339b23cd1c
+pip==26.2.1 --hash=sha256:71138adf1f4ca900cdb7d289c21b7494329f2332b6d85f0e1c42108c0384ed3e
+pip-tools==7.6.1 --hash=sha256:6111c8b4b07fd14b7223ca921485b0e96cf66e20bf94da95eeed9845f510cb8f
+pyproject_hooks==1.3.3 --hash=sha256:5fc53fdac9f7bd63fbcdc868fb5f90b4784d78a53a3d3388cd738b807441a20b
+setuptools==84.0.0 --hash=sha256:51a52592b3b99e102b609654876bd65f19f999935166d1352678931132b0c670
+wheel==0.48.0 --hash=sha256:3217dcc807155e45db462d7ef2431f5ddda0d7273b700d05a67b271ceb1287ab
+```
+
+The image build refreshes Debian package indexes and upgrades installed distribution packages before installing `openssh-client`. The base image digest and Python patch release remain pinned; the resulting OS package versions are captured by the image SBOM and scan. This preserves the documented limit that the OS layer is not bit-for-bit reproducible across repository updates.
+
+## Runtime update on 2026-09-21
+
+The Helper image and its CI job use Python 3.14.7. Both Helper lockfiles were regenerated with the same hash-pinned generator wheels listed above under Python 3.14.7, without upgrading package versions. Core and Auditor retain their Python 3.13 minimum. The runtime TAR regression must fail on the vulnerable 3.13.15 image and pass on the shipped image; it also checks valid file and hard-link extraction. Run `python tests/test_runtime_tar_safety.py` with the image interpreter.

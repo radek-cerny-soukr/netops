@@ -473,6 +473,12 @@
       "baseline": "FortiOS 7.6.x and 8.0.0",
       "url": "https://docs.fortinet.com/document/fortigate/8.0.0/cli-reference/143172288/diagnose-netlink-brctl"
     },
+    "F-CERT-LOCAL": {
+      "vendor": "Fortinet",
+      "title": "FortiOS local certificate validity details",
+      "baseline": "Latest administration guide; read-only command measured on FortiOS 8.0.0",
+      "url": "https://docs.fortinet.com/document/fortigate/latest/administration-guide/822087/automatically-provision-a-certificate"
+    },
     "F-CHEAT-76": {
       "vendor": "Fortinet",
       "title": "FortiOS 7.6.0 CLI troubleshooting cheat sheet",
@@ -1905,6 +1911,14 @@
         "E-CPU"
       ]
     },
+    "extreme_exos/dhcp_snooping_entries": {
+      "profile": "extreme_exos",
+      "query": "dhcp_snooping_entries",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "E-INDEX"
+      ]
+    },
     "extreme_exos/diagnostics": {
       "profile": "extreme_exos",
       "query": "diagnostics",
@@ -2233,6 +2247,14 @@
         "E-VERSION"
       ]
     },
+    "extreme_exos/vlan_details": {
+      "profile": "extreme_exos",
+      "query": "vlan_details",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "E-VLAN"
+      ]
+    },
     "extreme_exos/vlan_summary": {
       "profile": "extreme_exos",
       "query": "vlan_summary",
@@ -2304,6 +2326,14 @@
       "source_ids": [
         "F-BRCTL-80",
         "F-CLI-76"
+      ]
+    },
+    "fortinet/certificate_details": {
+      "profile": "fortinet",
+      "query": "certificate_details",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "F-CERT-LOCAL"
       ]
     },
     "fortinet/disk_status": {
@@ -2495,6 +2525,46 @@
       "source_ids": [
         "F-LLDP-80",
         "F-CLI-76"
+      ]
+    },
+    "fortinet/managed_switch_lldp": {
+      "profile": "fortinet",
+      "query": "managed_switch_lldp",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "F-CHEAT-80"
+      ]
+    },
+    "fortinet/managed_switch_mac": {
+      "profile": "fortinet",
+      "query": "managed_switch_mac",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "F-CHEAT-80"
+      ]
+    },
+    "fortinet/managed_switch_poe": {
+      "profile": "fortinet",
+      "query": "managed_switch_poe",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "F-CHEAT-80"
+      ]
+    },
+    "fortinet/managed_switch_stacking": {
+      "profile": "fortinet",
+      "query": "managed_switch_stacking",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "F-CHEAT-80"
+      ]
+    },
+    "fortinet/managed_switch_status": {
+      "profile": "fortinet",
+      "query": "managed_switch_status",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "F-CHEAT-80"
       ]
     },
     "fortinet/ntp_status": {

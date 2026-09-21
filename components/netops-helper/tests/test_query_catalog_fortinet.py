@@ -14,6 +14,13 @@ from netops_helper.read_policy import _validate_query_command, render_read_query
 # retained history, and variable protocol peer, session, and tunnel lists can
 # need continuation. Aggregate status and inventory-bound detail stay False.
 EXPECTED = {
+    "certificate_details": ("get vpn certificate local details {certificate}", (("certificate", "certificates", "certificate_name"),), False),
+    'managed_switch_status': ('diagnose switch-controller switch-info status {managed_switch}', (('managed_switch', 'managed_switches', 'managed_switch_serial'),), False),
+    'managed_switch_poe': ('diagnose switch-controller switch-info poe summary {managed_switch}', (('managed_switch', 'managed_switches', 'managed_switch_serial'),), False),
+    'managed_switch_mac': ('diagnose switch-controller switch-info mac-table {managed_switch}', (('managed_switch', 'managed_switches', 'managed_switch_serial'),), True),
+    'managed_switch_stacking': ('diagnose switch-controller switch-info stacking status {managed_switch}', (('managed_switch', 'managed_switches', 'managed_switch_serial'),), False),
+    'managed_switch_lldp': ('diagnose switch-controller switch-info lldp neighbors-summary {managed_switch}', (('managed_switch', 'managed_switches', 'managed_switch_serial'),), True),
+
     "system_status": ("get system status", (), False),
     "performance": ("get system performance status", (), False),
     "ha_status": ("get system ha status", (), False),

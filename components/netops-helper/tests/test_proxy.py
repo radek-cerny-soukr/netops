@@ -665,3 +665,28 @@ def test_the_private_identity_file_is_written_0600_and_is_the_only_copy(
         assert not any("-----BEGIN" in item for item in command)
     finally:
         MODULE.shutil.rmtree(directory, ignore_errors=True)
+
+
+
+def test_target_vault_materializes_only_its_enrolled_credentials(tmp_path, monkeypatch):
+    _paths(tmp_path, monkeypatch)
+    created = []
+    original = MODULE.core_vault._credential
+
+    def observe(path, name, entry):
+        created.append(name)
+        return original(path, name, entry)
+
+    monkeypatch.setattr(MODULE.core_vault, "_credential", observe)
+    proxy = MODULE.Proxy()
+    entry, section, selected = proxy._target("device-a")
+    assert selected.names() == ("device-a-account", "device-a-community")
+    assert set(created) == set(selected.names())
+    with pytest.raises(MODULE.AuthenticationMaterialError):
+        proxy._credential(selected, "runner-account")
+    transformed = proxy.request(_tool_call(991, "snmp_get", {"target": "device-a", "oids": ["1.3.6.1.2.1.1.3.0"]}))
+    context = _decode_context(transformed)
+    assert context["secret"] == "selected-secret"
+    assert context["snmp_community"] == "separate-community"
+    assert "runner-secret" not in json.dumps(context)
+    assert "runner-secret" not in repr(proxy.response_secrets)

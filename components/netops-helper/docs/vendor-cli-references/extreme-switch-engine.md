@@ -123,9 +123,9 @@ Measured refusals from the same session, recorded as facts rather than candidate
 
 No command in this section is callable. It records useful gaps that need exact 33.7.1 syntax review plus live read-only AAA and wire testing before a future whitelist change.
 
-- A scoped VLAN query is deferred. The vendor syntax accepts VLAN names, tags, and list-like forms; Phase 1 currently has no canonical `vlans` inventory type. Only the global `vlan_summary` is accepted.
+- VLAN tags, lists and broad selectors remain excluded. The separately documented `vlan_details` addition accepts only an enrolled VLAN name.
 - The stack summaries `show stacking` and `show stacking-support` are accepted since they were measured; the rest of the stack, fabric, and chassis detail stays deferred because command availability and output differ by model and deployment mode, and `show stacking configuration` does not exist on 33.7.1.
-- A scoped DHCP-snooping binding query is deferred: the documented form needs a VLAN name and Phase 1 has no VLAN inventory type.
+- Broader DHCP-snooping queries remain excluded; `dhcp_snooping_entries` below is limited to one enrolled VLAN name.
 - Additional dynamic-routing detail is deferred until each protocol command has a bounded summary form, feature/license constraints, and read-only behavior verified on supported hardware.
 - Any command that enters a refresh loop, prompts interactively, or requires a session-wide display setting remains deferred even if its visible output is operational.
 
@@ -163,7 +163,25 @@ All links are first-party Extreme Networks Switch Engine command-reference pages
 | E-ND6 | Switch Engine v33.7.1 Command References: `show neighbor-discovery cache ipv6` | `ipv6_neighbors`, `ipv6_neighbor_address` | https://documentation.extremenetworks.com/Switch%20Engine%20v33.7.1%20Command%20References/content/documents/Switch_Operating_Systems/Switch_Engine/Command_References/show_neighbor_discovery_cache_ipv6.shtml |
 | E-FDB | Switch Engine v33.7.1 Command References: `show fdb` | `mac_table`, `mac_interface` | https://documentation.extremenetworks.com/Switch%20Engine%20v33.7.1%20Command%20References/content/documents/Switch_Operating_Systems/Switch_Engine/Command_References/show_fdb.shtml |
 | E-LLDP | Switch Engine v33.7.1 Command References: `show lldp neighbors` | `lldp_neighbors`, `lldp_interface`, `lldp_interface_details` | https://documentation.extremenetworks.com/Switch%20Engine%20v33.7.1%20Command%20References/content/documents/Switch_Operating_Systems/Switch_Engine/Command_References/show_lldp_neighbors.shtml |
-| E-VLAN | Switch Engine v33.7.1 Command References: `show vlan` | `vlan_summary`; future scoped VLAN candidate remains deferred | https://documentation.extremenetworks.com/Switch%20Engine%20v33.7.1%20Command%20References/content/documents/Switch_Operating_Systems/Switch_Engine/Command_References/show_vlan.shtml |
+| E-VLAN | Switch Engine v33.7.1 Command References: `show vlan` | `vlan_summary`, `vlan_details` | https://documentation.extremenetworks.com/Switch%20Engine%20v33.7.1%20Command%20References/content/documents/Switch_Operating_Systems/Switch_Engine/Command_References/show_vlan.shtml |
 | E-SHARING | Switch Engine v33.7.1 Command References: `show sharing` | `sharing` | https://documentation.extremenetworks.com/Switch%20Engine%20v33.7.1%20Command%20References/content/documents/Switch_Operating_Systems/Switch_Engine/Command_References/show_sharing.shtml |
 | E-LACP | Switch Engine v33.7.1 Command References: `show lacp` | `lacp` | https://documentation.extremenetworks.com/Switch%20Engine%20v33.7.1%20Command%20References/content/documents/Switch_Operating_Systems/Switch_Engine/Command_References/show_lacp.shtml |
 | E-STPD | Switch Engine v33.7.1 command set, Common EXOS/Switch Engine reference: `show stpd` | `stp_summary`, `stp_detail` | https://documentation.extremenetworks.com/Switch%20Engine%20v33.7.1%20Command%20References/content/documents/Switch_Operating_Systems/Common_EXOS_Switch_Engine/33.4.1/show_stpd.shtml |
+
+## Scoped diagnostic queries
+
+These opt-in templates are included in Helper 0.3.4. The 20-21 September 2026 results below are direct CLI observations, not end-to-end MCP tests of these additions. Enrollment never derives automatically from device output. The existing dated measurements earlier on this page cover the earlier catalogue only.
+
+| Query | Source | Live result |
+|---|---|---|
+| `vlan_details` | [E-VLAN](https://documentation.extremenetworks.com/Switch%20Engine%20v33.7.1%20Command%20References/content/documents/Switch_Operating_Systems/Switch_Engine/Command_References/show_vlan.shtml) | Switch Engine 33.7.1 returned complete details with status 250 on three VLANs; interactive comparison confirmed the output. The existing exec contract preserves this status. |
+| `dhcp_snooping_entries` | [E-INDEX](https://documentation.extremenetworks.com/Switch%20Engine%20v33.7.1%20Command%20References/content/documents/Switch_Operating_Systems/Switch_Engine/Command_References/) | Switch Engine 33.7.1 returned a binding table with exit status 0. |
+
+### Exact query templates
+
+Acceptance here describes the code whitelist only. The live-result limitations above still apply.
+
+| Query name | Exact command template | Inventory slot | Volume | Primary references |
+| --- | --- | --- | --- | --- |
+| `vlan_details` | `show vlan {vlan}` | `vlans.vlan_name` | high-volume | E-VLAN |
+| `dhcp_snooping_entries` | `show ip-security dhcp-snooping entries vlan {vlan}` | `vlans.vlan_name` | high-volume | E-INDEX |

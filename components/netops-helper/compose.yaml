@@ -6,7 +6,7 @@ services:
       args:
         COMPONENT_DIR: components/netops-helper
         CORE_PACKAGE_DIR: components/netops-core/src/netops_core
-    image: local/netops-helper:0.3.3
+    image: local/netops-helper:0.3.4
     container_name: netops-helper
     restart: unless-stopped
     read_only: true

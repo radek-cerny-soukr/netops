@@ -96,6 +96,12 @@ READ_QUERY_NAMES = {
         "uptime",
     )),
     "fortinet": frozenset((
+        "certificate_details",
+        "managed_switch_status",
+        "managed_switch_poe",
+        "managed_switch_mac",
+        "managed_switch_stacking",
+        "managed_switch_lldp",
         "arp_table",
         "autoupdate_status",
         "autoupdate_versions",
@@ -138,6 +144,8 @@ READ_QUERY_NAMES = {
         "system_top",
     )),
     "extreme_exos": frozenset((
+        "vlan_details",
+        "dhcp_snooping_entries",
         "access_list_counters",
         "arp_address",
         "arp_interface",
@@ -405,6 +413,12 @@ READ_QUERY_SLOTS = {
         },
     },
     "fortinet": {
+        "certificate_details": {"certificate": {"inventory": "certificates", "kind": "certificate_name"}},
+        "managed_switch_status": {"managed_switch": {"inventory": "managed_switches", "kind": "managed_switch_serial"}},
+        "managed_switch_poe": {"managed_switch": {"inventory": "managed_switches", "kind": "managed_switch_serial"}},
+        "managed_switch_mac": {"managed_switch": {"inventory": "managed_switches", "kind": "managed_switch_serial"}},
+        "managed_switch_stacking": {"managed_switch": {"inventory": "managed_switches", "kind": "managed_switch_serial"}},
+        "managed_switch_lldp": {"managed_switch": {"inventory": "managed_switches", "kind": "managed_switch_serial"}},
         "bridge_mac_table": {
             "switch": {
                 "inventory": "switches",
@@ -431,6 +445,8 @@ READ_QUERY_SLOTS = {
         },
     },
     "extreme_exos": {
+        "vlan_details": {"vlan": {"inventory": "vlans", "kind": "vlan_name"}},
+        "dhcp_snooping_entries": {"vlan": {"inventory": "vlans", "kind": "vlan_name"}},
         "arp_address": {
             "address": {
                 "inventory": "addresses",
@@ -1063,6 +1079,9 @@ _VENDOR_INTERFACE_CANONICALIZERS = {
 }
 
 SLOT_KIND_PATTERNS = {
+    "vlan_name": re.compile(r"[A-Za-z][A-Za-z0-9_-]{0,31}"),
+    "managed_switch_serial": re.compile(r"S[A-Z0-9]{11,15}"),
+    "certificate_name": re.compile(r"[A-Za-z][A-Za-z0-9_.-]{0,78}"),
     "interface": SAFE_INTERFACE_VALUE,
     "service": SAFE_SERVICE_VALUE,
     "switch": SAFE_SWITCH_VALUE,
@@ -1133,6 +1152,10 @@ def _valid_typed_inventory_value(value: object, kind: str) -> bool:
     canonicalizer = _VENDOR_INTERFACE_CANONICALIZERS.get(kind)
     if canonicalizer is not None:
         return canonicalizer(value) is not None
+    if kind == "vlan_name" and value.casefold() in {"all", "any", "none", "detail", "ipv4", "ipv6", "tag", "ports", "virtual-router", "statistics"}:
+        return False
+    if kind == "certificate_name" and value.casefold() in {"all", "any", "none", "detail", "details"}:
+        return False
     pattern = SLOT_KIND_PATTERNS.get(kind)
     return pattern is not None and pattern.fullmatch(value) is not None
 
@@ -1234,7 +1257,7 @@ class Proxy:
             and not any(ord(char) < 33 or ord(char) == 127 for char in value)
         )
 
-    def _vault(self) -> core_vault.Vault:
+    def _vault(self, names=None) -> core_vault.Vault:
         with self.vault_lock:
             try:
                 information = VAULT.lstat()
@@ -1254,7 +1277,7 @@ class Proxy:
             except OSError as exc:
                 raise AuthenticationMaterialError() from exc
             try:
-                return core_vault.load(VAULT)
+                return core_vault.load(VAULT, names=names)
             except core_vault.VaultError as exc:
                 raise VaultSchemaError() from exc
 
@@ -1326,7 +1349,7 @@ class Proxy:
         return entry
 
     @staticmethod
-    def _section(entry: Any, kinds: dict[str, str]) -> Any:
+    def _section(entry: Any, kinds: dict[str, str] | None) -> Any:
         try:
             return helper_inventory.section(entry, kinds)
         except helper_inventory.RoleError as exc:
@@ -1342,8 +1365,10 @@ class Proxy:
     def _target(self, alias: str) -> tuple[Any, Any, core_vault.Vault]:
         entries = self._load_inventory()
         policy = self._load_egress_policy()
-        vault = self._vault()
         entry = self._device(entries, alias)
+        section = self._section(entry, None)
+        names = (entry.credential,) + ((section.snmp_credential,) if section.snmp_credential else ())
+        vault = self._vault(names)
         section = self._section(entry, self._credential_kinds(vault))
         self._check_resolvers(section, policy)
         return entry, section, vault
@@ -2193,7 +2218,7 @@ def main() -> int:
         return 2
     try:
         runner = proxy._load_runner()
-        credential = proxy._credential(proxy._vault(), runner["credential"])
+        credential = proxy._credential(proxy._vault((runner["credential"],)), runner["credential"])
         if credential.kind not in helper_inventory.CREDENTIAL_KINDS:
             raise AuthenticationMaterialError()
     except ProxyError as exc:

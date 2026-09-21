@@ -4,9 +4,9 @@ Tools that give an AI agent the narrowest possible hands and usable eyes on netw
 
 | Component | What it does | Released |
 |---|---|---|
-| [`netops-helper`](components/netops-helper/) | Read-only MCP server for bounded network troubleshooting | [`netops-helper/v0.3.3`](https://github.com/radek-cerny-soukr/netops/releases/tag/netops-helper%2Fv0.3.3) (2026-09-20) |
-| [`netops-auditor`](components/netops-auditor/) | Configuration audit; collects the configuration from the device itself | [`netops-auditor/v0.2.3`](https://github.com/radek-cerny-soukr/netops/releases/tag/netops-auditor%2Fv0.2.3) (2026-09-20) |
-| [`netops-core`](components/netops-core/) | Shared access layer the other components build on: inventory, credential store, host key trust, SSH transport, audit records | [`netops-core/v0.2.2`](https://github.com/radek-cerny-soukr/netops/releases/tag/netops-core%2Fv0.2.2) (2026-09-20) |
+| [`netops-helper`](components/netops-helper/) | Read-only MCP server for bounded network troubleshooting | [`netops-helper/v0.3.4`](https://github.com/radek-cerny-soukr/netops/releases/tag/netops-helper%2Fv0.3.4) (2026-09-21) |
+| [`netops-auditor`](components/netops-auditor/) | Configuration audit; collects the configuration from the device itself | [`netops-auditor/v0.2.4`](https://github.com/radek-cerny-soukr/netops/releases/tag/netops-auditor%2Fv0.2.4) (2026-09-21) |
+| [`netops-core`](components/netops-core/) | Shared access layer the other components build on: inventory, credential store, host key trust, SSH transport, audit records | [`netops-core/v0.2.3`](https://github.com/radek-cerny-soukr/netops/releases/tag/netops-core%2Fv0.2.3) (2026-09-21) |
 
 `netops-admin` (device writes, refuses to start without the auditor) is designed but not built. It will appear under `components/` when it carries code; an empty directory guarantees nothing.
 
@@ -14,11 +14,11 @@ Tools that give an AI agent the narrowest possible hands and usable eyes on netw
 
 Every component has its own version, its own tag prefix `netops-<component>/vX.Y.Z`, and its own release page with its own assets.
 
-**This repository advertises exactly one version per component: one release page and one tag.** When a component is released, the release page and the tag of its previous version are deleted, so at any moment there are exactly three release pages and three tags here - one per component - and they are the ones listed in the table above.
+**This repository advertises exactly one version per component: one release page and one tag.** When a component is released, the release page and the tag of its previous version are deleted, after the replacement artifacts have been verified and the prior artifacts archived. A completed release cycle leaves three release pages and three tags - one per component, as listed above; old and new versions can coexist while publication and retirement are in progress.
 
 Source history remains reachable on `main` by commit. Superseded release pages, tags, tag signatures and downloadable assets are no longer available from GitHub. Checking out an old commit recovers its source, not its original image, SBOM, scan or artifact signature; preserve verified artifacts locally if rollback or historical verification is required. Changelog entries describe source history, not additional available releases.
 
-A component release archive is self-contained: it carries the component tree, its own `LICENSE`, and its own changelog. Self-contained does not mean identical in shape: the `netops-helper` archive additionally vendors `src/netops_core`, the `netops-auditor` archive pins `netops-core==0.2.2` and needs the core archive installed beside it - so does the `netops-helper` archive, whose vendored copy of `netops_core` is there for the image build and does not satisfy that pin for `pip`, and `netops-core` is a library archive with no image of its own. Repository-level files (this page, `SECURITY.md`, `CONTRIBUTING.md`, CI) live here and are not part of a component archive.
+A component release archive is self-contained: it carries the component tree, its own `LICENSE`, and its own changelog. Self-contained does not mean identical in shape: the `netops-helper` archive additionally vendors `src/netops_core`, the `netops-auditor` archive pins `netops-core==0.2.3` and needs the core archive installed beside it - so does the `netops-helper` archive, whose vendored copy of `netops_core` is there for the image build and does not satisfy that pin for `pip`, and `netops-core` is a library archive with no image of its own. Repository-level files (this page, `SECURITY.md`, `CONTRIBUTING.md`, CI) live here and are not part of a component archive.
 
 ## Repository gate
 

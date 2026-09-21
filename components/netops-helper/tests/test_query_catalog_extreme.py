@@ -13,6 +13,9 @@ from netops_helper.query_catalog.model import Query
 # forwarding, and VLAN tables, scoped ARP and FDB tables, and global LAG, LACP,
 # and STP instance lists can need continuation. Single-port details stay False.
 EXPECTED = {
+    'vlan_details': ('show vlan {vlan}', (('vlan', 'vlans', 'vlan_name'),), True),
+    'dhcp_snooping_entries': ('show ip-security dhcp-snooping entries vlan {vlan}', (('vlan', 'vlans', 'vlan_name'),), True),
+
     "switch": ("show switch", (), False),
     "version": ("show version", (), False),
     "memory": ("show memory", (), False),
@@ -168,7 +171,59 @@ def test_descriptions_are_present_and_ascii() -> None:
         query.description.encode("ascii")
 
 
+def test_scoped_diagnostic_inventory_boundaries() -> None:
+    from netops_helper import auth, inventory, proxy
+    from netops_helper.read_policy import render_read_query, validate_inventory_item
+
+    serial = "S124FPTF23000001"
+    accepted = {"vlans": ["Users_10"], "managed_switches": [serial], "certificates": ["Example_Cert"]}
+    assert inventory._checked_read_inventory("test", accepted) == {
+        key: tuple(values) for key, values in accepted.items()
+    }
+    assert auth._normalize_inventory(accepted) == {
+        key: tuple(values) for key, values in accepted.items()
+    }
+    cases = (
+        ("fortinet", "certificate_details", "certificate", "certificates", "Example_Cert"),
+        ("extreme_exos", "vlan_details", "vlan", "vlans", "Users_10"),
+        ("extreme_exos", "dhcp_snooping_entries", "vlan", "vlans", "Users_10"),
+        ("fortinet", "managed_switch_status", "managed_switch", "managed_switches", serial),
+        ("fortinet", "managed_switch_poe", "managed_switch", "managed_switches", serial),
+        ("fortinet", "managed_switch_mac", "managed_switch", "managed_switches", serial),
+        ("fortinet", "managed_switch_stacking", "managed_switch", "managed_switches", serial),
+        ("fortinet", "managed_switch_lldp", "managed_switch", "managed_switches", serial),
+    )
+    for platform, query, parameter, category, value in cases:
+        _, command = render_read_query(platform, query, {parameter: value}, {category: (value,)})
+        assert command.endswith(" " + value)
+        kind = {"vlans": "vlan_name", "managed_switches": "managed_switch_serial", "certificates": "certificate_name"}[category]
+        assert proxy._valid_typed_inventory_value(value, kind)
+        for bad_inventory in ({}, {"switches": (value,)}, {category: ("Other",)}):
+            try:
+                render_read_query(platform, query, {parameter: value}, bad_inventory)
+            except ValueError:
+                pass
+            else:
+                raise AssertionError("a different inventory authorized the query")
+        for bad in ("all", "ALL", "1-4094", "Users Other", "Users;show accounts", "Users\nshow accounts", "*", "detail", "a" * 129):
+            assert not proxy._valid_typed_inventory_value(bad, kind)
+            try:
+                render_read_query(platform, query, {parameter: bad}, {category: (bad,)})
+            except ValueError:
+                pass
+            else:
+                raise AssertionError("unsafe slot accepted")
+    for category, bad in (("vlans", "ipv4"), ("vlans", "ports"), ("managed_switches", serial.lower()), ("managed_switches", "all")):
+        try:
+            validate_inventory_item(category, bad)
+        except ValueError:
+            pass
+        else:
+            raise AssertionError("noncanonical or reserved inventory accepted")
+
+
 def main() -> None:
+    test_scoped_diagnostic_inventory_boundaries()
     test_exact_catalogue_contract()
     test_commands_are_narrow_read_only_cli()
     test_vlan_summary_has_no_inventory_slot()

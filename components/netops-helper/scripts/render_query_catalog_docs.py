@@ -276,7 +276,7 @@ def validate_registry(
         )
         for source_type in ("official_vendor", "project_contract", "vendor_login_required")
     }
-    _fail(counted["official_vendor"] == 258, "vendor query count is not 258")
+    _fail(counted["official_vendor"] == 266, "vendor query count is not 266")
     _fail(counted["project_contract"] == 16, "project-contract query count is not 16")
     _fail(counted["vendor_login_required"] == 4, "login-source query count is not 4")
     _fail(sum(counted.values()) == len(queries), "a query carries an unknown source type")

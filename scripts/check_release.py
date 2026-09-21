@@ -66,6 +66,7 @@ ALLOWED_DOMAINS = (
     "opencontainers.org",
     "pypi.org",
     "python.org",
+    "openssh.org",
     "readthedocs.io",
     "sigstore.dev",
 )

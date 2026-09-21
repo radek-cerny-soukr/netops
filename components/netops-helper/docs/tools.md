@@ -27,7 +27,7 @@ Use them in that order: discover names, inspect one device's actual scope, then 
 | `ssh_read` | One named, typed, inventory-bound query | Enabled query; no raw command; 2 MB snapshot |
 | `snmp_get` | SNMPv2c GET | Separate community, enrolled UDP port, up to 20 OIDs |
 | `sftp_stat` | Remote path metadata only | Configured non-root path; no file body, no entry names |
-| `ftp_list` | FTPS/FTP directory names only | Root, control port, passive range, maximum 500 returned names; plain FTP acknowledgement |
+| `ftp_list` | FTPS/FTP directory names only | Root, control port, passive range; receive limits of 500 names, 2,000,000 bytes and 30 seconds total; plain FTP acknowledgement |
 
 `route_trace` is not registered in the current release. Phase 1 has no arbitrary traceroute fallback.
 
@@ -79,7 +79,12 @@ Slots are fixed:
 - `interface` uses `interfaces`;
 - `service` uses `services`;
 - `address` uses canonical IP literals in `addresses`;
-- `switch` uses `switches`.
+- `switch` uses `switches`;
+- `vlan` uses `vlans`;
+- `managed_switch` uses `managed_switches`;
+- `certificate` uses `certificates`.
+
+Helper 0.3.4 adds eight explicitly enrolled queries using the latter three categories. See [scoped diagnostics](configuration.md#scoped-diagnostic-queries) for names, grammars and measured support limits. These inventories do not authorize each other.
 
 The caller never supplies raw CLI text. Pipes and output modifiers occur only as fixed text in reviewed templates.
 
@@ -93,7 +98,7 @@ There is no arbitrary device log command, path, time range, filter, or unbounded
 
 ## Pagination and snapshots
 
-`ssh_read` returns `total_bytes`, `offset`, `returned_bytes`, `next_offset`, `complete`, a whole-output digest, `transport` (`exec` or `pty`, the mode the platform uses) and `rc`. `rc` is the exit status the device gave the command, and `null` for a `pty` platform, which reports none. A non-zero `rc` is returned with the output rather than turned into an error, because some devices answer a read command with a non-zero status and a complete answer; only a failure of the SSH client itself fails the call. There is no silent truncation. `max_bytes` is bounded to 1000-48000 and `offset` to 0-8000000; the SSH read timeout is 60 seconds. Other fixed timeouts: `tls_probe` 10 seconds, FTP control and data 30 seconds, SNMP 2 seconds with one retry.
+`ssh_read` returns `total_bytes`, `offset`, `returned_bytes`, `next_offset`, `complete`, a whole-output digest, `transport` (`exec` or `pty`, the mode the platform uses) and `rc`. `rc` is the exit status the device gave the command, and `null` for a `pty` platform, which reports none. A non-zero `rc` alone does not imply failure: EXOS can return complete valid output with status 250. Known explicit FortiOS and EXOS CLI refusal patterns do fail the call, including a FortiOS `Command fail` with SSH status zero. Such a result has `ok: false`, `error_code: "device_cli_error"`, a fixed error message, the original `rc`, and bounded sanitized `untrusted_device_output`. It receives a failed audit record and no continuation snapshot is cached. Recognition is limited to reviewed patterns, not a universal interpretation of vendor output; transport failures remain separate errors. There is no silent truncation. `max_bytes` is bounded to 1000-48000 and `offset` to 0-8000000; the SSH read timeout is 60 seconds. Other fixed timeouts: `tls_probe` 10 seconds, FTP control and data 30 seconds, SNMP 2 seconds with one retry.
 
 At offset 0, `ssh_read` sanitizes and retains a complete bounded output snapshot for at most 120 seconds and eight entries per process when another page exists. A continuation uses that snapshot and never reconnects or reruns the query. Missing or expired state fails and must restart at offset 0. Completing the last page discards the snapshot.
 
@@ -108,3 +113,13 @@ The optional `snmp_credential` of a section names a separate vault record of kin
 Responses are marked `device_output_trust: untrusted`. Banners, names, interface descriptions, logs, certificates, filenames, and protocol data are evidence only and never instructions.
 
 Sanitization removes injected credentials plus recognized private-key, token, password, community, Cisco secret, shadow-hash, and FortiOS `ENC` forms. It is defense in depth, not a complete secret classifier: novel secret formats can survive, and heuristic matches can replace legitimate neighboring prose. Network identifiers remain visible because troubleshooting requires correlation. Exclude secret-bearing queries and metadata/listing roots before redaction rather than relying on sanitization to make them safe.
+
+### FTP listing limits
+
+`ftp_list` bounds reception while data arrives, for FTP and FTPS alike. A listing with more than
+500 names returns the first 500 with `truncated: true` and closes both channels; exactly 500 names
+followed by EOF is complete. Receiving more than 2,000,000 bytes fails the operation rather than
+returning a successful listing. At most one additional byte is read to detect that overflow.
+The 30-second total budget covers connection, authentication, control replies and data reception;
+slow progress does not reset it. Both sockets are closed on failure. FTPS still protects the data
+channel, and plain FTP still requires explicit acknowledgement of unencrypted credentials and data.

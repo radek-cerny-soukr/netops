@@ -51,6 +51,8 @@ class FakePlainFTP:
         self.connected = False
         self.logged_in = False
         self.closed = False
+        self.encoding = "utf-8"
+        self.sock = None
 
     def connect(self, host: str, port: int) -> None:
         assert host == TEST_ADDRESS and port == 21
@@ -70,6 +72,17 @@ class FakePlainFTP:
         passive_host, passive_port = self.makepasv()
         assert passive_host == TEST_ADDRESS and passive_port == 50_005
         return ["/safe-file.txt"]
+
+    def voidcmd(self, command):
+        assert command == "TYPE A"
+
+    def voidresp(self):
+        return "226 done"
+
+    def transfercmd(self, command):
+        assert command == "NLST /safe"
+        self.makepasv()
+        return ListingSocket(b"/safe-file.txt\r\n")
 
     def quit(self) -> None:
         self.closed = True
@@ -132,3 +145,155 @@ def test_ftp_rejects_server_selected_passive_port_outside_scope(
             target_auth(), "/safe", use_tls=False, port=21,
             acknowledge_unencrypted=True,
         )
+
+
+class ListingSocket:
+    def __init__(self, payload, tick=None):
+        self.payload = payload
+        self.received = 0
+        self.closed = False
+        self.tick = tick
+
+    def recv(self, count):
+        if self.tick:
+            self.tick()
+        data = self.payload[:min(count, 1024)]
+        self.payload = self.payload[len(data):]
+        self.received += len(data)
+        return data
+
+    def settimeout(self, timeout):
+        assert timeout > 0
+
+    def close(self):
+        self.closed = True
+
+    def shutdown(self, direction):
+        self.closed = True
+
+
+def listed(monkeypatch, payload, tick=None):
+    data = ListingSocket(payload, tick)
+    clients = []
+    class StreamingFTP(FakePlainFTP):
+        def __init__(self, timeout):
+            super().__init__(timeout)
+            clients.append(self)
+        def transfercmd(self, command):
+            self.makepasv()
+            return data
+        def nlst(self, remote_path):
+            chunks = []
+            while True:
+                chunk = data.recv(65536)
+                if not chunk:
+                    return b"".join(chunks).decode().splitlines()
+                chunks.append(chunk)
+    monkeypatch.setattr(engine.ftplib, "FTP", StreamingFTP)
+    monkeypatch.setattr(engine, "record", lambda *a, **k: None)
+    result = engine.ftp_list(target_auth(), "/safe", use_tls=False, port=21, acknowledge_unencrypted=True)
+    return result, data, clients[0]
+
+
+def test_reciprocal_ftp_caps_receive_before_full_listing(monkeypatch):
+    payload = b"filename.txt\r\n" * 10000
+    result, data, client = listed(monkeypatch, payload)
+    assert result["ok"] and result["truncated"]
+    assert len(result["entries"]) == 500
+    assert data.received < len(payload)
+    assert data.closed and client.closed
+
+
+@pytest.mark.parametrize("count",[0,1,500])
+def test_reciprocal_ftp_accepts_complete_bounded_listing(monkeypatch, count):
+    result, data, client = listed(monkeypatch, b"filename.txt\r\n" * count)
+    assert result["ok"] and not result["truncated"]
+    assert len(result["entries"]) == count
+    assert data.closed and client.closed
+
+
+def test_reciprocal_ftp_rejects_byte_budget(monkeypatch):
+    monkeypatch.setattr(engine, "_FTP_LIST_MAX_BYTES", 32, raising=False)
+    result, data, client = listed(monkeypatch, b"x" * 64)
+    assert not result["ok"]
+    assert "budget" in result["error"].lower()
+    assert data.received <= 33
+    assert data.closed and client.closed
+
+
+def test_reciprocal_ftp_rejects_slow_progress(monkeypatch):
+    now = [0.0]
+    monkeypatch.setattr(engine.time, "monotonic", lambda: now[0])
+    def tick():
+        now[0] += 31.0
+    result, data, client = listed(monkeypatch, b"filename.txt\r\n", tick)
+    assert not result["ok"]
+    assert data.closed and client.closed
+
+
+def test_reciprocal_ftp_deadline_after_transfer_closes_data_socket(monkeypatch):
+    now = [0.0]
+    monkeypatch.setattr(engine.time, "monotonic", lambda: now[0])
+    data = ListingSocket(b"file\r\n")
+    class LateFTP(FakePlainFTP):
+        def transfercmd(self, command):
+            now[0] = 31.0
+            return data
+    monkeypatch.setattr(engine.ftplib, "FTP", LateFTP)
+    monkeypatch.setattr(engine, "record", lambda *a, **k: None)
+    result = engine.ftp_list(target_auth(), "/safe", use_tls=False, port=21, acknowledge_unencrypted=True)
+    assert not result["ok"] and data.closed
+
+
+def test_reciprocal_ftp_watchdog_interrupts_blocked_control_read(monkeypatch):
+    import socket
+    import time
+    from types import SimpleNamespace
+    reader, writer = socket.socketpair()
+    budget = None
+    try:
+        monkeypatch.setattr(engine, "_FTP_TOTAL_TIMEOUT_SECONDS", 0.1)
+        budget = engine._FTPBudget(SimpleNamespace(sock=reader))
+        started = time.monotonic()
+        assert reader.recv(1) == b""
+        assert time.monotonic() - started < 2.0
+        with pytest.raises(TimeoutError):
+            budget.remaining()
+    finally:
+        if budget is not None:
+            budget.close()
+        reader.close()
+        writer.close()
+
+
+@pytest.mark.parametrize("count", [1, 501])
+def test_reciprocal_ftps_protects_and_closes_bounded_data(monkeypatch, count):
+    events = []
+    plain = ListingSocket(b"")
+    class TLSData(ListingSocket):
+        def unwrap(self):
+            events.append("unwrap")
+            return plain
+    data = TLSData(b"file\r\n" * count)
+    class TLSFTP(FakePlainFTP):
+        def __init__(self, timeout, context):
+            super().__init__(timeout)
+        def auth(self):
+            events.append("auth")
+        def login(self, login, password):
+            assert events == ["auth"]
+            super().login(login, password)
+        def prot_p(self):
+            events.append("protect")
+        def transfercmd(self, command):
+            assert events == ["auth", "protect"]
+            self.makepasv()
+            return data
+    monkeypatch.setattr(engine.ftplib, "FTP_TLS", TLSFTP)
+    monkeypatch.setattr(engine.ssl, "SSLSocket", TLSData)
+    monkeypatch.setattr(engine, "_ftps_context", lambda alias: (object(), None))
+    monkeypatch.setattr(engine, "record", lambda *a, **k: None)
+    result = engine.ftp_list(target_auth(), "/safe", use_tls=True, port=21)
+    assert result["ok"] and result["tls"] and data.closed
+    assert result["truncated"] == (count > 500)
+    assert plain.closed == (count <= 500)

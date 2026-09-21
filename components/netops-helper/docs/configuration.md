@@ -25,7 +25,7 @@ A device belongs to the helper when its `helper` field is an object. The alias a
 | `ssh_platform` | yes | a canonical platform name of `netops_core.platforms` (`fortios`, `exos`, `linux`, `cisco_ios`, `cisco_xe`, `cisco_nxos`, `arista_eos`, `juniper_junos`, `juniper_junos_els`, `ruckus_unleashed`) or `null`. An alias such as `fortinet` is refused here; the inventory carries canonical names |
 | `enabled_queries` | yes | an opt-in subset of that platform's catalogue, unique, at most 256 names; empty when `ssh_platform` is `null` |
 | `egress` | yes | exactly the eight fields below |
-| `read_inventory` | no (`{}`) | `interfaces`, `services`, `addresses`, `switches`; every value canonical for its category |
+| `read_inventory` | no (`{}`) | `interfaces`, `services`, `addresses`, `switches`, `vlans`, `managed_switches`, `certificates`; every value canonical for its category |
 | `sftp_roots` | no (`[]`) | canonical absolute paths below `/`, no `..`, no NUL, at most 2000 characters |
 | `fortios_output_standard_verified` | no (`false`) | boolean operator assertion |
 | `rate_limit` | no (30/60) | `requests` 1-60 and `window_seconds` 1-3600 |
@@ -379,3 +379,24 @@ Before starting or restarting the helper, confirm:
 ## Container state
 
 Only `/var/lib/netops-helper` is persistent inside the Compose service. It contains credential-free audit segments. The active segment and four retained segments are each limited to 2,000,000 bytes. The SSH continuation cache lives only in process memory, and temporary selected device host-key files live on tmpfs and are removed after use.
+
+## Scoped diagnostic queries
+
+Helper 0.3.4 includes eight opt-in queries. `vlans`, `managed_switches` and `certificates` are separate `read_inventory` categories, checked independently by the proxy and server. A software-switch value in `switches` cannot authorize a managed-switch query. Every parameter must match an enrolled value exactly; returned output never enrolls objects automatically.
+
+| Query | Platform | Parameter / inventory | Result scope |
+| --- | --- | --- | --- |
+| `vlan_details` | `extreme_exos` | `vlan` / `vlans` | One VLAN's operational details |
+| `dhcp_snooping_entries` | `extreme_exos` | `vlan` / `vlans` | Binding entries for one VLAN |
+| `certificate_details` | `fortinet` | `certificate` / `certificates` | Public certificate metadata and validity; no private-key export |
+| `managed_switch_status` | `fortinet` | `managed_switch` / `managed_switches` | One managed switch's status |
+| `managed_switch_poe` | `fortinet` | `managed_switch` / `managed_switches` | PoE summary |
+| `managed_switch_mac` | `fortinet` | `managed_switch` / `managed_switches` | MAC table |
+| `managed_switch_stacking` | `fortinet` | `managed_switch` / `managed_switches` | Stacking status, when the model supports it |
+| `managed_switch_lldp` | `fortinet` | `managed_switch` / `managed_switches` | LLDP neighbor summary |
+
+VLAN names contain 1-32 ASCII letters, digits, underscores or hyphens, starting with a letter. Certificate names contain 1-79 ASCII letters, digits, underscores, dots or hyphens, starting with a letter. Reserved selector keywords are rejected. Managed-switch serials contain 12-16 uppercase ASCII letters or digits and start with `S`. Whitespace, wildcards, control characters and selectors outside these grammars are rejected. The exact templates and volume bounds appear in the [generated catalogue](query-catalog.md).
+
+Add each required query to the target's `enabled_queries` and its exact selector to the matching inventory category. Existing enrollments stay unchanged and gain no automatic access. Controller requests use the enrolled FortiGate connection and its host-key pin; they do not connect directly to the managed switch. No FortiAP query is added in this release.
+
+Live CLI checks on 20-21 September 2026 observed certificate details under a read-only account on FortiOS 8.0.0 and DHCP bindings on EXOS 33.7.1. Three VLANs returned complete detail output through exec and interactive SSH on EXOS 33.7.1; status 250 is preserved, not normalized to zero. FortiOS 8.0.1 returned controller status, PoE, MAC and LLDP data using an administrator account. The tested switch does not support stacking and returned the recognized feature refusal -7622. These are direct CLI observations, not end-to-end MCP verification of the new queries. Restricted controller-profile permissions and positive stacking behavior remain unverified. Deployments must still validate each query with their intended read-only identity, firmware, hardware and output mode; see [read-only accounts](read-only-accounts.md) and the [FortiOS](vendor-cli-references/fortinet-fortios.md#scoped-diagnostic-queries) and [EXOS](vendor-cli-references/extreme-switch-engine.md#scoped-diagnostic-queries) evidence.

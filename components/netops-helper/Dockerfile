@@ -1,4 +1,4 @@
-FROM python:3.13.15-slim-trixie@sha256:8d9d0b8bcf6506481eae4907c18f5e3e7902e629f5f6d684f9e7c32e85e3ddf0
+FROM python:3.14.7-slim-trixie@sha256:caaf356f40667c496d405780745b9ac25771c189a51dfcc42430d531ea09f8a2
 
 ARG APP_UID=65532
 ARG APP_GID=65532
@@ -20,6 +20,7 @@ RUN groupadd --gid "${APP_GID}" netops \
 
 RUN set -eu \
     && apt-get update \
+    && apt-get upgrade --yes \
     && apt-get install --yes --no-install-recommends openssh-client \
     && rm -rf /var/lib/apt/lists/*
 

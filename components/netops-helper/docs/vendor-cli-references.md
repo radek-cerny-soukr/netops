@@ -1,6 +1,6 @@
 # Vendor CLI reference index
 
-Audit date: 2026-09-09.
+Initial source audit: 2026-09-09. Scoped EXOS/FortiOS additions and their measured limits were reviewed on 2026-09-21; other profiles retain their dated evidence.
 
 These records preserve official vendor URLs and the audit decisions used to build the conservative Phase-1 query whitelist. They do not copy vendor manuals, command-reference chapters, or complete PDF content.
 
@@ -10,8 +10,8 @@ The exact machine-checked commands, typed slots, volume labels, descriptions, an
 
 | Platform / profile key | Documentation baseline | Source record | Live-wire status |
 |---|---|---|---|
-| `fortinet` (`fortios` alias) | FortiOS 7.6.x and 8.0.0 | [Fortinet FortiOS](vendor-cli-references/fortinet-fortios.md) | FortiOS session safety has a dedicated wire test; each appliance, firmware, VDOM, query, and read-only role still requires target validation. |
-| `extreme_exos` (`extreme_switch_engine` alias) | Switch Engine 33.7.1 | [Extreme Networks Switch Engine](vendor-cli-references/extreme-switch-engine.md) | Source-reviewed; live model, read-only AAA, paging, and bytes-on-wire validation remain required. |
+| `fortinet` (`fortios` alias) | FortiOS 7.6.x and 8.0.0 | [Fortinet FortiOS](vendor-cli-references/fortinet-fortios.md) | The earlier 40-query catalogue has live read-only evidence; six additions have separate CLI evidence, with controller restricted-profile checks still outstanding. Validate each deployed appliance, firmware, VDOM and role. |
+| `extreme_exos` (`extreme_switch_engine` alias) | Switch Engine 33.7.1 | [Extreme Networks Switch Engine](vendor-cli-references/extreme-switch-engine.md) | The earlier 47-query catalogue has dated live read-only evidence; two additions have direct CLI observations. See the source record and support matrix for scope; validate the deployed model and AAA path. |
 | `cisco_ios` | Catalyst IOS 15.2(7)E on Catalyst 2960-X | [Cisco IOS, IOS-XE, and NX-OS](vendor-cli-references/cisco.md) | Source-reviewed; live model/image, CLI-view or AAA authorization, paging, and bytes-on-wire validation remain required. |
 | `cisco_xe` | Catalyst IOS-XE 17.15.x on Catalyst 9300 | [Cisco IOS, IOS-XE, and NX-OS](vendor-cli-references/cisco.md) | Source-reviewed separately from IOS; live target and wire validation remain required. |
 | `cisco_nxos` | Nexus 9000 NX-OS 10.5(x) | [Cisco IOS, IOS-XE, and NX-OS](vendor-cli-references/cisco.md) | Source-reviewed separately from IOS/IOS-XE; live Nexus model, feature, AAA, and wire validation remain required. |

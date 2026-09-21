@@ -197,7 +197,7 @@ def test_base_image_is_pinned_and_lock_uses_hashes() -> None:
         active = "\n".join(
             line for line in lock.splitlines() if not line.lstrip().startswith("#")
         )
-        assert "pip-compile with Python 3.13" in lock
+        assert "pip-compile with Python 3.14" in lock
         assert "--hash=sha256:" in active
         assert "--no-index" not in active
         assert "--trusted-host" not in active
@@ -210,7 +210,7 @@ def test_release_tools_are_pinned() -> None:
         line.strip() for line in (ROOT / "requirements-release.in").read_text().splitlines()
         if line.strip() and not line.lstrip().startswith("#")
     }
-    assert lines == {"-r requirements.txt", "cyclonedx-bom==7.3.1", "pytest==9.1.1"}
+    assert lines == {"-r requirements.txt", "cyclonedx-bom==7.4.0", "pytest==9.1.1"}
 
 
 def _load_module(name: str, path: Path):
@@ -300,7 +300,7 @@ def test_version_invariant_rejects_changed_pyproject(tmp_path: Path) -> None:
     root = _version_fixture(tmp_path)
     _replace_exact(
         root / "pyproject.toml",
-        "version = \"0.3.3\"",
+        "version = \"0.3.4\"",
         "version = \"not-a-release\"",
     )
     errors = _load_release_module("check_public_release")._version_invariant_errors(root)
@@ -313,8 +313,8 @@ def test_version_invariant_rejects_changed_package_version(tmp_path: Path) -> No
     root = _version_fixture(tmp_path)
     _replace_exact(
         root / "src/netops_helper/__init__.py",
-        "__version__ = \"0.3.3\"",
         "__version__ = \"0.3.4\"",
+        "__version__ = \"9.9.9\"",
     )
     errors = _load_release_module("check_public_release")._version_invariant_errors(root)
     assert "package __version__ does not match project metadata" in errors
@@ -328,7 +328,7 @@ def test_version_invariant_rejects_nested_and_function_version_bindings(
         "nested": "\nif True:\n    __version__ = \"9.9.9\"\n",
         "function": (
             "\ndef version_decoy():\n"
-            "    __version__ = \"0.3.3\"\n"
+            "    __version__ = \"0.3.4\"\n"
             "    return __version__\n"
         ),
     }
@@ -366,8 +366,8 @@ def test_version_invariant_rejects_changed_compose_image(tmp_path: Path) -> None
     root = _version_fixture(tmp_path)
     _replace_exact(
         root / "compose.yaml",
-        "image: local/netops-helper:0.3.3",
         "image: local/netops-helper:0.3.4",
+        "image: local/netops-helper:9.9.9",
     )
     errors = _load_release_module("check_public_release")._version_invariant_errors(root)
     assert "Compose netops-helper image label does not match project metadata" in errors
@@ -388,7 +388,7 @@ def test_version_invariant_rejects_changed_sbom_root(tmp_path: Path) -> None:
     root = _version_fixture(tmp_path)
     sbom_path = root / "sbom.cdx.json"
     sbom = json.loads(sbom_path.read_text(encoding="utf-8"))
-    sbom["metadata"]["component"]["version"] = "0.3.4"
+    sbom["metadata"]["component"]["version"] = "9.9.9"
     sbom_path.write_text(json.dumps(sbom), encoding="utf-8")
     errors = _load_release_module("check_public_release")._version_invariant_errors(root)
     assert "source SBOM root application metadata does not match project metadata" in errors
@@ -515,8 +515,8 @@ def test_public_allowlist_contains_all_0_2_contracts() -> None:
         path.relative_to(ROOT).as_posix()
         for path in exporter.selected_files(ROOT)
     }
-    assert len(selected) == 95
-    assert exporter.VERSION == "0.3.3"
+    assert len(selected) == 97
+    assert exporter.VERSION == "0.3.4"
     assert required_tests <= exporter.TESTS
     assert required_tests <= gate.REQUIRED_RELEASE_PATHS
     assert dependency_free_required <= dependency_free_tests
@@ -547,14 +547,14 @@ def _public_source_fixture(tmp_path: Path) -> Path:
         check=True,
         text=True,
     )
-    exported = output / "netops-helper-0.3.3"
+    exported = output / "netops-helper-0.3.4"
     manifest = json.loads(
         (exported / "release-manifest.json").read_text(encoding="utf-8")
     )
     core_modules = sorted(
         name for name in manifest["files"] if name.startswith("src/netops_core/")
     )
-    assert len(manifest["files"]) == 95 + len(core_modules)
+    assert len(manifest["files"]) == 97 + len(core_modules)
     assert "src/netops_core/audit.py" in core_modules
     (exported / "release-manifest.json").unlink()
     (exported / "SHA256SUMS").unlink()
@@ -709,7 +709,7 @@ def test_release_selection_rejects_unsafe_entries(tmp_path: Path) -> None:
 
 def test_release_export_preserves_existing_destination(tmp_path: Path) -> None:
     output = tmp_path / "existing-output"
-    destination = output / "netops-helper-0.3.3"
+    destination = output / "netops-helper-0.3.4"
     destination.mkdir(parents=True)
     marker = destination / "marker"
     marker_bytes = SELECTION_MARKER.encode("utf-8")
@@ -758,7 +758,7 @@ def test_release_export_rejects_symlinked_output(tmp_path: Path) -> None:
     parent_link.symlink_to(actual, target_is_directory=True)
 
     cases = {
-        "direct": (direct_link, actual / "netops-helper-0.3.3"),
+        "direct": (direct_link, actual / "netops-helper-0.3.4"),
         "parent": (
             parent_link / "nested-output",
             actual / "nested-output",
@@ -803,7 +803,7 @@ def test_release_gate_rejects_missing_vendor_contract(tmp_path: Path) -> None:
         ],
         check=True,
     )
-    exported = output / "netops-helper-0.3.3"
+    exported = output / "netops-helper-0.3.4"
     (exported / "release-manifest.json").unlink()
     gate = _load_release_module("check_public_release")
 
@@ -926,7 +926,7 @@ def test_release_tree_integrity_fails_closed(tmp_path: Path) -> None:
         ],
         check=True,
     )
-    exported = output / "netops-helper-0.3.3"
+    exported = output / "netops-helper-0.3.4"
     gate = _load_release_module("check_public_release")
     assert gate._release_tree_integrity_errors(exported) == []
 
@@ -1203,7 +1203,8 @@ def test_public_gate_privacy_scan_has_bounded_runtime(tmp_path: Path) -> None:
         "spec = importlib.util.spec_from_file_location(\"gate\", sys.argv[1])\n"
         "module = importlib.util.module_from_spec(spec); spec.loader.exec_module(module)\n"
         "root = __import__(\"pathlib\").Path(sys.argv[2])\n"
-        "assert all(module.check(root) == [] for _ in range(3))\n"
+        "files = module._tracked_release_files(root)\n"
+        "assert all(module._privacy_errors(root, files) == [] for _ in range(3))\n"
     )
     completed = subprocess.run(
         [sys.executable, "-B", "-c", script, str(ROOT / "scripts/check_public_release.py"), str(variant)],
@@ -1223,7 +1224,7 @@ def test_public_export_contains_no_python_bytecode(tmp_path: Path) -> None:
         ],
         check=True,
     )
-    exported = tmp_path / "netops-helper-0.3.3"
+    exported = tmp_path / "netops-helper-0.3.4"
     assert not [path for path in exported.rglob("*") if "__pycache__" in path.parts]
     assert not list(exported.rglob("*.pyc"))
     assert not list(exported.rglob("*.pyo"))
@@ -1269,7 +1270,7 @@ def test_release_export_compose_builds_from_archive_root(tmp_path: Path) -> None
         ],
         check=True,
     )
-    exported = output / "netops-helper-0.3.3"
+    exported = output / "netops-helper-0.3.4"
     compose_text = (exported / "compose.yaml").read_text(encoding="utf-8")
     assert "      context: .\n" in compose_text
     assert "../.." not in compose_text
@@ -1290,7 +1291,7 @@ def test_release_export_keeps_askpass_executable(tmp_path: Path) -> None:
         ],
         check=True,
     )
-    exported = output / "netops-helper-0.3.3"
+    exported = output / "netops-helper-0.3.4"
     askpass_mode = stat.S_IMODE(
         (exported / "src/netops_core/askpass.py").stat().st_mode
     )
@@ -1355,7 +1356,30 @@ def test_compose_build_gate_rejects_missing_dockerfile(tmp_path: Path) -> None:
     assert gate._compose_build_target_errors(root) == []
 
 
+def test_runtime_inputs_and_install_metadata_agree() -> None:
+    import tomllib
+    dependencies = tomllib.loads((ROOT / "pyproject.toml").read_text())["project"]["dependencies"]
+    runtime = [line.strip() for line in (ROOT / "requirements.txt").read_text().splitlines() if line.strip() and not line.startswith("#")]
+    assert sorted(x for x in dependencies if not x.startswith("netops-core==")) == sorted(runtime)
+
+
+def test_release_gate_rejects_dependency_drift(tmp_path: Path) -> None:
+    tmp_path.mkdir(parents=True, exist_ok=True)
+    project = tmp_path / "pyproject.toml"
+    project.write_text('[project]\ndependencies = ["netops-core==0.2.3", "httpx==0.28.1"]\n')
+    requirements = tmp_path / "requirements.txt"
+    requirements.write_text("httpx==0.28.1\n")
+    gate = _load_release_module("check_public_release")
+    assert gate._runtime_dependency_errors(tmp_path) == []
+    for bad in ("httpx==0.28.0\n", "", "httpx==0.28.1\nhttpx==0.28.1\n", "httpx==0.28.1\nmcp==2.1.1\n"):
+        requirements.write_text(bad)
+        assert gate._runtime_dependency_errors(tmp_path)
+    requirements.write_text("httpx==0.28.1\n")
+    assert gate._runtime_dependency_errors(tmp_path) == []
+
+
 def main() -> int:
+    test_runtime_inputs_and_install_metadata_agree()
     test_sbom_contains_all_direct_dependencies()
     test_release_license_is_mit()
     test_healthcheck_uses_system_trust_without_private_ca_name()
@@ -1370,6 +1394,7 @@ def main() -> int:
     test_public_allowlist_contains_all_0_2_contracts()
     with tempfile.TemporaryDirectory(prefix="netops-supply-chain-contracts-") as directory:
         temporary = Path(directory)
+        test_release_gate_rejects_dependency_drift(temporary / "dependency-drift")
         test_version_invariant_accepts_authorities_and_ignores_decoys(
             temporary / "version-decoys"
         )
