@@ -69,6 +69,10 @@ Measured on 17 September 2026 against FortiOS 8.0.0 with a read-only account (a 
 
 In the same session `execute dhcp lease-list` was refused with `Unknown action 0`. It is an `execute` command and stays outside the boundary; the refusal is recorded as a measured fact, not as a candidate.
 
+### SSL VPN queries on models without SSL VPN
+
+Measured on 21 September 2026 against FortiOS 8.0.1: on a FortiGate 60F both `diagnose vpn ssl list` and `diagnose vpn ssl statistics` end with `command parse error`, also for a `super_admin` account, and the configuration has no `config vpn ssl` section at all; on a FortiGate 80F with the same build `diagnose vpn ssl statistics` answers. The [FortiOS 8.0.0 Release Notes](https://docs.fortinet.com/document/fortigate/8.0.0/fortios-release-notes) remove SSL VPN tunnel mode on all models and Agentless VPN, the former SSL VPN web mode, on models with 2 GB of RAM, which include the 60F family; the CLI Reference still lists both commands without that restriction. On such models the helper reports `sslvpn_sessions` and `sslvpn_statistics` as `device_cli_error`. Do not enable the two queries there.
+
 ### Version, model, and feature constraints
 
 - Hardware memory, disk, and NIC output varies by FortiGate model, ASIC, interface type, and VM versus appliance form factor. A documented command can legitimately return unsupported or reduced output.

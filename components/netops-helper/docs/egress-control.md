@@ -38,6 +38,19 @@ Docker commonly presents `127.0.0.11` to the container as embedded DNS and perfo
 
 Once UDP/TCP 53 is permitted to a resolver, a compromised process can use DNS queries as an exfiltration channel; the firewall does not validate requested names. The strictest profile therefore uses literal IP targets, `allow_dns: false`, and no resolvers. Hostname targets accept this DNS tradeoff. Even with `allow_dns: false` the chain only drops resolver traffic that leaves the bridge as forwarded packets; queries the container sends to Docker's embedded `127.0.0.11` are answered or forwarded by the Docker daemon from the host's own network stack, which DOCKER-USER never sees. Closing that path is a host INPUT/OUTPUT decision, not something this bundle can enforce. Application-level resolution checks also have re-resolution/TOCTOU limits, so the verified host firewall remains the authoritative network boundary.
 
+Measured on 21 September 2026 with Docker 29.8 on an ARM64 runner and the `strict-target` profile with `allow_dns: false`: from inside the helper container a unique, never-queried name under `example.com` was answered with "no such name" within 0.2 seconds, so the query reached the upstream recursive resolver, while the DROP counter of the managed chain did not move. A literal-IP deployment therefore still carries a DNS channel to the internet through the daemon unless it is closed.
+
+For deployments that need no name resolution at all - every target a literal IPv4 address and `allow_dns: false` - point the container's DNS at an address that cannot answer, for example with a Compose override:
+
+```yaml
+services:
+  netops-helper:
+    dns:
+      - 192.0.2.1
+```
+
+`192.0.2.1` is reserved for documentation (RFC 5737) and is never routed. Measured on the same runner after recreating the container with this setting: `example.com` and a unique name both failed with `Temporary failure in name resolution` after about 16 seconds, the managed chain's DROP counter rose by 8 packets, container names on the Compose network still resolved, and `ssh_read` calls kept their previous duration. Do not use this setting for hostname targets; they need the real resolvers from the egress policy.
+
 ## Residual host-access boundary
 
 DOCKER-USER controls forwarded traffic. It does not claim complete containment.
@@ -57,22 +70,36 @@ The checker and the apply helper require the DOCKER-USER jump to be the first ru
 
 ## Persistence across reboot
 
-The apply helper writes live kernel state only. Nothing in this project persists the rules: after a reboot the chain is gone while `restart: unless-stopped` brings the container back with unrestricted egress. Re-apply the reviewed bundle from the host before the container is reachable, for example with a oneshot unit ordered after Docker:
+The apply helper writes live kernel state only. Nothing in this project persists the rules: after a reboot the chain is gone. A Docker restart policy would start the container on its own, before any unit ordered after Docker has applied the bundle, and for that window the container would have unrestricted egress. The shipped `compose.yaml` therefore sets `restart: "no"`: Docker never starts the container by itself, and after a reboot it stays stopped until the rules are back.
+
+Releases up to 0.3.5 shipped `restart: unless-stopped`. A container created from one of them keeps that policy until it is recreated from the current `compose.yaml`; until then a Compose override with `restart: "no"` for the `netops-helper` service closes the same window.
+
+Let a unit, not Docker, start the container. Create the container once with `docker compose up --no-start --no-build` and install a oneshot unit that applies the reviewed bundle, checks it and only then starts the container:
 
 ```
 [Unit]
 After=docker.service
 Requires=docker.service
+PartOf=docker.service
+RequiresMountsFor=/opt/netops-helper
 
 [Service]
 Type=oneshot
+RemainAfterExit=yes
 ExecStart=/usr/bin/python3 /opt/netops-helper/scripts/apply_egress_rules.py --bundle /etc/netops-helper/egress-bundle.json --apply
+ExecStart=/usr/bin/python3 /opt/netops-helper/scripts/check_egress_rules.py --expected /etc/netops-helper/egress-bundle.json
+ExecStart=/usr/bin/docker start netops-helper
+ExecStop=/usr/bin/docker stop netops-helper
 
 [Install]
-WantedBy=multi-user.target
+WantedBy=docker.service
 ```
 
+`WantedBy=docker.service` runs the unit whenever Docker starts, `PartOf=docker.service` stops the container with Docker, and a failed apply or check leaves the container stopped. Measured on 21 September 2026 with Docker 29.8 on an ARM64 runner: after a reboot the Docker API was up at 21:24:22, `egress_apply=ok` and `egress_check=ok` followed at 21:24:23, the container started 0.9 seconds later and became healthy, and it had not run before that. Adjust `RequiresMountsFor=` and the paths to where the release is unpacked.
+
 The helper is idempotent and fails closed, so a repeated run is safe; the checker should still run after every Docker restart or network recreation.
+
+A manual change can leave the managed chain behind without its DOCKER-USER jump. The checker reports `ipv4_jump_missing_or_not_first`, and the apply helper then refuses to continue with `foreign_chain_collision`, because it adopts only a chain it can prove it owns. To recover, stop the unit, compare `iptables -S NETOPS_HELPER_EGRESS` with the reviewed bundle, flush and delete that chain (`iptables -F NETOPS_HELPER_EGRESS`, `iptables -X NETOPS_HELPER_EGRESS`) and start the unit again. Neither a reboot nor a Docker restart produces this state: the first removes the chain, the second keeps the jump.
 
 The helper reads and writes rules through whichever `iptables-save`/`iptables-restore` binaries are on `PATH`. If those are the legacy backend while Docker installed its chains through iptables-nft (or vice versa), the DOCKER-USER chain does not appear in the observed state and the run fails closed as `docker_user_missing` rather than installing rules into a table Docker never consults.
 

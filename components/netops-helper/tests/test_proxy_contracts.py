@@ -549,6 +549,32 @@ def check_exact_argument_schema_precedes_auth_rate_and_forward(
         assert proxy.rate_history == {}
 
 
+def check_null_parameters_mean_no_parameters(module, directory: Path) -> None:
+    inventory, _, _, _ = _configure(module, directory)
+    proxy = module.Proxy()
+    forwarded = proxy.request(_request(400, "ssh_read", {
+        "target": "device-a", "platform": "fortios",
+        "query": "system_status", "parameters": None,
+    }))
+    assert forwarded is not None
+    assert json.loads(forwarded)["params"]["arguments"].get("parameters") is None
+
+    section = _section()
+    section["enabled_queries"].append("interface_details")
+    section["read_inventory"]["interfaces"] = ["port3"]
+    _write(inventory, _inventory(_device(section)))
+    _assert_policy_error(module.Proxy(), _request(401, "ssh_read", {
+        "target": "device-a", "platform": "fortios",
+        "query": "interface_details", "parameters": None,
+    }))
+
+    for index, parameters in enumerate(([], "port3", 7, {"interface": None}), start=402):
+        _assert_invalid_params(module.Proxy(), _request(index, "ssh_read", {
+            "target": "device-a", "platform": "fortios",
+            "query": "system_status", "parameters": parameters,
+        }))
+
+
 def check_pre_auth_scope_for_query_slots_paths_and_alias(
     module, directory: Path,
 ) -> None:
@@ -1572,6 +1598,7 @@ def main() -> int:
         check_scope_and_no_overinjection(module, directory)
         check_discovery_notifications_and_rate_cost(module, directory)
         check_exact_argument_schema_precedes_auth_rate_and_forward(module, directory)
+        check_null_parameters_mean_no_parameters(module, directory)
         check_pre_auth_scope_for_query_slots_paths_and_alias(module, directory)
         check_query_authority_and_typed_pre_auth(module, directory)
         check_standalone_isolated_help(directory)

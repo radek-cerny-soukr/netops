@@ -2,6 +2,15 @@
 
 The latest entry describes the current source version; earlier entries are historical source records. Use the repository release index for current downloads and commit history for superseded source. See the [release procedure](docs/releasing.md).
 
+## 0.3.6 - 2026-09-21
+
+- Accept `"parameters": null` in `ssh_read` as an absent key. The proxy refused it in argument validation and in the pre-auth scope check, although the server signature and the advertised tool schema allow `null`. A slot-less query now forwards, a query that needs a slot is still refused as `policy_scope`, and lists, strings, numbers and `null` slot values stay `invalid_params`; the new contract check failed on the unmodified proxy.
+- Ship `restart: "no"` in `compose.yaml`. Docker no longer starts the container on its own, so after a reboot it stays stopped until the egress bundle is applied and checked. The persistence section of the egress documentation describes the unit that applies, checks and then starts the container, measured through a reboot, and how to recover when a manual change leaves the managed chain behind (`foreign_chain_collision`). Containers created from earlier releases keep `unless-stopped` until recreated.
+- Document the DNS channel that remains with `allow_dns: false`: a unique name reached the upstream resolver through the Docker daemon while the managed chain saw nothing. For deployments with literal IP targets only, a Compose `dns` entry pointing at the documentation address `192.0.2.1` closes it; measured with the managed chain dropping the forwarded queries and `ssh_read` timing unchanged.
+- Recommend `cli-show disable` for the Helper's FortiOS account. With `cli-show enable` a bare `show` returned the complete configuration, which the read-only requirements forbid, while every FortiOS catalogue query is a `get` or `diagnose` command. NetOps Auditor keeps `cli-show` under its own identity.
+- Document that `sslvpn_sessions` and `sslvpn_statistics` are absent on FortiGate models without SSL VPN (Agentless VPN removed on 2 GB RAM models per the FortiOS 8.0.0 release notes) and report `device_cli_error` there; the catalogue descriptions say so.
+- Describe how to use the published OCI archive: `docker load` accepts it only with the containerd image store; the classic store refuses it.
+
 ## 0.3.5 - 2026-09-21
 
 - Make the malformed-request regression portable across Python parser builds. Deep, syntactically valid JSON arrays can reach the JSON-RPC object check (`-32600`) or hit the decoder nesting limit (`-32700`); both remain refused. Malformed JSON, invalid encoding and oversized input still require the exact parse-error category. The test explicitly exercises both decoder outcomes and confirms a valid request succeeds afterward. Runtime behavior and access boundaries are unchanged.

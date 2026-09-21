@@ -62,6 +62,8 @@ The health check also refuses to report healthy when `NETOPS_ASKPASS_PROGRAM` is
 
 **Known and unfixed:** the `openssh-client` that Debian trixie ships carries CVE-2026-60002, a Critical client-side use-after-free triggered by a server that changes its host key during a key re-exchange; the upstream fix is OpenSSH 10.4 and trixie stays on 10.0. This release ships with that vulnerability as a reviewed exception, not with a fix. Read [known vulnerability findings](known-vulnerabilities.md) before deploying; if the exposure is not acceptable, rebuild the image on a base that ships OpenSSH 10.4 or newer.
 
+The release also publishes the image as an OCI archive (`netops-helper-<version>-linux-arm64.oci.tar`) together with its manifest digest (`netops-helper-<version>-image-digest.txt`). Verify both against the release `SHA256SUMS` and its Sigstore bundle before use. `docker load -i` accepts the archive only when Docker uses the containerd image store; on the release builder the loaded image ID equals the published digest. With the classic image store, Docker 29.8 refuses the archive with `invalid archive: does not contain a manifest.json` (measured on 21 September 2026). On such a runner build from the verified source archive as described here, or move the runner to the containerd image store first - that change restarts Docker and every container on the host. If a load does not create the `image:` name used in `compose.yaml`, tag the verified image with it and keep `--no-build`.
+
 Build the digest-pinned image, then create the network and container without starting the service:
 
 ```bash
@@ -138,6 +140,8 @@ docker compose ps
 ```
 
 If start causes an unexpected recreate or network change, stop the service, rerun the checker, and investigate before reconnecting a client. Do not replace this guarded first start with `docker compose up -d`.
+
+The rules live only in kernel state and are gone after a reboot. The shipped `compose.yaml` sets `restart: "no"`, so after a reboot the container stays stopped instead of starting without them. Before the first reboot, set up the unit that applies and checks the bundle and only then starts the container, as described in [Persistence across reboot](egress-control.md#persistence-across-reboot).
 
 ## 8. Connect an MCP client
 

@@ -214,13 +214,13 @@ QUERIES: dict[str, Query] = {
     "sslvpn_sessions": Query(
         "diagnose vpn ssl list",
         NO_SLOTS,
-        "List active SSL VPN sessions.",
+        "List active SSL VPN (Agentless VPN) sessions; absent on models without SSL VPN.",
         high_volume=True,
     ),
     "sslvpn_statistics": Query(
         "diagnose vpn ssl statistics",
         NO_SLOTS,
-        "Show aggregate SSL VPN statistics.",
+        "Show aggregate SSL VPN (Agentless VPN) statistics; absent on models without SSL VPN.",
     ),
     "firewall_auth_users": Query(
         "diagnose firewall auth list",

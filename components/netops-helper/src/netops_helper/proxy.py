@@ -1510,7 +1510,7 @@ class Proxy:
             normalized["platform"] = PLATFORM_MAP[platform]
             if not isinstance(query, str) or not SAFE_QUERY_NAME.fullmatch(query):
                 raise ToolArgumentsError()
-            if "parameters" in normalized:
+            if normalized.get("parameters") is not None:
                 parameters = normalized["parameters"]
                 if (
                     not isinstance(parameters, dict) or len(parameters) > 16
@@ -1576,7 +1576,7 @@ class Proxy:
             ):
                 raise PolicyScopeError()
             slots = READ_QUERY_SLOTS[platform].get(query, {})
-            parameters = args.get("parameters", {})
+            parameters = args.get("parameters") or {}
             if set(parameters) != set(slots):
                 raise PolicyScopeError()
             for name, slot in slots.items():

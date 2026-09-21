@@ -4,7 +4,7 @@ Tools that give an AI agent the narrowest possible hands and usable eyes on netw
 
 | Component | What it does | Released |
 |---|---|---|
-| [`netops-helper`](components/netops-helper/) | Read-only MCP server for bounded network troubleshooting | [`netops-helper/v0.3.5`](https://github.com/radek-cerny-soukr/netops/releases/tag/netops-helper%2Fv0.3.5) (2026-09-21) |
+| [`netops-helper`](components/netops-helper/) | Read-only MCP server for bounded network troubleshooting | [`netops-helper/v0.3.6`](https://github.com/radek-cerny-soukr/netops/releases/tag/netops-helper%2Fv0.3.6) (2026-09-21) |
 | [`netops-auditor`](components/netops-auditor/) | Configuration audit; collects the configuration from the device itself | [`netops-auditor/v0.2.4`](https://github.com/radek-cerny-soukr/netops/releases/tag/netops-auditor%2Fv0.2.4) (2026-09-21) |
 | [`netops-core`](components/netops-core/) | Shared access layer the other components build on: inventory, credential store, host key trust, SSH transport, audit records | [`netops-core/v0.2.3`](https://github.com/radek-cerny-soukr/netops/releases/tag/netops-core%2Fv0.2.3) (2026-09-21) |
 

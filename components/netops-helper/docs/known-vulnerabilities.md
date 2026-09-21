@@ -1,8 +1,8 @@
 # Known vulnerability findings
 
-## Helper 0.3.5 runtime scan
+## Helper 0.3.6 runtime scan
 
-Helper 0.3.5 uses the official Python 3.14.7 slim-trixie ARM64 image pinned by digest and installs `openssh-client` from Debian trixie after applying available package upgrades. Its Python dependency versions are unchanged from the reviewed 20 September update; both Helper lockfiles have been regenerated for Python 3.14.7 with the same hash-pinned generator.
+Helper 0.3.6 uses the official Python 3.14.7 slim-trixie ARM64 image pinned by digest and installs `openssh-client` from Debian trixie after applying available package upgrades. Its Python dependency versions are unchanged from the reviewed 20 September update; both Helper lockfiles have been regenerated for Python 3.14.7 with the same hash-pinned generator.
 
 The 21 September 2026 Grype 0.118.0 scan of the rebuilt runtime reports:
 

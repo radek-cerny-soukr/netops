@@ -1,6 +1,6 @@
 # NetOps Helper
 
-The current release is `netops-helper/v0.3.5` (2026-09-21), which pins `netops-core==0.2.3` and vendors `src/netops_core` inside its own release archive.
+The current release is `netops-helper/v0.3.6` (2026-09-21), which pins `netops-core==0.2.3` and vendors `src/netops_core` inside its own release archive.
 
 NetOps Helper phase 1 is a security-focused, read-only MCP server for bounded network troubleshooting. It gives any compatible MCP client explicitly enrolled diagnostic visibility without exposing a configuration path. It is intentionally not a general CLI, configuration reader, log browser, or network-discovery service.
 
