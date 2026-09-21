@@ -319,11 +319,31 @@ def test_auth_context_envelope_is_redacted_from_server_messages() -> None:
     assert envelope not in proxy.response(json.dumps(notification).encode()).decode()
 
 
-def test_malformed_or_oversized_requests_do_not_crash_the_proxy(capsys) -> None:
+def test_malformed_or_oversized_requests_do_not_crash_the_proxy(capsys, monkeypatch) -> None:
     proxy = MODULE.Proxy()
-    for raw in (b"[" * 100_000 + b"]" * 100_000 + b"\n", b"\xff\xfe\n", b"x" * (MODULE.MAX_REQUEST_BYTES + 1)):
+    nested = b"[" * 100_000 + b"]" * 100_000 + b"\n"
+    for raw, codes in (
+        (nested, {-32700, -32600}),
+        (b"[" * 100_000 + b"\n", {-32700}),
+        (b"\xff\xfe\n", {-32700}),
+        (b"x" * (MODULE.MAX_REQUEST_BYTES + 1), {-32700}),
+    ):
         assert proxy.request(raw) is None
-        assert json.loads(capsys.readouterr().out)["error"]["code"] == -32700
+        answer = json.loads(capsys.readouterr().out)
+        assert answer["jsonrpc"] == "2.0" and answer["id"] is None
+        assert answer["error"]["code"] in codes
+    original_loads = json.loads
+    for parsed, code in (([[]], -32600), (RecursionError(), -32700)):
+        def decode(raw):
+            if raw == nested:
+                if isinstance(parsed, Exception):
+                    raise parsed
+                return parsed
+            return original_loads(raw)
+        monkeypatch.setattr(MODULE.json, "loads", decode)
+        assert proxy.request(nested) is None
+        assert original_loads(capsys.readouterr().out)["error"]["code"] == code
+    assert not proxy.pending
     assert proxy.request(b'{"jsonrpc":"2.0","id":1,"method":"tools/list"}\n') is not None
 
 

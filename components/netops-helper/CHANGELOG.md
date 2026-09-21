@@ -1,5 +1,12 @@
 # Changelog
 
+The latest entry describes the current source version; earlier entries are historical source records. Use the repository release index for current downloads and commit history for superseded source. See the [release procedure](docs/releasing.md).
+
+## 0.3.5 - 2026-09-21
+
+- Make the malformed-request regression portable across Python parser builds. Deep, syntactically valid JSON arrays can reach the JSON-RPC object check (`-32600`) or hit the decoder nesting limit (`-32700`); both remain refused. Malformed JSON, invalid encoding and oversized input still require the exact parse-error category. The test explicitly exercises both decoder outcomes and confirms a valid request succeeds afterward. Runtime behavior and access boundaries are unchanged.
+- Retain the fixes and eight opt-in diagnostics documented under 0.3.4 below. Core remains pinned at 0.2.3 and the runtime remains Python 3.14.7.
+
 ## 0.3.4 - 2026-09-21
 
 - Add eight opt-in queries: EXOS `vlan_details` and `dhcp_snooping_entries`; FortiOS `certificate_details`; controller `managed_switch_status`, `managed_switch_poe`, `managed_switch_mac`, `managed_switch_stacking` and `managed_switch_lldp`. Selectors require separate `vlans`, `certificates` or `managed_switches` inventories and independent proxy/server checks. No query is enabled automatically.
@@ -12,7 +19,6 @@
 - Record 361 passing tests and 321 subtests on Python 3.14.7, clean source-export installation and positive/negative MCP checks in the final image. The Python 3.13 toolbox passes 360 tests and skips the runtime-specific TAR regression, which is checked separately in the shipped image.
 - Disclose the dated scan: 0 active Critical, 50 High, 58 Medium, 10 Low, 68 Negligible and 1 Unknown matches, plus the existing accepted Critical OpenSSH exception. Remaining findings are not claimed fixed; see [known vulnerabilities](docs/known-vulnerabilities.md).
 
-This entry describes the current source version. Earlier entries are historical source records; use the repository release index for current downloads and commit history for superseded source. Previous artifacts may remain visible during a release transition and are retired only after replacement verification and archival. See the [release procedure](docs/releasing.md).
 
 Versions on this page name the Helper component; tags use `netops-helper/vX.Y.Z`.
 

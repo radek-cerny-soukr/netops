@@ -1,8 +1,8 @@
 # Known vulnerability findings
 
-## Helper 0.3.4 runtime scan
+## Helper 0.3.5 runtime scan
 
-Helper 0.3.4 uses the official Python 3.14.7 slim-trixie ARM64 image pinned by digest and installs `openssh-client` from Debian trixie after applying available package upgrades. Its Python dependency versions are unchanged from the reviewed 20 September update; both Helper lockfiles have been regenerated for Python 3.14.7 with the same hash-pinned generator.
+Helper 0.3.5 uses the official Python 3.14.7 slim-trixie ARM64 image pinned by digest and installs `openssh-client` from Debian trixie after applying available package upgrades. Its Python dependency versions are unchanged from the reviewed 20 September update; both Helper lockfiles have been regenerated for Python 3.14.7 with the same hash-pinned generator.
 
 The 21 September 2026 Grype 0.118.0 scan of the rebuilt runtime reports:
 
@@ -45,4 +45,4 @@ Sources: [forwarding policy finding](https://security-tracker.debian.org/tracker
 
 Every build must scan its exact image with a current valid vulnerability database and retain both active and ignored matches. Active Critical findings block the release. Each ignored Critical finding requires an applied rule and an explicit risk review. High and Medium findings remain disclosed even when policy allows the release. Remove an exception only after verifying the corresponding package is fixed; neither a renamed image nor a source-version string is sufficient evidence.
 
-Helper 0.3.3 and the earlier 0.3.4 candidate had 51 active High matches. Their historical reports describe those images, not the corrected 0.3.4 image. Repeat the scan and review for every rebuilt image.
+Helper 0.3.3 and the earlier 0.3.4 candidate had 51 active High matches. Their historical reports describe those images, not the corrected runtime. Repeat the scan and review for every rebuilt image.

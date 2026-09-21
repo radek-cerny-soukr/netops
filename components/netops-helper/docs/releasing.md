@@ -1,6 +1,6 @@
 # Release process
 
-Release tags follow the component scheme `<project.name>/v<version>`, where `project.name` is the `[project]` `name` from the component's `pyproject.toml`: this component tags `netops-helper/v0.3.4`, and any further component released from this repository uses the same scheme under its own name. The release title is `<project.name> <version>`, for example `netops-helper 0.3.4`. A tag is deleted together with its release page when a newer version of the same component is published, so this repository carries exactly one tag and one release page per component. The repository was renamed from `netops-helper` to `netops` on 2026-09-11; the old URLs redirect, and the canonical origin is `https://github.com/radek-cerny-soukr/netops`.
+Release tags follow the component scheme `<project.name>/v<version>`, where `project.name` is the `[project]` `name` from the component's `pyproject.toml`: this component tags `netops-helper/v0.3.5`, and any further component released from this repository uses the same scheme under its own name. The release title is `<project.name> <version>`, for example `netops-helper 0.3.5`. A tag is deleted together with its release page when a newer version of the same component is published, so this repository carries exactly one tag and one release page per component. The repository was renamed from `netops-helper` to `netops` on 2026-09-11; the old URLs redirect, and the canonical origin is `https://github.com/radek-cerny-soukr/netops`.
 
 This component lives in the `netops` monorepo under `components/netops-helper/`. Every command below runs in that directory; the repository as a whole has its own gate, `scripts/check_release.py` at the repository root, which verifies that no tracked file falls outside a component release and then runs the gate of every component. Run it before freezing a release, from the repository root.
 
@@ -111,3 +111,7 @@ The image build refreshes Debian package indexes and upgrades installed distribu
 ## Runtime update on 2026-09-21
 
 The Helper image and its CI job use Python 3.14.7. Both Helper lockfiles were regenerated with the same hash-pinned generator wheels listed above under Python 3.14.7, without upgrading package versions. Core and Auditor retain their Python 3.13 minimum. The runtime TAR regression must fail on the vulnerable 3.13.15 image and pass on the shipped image; it also checks valid file and hard-link extraction. Run `python tests/test_runtime_tar_safety.py` with the image interpreter.
+
+### Portable proxy error regression
+
+The deeply nested array fixture is valid JSON but not a supported JSON-RPC object. Depending on the interpreter build, decoding can fail at its nesting limit or succeed and reach the proxy object check. Test refusal in both cases (`-32700` and `-32600`, respectively), while retaining strict parse-error checks for malformed JSON, invalid encoding and oversized input. Also verify that a subsequent valid request still works; do not depend on one platform's parser recursion limit.
