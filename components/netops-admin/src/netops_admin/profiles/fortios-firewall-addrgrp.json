@@ -1,0 +1,39 @@
+{
+  "platform": "fortios",
+  "table": "firewall addrgrp",
+  "versions": [
+    "7.6.7 build3704"
+  ],
+  "ops": [
+    "update"
+  ],
+  "key_pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,78}$",
+  "protected_keys": [],
+  "attributes": {
+    "member": {
+      "type": "name-list",
+      "required_on_create": false,
+      "update": true,
+      "unset": false,
+      "referenced_update": true
+    },
+    "comment": {
+      "type": "text",
+      "required_on_create": false,
+      "update": false,
+      "unset": false,
+      "referenced_update": true,
+      "max_length": 255
+    }
+  },
+  "fixed": {
+    "type": "default",
+    "exclude": "disable"
+  },
+  "volatile": [
+    "uuid"
+  ],
+  "reserved_values": {},
+  "inverse_identity_changes": {},
+  "rollback_evidence": "FortiOS 7.6.7 build3704, 2026-09-24: membership additions and removals restored by a one-shot automation stitch. An empty static group is rejected by the planner."
+}

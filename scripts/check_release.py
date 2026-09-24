@@ -19,6 +19,7 @@ COMPONENT_GATES = {
     "netops-helper": ("scripts/check_public_release.py",),
     "netops-auditor": ("scripts/check_gates.py",),
     "netops-core": ("scripts/check_gates.py",),
+    "netops-admin": ("scripts/check_gates.py",),
 }
 CI_REQUIRED_FRAGMENTS = (
     "scripts/check_release.py",

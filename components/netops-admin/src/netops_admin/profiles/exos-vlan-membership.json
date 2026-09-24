@@ -1,0 +1,36 @@
+{
+  "platform": "exos",
+  "table": "vlan-membership",
+  "versions": [
+    "33.7.1.6"
+  ],
+  "ops": [
+    "update"
+  ],
+  "key_pattern": "^[1-9][0-9]?$",
+  "protected_keys": [],
+  "attributes": {
+    "tagged": {
+      "type": "name-list",
+      "required_on_create": false,
+      "update": true,
+      "unset": false,
+      "referenced_update": true,
+      "default": ""
+    },
+    "untagged": {
+      "type": "text",
+      "required_on_create": false,
+      "update": true,
+      "unset": false,
+      "referenced_update": true,
+      "max_length": 32,
+      "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,31}$"
+    }
+  },
+  "fixed": {},
+  "volatile": [],
+  "reserved_values": {},
+  "inverse_identity_changes": {},
+  "rollback_evidence": "EXOS 33.7.1.6, 2026-09-24: tagged addition and removal and native VLAN moves restored by a one-shot UPM timer. The inverse of a native VLAN move is a move back to the original VLAN."
+}

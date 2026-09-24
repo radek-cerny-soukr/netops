@@ -1,0 +1,46 @@
+{
+  "platform": "fortios",
+  "table": "system dhcp server/reserved-address",
+  "versions": [
+    "7.6.7 build3704"
+  ],
+  "ops": [
+    "create",
+    "update",
+    "delete"
+  ],
+  "key_pattern": "^[1-9][0-9]{0,9}:[1-9][0-9]{0,9}$",
+  "protected_keys": [],
+  "attributes": {
+    "ip": {
+      "type": "ipv4-address",
+      "required_on_create": true,
+      "update": true,
+      "unset": false,
+      "referenced_update": true
+    },
+    "mac": {
+      "type": "mac-address",
+      "required_on_create": true,
+      "update": true,
+      "unset": false,
+      "referenced_update": true
+    },
+    "description": {
+      "type": "text",
+      "required_on_create": false,
+      "update": true,
+      "unset": true,
+      "referenced_update": true,
+      "max_length": 255
+    }
+  },
+  "fixed": {
+    "type": "mac",
+    "action": "reserved"
+  },
+  "volatile": [],
+  "reserved_values": {},
+  "inverse_identity_changes": {},
+  "rollback_evidence": "FortiOS 7.6.7 build3704, 2026-09-24: DHCP create, update and delete restored by a one-shot stitch. Reservations are compared by numeric server and reservation IDs; order is not significant."
+}

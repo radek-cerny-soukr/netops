@@ -1,0 +1,5 @@
+# Optional dependency of netops-admin, needed only by src/netops_admin/mcp_server.py.
+# The command line runs without anything from this file.
+# fastmcp is pinned to the exact version netops-helper ships, so both MCP surfaces of the
+# netops family speak the same library.
+fastmcp==4.0.5

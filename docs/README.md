@@ -7,6 +7,7 @@ This directory is mostly a signpost. Documentation lives with the component it d
 | `netops-helper` | [`components/netops-helper/docs/`](../components/netops-helper/docs/) — security model, egress control, installation, onboarding, configuration, read-only accounts, tools, query catalogue, vendor CLI references, releasing, known vulnerabilities |
 | `netops-auditor` | [`components/netops-auditor/docs/`](../components/netops-auditor/docs/) — collection channels, configuration, inventory, releasing and their documented limits |
 | `netops-core` | [`components/netops-core/docs/`](../components/netops-core/docs/) — inventory and credential schemas, the SSH transport, the audit record, releasing |
+| `netops-admin` | [`components/netops-admin/docs/`](../components/netops-admin/docs/) — planning rules, value limits, execution with the rollback safeguard, journal, limits, undo, MCP, audit export, installation, release process, measured scenarios and known limits |
 
 Cross-component: [`verified-support.md`](verified-support.md) — per platform, what firmware, transport, authentication and account privilege the family has actually measured against a device, versus catalogue only.
 

@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=75", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "netops-admin"
+version = "0.2.0"
+description = "Bounded, reversible network device changes behind an on-device rollback safeguard"
+license = { text = "MIT" }
+requires-python = ">=3.13"
+dependencies = ["netops-auditor==0.2.5", "netops-core==0.2.3"]
+
+[project.scripts]
+netops-admin = "netops_admin.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+netops_admin = ["profiles/*.json"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src", "../netops-auditor/src", "../netops-core/src"]

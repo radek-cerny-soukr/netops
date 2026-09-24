@@ -1,0 +1,186 @@
+{
+  "$schema": "http://cyclonedx.org/schema/bom-1.6.schema.json",
+  "bomFormat": "CycloneDX",
+  "components": [
+    {
+      "bom-ref": "pkg:pypi/netops-auditor@0.2.5",
+      "name": "netops-auditor",
+      "purl": "pkg:pypi/netops-auditor@0.2.5",
+      "scope": "required",
+      "type": "library",
+      "version": "0.2.5"
+    },
+    {
+      "bom-ref": "pkg:pypi/netops-core@0.2.3",
+      "name": "netops-core",
+      "purl": "pkg:pypi/netops-core@0.2.3",
+      "scope": "required",
+      "type": "library",
+      "version": "0.2.3"
+    },
+    {
+      "bom-ref": "requirements-L5",
+      "description": "requirements line 5: fastmcp==4.0.5",
+      "externalReferences": [
+        {
+          "comment": "implicit dist url",
+          "type": "distribution",
+          "url": "https://pypi.org/simple/fastmcp/"
+        }
+      ],
+      "name": "fastmcp",
+      "purl": "pkg:pypi/fastmcp@4.0.5",
+      "scope": "optional",
+      "type": "library",
+      "version": "4.0.5"
+    }
+  ],
+  "dependencies": [
+    {
+      "dependsOn": [],
+      "ref": "pkg:pypi/netops-auditor@0.2.5"
+    },
+    {
+      "dependsOn": [],
+      "ref": "pkg:pypi/netops-core@0.2.3"
+    },
+    {
+      "ref": "requirements-L5"
+    },
+    {
+      "dependsOn": [
+        "pkg:pypi/netops-auditor@0.2.5",
+        "pkg:pypi/netops-core@0.2.3"
+      ],
+      "ref": "root-component"
+    }
+  ],
+  "metadata": {
+    "component": {
+      "bom-ref": "root-component",
+      "description": "Bounded, reversible network device changes behind an on-device rollback safeguard",
+      "licenses": [
+        {
+          "license": {
+            "acknowledgement": "declared",
+            "id": "MIT"
+          }
+        }
+      ],
+      "name": "netops-admin",
+      "purl": "pkg:pypi/netops-admin@0.2.0",
+      "type": "application",
+      "version": "0.2.0"
+    },
+    "properties": [
+      {
+        "name": "cdx:reproducible",
+        "value": "true"
+      }
+    ],
+    "tools": {
+      "components": [
+        {
+          "description": "CycloneDX Software Bill of Materials (SBOM) generator for Python projects and environments",
+          "externalReferences": [
+            {
+              "type": "build-system",
+              "url": "https://github.com/CycloneDX/cyclonedx-python/actions"
+            },
+            {
+              "type": "distribution",
+              "url": "https://pypi.org/project/cyclonedx-bom/"
+            },
+            {
+              "type": "documentation",
+              "url": "https://cyclonedx-bom-tool.readthedocs.io/"
+            },
+            {
+              "type": "issue-tracker",
+              "url": "https://github.com/CycloneDX/cyclonedx-python/issues"
+            },
+            {
+              "type": "license",
+              "url": "https://github.com/CycloneDX/cyclonedx-python/blob/main/LICENSE"
+            },
+            {
+              "type": "release-notes",
+              "url": "https://github.com/CycloneDX/cyclonedx-python/blob/main/CHANGELOG.md"
+            },
+            {
+              "type": "vcs",
+              "url": "https://github.com/CycloneDX/cyclonedx-python/"
+            },
+            {
+              "type": "website",
+              "url": "https://github.com/CycloneDX/cyclonedx-python/#readme"
+            }
+          ],
+          "group": "CycloneDX",
+          "licenses": [
+            {
+              "license": {
+                "acknowledgement": "declared",
+                "id": "Apache-2.0"
+              }
+            }
+          ],
+          "name": "cyclonedx-py",
+          "type": "application",
+          "version": "7.4.0"
+        },
+        {
+          "description": "Python library for CycloneDX",
+          "externalReferences": [
+            {
+              "type": "build-system",
+              "url": "https://github.com/CycloneDX/cyclonedx-python-lib/actions"
+            },
+            {
+              "type": "distribution",
+              "url": "https://pypi.org/project/cyclonedx-python-lib/"
+            },
+            {
+              "type": "documentation",
+              "url": "https://cyclonedx-python-library.readthedocs.io/"
+            },
+            {
+              "type": "issue-tracker",
+              "url": "https://github.com/CycloneDX/cyclonedx-python-lib/issues"
+            },
+            {
+              "type": "license",
+              "url": "https://github.com/CycloneDX/cyclonedx-python-lib/blob/main/LICENSE"
+            },
+            {
+              "type": "release-notes",
+              "url": "https://github.com/CycloneDX/cyclonedx-python-lib/blob/main/CHANGELOG.md"
+            },
+            {
+              "type": "vcs",
+              "url": "https://github.com/CycloneDX/cyclonedx-python-lib"
+            },
+            {
+              "type": "website",
+              "url": "https://github.com/CycloneDX/cyclonedx-python-lib/#readme"
+            }
+          ],
+          "group": "CycloneDX",
+          "licenses": [
+            {
+              "license": {
+                "acknowledgement": "declared",
+                "id": "Apache-2.0"
+              }
+            }
+          ],
+          "name": "cyclonedx-python-lib",
+          "type": "library",
+          "version": "11.12.0"
+        }
+      ]
+    }
+  },
+  "specVersion": "1.6",
+  "version": 1
+}

@@ -523,7 +523,7 @@ def test_repository_gate_covers_the_real_tree() -> None:
     gate = _load_gate()
     tracked, errors = gate.tracked_files(ROOT)
     assert errors == []
-    assert gate.component_names(ROOT) == ["netops-auditor", "netops-core", "netops-helper"]
+    assert gate.component_names(ROOT) == ["netops-admin", "netops-auditor", "netops-core", "netops-helper"]
     assert gate._coverage_errors(ROOT, tracked, gate.component_names(ROOT)) == []
     assert gate._license_errors(ROOT, gate.component_names(ROOT)) == []
     assert gate._workflow_errors(ROOT, gate.component_names(ROOT)) == []

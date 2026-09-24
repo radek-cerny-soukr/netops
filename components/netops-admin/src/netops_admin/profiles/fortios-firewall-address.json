@@ -1,0 +1,49 @@
+{
+  "platform": "fortios",
+  "table": "firewall address",
+  "versions": [
+    "8.0.0 build0167",
+    "7.6.7 build3704"
+  ],
+  "ops": [
+    "create",
+    "update",
+    "delete"
+  ],
+  "key_pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,78}$",
+  "protected_keys": [
+    "all",
+    "none"
+  ],
+  "attributes": {
+    "subnet": {
+      "type": "ipv4-network",
+      "default": "0.0.0.0 0.0.0.0",
+      "required_on_create": true,
+      "update": true,
+      "unset": false,
+      "referenced_update": false
+    },
+    "comment": {
+      "type": "text",
+      "max_length": 255,
+      "update": true,
+      "unset": true,
+      "referenced_update": true,
+      "required_on_create": false
+    }
+  },
+  "fixed": {
+    "type": "ipmask"
+  },
+  "volatile": [
+    "uuid"
+  ],
+  "reserved_values": {},
+  "inverse_identity_changes": {
+    "delete": [
+      "uuid"
+    ]
+  },
+  "rollback_evidence": "FortiOS 8.0.0 build0167, 2026-09-23: a one-shot automation stitch with a cli-script action restored create, update and delete of firewall address in one transaction; deleting the stitch before its time kept the change. The object recreated by the delete inverse receives a new uuid. The same mechanism and address operations were measured on FortiOS 7.6.7 build3704 on 2026-09-23. Execution always requires enrollment bound to the actual build."
+}

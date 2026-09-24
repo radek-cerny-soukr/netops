@@ -1,0 +1,48 @@
+{
+  "platform": "exos",
+  "table": "vlan",
+  "versions": [
+    "33.7.1.6"
+  ],
+  "ops": [
+    "create",
+    "update",
+    "delete"
+  ],
+  "key_pattern": "^[A-Za-z][A-Za-z0-9_-]{0,31}$",
+  "protected_keys": [
+    "Default",
+    "Mgmt"
+  ],
+  "attributes": {
+    "tag": {
+      "type": "integer",
+      "minimum": 2,
+      "maximum": 4095,
+      "required_on_create": true,
+      "update": false,
+      "unset": false,
+      "referenced_update": false
+    },
+    "description": {
+      "type": "text",
+      "max_length": 64,
+      "forbidden_values": [
+        "none"
+      ],
+      "update": true,
+      "unset": true,
+      "referenced_update": true,
+      "required_on_create": false
+    }
+  },
+  "fixed": {},
+  "volatile": [],
+  "reserved_values": {
+    "tag": [
+      "4095"
+    ]
+  },
+  "inverse_identity_changes": {},
+  "rollback_evidence": "ExtremeXOS 33.7.1.6 on X440-G2, 2026-09-23: a one-shot UPM timer with a profile restored create, update and delete of a VLAN without ports; deleting the timer before its time kept the change."
+}
