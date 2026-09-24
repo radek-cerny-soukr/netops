@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.2.2 - 2026-09-24
+
+- Publish the package on PyPI as `netops-admin`; `pip install netops-admin` installs the pinned auditor and core with it. `pyproject.toml` gains the README as the package description, project URLs and classifiers, and declares the licence as the SPDX expression `MIT` with `license-files`; the build requirement rises to `setuptools>=77`.
+- Pin `netops-auditor==0.2.7` and `netops-core==0.2.4`, which differ from 0.2.6 and 0.2.3 only in their package metadata. Link the README to its documents by absolute URLs, so that they also resolve on the PyPI project page, and describe installing from PyPI in `docs/installation.md`. No change to the code.
+
 ## 0.2.1 - 2026-09-24
 
 - Add `doctor`, a read-only readiness report of one device (credentials, host key, identities, firmware and measured tables, enrollment, safeguards, audit policy, export, notification, journal and budgets), and `preview`, which runs every check, the planner and the audit prediction of `apply` for one request without any change. Both are also MCP tools, `admin_doctor` and `admin_preview`. The checks `apply` runs before writing are now one function shared with `preview`.

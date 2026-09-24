@@ -24,7 +24,7 @@ PYTHONPATH=src:../netops-core/src python3 -m netops_auditor run \
 
 It reports nine findings, two of them high: administrative access on a WAN interface and a policy that references an object which does not exist. Each finding names the rule, the object and the line, and never quotes the configuration. The sample carries twenty marked fake secrets; none of them reaches the report, in text, with `--json` or with `--sarif`. Twelve of the FortiOS rules are hardening checks mapped to the CIS FortiGate 7.4.x Benchmark; the [CIS mapping](components/netops-auditor/docs/cis-mapping.md) says what each one checks and which recommendations no rule covers.
 
-On your own device, save the output of `show` on a FortiGate (or `show configuration` on an ExtremeXOS switch, with `--platform exos`) to a file and pass it with `--config`. To track change over time, add `--store audit.db`; accept the current findings once with `--baseline-accept --accepted-by <name> --note <text>`, and later runs report them as `open-known` and anything that appears as `new`. The rule catalogue, suppressions with expiry, collection straight from the device and the read-only MCP surface are described in the [auditor README](components/netops-auditor/README.md).
+On your own device, save the output of `show` on a FortiGate (or `show configuration` on an ExtremeXOS switch, with `--platform exos`) to a file and pass it with `--config`. To track change over time, add `--store audit.db`; accept the current findings once with `--baseline-accept --accepted-by <name> --note <text>`, and later runs report them as `open-known` and anything that appears as `new`. Without the repository, `pip install netops-auditor` (Python 3.13) puts the same command on the path as `netops-auditor`. The rule catalogue, suppressions with expiry, collection straight from the device and the read-only MCP surface are described in the [auditor README](components/netops-auditor/README.md).
 
 ### Audit configuration backups in CI
 
@@ -56,12 +56,12 @@ The workflow needs `security-events: write`. Inputs, outputs and the SARIF mappi
 
 | Component | What it does | Released |
 |---|---|---|
-| [`netops-auditor`](components/netops-auditor/) | Configuration audit; collects the configuration from the device itself or reads a file | [`netops-auditor/v0.2.6`](https://github.com/radek-cerny-soukr/netops/releases/tag/netops-auditor%2Fv0.2.6) (2026-09-24) |
+| [`netops-auditor`](components/netops-auditor/) | Configuration audit; collects the configuration from the device itself or reads a file | [`netops-auditor/v0.2.7`](https://github.com/radek-cerny-soukr/netops/releases/tag/netops-auditor%2Fv0.2.7) (2026-09-24) |
 | [`netops-helper`](components/netops-helper/) | Read-only MCP server for bounded network troubleshooting | [`netops-helper/v0.3.6`](https://github.com/radek-cerny-soukr/netops/releases/tag/netops-helper%2Fv0.3.6) (2026-09-21) |
-| [`netops-admin`](components/netops-admin/) | Bounded device changes, mandatory rollback enrollment and predicted/observed audit | [`netops-admin/v0.2.1`](https://github.com/radek-cerny-soukr/netops/releases/tag/netops-admin%2Fv0.2.1) (2026-09-24) |
-| [`netops-core`](components/netops-core/) | Shared access layer the other components build on: inventory, credential store, host key trust, SSH transport, audit records | [`netops-core/v0.2.3`](https://github.com/radek-cerny-soukr/netops/releases/tag/netops-core%2Fv0.2.3) (2026-09-21) |
+| [`netops-admin`](components/netops-admin/) | Bounded device changes, mandatory rollback enrollment and predicted/observed audit | [`netops-admin/v0.2.2`](https://github.com/radek-cerny-soukr/netops/releases/tag/netops-admin%2Fv0.2.2) (2026-09-24) |
+| [`netops-core`](components/netops-core/) | Shared access layer the other components build on: inventory, credential store, host key trust, SSH transport, audit records | [`netops-core/v0.2.4`](https://github.com/radek-cerny-soukr/netops/releases/tag/netops-core%2Fv0.2.4) (2026-09-24) |
 
-Every release carries a source archive, an SBOM, a checksum manifest and a Sigstore signature. Earlier versions keep their release pages and tags; the table above links the current one. How releases are cut and signed, and what the repository gate enforces, is in the [documentation map](docs/README.md#releases).
+Every release carries a source archive, an SBOM, a checksum manifest and a Sigstore signature. Core, Auditor and Admin are also published on PyPI (`pip install netops-auditor`, `pip install netops-admin`); the helper is not. Earlier versions keep their release pages and tags; the table above links the current one. How releases are cut and signed, and what the repository gate enforces, is in the [documentation map](docs/README.md#releases).
 
 ## What has been tested on real devices
 

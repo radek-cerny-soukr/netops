@@ -2,7 +2,7 @@
 
 Release tags follow the component scheme `<name>/v<version>`, where `<name>` is the project name
 declared in this component's `pyproject.toml`: this component tags
-`netops-admin/v0.2.1`, and the release title is `netops-admin 0.2.1`. Tags of another component
+`netops-admin/v0.2.2`, and the release title is `netops-admin 0.2.2`. Tags of another component
 are never touched by this procedure. Publishing a newer version leaves the release page and the tag
 of earlier versions in place. The canonical origin is
 `https://github.com/radek-cerny-soukr/netops`.
@@ -26,7 +26,7 @@ credentials, host keys, or inventory and vault files. The release export is a po
 the component gate also reads the content of every released file and, outside a
 repository, holds the exported tree to exactly the released selection.
 
-## What 0.2.1 releases
+## What 0.2.2 releases
 
 This component releases **from source; it ships no container image**. The release carries four assets:
 
@@ -38,11 +38,23 @@ This component releases **from source; it ships no container image**. The releas
 | `netops-admin-<version>-release-SHA256SUMS.sigstore.json` | the Sigstore bundle over those checksums |
 
 An image, and the three assets that come with one, are planned for a later version. Until then the
-component runs from the unpacked archive on any Python 3.13 host.
+component runs on any Python 3.13 host, installed from PyPI or from the unpacked archive.
+
+### Also on PyPI
+
+From this version the component is also published on PyPI as `netops-admin`: a source distribution
+and a wheel built from the release tag. The workflow `.github/workflows/publish-pypi.yml` at the
+repository root is started by hand on that tag. It accepts only a tag of this family, checks that the
+tag names the version in `pyproject.toml`, builds both files with hash-pinned build tools and
+`SOURCE_DATE_EPOCH` set to the time of the tagged commit, and uploads them through PyPI trusted
+publishing, so no upload token is stored anywhere: first to TestPyPI and, once that installation has
+been checked, to PyPI. The two files are not assets of the release page and are not covered by its
+Sigstore bundle; the upload carries its own provenance attestation. A version already on PyPI is never
+uploaded again.
 
 ### It needs `netops-core` and `netops-auditor` beside it
 
-The admin reads the credential store, the host key trust, the SSH transport and the interactive session from `netops-core`, and the configuration parsers and the snapshot collector from `netops-auditor`; `pyproject.toml` pins them as `netops-core==0.2.3` and `netops-auditor==0.2.6`. There is no index to resolve those pins against: **the operator installs the source archives of exactly those versions next to the admin**, verified against their own checksums. [installation.md](installation.md) gives the commands. In this repository the archives are the tree, so the tests take the components from `../netops-core/src` and `../netops-auditor/src` through `[tool.pytest.ini_options] pythonpath`. `fastmcp` is needed solely for the MCP surface.
+The admin reads the credential store, the host key trust, the SSH transport and the interactive session from `netops-core`, and the configuration parsers and the snapshot collector from `netops-auditor`; `pyproject.toml` pins them as `netops-core==0.2.4` and `netops-auditor==0.2.7`. `pip install netops-admin` resolves those pins on PyPI. From the release archives instead, **the operator installs the source archives of exactly those versions next to the admin**, verified against their own checksums. [installation.md](installation.md) gives the commands for both. In this repository the archives are the tree, so the tests take the components from `../netops-core/src` and `../netops-auditor/src` through `[tool.pytest.ini_options] pythonpath`. `fastmcp` is needed solely for the MCP surface.
 
 ## Procedure
 
@@ -118,4 +130,4 @@ SBOM does not reproduce is not released.
 
 After the new release is published and independently verified, update the current-version links in the repository documentation and check every release, tag and download URL against the public release and tag lists. The previous release page, its assets and its tag stay. Removing one is a separate decision that needs explicit authorization for that exact deletion and a local archive of its assets first; other components' releases and tags are never touched.
 
-`requirements-release.in` of this component is byte-identical to the one of `netops-auditor` 0.2.6, and `requirements-release.lock` is that component's lock of 2026-09-20 (Python 3.13.15, `pip-tools==7.6.1`; the lock header records the command). A regeneration of either lock changes both files in the same commit.
+`requirements-release.in` of this component is byte-identical to the one of `netops-auditor` 0.2.7, and `requirements-release.lock` is that component's lock of 2026-09-20 (Python 3.13.15, `pip-tools==7.6.1`; the lock header records the command). A regeneration of either lock changes both files in the same commit.

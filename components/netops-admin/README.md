@@ -2,9 +2,9 @@
 
 Bounded, reversible changes to network devices: one object of a supported table per request, planned from a fresh snapshot and executed behind a rollback safeguard on the device itself.
 
-This source tree targets `netops-admin/v0.2.1` (2026-09-24) and pins `netops-auditor==0.2.6` and `netops-core==0.2.3`. Version 0.1.0 was an unpublished internal milestone.
+This source tree targets `netops-admin/v0.2.2` (2026-09-24) and pins `netops-auditor==0.2.7` and `netops-core==0.2.4`; `pip install netops-admin` installs all three from PyPI. Version 0.1.0 was an unpublished internal milestone.
 
-[Start here: enrollment, policies and the new operations](docs/operations-020.md).
+[Start here: enrollment, policies and the new operations](https://github.com/radek-cerny-soukr/netops/blob/main/components/netops-admin/docs/operations-020.md).
 
 ## What it does
 
@@ -24,7 +24,7 @@ request (JSON)  +  configured device       →  netops-admin preview →  ready 
 - `status`, `recover`, `notify-retry`, `unblock` and `undo` are commands for a person: read an operation, settle one left running by an interruption, resend its notification, lift a device block after an investigation, and return a confirmed operation as a new operation behind a new safeguard.
 - `python -m netops_admin.mcp_server` offers an agent four tools: `admin_apply`, `admin_status` and the read-only `admin_preview` and `admin_doctor`. There is no tool to cancel a safeguard, unblock a device, undo a change or edit a plan.
 
-Execution, the journal, the limits, the audit log, its export and the notification: [docs/execution.md](docs/execution.md). Planning rules and refusals: [docs/planning.md](docs/planning.md). Installation and configuration: [docs/installation.md](docs/installation.md). Release process: [docs/releasing.md](docs/releasing.md).
+Execution, the journal, the limits, the audit log, its export and the notification: [docs/execution.md](https://github.com/radek-cerny-soukr/netops/blob/main/components/netops-admin/docs/execution.md). Planning rules and refusals: [docs/planning.md](https://github.com/radek-cerny-soukr/netops/blob/main/components/netops-admin/docs/planning.md). Installation and configuration: [docs/installation.md](https://github.com/radek-cerny-soukr/netops/blob/main/components/netops-admin/docs/installation.md). Release process: [docs/releasing.md](https://github.com/radek-cerny-soukr/netops/blob/main/components/netops-admin/docs/releasing.md).
 
 Exit codes: `0` plan printed, snapshot matches, change confirmed, or preview or doctor ready, `1` snapshot does not match, `3` request refused or preview not ready, `4` change not confirmed, `5` doctor found the device not ready, `2` usage error.
 

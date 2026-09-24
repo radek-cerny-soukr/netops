@@ -3,20 +3,20 @@
   "bomFormat": "CycloneDX",
   "components": [
     {
-      "bom-ref": "pkg:pypi/netops-auditor@0.2.6",
+      "bom-ref": "pkg:pypi/netops-auditor@0.2.7",
       "name": "netops-auditor",
-      "purl": "pkg:pypi/netops-auditor@0.2.6",
+      "purl": "pkg:pypi/netops-auditor@0.2.7",
       "scope": "required",
       "type": "library",
-      "version": "0.2.6"
+      "version": "0.2.7"
     },
     {
-      "bom-ref": "pkg:pypi/netops-core@0.2.3",
+      "bom-ref": "pkg:pypi/netops-core@0.2.4",
       "name": "netops-core",
-      "purl": "pkg:pypi/netops-core@0.2.3",
+      "purl": "pkg:pypi/netops-core@0.2.4",
       "scope": "required",
       "type": "library",
-      "version": "0.2.3"
+      "version": "0.2.4"
     },
     {
       "bom-ref": "requirements-L5",
@@ -38,19 +38,19 @@
   "dependencies": [
     {
       "dependsOn": [],
-      "ref": "pkg:pypi/netops-auditor@0.2.6"
+      "ref": "pkg:pypi/netops-auditor@0.2.7"
     },
     {
       "dependsOn": [],
-      "ref": "pkg:pypi/netops-core@0.2.3"
+      "ref": "pkg:pypi/netops-core@0.2.4"
     },
     {
       "ref": "requirements-L5"
     },
     {
       "dependsOn": [
-        "pkg:pypi/netops-auditor@0.2.6",
-        "pkg:pypi/netops-core@0.2.3"
+        "pkg:pypi/netops-auditor@0.2.7",
+        "pkg:pypi/netops-core@0.2.4"
       ],
       "ref": "root-component"
     }
@@ -59,6 +59,33 @@
     "component": {
       "bom-ref": "root-component",
       "description": "Bounded, reversible network device changes behind an on-device rollback safeguard",
+      "externalReferences": [
+        {
+          "comment": "from pyproject urls: Documentation",
+          "type": "documentation",
+          "url": "https://github.com/radek-cerny-soukr/netops/blob/main/components/netops-admin/README.md"
+        },
+        {
+          "comment": "from pyproject urls: Issues",
+          "type": "issue-tracker",
+          "url": "https://github.com/radek-cerny-soukr/netops/issues"
+        },
+        {
+          "comment": "from pyproject urls: Source",
+          "type": "other",
+          "url": "https://github.com/radek-cerny-soukr/netops/tree/main/components/netops-admin"
+        },
+        {
+          "comment": "from pyproject urls: Changelog",
+          "type": "release-notes",
+          "url": "https://github.com/radek-cerny-soukr/netops/blob/main/components/netops-admin/CHANGELOG.md"
+        },
+        {
+          "comment": "from pyproject urls: Homepage",
+          "type": "website",
+          "url": "https://github.com/radek-cerny-soukr/netops"
+        }
+      ],
       "licenses": [
         {
           "license": {
@@ -68,9 +95,9 @@
         }
       ],
       "name": "netops-admin",
-      "purl": "pkg:pypi/netops-admin@0.2.1",
+      "purl": "pkg:pypi/netops-admin@0.2.2",
       "type": "application",
-      "version": "0.2.1"
+      "version": "0.2.2"
     },
     "properties": [
       {

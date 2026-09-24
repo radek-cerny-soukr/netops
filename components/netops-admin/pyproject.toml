@@ -1,14 +1,32 @@
 [build-system]
-requires = ["setuptools>=75", "wheel"]
+requires = ["setuptools>=77", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "netops-admin"
-version = "0.2.1"
+version = "0.2.2"
 description = "Bounded, reversible network device changes behind an on-device rollback safeguard"
-license = { text = "MIT" }
+readme = { file = "README.md", content-type = "text/markdown" }
+license = "MIT"
+license-files = ["LICENSE"]
 requires-python = ">=3.13"
-dependencies = ["netops-auditor==0.2.6", "netops-core==0.2.3"]
+dependencies = ["netops-auditor==0.2.7", "netops-core==0.2.4"]
+
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Intended Audience :: System Administrators",
+  "Operating System :: POSIX :: Linux",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.13",
+  "Topic :: System :: Networking",
+]
+
+[project.urls]
+Homepage = "https://github.com/radek-cerny-soukr/netops"
+Documentation = "https://github.com/radek-cerny-soukr/netops/blob/main/components/netops-admin/README.md"
+Changelog = "https://github.com/radek-cerny-soukr/netops/blob/main/components/netops-admin/CHANGELOG.md"
+Source = "https://github.com/radek-cerny-soukr/netops/tree/main/components/netops-admin"
+Issues = "https://github.com/radek-cerny-soukr/netops/issues"
 
 [project.scripts]
 netops-admin = "netops_admin.cli:main"
