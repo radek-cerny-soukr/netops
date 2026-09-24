@@ -72,11 +72,17 @@ jobs:
           test -f "$target/src/netops_core/__init__.py"
           (cd "$target" && python -B scripts/check_public_release.py)
 
-      - name: Install on a proxy host and run the documented preflight
+      - name: Install on a proxy host with the core release it pins and run the documented preflight
         run: |
           source="$(find dist -mindepth 1 -maxdepth 1 -type d)"
-          rm -rf "$RUNNER_TEMP/core-export"
-          (cd ../netops-core && python -B scripts/create_release_artifacts.py --output "$RUNNER_TEMP/core-export")
+          pinned="$(grep -oE '"netops-core==[0-9]+\.[0-9]+\.[0-9]+"' pyproject.toml | tr -d '"')"
+          pinned="${pinned#netops-core==}"
+          test -n "$pinned"
+          git -C "$GITHUB_WORKSPACE" fetch --quiet --no-tags --depth 1 origin "refs/tags/netops-core/v$pinned:refs/tags/netops-core/v$pinned"
+          rm -rf "$RUNNER_TEMP/core-pinned" "$RUNNER_TEMP/core-export"
+          mkdir -p "$RUNNER_TEMP/core-pinned"
+          git -C "$GITHUB_WORKSPACE" archive "netops-core/v$pinned" components/netops-core | tar -x -C "$RUNNER_TEMP/core-pinned"
+          (cd "$RUNNER_TEMP/core-pinned/components/netops-core" && python -B scripts/create_release_artifacts.py --output "$RUNNER_TEMP/core-export")
           core="$(find "$RUNNER_TEMP/core-export" -mindepth 1 -maxdepth 1 -type d)"
           venv="$RUNNER_TEMP/netops-helper-installed"
           rm -rf "$venv"
