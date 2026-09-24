@@ -1700,7 +1700,7 @@ def test_an_exos_configuration_is_audited_by_the_exos_catalog(tmp_path, capsys):
     report = json.loads(out)
     assert report["platform"] == "exos"
     assert report["findings"] == []
-    assert report["rules_version"].startswith("exos:4:")
+    assert report["rules_version"].startswith("exos:9:")
 
 
 def test_an_exos_defect_is_reported_over_the_command_line(tmp_path, capsys):

@@ -1,0 +1,7 @@
+{
+  "version": 1,
+  "platform": "fortios",
+  "address_networks": [
+    "192.0.2.0/24"
+  ]
+}

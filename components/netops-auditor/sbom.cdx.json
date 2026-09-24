@@ -55,9 +55,9 @@
         }
       ],
       "name": "netops-auditor",
-      "purl": "pkg:pypi/netops-auditor@0.2.4",
+      "purl": "pkg:pypi/netops-auditor@0.2.5",
       "type": "application",
-      "version": "0.2.4"
+      "version": "0.2.5"
     },
     "properties": [
       {

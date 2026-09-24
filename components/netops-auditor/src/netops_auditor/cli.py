@@ -9,6 +9,7 @@ from pathlib import Path
 
 from netops_core import vault
 
+from . import management
 from . import checks_exos
 from . import checks_fortios
 from . import collect
@@ -108,6 +109,7 @@ def _parser() -> argparse.ArgumentParser:
     audit.add_argument("--tenant", required=True)
     audit.add_argument("--device", required=True)
     audit.add_argument("--config", required=True)
+    audit.add_argument("--policy")
     audit.add_argument("--store")
     audit.add_argument("--suppressions")
     audit.add_argument("--baseline-accept", action="store_true", dest="baseline_accept")
@@ -126,6 +128,7 @@ def _parser() -> argparse.ArgumentParser:
         type=int,
         default=collect.REST_MAX_BODY_BYTES,
     )
+    gather.add_argument("--policy")
     gather.add_argument("--store")
     gather.add_argument("--suppressions")
     gather.add_argument("--baseline-accept", action="store_true", dest="baseline_accept")
@@ -188,13 +191,13 @@ def _rules_version(platform: str, rules) -> str:
     return "%s:%d:%s" % (platform, len(rules), digest)
 
 
-def _audit(platform: str, text: str, tenant: str, device: str, rules) -> tuple:
+def _audit(platform: str, text: str, tenant: str, device: str, rules, policy=None) -> tuple:
     try:
         tree = PLATFORMS[platform][1].parse(text)
     except PARSE_ERRORS as error:
         raise Failure("cannot parse configuration: %s" % error)
     try:
-        return run(tree, tenant, device, rules)
+        return run(tree, tenant, device, rules, policy)
     except CheckError as error:
         raise Failure("catalog does not match the checks: %s" % error)
 
@@ -239,10 +242,22 @@ def _previous(store, tenant: str, device: str) -> tuple:
     return last_evaluated(store, tenant, store.runs_for_device(tenant, device))[1]
 
 
+
+def _checked_policy_scope(store, tenant, device, rules_version):
+    runs = store.runs_for_device(tenant, device)
+    if not runs:
+        return
+    previous = str(runs[0]["rules_version"]).split(":")[3:]
+    current = str(rules_version).split(":")[3:]
+    if previous != current:
+        raise Failure("operator policy differs from this device history; use a separate store for the new policy")
+
+
 def _record(args, digest: str, rules_version: str, findings) -> tuple:
     path = _store_path(args.store, False)
     try:
         with Store(path) as store:
+            _checked_policy_scope(store, args.tenant, args.device, rules_version)
             baseline = store.baseline_fingerprints(args.tenant, args.device)
             previous = _previous(store, args.tenant, args.device)
             run_id = store.record_run(
@@ -407,6 +422,8 @@ def _text_report(report: dict) -> str:
         lines.append("%s suppressions: %d" % (name, len(waivers[name])))
         for item in waivers[name]:
             lines.extend(_suppression_lines(name, item))
+    if "rule_coverage" in report:
+        lines.extend("rule %s: %s" % item for item in sorted(report["rule_coverage"].items()))
     if "evaluation" in report:
         lines.append("evaluation: not-evaluated")
         lines.append("state not-evaluated: %d" % len(report["not_evaluated"]))
@@ -441,7 +458,10 @@ def _command_run(args) -> int:
     rules = _load_rules(args.platform)
     rules_version = _rules_version(args.platform, rules)
     suppression_items = _load_suppressions(args.suppressions, args.tenant)
-    findings = _audit(args.platform, text, args.tenant, args.device, rules)
+    policy, coverage = _policy(args, args.platform, text)
+    if policy:
+        rules_version += ":" + management.policy_digest(policy)
+    findings = _audit(args.platform, text, args.tenant, args.device, rules, policy)
     previous, baseline, accepted = (), frozenset(), None
     if args.store:
         previous, baseline, accepted = _record(args, digest, rules_version, findings)
@@ -449,6 +469,7 @@ def _command_run(args) -> int:
     report = _report(
         args.tenant, args.device, args.platform, digest, rules_version, findings, result
     )
+    report["rule_coverage"] = coverage
     sys.stdout.write(_render(report, args.as_json, _text_report))
     if accepted is not None:
         sys.stderr.write("baseline: accepted %d of %d findings\n" % (accepted, len(findings)))
@@ -629,6 +650,7 @@ def _recorded(args, record, snapshot, rules_version, findings, events) -> tuple:
     path = _store_path(args.store, False)
     try:
         with Store(path) as store:
+            _checked_policy_scope(store, args.tenant, record.name, rules_version)
             baseline = store.baseline_fingerprints(args.tenant, record.name)
             previous = _previous(store, args.tenant, record.name)
             run_id = store.record_run(
@@ -671,11 +693,14 @@ def _command_collect(args) -> int:
     suppression_items = _load_suppressions(args.suppressions, args.tenant)
     credential = _credential(record, section, args.vault)
     snapshot, events = _collected(args, record, section, credential)
+    policy, coverage = _policy(args, platform, snapshot.text)
+    if policy:
+        rules_version += ":" + management.policy_digest(policy)
     gate = _completeness(args.tenant, record, section, snapshot)
     findings = (
         (gate,)
         if gate is not None
-        else _audit(platform, snapshot.text, args.tenant, record.name, rules)
+        else _audit(platform, snapshot.text, args.tenant, record.name, rules, policy)
     )
     previous, baseline, accepted = (), frozenset(), None
     if args.store:
@@ -687,6 +712,7 @@ def _command_collect(args) -> int:
         args.tenant, record.name, platform, snapshot.sha256, rules_version, findings, result
     )
     report[COLLECTION_KEY] = _collection(snapshot, record, credential)
+    report["rule_coverage"] = coverage
     sys.stdout.write(_render(report, args.as_json, _text_report))
     if accepted is not None:
         sys.stderr.write("baseline: accepted %d of %d findings\n" % (accepted, len(findings)))
@@ -726,6 +752,19 @@ def main(argv=None) -> int:
         sys.stderr.write("error: %s\n" % error)
         return EXIT_ERROR
 
+
+
+def _policy(args, platform, text):
+    try:
+        policy = management.load_policy(args.policy, platform) if getattr(args, "policy", None) else None
+        tree = PLATFORMS[platform][1].parse(text)
+        coverage = management.coverage(platform, tree, policy)
+        missing = [name for name in (policy or {}).get("required_rules", []) if coverage[name] != "evaluated"]
+        if missing:
+            raise Failure("mandatory policy rules not evaluated: " + ", ".join(missing))
+        return policy, coverage
+    except (OSError, ValueError, UnicodeError, l1_fortios.ParseError, l1_exos.ParseError) as exc:
+        raise Failure("policy cannot be evaluated (%s)" % type(exc).__name__) from None
 
 if __name__ == "__main__":
     sys.exit(main())

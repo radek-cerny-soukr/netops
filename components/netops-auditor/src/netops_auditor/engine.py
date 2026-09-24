@@ -9,6 +9,7 @@ from .findings import CLASSES, EVIDENCE_TYPES, SEVERITIES, Finding
 CATALOG_DIR = Path(__file__).parent / "catalog"
 
 _CHECKS = {}
+_CONTEXTUAL = set()
 
 
 class CatalogError(Exception):
@@ -34,11 +35,13 @@ class Rule:
     scope_gate: bool = False
 
 
-def check(name):
+def check(name, contextual=False):
     def register(function):
         if name in _CHECKS:
             raise CheckError("duplicate check %s" % name)
         _CHECKS[name] = function
+        if contextual:
+            _CONTEXTUAL.add(name)
         return function
 
     return register
@@ -91,10 +94,11 @@ def _evidence(rule: Rule, raw: dict) -> tuple:
     return tuple(sorted(raw.items()))
 
 
-def _collect(tree, tenant: str, device: str, rules) -> list:
+def _collect(tree, tenant: str, device: str, rules, policy=None) -> list:
     findings = []
     for rule in rules:
-        for hit in _CHECKS[rule.check](tree):
+        arguments = (tree, policy) if rule.check in _CONTEXTUAL else (tree,)
+        for hit in _CHECKS[rule.check](*arguments):
             findings.append(
                 Finding(
                     rule_id=rule.id,
@@ -116,8 +120,8 @@ def _ordered(findings) -> tuple:
     return tuple(sorted(findings, key=lambda f: (f.rule_id, f.object_key)))
 
 
-def run(tree, tenant: str, device: str, rules) -> tuple:
-    gated = _collect(tree, tenant, device, [rule for rule in rules if rule.scope_gate])
+def run(tree, tenant: str, device: str, rules, policy=None) -> tuple:
+    gated = _collect(tree, tenant, device, [rule for rule in rules if rule.scope_gate], policy)
     if gated:
         return _ordered(gated)
-    return _ordered(_collect(tree, tenant, device, [rule for rule in rules if not rule.scope_gate]))
+    return _ordered(_collect(tree, tenant, device, [rule for rule in rules if not rule.scope_gate], policy))

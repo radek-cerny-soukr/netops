@@ -241,3 +241,13 @@ def no_ntp_sync(tree):
         "line": section.line if servers is None else servers.line,
         "evidence": {"reason": "no ntp server"},
     }
+
+from . import management
+
+from .management import management_fortios_address_unused
+from .management import management_fortios_address_policy
+from .management import management_fortios_group_empty
+from .management import management_fortios_group_dangling
+from .management import management_fortios_group_cycle
+from .management import management_fortios_dhcp_conflict
+from .management import management_fortios_dhcp_subnet

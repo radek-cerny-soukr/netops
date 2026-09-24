@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.5 - 2026-09-24
+
+- Add twelve management rules: unused addresses and VLANs, address and VLAN policy, empty/dangling/cyclic groups, DHCP conflicts and subnet constraints, port VLAN allowlists, native VLAN consistency and description convention.
+- Add validated operator policy files to run/collect, explicit management-rule coverage and mandatory-rule refusal. Bind stored runs to the policy digest.
+- Include positive and negative fixtures for every added rule, plus malformed-policy, large-graph, DHCP-type and UPM-body regressions.
+
 ## 0.2.4 - 2026-09-21
 
 - Keep HTTP sockets alive through complete response consumption, including Connection: close, HTTP/1.0 and EOF-delimited bodies. Reject truncated Content-Length/chunked responses and preserve the absolute deadline for slow peers.

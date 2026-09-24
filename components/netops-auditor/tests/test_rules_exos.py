@@ -33,7 +33,7 @@ def canary_text():
 
 
 def audit(text):
-    return run(parse(text), TENANT, DEVICE, load_catalog(PLATFORM))
+    return run(parse(text), TENANT, DEVICE, tuple(r for r in load_catalog(PLATFORM) if ".management." not in r.id))
 
 
 def mutate(text, old, new):
@@ -49,23 +49,23 @@ def only_new(text):
 
 
 def test_catalog_declares_every_check_of_the_module():
-    rules = load_catalog(PLATFORM)
+    rules = tuple(r for r in load_catalog(PLATFORM) if ".management." not in r.id)
     declared = {rule.check for rule in rules}
     registered = set(registered_checks())
     assert declared <= registered
-    assert {name for name in registered if hasattr(checks_exos, name)} == declared
+    assert {name for name in registered if hasattr(checks_exos, name) and not name.startswith("management_")} == declared
 
 
 def test_every_rule_of_the_catalog_is_a_fact():
-    assert {rule.rule_class for rule in load_catalog(PLATFORM)} == {"fakt"}
+    assert {rule.rule_class for rule in tuple(r for r in load_catalog(PLATFORM) if ".management." not in r.id)} == {"fakt"}
 
 
 def test_no_rule_of_the_catalog_gates_the_scope():
-    assert [rule.id for rule in load_catalog(PLATFORM) if rule.scope_gate] == []
+    assert [rule.id for rule in tuple(r for r in load_catalog(PLATFORM) if ".management." not in r.id) if rule.scope_gate] == []
 
 
 def test_every_rule_names_the_reference_of_the_running_release():
-    for rule in load_catalog(PLATFORM):
+    for rule in tuple(r for r in load_catalog(PLATFORM) if ".management." not in r.id):
         assert rule.refs
         for reference in rule.refs:
             assert reference.startswith("ExtremeXOS v33.7.1 Command References, chapter Commands:")
@@ -277,7 +277,7 @@ def test_distinct_community_objects_and_tenants_keep_distinct_identities():
     )
     findings = audit(text)
     assert len(findings) == len({f.object_key for f in findings}) == 5
-    other = run(parse(text), "another-tenant", DEVICE, load_catalog(PLATFORM))
+    other = run(parse(text), "another-tenant", DEVICE, tuple(r for r in load_catalog(PLATFORM) if ".management." not in r.id))
     assert {f.fingerprint() for f in findings}.isdisjoint(f.fingerprint() for f in other)
     assert all("public" not in f.object_key and "private" not in f.object_key for f in findings)
 

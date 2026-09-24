@@ -28,7 +28,7 @@ RECURSIVE_FILE_RULES = {
     "docs": frozenset({".md"}),
     "scripts": frozenset({".py"}),
     "src": frozenset({".json", ".py"}),
-    "tests": frozenset({".conf", ".py"}),
+    "tests": frozenset({".conf", ".py", ".json"}),
 }
 EXECUTABLE = {
     "scripts/check_gates.py",

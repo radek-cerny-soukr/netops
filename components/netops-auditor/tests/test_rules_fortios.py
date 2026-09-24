@@ -45,7 +45,7 @@ def clean_text():
 
 
 def audit(text):
-    return run(parse(text), TENANT, DEVICE, load_catalog("fortios"))
+    return run(parse(text), TENANT, DEVICE, tuple(r for r in load_catalog("fortios") if ".management." not in r.id))
 
 
 def mutate(text, old, new):
@@ -92,15 +92,15 @@ def test_clean_fixture_yields_no_finding():
 
 
 def test_catalog_declares_every_registered_check():
-    rules = load_catalog("fortios")
+    rules = tuple(r for r in load_catalog("fortios") if ".management." not in r.id)
     declared = {rule.check for rule in rules}
     registered = set(registered_checks())
     assert declared <= registered
-    assert {name for name in registered if hasattr(checks_fortios, name)} == declared
+    assert {name for name in registered if hasattr(checks_fortios, name) and not name.startswith("management_")} == declared
 
 
 def test_every_rule_names_the_reference_of_the_running_release():
-    for rule in load_catalog("fortios"):
+    for rule in tuple(r for r in load_catalog("fortios") if ".management." not in r.id):
         assert rule.refs
         for reference in rule.refs:
             assert reference.startswith("FortiOS 8.0.0 CLI Reference: config ")

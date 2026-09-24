@@ -154,3 +154,11 @@ def exos_telnet_enabled(configuration):
         "line": command.line,
         "evidence": {"reason": _REASON_EXPLICIT},
     }
+
+from . import management
+
+from .management import management_exos_vlan_empty
+from .management import management_exos_vlan_policy
+from .management import management_exos_port_policy
+from .management import management_exos_port_native
+from .management import management_exos_port_description

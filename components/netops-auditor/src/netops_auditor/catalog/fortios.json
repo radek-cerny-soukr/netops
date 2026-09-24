@@ -8,7 +8,9 @@
       "class": "fakt",
       "severity": "high",
       "scope_gate": true,
-      "evidence_fields": ["vdoms"],
+      "evidence_fields": [
+        "vdoms"
+      ],
       "title": "The configuration is organized into VDOMs, a scope this catalog does not read, so no other rule of the catalog was evaluated over it.",
       "remediation": "Export and audit the configuration of each VDOM separately until the catalog learns to descend into VDOM scopes.",
       "refs": [
@@ -23,7 +25,11 @@
       "check": "dangling_reference",
       "class": "fakt",
       "severity": "high",
-      "evidence_fields": ["policy", "attribute", "value"],
+      "evidence_fields": [
+        "policy",
+        "attribute",
+        "value"
+      ],
       "title": "A firewall policy references an address, service, schedule, interface or zone that the configuration does not define.",
       "remediation": "Define the missing object or repoint the policy at an object that exists.",
       "refs": [
@@ -47,7 +53,10 @@
       "check": "admin_access_on_untrusted_interface",
       "class": "fakt",
       "severity": "high",
-      "evidence_fields": ["interface", "services"],
+      "evidence_fields": [
+        "interface",
+        "services"
+      ],
       "title": "An interface with role wan permits administrative access over http, https, ssh or telnet.",
       "remediation": "Remove the administrative services from allowaccess on the wan interface and reach the device over VPN or from an internal interface.",
       "refs": [
@@ -61,7 +70,10 @@
       "check": "utm_without_ssl_profile",
       "class": "fakt",
       "severity": "medium",
-      "evidence_fields": ["policy", "name"],
+      "evidence_fields": [
+        "policy",
+        "name"
+      ],
       "title": "A policy turns UTM inspection on without attaching an ssl-ssh-profile.",
       "remediation": "Attach an ssl-ssh-profile to the policy so that the security profiles also see encrypted sessions.",
       "refs": [
@@ -75,7 +87,9 @@
       "check": "no_syslog_target",
       "class": "fakt",
       "severity": "medium",
-      "evidence_fields": ["reason"],
+      "evidence_fields": [
+        "reason"
+      ],
       "title": "The device sends no logs to a syslog collector.",
       "remediation": "Enable log syslogd setting and point it at the address of the collector.",
       "refs": [
@@ -89,13 +103,134 @@
       "check": "no_ntp_sync",
       "class": "fakt",
       "severity": "medium",
-      "evidence_fields": ["reason"],
+      "evidence_fields": [
+        "reason"
+      ],
       "title": "The device does not synchronize its clock over NTP.",
       "remediation": "Enable ntpsync and configure at least one ntpserver entry that carries a server address.",
       "refs": [
         "FortiOS 8.0.0 CLI Reference: config system ntp (ntpsync, type, ntpserver)"
       ],
       "known_false_positives": "The rule reports a missing server only when type is custom; when type is absent the rule deliberately abstains, because the CLI Reference 8.0.0 documents set type [fortiguard|custom] without stating which value applies when the attribute is not set, and that default has not been verified against a device. A device that keeps type custom, carries no ntpserver entry and still holds its clock from elsewhere would be reported."
+    },
+    {
+      "id": "fortios.management.address-unused",
+      "version": 1,
+      "check": "management_fortios_address_unused",
+      "class": "fakt",
+      "severity": "info",
+      "evidence_fields": [
+        "code",
+        "count"
+      ],
+      "title": "Configuration management check: address-unused",
+      "remediation": "Review the identified object and the administrator policy; correct the finding before confirming a change.",
+      "refs": [
+        "FortiOS 7.6 CLI Reference, config firewall address"
+      ],
+      "known_false_positives": "Evaluates only visible configuration. Optional policy rules need an explicit operator policy. Unused objects are informational; absent evidence is not proof of a complete configuration."
+    },
+    {
+      "id": "fortios.management.address-policy",
+      "version": 1,
+      "check": "management_fortios_address_policy",
+      "class": "fakt",
+      "severity": "medium",
+      "evidence_fields": [
+        "code",
+        "count"
+      ],
+      "title": "Configuration management check: address-policy",
+      "remediation": "Review the identified object and the administrator policy; correct the finding before confirming a change.",
+      "refs": [
+        "FortiOS 7.6 CLI Reference, config firewall address"
+      ],
+      "known_false_positives": "Evaluates only visible configuration. Optional policy rules need an explicit operator policy. Unused objects are informational; absent evidence is not proof of a complete configuration."
+    },
+    {
+      "id": "fortios.management.group-empty",
+      "version": 1,
+      "check": "management_fortios_group_empty",
+      "class": "fakt",
+      "severity": "medium",
+      "evidence_fields": [
+        "code",
+        "count"
+      ],
+      "title": "Configuration management check: group-empty",
+      "remediation": "Review the identified object and the administrator policy; correct the finding before confirming a change.",
+      "refs": [
+        "FortiOS 7.6 CLI Reference, config firewall addrgrp"
+      ],
+      "known_false_positives": "Evaluates only visible configuration. Optional policy rules need an explicit operator policy. Unused objects are informational; absent evidence is not proof of a complete configuration."
+    },
+    {
+      "id": "fortios.management.group-dangling",
+      "version": 1,
+      "check": "management_fortios_group_dangling",
+      "class": "fakt",
+      "severity": "high",
+      "evidence_fields": [
+        "code",
+        "count"
+      ],
+      "title": "Configuration management check: group-dangling",
+      "remediation": "Review the identified object and the administrator policy; correct the finding before confirming a change.",
+      "refs": [
+        "FortiOS 7.6 CLI Reference, config firewall addrgrp"
+      ],
+      "known_false_positives": "Evaluates only visible configuration. Optional policy rules need an explicit operator policy. Unused objects are informational; absent evidence is not proof of a complete configuration."
+    },
+    {
+      "id": "fortios.management.group-cycle",
+      "version": 1,
+      "check": "management_fortios_group_cycle",
+      "class": "fakt",
+      "severity": "high",
+      "evidence_fields": [
+        "code",
+        "count"
+      ],
+      "title": "Configuration management check: group-cycle",
+      "remediation": "Review the identified object and the administrator policy; correct the finding before confirming a change.",
+      "refs": [
+        "FortiOS 7.6 CLI Reference, config firewall addrgrp"
+      ],
+      "known_false_positives": "Evaluates only visible configuration. Optional policy rules need an explicit operator policy. Unused objects are informational; absent evidence is not proof of a complete configuration."
+    },
+    {
+      "id": "fortios.management.dhcp-conflict",
+      "version": 1,
+      "check": "management_fortios_dhcp_conflict",
+      "class": "fakt",
+      "severity": "high",
+      "evidence_fields": [
+        "code",
+        "count"
+      ],
+      "title": "Configuration management check: dhcp-conflict",
+      "remediation": "Review the identified object and the administrator policy; correct the finding before confirming a change.",
+      "refs": [
+        "FortiOS 7.6 CLI Reference, config system dhcp server"
+      ],
+      "known_false_positives": "Evaluates only visible configuration. Optional policy rules need an explicit operator policy. Unused objects are informational; absent evidence is not proof of a complete configuration."
+    },
+    {
+      "id": "fortios.management.dhcp-subnet",
+      "version": 1,
+      "check": "management_fortios_dhcp_subnet",
+      "class": "fakt",
+      "severity": "high",
+      "evidence_fields": [
+        "code",
+        "count"
+      ],
+      "title": "Configuration management check: dhcp-subnet",
+      "remediation": "Review the identified object and the administrator policy; correct the finding before confirming a change.",
+      "refs": [
+        "FortiOS 7.6 CLI Reference, config system dhcp server"
+      ],
+      "known_false_positives": "Evaluates only visible configuration. Optional policy rules need an explicit operator policy. Unused objects are informational; absent evidence is not proof of a complete configuration."
     }
   ]
 }

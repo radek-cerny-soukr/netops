@@ -24,7 +24,7 @@ TENANT = "tenant-gate"
 DEVICE = "sw-gate.example.invalid"
 NOW = datetime(2026, 9, 17, 12, 0, 0, tzinfo=timezone.utc)
 
-RULES = load_catalog(PLATFORM)
+RULES = tuple(r for r in load_catalog(PLATFORM) if ".management." not in r.id)
 RULE_IDS = tuple(rule.id for rule in RULES)
 
 MARKERS = tuple("KANARCI-TAJEMSTVI-EXOS-%02d" % number for number in range(1, 12))

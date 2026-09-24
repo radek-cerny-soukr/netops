@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "platform": "exos",
+  "vlan_tags": [
+    [
+      100,
+      200
+    ]
+  ]
+}

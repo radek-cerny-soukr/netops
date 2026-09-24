@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "platform": "exos",
+  "port_vlans": {
+    "10": {
+      "tagged": [],
+      "untagged": [
+        "other"
+      ]
+    }
+  }
+}

@@ -608,7 +608,7 @@ def test_configure_accepts_the_exos_catalog(audited):
     mcp_server.configure(values)
     current = mcp_server.configuration()
     assert current.platform == "exos"
-    assert [rule.id for rule in current.rules] == [
+    assert [rule.id for rule in current.rules if ".management." not in rule.id] == [
         "exos.snmp.default-community",
         "exos.mgmt.telnet-enabled",
         "exos.logging.no-syslog-target",

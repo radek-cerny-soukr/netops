@@ -7,7 +7,11 @@
       "check": "exos_default_snmp_community",
       "class": "fakt",
       "severity": "high",
-      "evidence_fields": ["command", "field", "dictionary"],
+      "evidence_fields": [
+        "command",
+        "field",
+        "dictionary"
+      ],
       "title": "An SNMP community entry carries a name or an index from the dictionary of trivial community strings.",
       "remediation": "Remove the community entry with configure snmp delete community or configure snmpv3 delete community, and where SNMP is needed replace it with an SNMPv3 user that authenticates.",
       "refs": [
@@ -22,7 +26,9 @@
       "check": "exos_telnet_enabled",
       "class": "fakt",
       "severity": "medium",
-      "evidence_fields": ["reason"],
+      "evidence_fields": [
+        "reason"
+      ],
       "title": "The switch accepts Telnet, which carries the password of the session in clear text.",
       "remediation": "Send disable telnet and reach the switch over SSH, which EXOS enables with enable ssh2.",
       "refs": [
@@ -37,7 +43,9 @@
       "check": "exos_no_syslog_target",
       "class": "fakt",
       "severity": "medium",
-      "evidence_fields": ["reason"],
+      "evidence_fields": [
+        "reason"
+      ],
       "title": "The switch sends its log to no remote syslog collector.",
       "remediation": "Add a collector with configure syslog add and turn the remote export on with enable syslog.",
       "refs": [
@@ -52,7 +60,9 @@
       "check": "exos_no_sntp_client",
       "class": "fakt",
       "severity": "medium",
-      "evidence_fields": ["reason"],
+      "evidence_fields": [
+        "reason"
+      ],
       "title": "The switch synchronizes its clock from no time server, neither SNTP nor NTP, so its log timestamps cannot be lined up with another device.",
       "remediation": "Name a server and turn the client on: configure sntp-client primary with enable sntp-client, or configure ntp server add with enable ntp.",
       "refs": [
@@ -62,6 +72,91 @@
         "ExtremeXOS v33.7.1 Command References, chapter Commands: configure ntp server add"
       ],
       "known_false_positives": "33.7.1 states no default for either client - the enable sntp-client and the disable sntp-client entry both read Default: N/A - so the rule infers no state and reads presence alone. Four commands silence it, each on its own: enable sntp-client, a configure sntp-client primary entry carrying a host, enable ntp, or a configure ntp server add entry carrying a host. The two clients are separate features of 33.7.1 and the rule does not judge which one a switch should use, only that it uses one; version 2 added the NTP half after a real dump was reported for holding its clock that way. A configuration naming only configure sntp-client secondary is still reported, because the rule accepts the primary entry alone, and so is one naming a server for a client that is turned off, because the dump does not carry the off state."
+    },
+    {
+      "id": "exos.management.vlan-empty",
+      "version": 1,
+      "check": "management_exos_vlan_empty",
+      "class": "fakt",
+      "severity": "info",
+      "evidence_fields": [
+        "code",
+        "count"
+      ],
+      "title": "Configuration management check: vlan-empty",
+      "remediation": "Review the identified object and the administrator policy; correct the finding before confirming a change.",
+      "refs": [
+        "ExtremeXOS v33.7.1 Command References, chapter Commands: configure vlan add ports"
+      ],
+      "known_false_positives": "Evaluates only visible configuration. Optional policy rules need an explicit operator policy. Unused objects are informational; absent evidence is not proof of a complete configuration."
+    },
+    {
+      "id": "exos.management.vlan-policy",
+      "version": 1,
+      "check": "management_exos_vlan_policy",
+      "class": "fakt",
+      "severity": "medium",
+      "evidence_fields": [
+        "code",
+        "count"
+      ],
+      "title": "Configuration management check: vlan-policy",
+      "remediation": "Review the identified object and the administrator policy; correct the finding before confirming a change.",
+      "refs": [
+        "ExtremeXOS v33.7.1 Command References, chapter Commands: configure vlan add ports"
+      ],
+      "known_false_positives": "Evaluates only visible configuration. Optional policy rules need an explicit operator policy. Unused objects are informational; absent evidence is not proof of a complete configuration."
+    },
+    {
+      "id": "exos.management.port-policy",
+      "version": 1,
+      "check": "management_exos_port_policy",
+      "class": "fakt",
+      "severity": "high",
+      "evidence_fields": [
+        "code",
+        "count"
+      ],
+      "title": "Configuration management check: port-policy",
+      "remediation": "Review the identified object and the administrator policy; correct the finding before confirming a change.",
+      "refs": [
+        "ExtremeXOS v33.7.1 Command References, chapter Commands: configure vlan add ports"
+      ],
+      "known_false_positives": "Evaluates only visible configuration. Optional policy rules need an explicit operator policy. Unused objects are informational; absent evidence is not proof of a complete configuration."
+    },
+    {
+      "id": "exos.management.port-native",
+      "version": 1,
+      "check": "management_exos_port_native",
+      "class": "fakt",
+      "severity": "high",
+      "evidence_fields": [
+        "code",
+        "count"
+      ],
+      "title": "Configuration management check: port-native",
+      "remediation": "Review the identified object and the administrator policy; correct the finding before confirming a change.",
+      "refs": [
+        "ExtremeXOS v33.7.1 Command References, chapter Commands: configure vlan add ports"
+      ],
+      "known_false_positives": "Evaluates only visible configuration. Optional policy rules need an explicit operator policy. Unused objects are informational; absent evidence is not proof of a complete configuration."
+    },
+    {
+      "id": "exos.management.port-description",
+      "version": 1,
+      "check": "management_exos_port_description",
+      "class": "fakt",
+      "severity": "low",
+      "evidence_fields": [
+        "code",
+        "count"
+      ],
+      "title": "Configuration management check: port-description",
+      "remediation": "Review the identified object and the administrator policy; correct the finding before confirming a change.",
+      "refs": [
+        "ExtremeXOS v33.7.1 Command References, chapter Commands: configure vlan add ports"
+      ],
+      "known_false_positives": "Evaluates only visible configuration. Optional policy rules need an explicit operator policy. Unused objects are informational; absent evidence is not proof of a complete configuration."
     }
   ]
 }
