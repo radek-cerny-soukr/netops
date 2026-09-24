@@ -2,12 +2,12 @@
 
 Configuration audit for network devices. The auditor collects the configuration from the device itself, parses it with a platform-specific parser, evaluates the parsed configuration against a catalogue of deterministic rules, and reports findings - never the configuration itself, and never a credential.
 
-This source tree targets `netops-auditor/v0.2.5` (2026-09-24), which pins `netops-core==0.2.3`; the repository keeps one release page and one tag per component, and every release stays in the history of `main` as its own signed commit - see [`docs/releasing.md`](docs/releasing.md). The component is usable from the CLI, and its shape is fixed by its gates rather than by its documentation.
+This source tree targets `netops-auditor/v0.2.6` (2026-09-24), which pins `netops-core==0.2.3`; the repository keeps one release page and one tag per component, and every release stays in the history of `main` as its own signed commit - see [`docs/releasing.md`](docs/releasing.md). The component is usable from the CLI, and its shape is fixed by its gates rather than by its documentation.
 
 ## What it does
 
 - **Rules as data.** One catalogue per platform, as JSON under `src/netops_auditor/catalog/`: identifier, version, check, class (`fakt` or `usudek`), severity, evidence fields, remediation, and optional compliance references. A rule without a positive and a negative fixture does not enter the catalogue - the gate rejects it.
-- **Two audited platforms.** FortiOS carries 6 rules over the tree of `config` / `edit` / `set`: VDOM scope, dangling policy references, WAN administrative access, UTM inspection without an SSL profile, a missing syslog target, and no NTP sync. ExtremeXOS and Switch Engine carry 4 rules over the flat command list of `show configuration`: no SNTP or NTP sync, a missing syslog target, a default SNMP community, and Telnet left enabled. The platform picks the parser and the catalogue; there is no shared model between them and none is planned until a rule needs one.
+- **Two audited platforms.** FortiOS carries 18 rules over the tree of `config` / `edit` / `set`: VDOM scope, dangling policy references, WAN administrative access, UTM inspection without an SSL profile, a missing syslog target, no NTP sync, and twelve hardening rules taken from the CIS FortiGate 7.4.x Benchmark v1.0.1 and the hardening chapter of the FortiOS 8.0.0 Best Practices - see [`docs/cis-mapping.md`](docs/cis-mapping.md). ExtremeXOS and Switch Engine carry 4 rules over the flat command list of `show configuration`: no SNTP or NTP sync, a missing syslog target, a default SNMP community, and Telnet left enabled. The platform picks the parser and the catalogue; there is no shared model between them and none is planned until a rule needs one.
 - **Collects its own configuration through a pinned channel.** The inventory selects `file`, `fortios-rest`, or `ssh`; there is no fallback ladder. SSH supports FortiOS and EXOS, REST is FortiOS-only, and `file` reads a dump collected elsewhere. Live measurements through 20 September 2026 cover FortiOS SSH, EXOS SSH collection followed by all four rules, and FortiOS REST collection followed by all six rules. The EXOS measurement includes local mutations producing the expected findings; the REST measurement includes a deliberately absent required section producing an incomplete-snapshot finding. These are dated measurements, not coverage of every firmware and access profile. See [`docs/channels.md`](docs/channels.md), [`docs/inventory.md`](docs/inventory.md) and the family's [verified platform support](../../docs/verified-support.md).
 - **Reaches a device through [`netops-core`](../netops-core/README.md), and does not vendor it.** The inventory (file version 2), the credential store (file version 2), the host key trust and the SSH transport are the shared access layer of the family, pinned as `netops-core==0.2.3`. Unlike `netops-helper`, whose release archive vendors a copy of `netops-core` inside itself, the auditor's archive carries none: there is no index behind the pin, so the operator installs the `netops-core` source archive of exactly that version beside it (see [`docs/releasing.md`](docs/releasing.md)). What stays here is the policy - the `auditor` section of an entry, which kind of credential a channel takes, the step table of a platform and the audit itself.
 - **Never changes a device - though the account behind it is not read-only either.** Not a policy, not an interface, not even a console setting: with an active FortiOS pager the collection refuses instead of disabling it. Reaching the device at all still needs an elevated account: a `super_admin` administrator on FortiOS - a profile that could write to the device, chosen because a weaker one silently returns an incomplete configuration instead of an error - and an administrator account on ExtremeXOS, because a user-level account there is refused `show configuration` outright. What keeps the collector itself from writing is the fixed step table and the absence of any other command on the channel, not the account; see [`docs/channels.md`](docs/channels.md).
@@ -18,7 +18,7 @@ This source tree targets `netops-auditor/v0.2.5` (2026-09-24), which pins `netop
 
 ## Management rules and operator policy
 
-The development catalogue now includes seven FortiOS and five EXOS management checks in addition to the original rules. These cover the Admin change scope and accept an optional operator policy. See [management policy](docs/management-policy.md) for scope, configuration, coverage reporting and limitations. This work is not yet published.
+The development catalogue now includes seven FortiOS and five EXOS management checks in addition to the original rules. These cover the Admin change scope and accept an optional operator policy. See [management policy](docs/management-policy.md) for scope, configuration, coverage reporting and limitations.
 
 ## Running it
 
@@ -30,11 +30,47 @@ python3 -m pytest -q                         # the test suite
 python3 scripts/check_gates.py               # the gate of a release
 ```
 
-Three subcommands, each taking `--tenant`: `run` evaluates a configuration file already on disk, `collect` reaches a device through the inventory and evaluates what comes back, and `status` reports the freshness of the last audit.
+Three subcommands, each taking `--tenant`: `run` evaluates a configuration file already on disk, `collect` reaches a device through the inventory and evaluates what comes back, and `status` reports the freshness of the last audit. `merge-sarif` combines SARIF reports of `run --sarif`; the two migrations are described in [`docs/configuration.md`](docs/configuration.md).
+
+## SARIF and GitHub code scanning
+
+`run --sarif` writes the report as one SARIF 2.1.0 run instead of text or JSON (`--json` and `--sarif` exclude each other). The run describes every rule of the catalogue, and each finding becomes a result with the configuration file and line, the object key as a logical location, the finding fingerprint under `partialFingerprints` (`netopsFingerprint/v2`) and a suppressed finding marked as an accepted external suppression. Severity maps to the SARIF level (`high` to `error`, `medium` to `warning`, `low` and `info` to `note`) and, for GitHub, to `security-severity` 8.0, 5.0 and 3.0. The evidence fields travel as result properties exactly as in the JSON report, never the configuration text. `merge-sarif --output FILE INPUT...` combines several such files of the same auditor version into one run, so that one upload to code scanning carries all of them.
+
+```sh
+netops-auditor run --platform fortios --tenant example --device fw-a --config backups/fw-a.conf --sarif > fw-a.sarif
+netops-auditor merge-sarif --output all.sarif fw-a.sarif fw-b.sarif
+```
+
+The repository ships the same path as a composite GitHub Action in [`action.yml`](action.yml). It audits configuration files already committed to the repository - no device, credential or network access - and writes one SARIF file. It sets up Python 3.13 without changing the environment of later steps and runs the auditor and `netops-core` from the sources at the referenced commit, so pin it to the full commit SHA of an auditor release. Every file becomes a device named by its path, so renaming a file changes the fingerprints of its findings. A pattern that matches nothing, an unreadable file or an unusable policy fails the step.
+
+```yaml
+permissions:
+  contents: read
+  security-events: write
+jobs:
+  audit:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - id: audit
+        uses: radek-cerny-soukr/netops/components/netops-auditor@<commit of an auditor release>
+        with:
+          platform: fortios
+          configs: |
+            backups/**/*.conf
+      - uses: github/codeql-action/upload-sarif@2892aa5e19bbd11bc0cff5427e3b750a04d9e3c2 # v4.38.2
+        with:
+          sarif_file: ${{ steps.audit.outputs.sarif-file }}
+          category: netops-auditor-fortios
+```
+
+Inputs: `platform` (`fortios` or `exos`, one catalogue per step), `configs` (one glob pattern per line), `tenant-name` (default `default`), `policy-file` (optional operator policy) and `output-file` (default `netops-auditor.sarif`). Outputs: `sarif-file` and `results`, the number of findings. The step does not fail on findings; code scanning decides what blocks a pull request. Uploading needs code scanning enabled for the repository.
 
 ## Boundaries
 
-The auditor is not a compliance product: rules may carry `refs` to the vendor command reference or to CIS, ZKB, or DORA, but no profile is built and no compliance is claimed. Rules exist for FortiOS and for EXOS, and the EXOS catalogue is four rules wide - time, logging, SNMP communities and Telnet - which is a beginning, not coverage; what each of them cannot see is in [`docs/channels.md`](docs/channels.md). The dated live EXOS measurement and its reciprocal local mutations are recorded in the [support matrix](../../docs/verified-support.md); they do not establish coverage beyond the four catalogue rules. A finding of class `usudek` is a judgement and is never emitted at high severity.
+The auditor is not a compliance product: rules may carry `refs` to the vendor command reference or to CIS, ZKB, or DORA, but no profile is built and no compliance is claimed. The CIS references name the recommendation a rule checks and, in `known_false_positives`, the part of it the rule does not check; [`docs/cis-mapping.md`](docs/cis-mapping.md) also lists the recommendations no rule covers. Rules exist for FortiOS and for EXOS, and the EXOS catalogue is four rules wide - time, logging, SNMP communities and Telnet - which is a beginning, not coverage; what each of them cannot see is in [`docs/channels.md`](docs/channels.md). The dated live EXOS measurement and its reciprocal local mutations are recorded in the [support matrix](../../docs/verified-support.md); they do not establish coverage beyond the four catalogue rules. A finding of class `usudek` is a judgement and is never emitted at high severity.
 
 The auditor ships no image of its own either, so the `ssh` channel runs the OpenSSH client already installed on the host and inherits that client's own vulnerabilities, unfiltered by any isolating container. Keeping that client current is the operator's responsibility, not this component's.
 

@@ -1,0 +1,80 @@
+name: netops-auditor
+description: Audit FortiOS or EXOS configuration files offline and write the findings as one SARIF file.
+inputs:
+  platform:
+    description: Rule catalog to apply, fortios or exos.
+    required: true
+  configs:
+    description: Configuration files to audit, one glob pattern per line, relative to the working directory. A pattern that matches nothing fails the step.
+    required: true
+  tenant-name:
+    description: Tenant name recorded in every finding.
+    required: false
+    default: default
+  policy-file:
+    description: Optional management policy file applied to every configuration.
+    required: false
+    default: ""
+  output-file:
+    description: Path of the SARIF file to write.
+    required: false
+    default: netops-auditor.sarif
+outputs:
+  sarif-file:
+    description: Path of the written SARIF file.
+    value: ${{ steps.audit.outputs.sarif-file }}
+  results:
+    description: Number of findings in the SARIF file.
+    value: ${{ steps.audit.outputs.results }}
+runs:
+  using: composite
+  steps:
+    - id: python
+      uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+      with:
+        python-version: "3.13"
+        update-environment: false
+    - id: audit
+      shell: bash
+      env:
+        NETOPS_PYTHON: ${{ steps.python.outputs.python-path }}
+        NETOPS_SOURCE: ${{ github.action_path }}
+        NETOPS_PLATFORM: ${{ inputs.platform }}
+        NETOPS_CONFIGS: ${{ inputs.configs }}
+        NETOPS_TENANT: ${{ inputs.tenant-name }}
+        NETOPS_POLICY: ${{ inputs.policy-file }}
+        NETOPS_OUTPUT: ${{ inputs.output-file }}
+      run: |
+        set -euo pipefail
+        export PYTHONPATH="$NETOPS_SOURCE/src:$NETOPS_SOURCE/../netops-core/src"
+        auditor=("$NETOPS_PYTHON" -B -m netops_auditor)
+        policy=()
+        if [ -n "$NETOPS_POLICY" ]; then policy=(--policy "$NETOPS_POLICY"); fi
+        shopt -s globstar nullglob
+        files=()
+        while IFS= read -r pattern; do
+          [ -n "${pattern//[[:space:]]/}" ] || continue
+          IFS=$'\n' matched=($pattern)
+          if [ "${#matched[@]}" -eq 0 ]; then
+            echo "::error::pattern matched no file: $pattern"
+            exit 1
+          fi
+          files+=("${matched[@]}")
+        done <<< "$NETOPS_CONFIGS"
+        if [ "${#files[@]}" -eq 0 ]; then
+          echo "::error::no configuration pattern given"
+          exit 1
+        fi
+        parts="$(mktemp -d)"
+        index=0
+        for file in "${files[@]}"; do
+          index=$((index + 1))
+          "${auditor[@]}" run --platform "$NETOPS_PLATFORM" --tenant "$NETOPS_TENANT" --device "$file" \
+            --config "$file" "${policy[@]}" --sarif > "$parts/$(printf '%06d' "$index").sarif"
+        done
+        summary="$("${auditor[@]}" merge-sarif --output "$NETOPS_OUTPUT" "$parts"/*.sarif)"
+        echo "$summary"
+        results="${summary#merged }"
+        results="${results%% *}"
+        echo "sarif-file=$NETOPS_OUTPUT" >> "$GITHUB_OUTPUT"
+        echo "results=$results" >> "$GITHUB_OUTPUT"

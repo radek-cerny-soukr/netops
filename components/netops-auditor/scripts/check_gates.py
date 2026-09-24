@@ -172,7 +172,7 @@ FILE_SUFFIXES = frozenset(
         "conf", "config", "cfg", "ini", "toml", "yaml", "yml", "json", "jsonl", "xml",
         "py", "pyc", "pyi", "sh", "bash", "ps1", "bat", "js", "ts", "css", "html", "htm",
         "md", "rst", "txt", "log", "csv", "tsv", "sql", "db", "sqlite", "lock", "sum",
-        "tar", "gz", "bz2", "xz", "zip", "tgz", "bak", "tmp", "swp", "out", "err",
+        "tar", "gz", "bz2", "xz", "zip", "tgz", "bak", "tmp", "swp", "out", "err", "sarif",
         "pem", "crt", "cer", "der", "key", "pub", "csr", "sig", "asc",
         "png", "jpg", "jpeg", "gif", "svg", "pdf", "bin", "img", "iso", "diff", "patch",
         "orig", "rej", "in", "env", "example", "sample", "tmpl", "tpl", "j2", "lst",

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.6 - 2026-09-24
+
+- Add `run --sarif`, a SARIF 2.1.0 report with rule metadata, file and line locations, the finding fingerprint as a partial fingerprint and suppressions, and `merge-sarif`, which combines the reports of several configurations into one run.
+- Ship a composite GitHub Action (`action.yml`) that audits committed configuration files offline and writes one SARIF file for code scanning. Every action it uses is pinned to a commit.
+- Add twelve FortiOS hardening rules from the CIS FortiGate 7.4.x Benchmark v1.0.1 and the FortiOS 8.0.0 Best Practices: USB auto-install, static key ciphers, strong crypto, legacy TLS on the web GUI, idle timeout, lockout threshold, the default admin account, HTTP or Telnet administration, SNMP v1/v2c communities, accepting policies with service ALL, policies with logging disabled and LDAP without TLS. Defaults were checked in the CLI Reference of 7.4.12, 7.6.7 and 8.0.1; a rule reports a missing setting only where the default is the weak value in all three. The three existing rules that match a CIS recommendation carry its reference. See [`docs/cis-mapping.md`](docs/cis-mapping.md).
+
 ## 0.2.5 - 2026-09-24
 
 - Add twelve management rules: unused addresses and VLANs, address and VLAN policy, empty/dangling/cyclic groups, DHCP conflicts and subnet constraints, port VLAN allowlists, native VLAN consistency and description convention.

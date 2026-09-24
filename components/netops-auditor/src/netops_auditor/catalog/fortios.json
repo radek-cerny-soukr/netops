@@ -60,7 +60,8 @@
       "title": "An interface with role wan permits administrative access over http, https, ssh or telnet.",
       "remediation": "Remove the administrative services from allowaccess on the wan interface and reach the device over VPN or from an internal interface.",
       "refs": [
-        "FortiOS 8.0.0 CLI Reference: config system interface (role, allowaccess)"
+        "FortiOS 8.0.0 CLI Reference: config system interface (role, allowaccess)",
+        "CIS FortiGate 7.4.x Benchmark v1.0.1: 1.3 Disable all management related services on WAN port (http, https, ssh and telnet only; ping, snmp and radius-acct are not checked)"
       ],
       "known_false_positives": "The rule reads role and allowaccess and nothing else, so an interface whose exposure is narrowed elsewhere, or whose role is set to wan on an internal link, is reported just the same; how far such a narrowing reaches has not been measured against a device."
     },
@@ -93,7 +94,8 @@
       "title": "The device sends no logs to a syslog collector.",
       "remediation": "Enable log syslogd setting and point it at the address of the collector.",
       "refs": [
-        "FortiOS 8.0.0 CLI Reference: config log syslogd setting (status, server)"
+        "FortiOS 8.0.0 CLI Reference: config log syslogd setting (status, server)",
+        "CIS FortiGate 7.4.x Benchmark v1.0.1: 7.2.1 Centralized Logging and Reporting"
       ],
       "known_false_positives": "The rule reads the section log syslogd setting only, so a device shipping its logs over another channel would be reported as well; which other channels a given build offers is unverified and waits for a check against a real device."
     },
@@ -109,9 +111,225 @@
       "title": "The device does not synchronize its clock over NTP.",
       "remediation": "Enable ntpsync and configure at least one ntpserver entry that carries a server address.",
       "refs": [
-        "FortiOS 8.0.0 CLI Reference: config system ntp (ntpsync, type, ntpserver)"
+        "FortiOS 8.0.0 CLI Reference: config system ntp (ntpsync, type, ntpserver)",
+        "CIS FortiGate 7.4.x Benchmark v1.0.1: 2.1.4 Ensure correct system time is configured through NTP"
       ],
       "known_false_positives": "The rule reports a missing server only when type is custom; when type is absent the rule deliberately abstains, because the CLI Reference 8.0.0 documents set type [fortiguard|custom] without stating which value applies when the attribute is not set, and that default has not been verified against a device. A device that keeps type custom, carries no ntpserver entry and still holds its clock from elsewhere would be reported."
+    },
+    {
+      "id": "fortios.system.usb-auto-install",
+      "version": 1,
+      "check": "usb_auto_install",
+      "class": "fakt",
+      "severity": "medium",
+      "evidence_fields": [
+        "enabled"
+      ],
+      "title": "The device installs a configuration or a firmware image from a USB disk on its own at boot.",
+      "remediation": "Set auto-install-config and auto-install-image to disable under config system auto-install.",
+      "refs": [
+        "FortiOS 8.0.0 CLI Reference: config system auto-install (auto-install-config, auto-install-image)",
+        "CIS FortiGate 7.4.x Benchmark v1.0.1: 2.1.7 Disable USB Firmware and configuration installation",
+        "FortiOS 8.0.0 Best Practices: Hardening, Physical security"
+      ],
+      "known_false_positives": "The rule reads only an explicit enable. The CLI Reference describes both settings as disabled when unset but enabled after a factory reset, and a factory-reset lab unit showed them as explicit set lines; an export that omits the section entirely is not reported."
+    },
+    {
+      "id": "fortios.crypto.static-key-ciphers",
+      "version": 1,
+      "check": "static_key_ciphers",
+      "class": "fakt",
+      "severity": "medium",
+      "evidence_fields": [
+        "setting"
+      ],
+      "title": "TLS sessions that terminate on the device may use static key ciphers without forward secrecy.",
+      "remediation": "Set ssl-static-key-ciphers to disable under config system global.",
+      "refs": [
+        "FortiOS 8.0.0 CLI Reference: config system global (ssl-static-key-ciphers)",
+        "CIS FortiGate 7.4.x Benchmark v1.0.1: 2.1.8 Disable static keys for TLS",
+        "FortiOS 8.0.0 Best Practices: Hardening, Strong ciphers"
+      ],
+      "known_false_positives": "The CLI Reference of 7.4, 7.6 and 8.0 gives enable as the default, so a missing setting is reported as unset; an export without a config system global section is not evaluated at all."
+    },
+    {
+      "id": "fortios.crypto.strong-crypto-disabled",
+      "version": 1,
+      "check": "strong_crypto_disabled",
+      "class": "fakt",
+      "severity": "high",
+      "evidence_fields": [
+        "setting"
+      ],
+      "title": "Strong crypto is disabled, so HTTPS, SSH and TLS functions of the device accept weak ciphers and digests.",
+      "remediation": "Set strong-crypto to enable under config system global.",
+      "refs": [
+        "FortiOS 8.0.0 CLI Reference: config system global (strong-crypto)",
+        "CIS FortiGate 7.4.x Benchmark v1.0.1: 2.1.9 Enable Global Strong Encryption",
+        "FortiOS 8.0.0 Best Practices: Hardening, Strong ciphers"
+      ],
+      "known_false_positives": "None known; the default is enable, so only an explicit disable is reported."
+    },
+    {
+      "id": "fortios.mgmt.gui-legacy-tls",
+      "version": 1,
+      "check": "admin_gui_legacy_tls",
+      "class": "fakt",
+      "severity": "medium",
+      "evidence_fields": [
+        "versions"
+      ],
+      "title": "Web administration accepts TLS versions older than 1.2.",
+      "remediation": "Limit admin-https-ssl-versions under config system global to tlsv1-3, or to tlsv1-2 and tlsv1-3.",
+      "refs": [
+        "FortiOS 8.0.0 CLI Reference: config system global (admin-https-ssl-versions)",
+        "CIS FortiGate 7.4.x Benchmark v1.0.1: 2.1.10 Ensure management GUI listens on secure TLS version"
+      ],
+      "known_false_positives": "The benchmark asks for TLS 1.3 alone; the rule reports only versions below 1.2, so the default of 1.2 and 1.3 passes."
+    },
+    {
+      "id": "fortios.mgmt.idle-timeout",
+      "version": 1,
+      "check": "admin_idle_timeout",
+      "class": "usudek",
+      "severity": "low",
+      "evidence_fields": [
+        "minutes"
+      ],
+      "title": "An idle administrator session stays open longer than five minutes.",
+      "remediation": "Set admintimeout under config system global to 5 or less.",
+      "refs": [
+        "FortiOS 8.0.0 CLI Reference: config system global (admintimeout)",
+        "CIS FortiGate 7.4.x Benchmark v1.0.1: 2.4.4 Ensure Admin idle timeout time is configured",
+        "FortiOS 8.0.0 Best Practices: Administrator access, Administrative settings"
+      ],
+      "known_false_positives": "The threshold is the five minutes of the benchmark and of the default; the Best Practices guide asks only for less than ten. A per-profile or per-administrator timeout override is not read."
+    },
+    {
+      "id": "fortios.mgmt.lockout-threshold",
+      "version": 1,
+      "check": "admin_lockout_threshold",
+      "class": "usudek",
+      "severity": "low",
+      "evidence_fields": [
+        "attempts"
+      ],
+      "title": "An administrator login is locked out only after more than three failed attempts.",
+      "remediation": "Set admin-lockout-threshold under config system global to 3 or less.",
+      "refs": [
+        "FortiOS 8.0.0 CLI Reference: config system global (admin-lockout-threshold, admin-lockout-duration)",
+        "CIS FortiGate 7.4.x Benchmark v1.0.1: 2.2.2 Ensure administrator password retries and lockout time are configured"
+      ],
+      "known_false_positives": "Only the threshold is read. The benchmark also bounds admin-lockout-duration to 900 seconds or less; that half is not evaluated."
+    },
+    {
+      "id": "fortios.mgmt.default-admin-account",
+      "version": 1,
+      "check": "default_admin_account",
+      "class": "usudek",
+      "severity": "low",
+      "evidence_fields": [
+        "account"
+      ],
+      "title": "The well-known default administrator account named admin still exists.",
+      "remediation": "Create a named administrator, verify it can log in, then delete the admin account under config system admin.",
+      "refs": [
+        "FortiOS 8.0.0 CLI Reference: config system admin",
+        "CIS FortiGate 7.4.x Benchmark v1.0.1: 2.4.1 Remove default admin user and create one with other name",
+        "FortiOS 8.0.0 Best Practices: Hardening, Non-standard admin ports and administrator usernames"
+      ],
+      "known_false_positives": "The rule reads the account name only; it cannot tell whether the account still has an empty password, which the benchmark audit also tests."
+    },
+    {
+      "id": "fortios.mgmt.plaintext-admin-access",
+      "version": 1,
+      "check": "plaintext_admin_access",
+      "class": "fakt",
+      "severity": "high",
+      "evidence_fields": [
+        "interface",
+        "services"
+      ],
+      "title": "An interface permits administrative access over HTTP or Telnet, which carry credentials in clear text.",
+      "remediation": "Remove http and telnet from allowaccess of the interface and administer the device over HTTPS or SSH.",
+      "refs": [
+        "FortiOS 8.0.0 CLI Reference: config system interface (allowaccess)",
+        "CIS FortiGate 7.4.x Benchmark v1.0.1: 2.4.5 Ensure only encrypted access channels are enabled",
+        "FortiOS 8.0.0 Best Practices: Administrator access, Administrative settings"
+      ],
+      "known_false_positives": "On an interface with role wan the finding comes together with fortios.mgmt.wan-admin-access for the same line. HTTP that only redirects to HTTPS is still reported, as the benchmark does."
+    },
+    {
+      "id": "fortios.snmp.v1v2c-community",
+      "version": 1,
+      "check": "snmp_community",
+      "class": "fakt",
+      "severity": "medium",
+      "evidence_fields": [
+        "community"
+      ],
+      "title": "An SNMP v1 or v2c community is enabled, which authenticates with a shared string sent in clear text.",
+      "remediation": "Replace the community with an SNMPv3 user with authentication and privacy, then delete the community.",
+      "refs": [
+        "FortiOS 8.0.0 CLI Reference: config system snmp community (status)",
+        "CIS FortiGate 7.4.x Benchmark v1.0.1: 2.3.1 Ensure only SNMPv3 is enabled",
+        "FortiOS 8.0.0 Best Practices: Hardening, Encrypted protocols"
+      ],
+      "known_false_positives": "A community entry is reported unless its status is disable, whether or not the SNMP agent itself is enabled. The community name is never part of the finding."
+    },
+    {
+      "id": "fortios.policy.service-all",
+      "version": 1,
+      "check": "policy_service_all",
+      "class": "usudek",
+      "severity": "medium",
+      "evidence_fields": [
+        "policy",
+        "name"
+      ],
+      "title": "An accepting firewall policy allows every service.",
+      "remediation": "Replace ALL in the service field of the policy with the services the traffic actually needs.",
+      "refs": [
+        "FortiOS 8.0.0 CLI Reference: config firewall policy (action, service)",
+        "CIS FortiGate 7.4.x Benchmark v1.0.1: 3.2 Ensure that policies do not use \"ALL\" as Service"
+      ],
+      "known_false_positives": "An outbound policy to the internet often uses ALL on purpose; the rule cannot tell intent and reports every accepting policy with ALL."
+    },
+    {
+      "id": "fortios.policy.logging-disabled",
+      "version": 1,
+      "check": "policy_logging_disabled",
+      "class": "fakt",
+      "severity": "medium",
+      "evidence_fields": [
+        "policy",
+        "name"
+      ],
+      "title": "A firewall policy has traffic logging disabled.",
+      "remediation": "Set logtraffic of the policy to all, or at least to utm.",
+      "refs": [
+        "FortiOS 8.0.0 CLI Reference: config firewall policy (logtraffic)",
+        "CIS FortiGate 7.4.x Benchmark v1.0.1: 3.4 Ensure logging is enabled on all firewall policies"
+      ],
+      "known_false_positives": "The benchmark asks for all sessions on accepting policies; the rule reports only an explicit disable, so the default utm passes."
+    },
+    {
+      "id": "fortios.auth.ldap-without-tls",
+      "version": 1,
+      "check": "ldap_without_tls",
+      "class": "fakt",
+      "severity": "medium",
+      "evidence_fields": [
+        "server",
+        "setting"
+      ],
+      "title": "An LDAP server is queried without LDAPS or STARTTLS, so the bind credentials and user passwords cross the network in clear text.",
+      "remediation": "Set secure to ldaps or starttls for the LDAP server, with the server certificate trusted by the device.",
+      "refs": [
+        "FortiOS 8.0.0 CLI Reference: config user ldap (secure)",
+        "FortiOS 8.0.0 Best Practices: Hardening, Encrypted protocols"
+      ],
+      "known_false_positives": "The default of secure is disable, so a missing setting is reported as unset. An LDAP server reached only over an IPsec tunnel is still reported."
     },
     {
       "id": "fortios.management.address-unused",

@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 
 from netops_auditor import cli
+from netops_auditor import sarif
 from netops_auditor.collect import ChannelEvent, CollectError, Snapshot
 from netops_auditor.engine import CATALOG_DIR
 from netops_auditor.store import Store
@@ -1925,3 +1926,139 @@ def test_reciprocal_incomplete_history_preserves_last_evaluated(tmp_path, capsys
     path.write_text(clean_text())
     cleaned = json.loads(gather(capsys, complete, store=database, as_json=True)[1])
     assert {item["fingerprint"] for item in cleaned["gone"]} == originals
+
+
+def sarif_args(path, device=DEVICE, platform="fortios", suppressions=None):
+    argv = run_args(path, device=device, platform=platform) + ["--sarif"]
+    if suppressions is not None:
+        argv.extend(["--suppressions", str(suppressions)])
+    return argv
+
+
+def sarif_run(capsys, argv):
+    code, out, err = invoke(capsys, argv)
+    assert code == 0, err
+    assert err == ""
+    return json.loads(out)
+
+
+def test_sarif_carries_every_finding_of_the_json_report(tmp_path, capsys, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    write_config(tmp_path, dirty_text())
+    _, out, _ = audit(capsys, Path("device.conf"), as_json=True)
+    report = json.loads(out)
+    document = sarif_run(capsys, sarif_args(Path("device.conf")))
+    assert document["version"] == "2.1.0"
+    assert len(document["runs"]) == 1
+    run = document["runs"][0]
+    driver = run["tool"]["driver"]
+    assert driver["name"] == "netops-auditor"
+    assert driver["version"] == sarif.__version__
+    assert [rule["id"] for rule in driver["rules"]] == [rule.id for rule in cli._load_rules("fortios")]
+    expected = {(item["rule_id"], item["fingerprint"], item["line"], item["severity"]) for item in report["findings"]}
+    produced = set()
+    for result in run["results"]:
+        assert driver["rules"][result["ruleIndex"]]["id"] == result["ruleId"]
+        location = result["locations"][0]["physicalLocation"]
+        assert location["artifactLocation"]["uri"] == "device.conf"
+        severity = {v: k for k, v in sarif.LEVELS.items() if k != "info"}[result["level"]]
+        produced.add((result["ruleId"], result["partialFingerprints"][sarif.FINGERPRINT_KEY], location["region"]["startLine"], severity))
+        assert "suppressions" not in result
+    assert produced == expected
+    assert run["properties"]["devices"][0]["snapshot_sha256"] == report["snapshot_sha256"]
+    assert CANARY not in json.dumps(document)
+
+
+def test_sarif_of_a_clean_configuration_has_no_result(tmp_path, capsys):
+    path = write_config(tmp_path, clean_text())
+    document = sarif_run(capsys, sarif_args(path))
+    assert document["runs"][0]["results"] == []
+    assert document["runs"][0]["tool"]["driver"]["rules"]
+
+
+def test_sarif_marks_a_suppressed_finding(tmp_path, capsys):
+    path = write_config(tmp_path, dirty_text())
+    waivers = write_suppressions(tmp_path, [suppression(WAN_RULE, WAN_OBJECT, FUTURE)])
+    run = sarif_run(capsys, sarif_args(path, suppressions=waivers))["runs"][0]
+    marked = {result["ruleId"]: result.get("suppressions") for result in run["results"]}
+    assert marked[WAN_RULE] == [{"kind": "external", "status": "accepted"}]
+    assert marked[UTM_RULE] is None
+
+
+def test_sarif_severity_mapping_follows_the_catalog(tmp_path, capsys):
+    path = write_config(tmp_path, dirty_text())
+    run = sarif_run(capsys, sarif_args(path))["runs"][0]
+    for rule, catalog in zip(run["tool"]["driver"]["rules"], cli._load_rules("fortios")):
+        assert rule["defaultConfiguration"]["level"] == sarif.LEVELS[catalog.severity]
+        assert rule["properties"].get("security-severity") == sarif.SECURITY_SEVERITY.get(catalog.severity)
+        assert "security" in rule["properties"]["tags"]
+
+
+def test_sarif_and_json_exclude_each_other(tmp_path, capsys):
+    path = write_config(tmp_path, clean_text())
+    code, out, err = invoke(capsys, sarif_args(path) + ["--json"])
+    assert code == cli.EXIT_ERROR
+    assert out == ""
+    assert "exclude each other" in err
+
+
+def test_sarif_uri_of_an_absolute_path_is_a_file_uri(tmp_path):
+    assert sarif.artifact_uri(str(tmp_path / "a b.conf")) == (tmp_path / "a b.conf").as_uri()
+    assert sarif.artifact_uri("./backups/a b.conf") == "backups/a%20b.conf"
+
+
+def write_sarif(tmp_path, capsys, name, text, device, platform="fortios"):
+    config = write_config(tmp_path, text, name=name + ".conf")
+    code, out, err = invoke(capsys, sarif_args(config, device=device, platform=platform))
+    assert code == 0, err
+    target = tmp_path / (name + ".sarif")
+    target.write_text(out, encoding="utf-8")
+    return target
+
+
+def test_merge_sarif_keeps_every_result_under_one_run(tmp_path, capsys):
+    first = write_sarif(tmp_path, capsys, "fw-a", dirty_text(), "fw-a")
+    second = write_sarif(tmp_path, capsys, "fw-b", dirty_text(), "fw-b")
+    exos = write_sarif(tmp_path, capsys, "sw-a", (FIXTURES / "exos_clean.conf").read_text(encoding="utf-8"), "sw-a", "exos")
+    parts = [json.loads(path.read_text(encoding="utf-8"))["runs"][0] for path in (first, second, exos)]
+    output = tmp_path / "all.sarif"
+    code, out, err = invoke(capsys, ["merge-sarif", "--output", str(output), str(first), str(second), str(exos)])
+    assert code == 0, err
+    run = json.loads(output.read_text(encoding="utf-8"))["runs"][0]
+    rules = run["tool"]["driver"]["rules"]
+    assert len({rule["id"] for rule in rules}) == len(rules)
+    assert len(run["results"]) == sum(len(part["results"]) for part in parts)
+    for result in run["results"]:
+        assert rules[result["ruleIndex"]]["id"] == result["ruleId"]
+    assert [device["device"] for device in run["properties"]["devices"]] == ["fw-a", "fw-b", "sw-a"]
+    assert "merged %d results from 3 files" % len(run["results"]) in out
+
+
+def test_merge_sarif_refuses_foreign_or_inconsistent_input(tmp_path, capsys):
+    own = write_sarif(tmp_path, capsys, "fw-a", dirty_text(), "fw-a")
+    document = json.loads(own.read_text(encoding="utf-8"))
+    cases = {}
+    foreign = json.loads(json.dumps(document))
+    foreign["runs"][0]["tool"]["driver"]["name"] = "other-tool"
+    cases["foreign"] = (foreign, "was not produced by")
+    older = json.loads(json.dumps(document))
+    older["runs"][0]["tool"]["driver"]["version"] = "0.0.1"
+    cases["older"] = (older, "not %s" % sarif.__version__)
+    changed = json.loads(json.dumps(document))
+    changed["runs"][0]["tool"]["driver"]["rules"][0]["help"]["text"] = "changed"
+    cases["changed"] = (changed, "differently")
+    undescribed = json.loads(json.dumps(document))
+    undescribed["runs"][0]["results"][0]["ruleId"] = "fortios.unknown"
+    cases["undescribed"] = (undescribed, "does not describe")
+    twice = json.loads(json.dumps(document))
+    twice["runs"].append(twice["runs"][0])
+    cases["twice"] = (twice, "exactly one run")
+    for name, (item, message) in cases.items():
+        path = tmp_path / (name + ".sarif")
+        path.write_text(json.dumps(item), encoding="utf-8")
+        output = tmp_path / (name + "-out.sarif")
+        arguments = [str(own), str(path)] if name == "changed" else [str(path)]
+        code, out, err = invoke(capsys, ["merge-sarif", "--output", str(output)] + arguments)
+        assert code == cli.EXIT_ERROR, name
+        assert message in err, (name, err)
+        assert not output.exists(), name

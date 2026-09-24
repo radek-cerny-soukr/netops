@@ -242,6 +242,193 @@ def no_ntp_sync(tree):
         "evidence": {"reason": "no ntp server"},
     }
 
+_GLOBAL_SECTION = "system global"
+_AUTO_INSTALL_SECTION = "system auto-install"
+_ADMIN_SECTION = "system admin"
+_SNMP_COMMUNITY_SECTION = "system snmp community"
+_LDAP_SECTION = "user ldap"
+_AUTO_INSTALL_ATTRIBUTES = ("auto-install-config", "auto-install-image")
+_PLAINTEXT_ADMIN_SERVICES = ("http", "telnet")
+_LEGACY_TLS = ("tlsv1-0", "tlsv1-1")
+_DEFAULT_ADMIN = "admin"
+_MAX_IDLE_MINUTES = 5
+_MAX_LOCKOUT_THRESHOLD = 3
+
+
+def _global_hit(section, attribute, evidence):
+    return {
+        "object_key": _GLOBAL_SECTION,
+        "section": _GLOBAL_SECTION,
+        "line": section.line_of(attribute) or section.line,
+        "evidence": evidence,
+    }
+
+
+def _global_number(section, attribute):
+    value = section.value(attribute)
+    if value is None or not value.isdigit():
+        return None
+    return int(value)
+
+
+@check("usb_auto_install")
+def usb_auto_install(tree):
+    section = tree.section(_AUTO_INSTALL_SECTION)
+    if section is None:
+        return
+    enabled = tuple(name for name in _AUTO_INSTALL_ATTRIBUTES if section.value(name) == "enable")
+    if not enabled:
+        return
+    yield {
+        "object_key": _AUTO_INSTALL_SECTION,
+        "section": _AUTO_INSTALL_SECTION,
+        "line": section.line_of(enabled[0]),
+        "evidence": {"enabled": " ".join(enabled)},
+    }
+
+
+@check("static_key_ciphers")
+def static_key_ciphers(tree):
+    section = tree.section(_GLOBAL_SECTION)
+    if section is None:
+        return
+    value = section.value("ssl-static-key-ciphers")
+    if value == "disable":
+        return
+    yield _global_hit(section, "ssl-static-key-ciphers", {"setting": value or "unset"})
+
+
+@check("strong_crypto_disabled")
+def strong_crypto_disabled(tree):
+    section = tree.section(_GLOBAL_SECTION)
+    if section is None or section.value("strong-crypto") != "disable":
+        return
+    yield _global_hit(section, "strong-crypto", {"setting": "disable"})
+
+
+@check("admin_gui_legacy_tls")
+def admin_gui_legacy_tls(tree):
+    section = tree.section(_GLOBAL_SECTION)
+    if section is None:
+        return
+    legacy = tuple(version for version in section.values("admin-https-ssl-versions") if version in _LEGACY_TLS)
+    if not legacy:
+        return
+    yield _global_hit(section, "admin-https-ssl-versions", {"versions": " ".join(legacy)})
+
+
+@check("admin_idle_timeout")
+def admin_idle_timeout(tree):
+    section = tree.section(_GLOBAL_SECTION)
+    if section is None:
+        return
+    minutes = _global_number(section, "admintimeout")
+    if minutes is None or minutes <= _MAX_IDLE_MINUTES:
+        return
+    yield _global_hit(section, "admintimeout", {"minutes": minutes})
+
+
+@check("admin_lockout_threshold")
+def admin_lockout_threshold(tree):
+    section = tree.section(_GLOBAL_SECTION)
+    if section is None:
+        return
+    attempts = _global_number(section, "admin-lockout-threshold")
+    if attempts is None or attempts <= _MAX_LOCKOUT_THRESHOLD:
+        return
+    yield _global_hit(section, "admin-lockout-threshold", {"attempts": attempts})
+
+
+@check("default_admin_account")
+def default_admin_account(tree):
+    account = _entries(tree, _ADMIN_SECTION).get(_DEFAULT_ADMIN)
+    if account is None:
+        return
+    yield {
+        "object_key": _object_key(account),
+        "section": _ADMIN_SECTION,
+        "line": account.line,
+        "evidence": {"account": _DEFAULT_ADMIN},
+    }
+
+
+@check("plaintext_admin_access")
+def plaintext_admin_access(tree):
+    for interface in _entries(tree, _INTERFACE_SECTION).values():
+        allowed = set(interface.values("allowaccess"))
+        exposed = tuple(service for service in _PLAINTEXT_ADMIN_SERVICES if service in allowed)
+        if not exposed:
+            continue
+        yield {
+            "object_key": _object_key(interface),
+            "section": _INTERFACE_SECTION,
+            "line": interface.line_of("allowaccess"),
+            "evidence": {
+                "interface": interface.path[-1],
+                "services": " ".join(exposed),
+            },
+        }
+
+
+@check("snmp_community")
+def snmp_community(tree):
+    for community in _entries(tree, _SNMP_COMMUNITY_SECTION).values():
+        if community.value("status") == "disable":
+            continue
+        yield {
+            "object_key": _object_key(community),
+            "section": _SNMP_COMMUNITY_SECTION,
+            "line": community.line,
+            "evidence": {"community": community.path[-1]},
+        }
+
+
+@check("policy_service_all")
+def policy_service_all(tree):
+    for policy in _entries(tree, _POLICY_SECTION).values():
+        if policy.value("action") != "accept" or "ALL" not in policy.values("service"):
+            continue
+        yield {
+            "object_key": _object_key(policy),
+            "section": _POLICY_SECTION,
+            "line": policy.line_of("service"),
+            "evidence": {
+                "policy": policy.path[-1],
+                "name": policy.value("name", ""),
+            },
+        }
+
+
+@check("policy_logging_disabled")
+def policy_logging_disabled(tree):
+    for policy in _entries(tree, _POLICY_SECTION).values():
+        if policy.value("logtraffic") != "disable":
+            continue
+        yield {
+            "object_key": _object_key(policy),
+            "section": _POLICY_SECTION,
+            "line": policy.line_of("logtraffic"),
+            "evidence": {
+                "policy": policy.path[-1],
+                "name": policy.value("name", ""),
+            },
+        }
+
+
+@check("ldap_without_tls")
+def ldap_without_tls(tree):
+    for server in _entries(tree, _LDAP_SECTION).values():
+        setting = server.value("secure")
+        if setting in ("ldaps", "starttls"):
+            continue
+        yield {
+            "object_key": _object_key(server),
+            "section": _LDAP_SECTION,
+            "line": server.line_of("secure") or server.line,
+            "evidence": {"server": server.path[-1], "setting": setting or "unset"},
+        }
+
+
 from . import management
 
 from .management import management_fortios_address_unused

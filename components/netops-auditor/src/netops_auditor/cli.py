@@ -16,6 +16,7 @@ from . import collect
 from . import inventory
 from . import l1_exos
 from . import l1_fortios
+from . import sarif
 from .engine import CATALOG_DIR, CatalogError, CheckError, load_catalog, run
 from .findings import Finding
 from .state import STATE_GONE, STATE_NEW, STATE_OPEN_KNOWN, STATE_SUPPRESSED, classify
@@ -116,6 +117,7 @@ def _parser() -> argparse.ArgumentParser:
     audit.add_argument("--accepted-by", dest="accepted_by")
     audit.add_argument("--note")
     audit.add_argument("--json", action="store_true", dest="as_json")
+    audit.add_argument("--sarif", action="store_true")
     audit.set_defaults(handler=_command_run)
     gather = commands.add_parser("collect")
     gather.add_argument("--inventory", required=True)
@@ -156,6 +158,10 @@ def _parser() -> argparse.ArgumentParser:
     database = commands.add_parser("migrate-store")
     database.add_argument("--store", required=True)
     database.set_defaults(handler=_command_migrate_store)
+    combined = commands.add_parser("merge-sarif")
+    combined.add_argument("--output", required=True)
+    combined.add_argument("inputs", nargs="+")
+    combined.set_defaults(handler=_command_merge_sarif)
     return parser
 
 
@@ -454,6 +460,8 @@ def _render(report: dict, as_json: bool, renderer) -> str:
 
 def _command_run(args) -> int:
     _checked_options(args)
+    if args.as_json and args.sarif:
+        raise Failure("--json and --sarif exclude each other")
     text, digest = _read_config(Path(args.config))
     rules = _load_rules(args.platform)
     rules_version = _rules_version(args.platform, rules)
@@ -470,7 +478,10 @@ def _command_run(args) -> int:
         args.tenant, args.device, args.platform, digest, rules_version, findings, result
     )
     report["rule_coverage"] = coverage
-    sys.stdout.write(_render(report, args.as_json, _text_report))
+    if args.sarif:
+        sys.stdout.write(sarif.render(sarif.document(report, rules, args.config)))
+    else:
+        sys.stdout.write(_render(report, args.as_json, _text_report))
     if accepted is not None:
         sys.stderr.write("baseline: accepted %d of %d findings\n" % (accepted, len(findings)))
     return EXIT_OK
@@ -728,6 +739,26 @@ def _command_migrate_suppressions(args) -> int:
         "migrated %d suppressions of tenant %s into %s\n"
         % (count, args.tenant, args.destination)
     )
+    return EXIT_OK
+
+
+def _command_merge_sarif(args) -> int:
+    documents = []
+    for source in args.inputs:
+        try:
+            documents.append((source, json.loads(Path(source).read_text(encoding="utf-8"))))
+        except (OSError, UnicodeError, ValueError) as error:
+            raise Failure("cannot read SARIF %s: %s" % (source, error))
+    try:
+        merged = sarif.merge(documents)
+    except sarif.SarifError as error:
+        raise Failure("merge-sarif: %s" % error)
+    try:
+        Path(args.output).write_text(sarif.render(merged), encoding="utf-8")
+    except OSError as error:
+        raise Failure("cannot write SARIF: %s" % error)
+    results = len(merged["runs"][0]["results"])
+    sys.stdout.write("merged %d results from %d files into %s\n" % (results, len(documents), args.output))
     return EXIT_OK
 
 

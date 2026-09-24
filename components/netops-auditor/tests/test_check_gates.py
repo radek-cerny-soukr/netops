@@ -22,7 +22,7 @@ GATE_NAMES = (
     "release_content",
 )
 EXACT_RELEASE_FILES = (
-    "CHANGELOG.md", "LICENSE", "README.md",
+    "CHANGELOG.md", "LICENSE", "README.md", "action.yml",
     "requirements-release.in", "requirements-release.lock", "sbom.cdx.json",
 )
 RELEASE_TREES = ("docs", "scripts")

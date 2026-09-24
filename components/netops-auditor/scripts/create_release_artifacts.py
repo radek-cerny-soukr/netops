@@ -21,7 +21,7 @@ _VERSION_PATTERN = re.compile(
     r"[0-9]+\.[0-9]+\.[0-9]+(?:[.-][0-9A-Za-z]+(?:[.-][0-9A-Za-z]+)*)?"
 )
 EXACT = {
-    "CHANGELOG.md", "LICENSE", "README.md", "pyproject.toml", "requirements-mcp.txt",
+    "CHANGELOG.md", "LICENSE", "README.md", "action.yml", "pyproject.toml", "requirements-mcp.txt",
     "requirements-release.in", "requirements-release.lock", "sbom.cdx.json",
 }
 RECURSIVE_FILE_RULES = {

@@ -148,3 +148,20 @@ def test_the_documented_command_is_installed_by_the_distribution():
     scripts = _configuration()["project"].get("scripts", {})
     assert scripts.get("netops-auditor") == "netops_auditor.cli:main", scripts
     assert MIGRATE_COMMAND.startswith("netops-auditor ")
+
+
+ACTION = COMPONENT / "action.yml"
+
+
+def test_the_action_pins_every_action_it_uses_to_a_commit():
+    uses = re.findall(r"^\s*(?:-\s*)?uses:\s*(\S+)", ACTION.read_text(encoding="utf-8"), re.MULTILINE)
+    assert uses
+    for value in uses:
+        assert re.fullmatch(r"[^@\s]+@[0-9a-f]{40}", value), value
+
+
+def test_the_action_runs_the_sources_it_ships_with():
+    text = ACTION.read_text(encoding="utf-8")
+    assert 'PYTHONPATH="$NETOPS_SOURCE/src:$NETOPS_SOURCE/../netops-core/src"' in text
+    assert (COMPONENT / "src" / "netops_auditor" / "__main__.py").is_file()
+    assert (COMPONENT.parent / "netops-core" / "src" / "netops_core" / "__init__.py").is_file()

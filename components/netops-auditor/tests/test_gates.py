@@ -32,6 +32,8 @@ MARKERS = tuple("KANARCI-TAJEMSTVI-%02d" % number for number in range(1, 21))
 
 VDOM_BLOCK = 'config vdom\n    edit "root"\n    next\nend\n'
 
+GLOBAL_ANCHOR = "    set ssl-static-key-ciphers disable\n"
+
 DEFECTS = {
     "fortios.ref.dangling": (
         '        set srcaddr "lan-net"\n',
@@ -52,6 +54,39 @@ DEFECTS = {
     "fortios.time.no-ntp-sync": (
         "    set ntpsync enable\n",
         "    set ntpsync disable\n",
+    ),
+    "fortios.system.usb-auto-install": (
+        GLOBAL_ANCHOR,
+        GLOBAL_ANCHOR + "end\nconfig system auto-install\n    set auto-install-image enable\n",
+    ),
+    "fortios.crypto.static-key-ciphers": (GLOBAL_ANCHOR, ""),
+    "fortios.crypto.strong-crypto-disabled": (GLOBAL_ANCHOR, GLOBAL_ANCHOR + "    set strong-crypto disable\n"),
+    "fortios.mgmt.gui-legacy-tls": (
+        GLOBAL_ANCHOR,
+        GLOBAL_ANCHOR + "    set admin-https-ssl-versions tlsv1-1 tlsv1-2\n",
+    ),
+    "fortios.mgmt.idle-timeout": (GLOBAL_ANCHOR, GLOBAL_ANCHOR + "    set admintimeout 30\n"),
+    "fortios.mgmt.lockout-threshold": (GLOBAL_ANCHOR, GLOBAL_ANCHOR + "    set admin-lockout-threshold 10\n"),
+    "fortios.mgmt.default-admin-account": (
+        GLOBAL_ANCHOR,
+        GLOBAL_ANCHOR + 'end\nconfig system admin\n    edit "admin"\n    next\n',
+    ),
+    "fortios.mgmt.plaintext-admin-access": (
+        "        set allowaccess ping https ssh\n",
+        "        set allowaccess ping https ssh telnet\n",
+    ),
+    "fortios.snmp.v1v2c-community": (
+        GLOBAL_ANCHOR,
+        GLOBAL_ANCHOR + "end\nconfig system snmp community\n    edit 1\n    next\n",
+    ),
+    "fortios.policy.service-all": ('        set service "web"\n', '        set service "ALL"\n'),
+    "fortios.policy.logging-disabled": (
+        "        set nat enable\n",
+        "        set nat enable\n        set logtraffic disable\n",
+    ),
+    "fortios.auth.ldap-without-tls": (
+        GLOBAL_ANCHOR,
+        GLOBAL_ANCHOR + 'end\nconfig user ldap\n    edit "dir"\n        set server "192.0.2.54"\n    next\n',
     ),
 }
 

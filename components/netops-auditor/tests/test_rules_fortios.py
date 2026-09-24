@@ -10,6 +10,11 @@ FIXTURES = Path(__file__).parent / "fixtures"
 TENANT = "tenant-rules"
 DEVICE = "fw-example"
 VDOM_RULE = "fortios.scope.vdom-unsupported"
+REFERENCE_SOURCES = (
+    "FortiOS 8.0.0 CLI Reference: config ",
+    "CIS FortiGate 7.4.x Benchmark v1.0.1: ",
+    "FortiOS 8.0.0 Best Practices: ",
+)
 
 SDWAN_BLOCK = '''config system sdwan
     set status enable
@@ -102,8 +107,9 @@ def test_catalog_declares_every_registered_check():
 def test_every_rule_names_the_reference_of_the_running_release():
     for rule in tuple(r for r in load_catalog("fortios") if ".management." not in r.id):
         assert rule.refs
+        assert rule.refs[0].startswith("FortiOS 8.0.0 CLI Reference: config ")
         for reference in rule.refs:
-            assert reference.startswith("FortiOS 8.0.0 CLI Reference: config ")
+            assert reference.startswith(REFERENCE_SOURCES), reference
         assert rule.known_false_positives.strip()
 
 
@@ -284,3 +290,58 @@ def test_undeclared_evidence_is_refused():
     )
     with pytest.raises(CheckError):
         run(parse(text), TENANT, DEVICE, (rule,))
+
+
+def hardening_findings(text, rule_id):
+    return [finding for finding in audit(text) if finding.rule_id == rule_id]
+
+
+def test_static_key_ciphers_is_not_evaluated_without_a_global_section():
+    text = mutate(clean_text(), "    set ssl-static-key-ciphers disable\n", "")
+    assert [f.evidence for f in hardening_findings(text, "fortios.crypto.static-key-ciphers")] == [(("setting", "unset"),)]
+    without_global = text.split("config system interface\n", 1)[1]
+    assert hardening_findings("config system interface\n" + without_global, "fortios.crypto.static-key-ciphers") == []
+
+
+def test_explicit_static_key_ciphers_enable_is_reported_with_its_line():
+    text = mutate(clean_text(), "set ssl-static-key-ciphers disable", "set ssl-static-key-ciphers enable")
+    [finding] = hardening_findings(text, "fortios.crypto.static-key-ciphers")
+    assert finding.evidence == (("setting", "enable"),)
+    assert text.splitlines()[finding.line - 1].strip() == "set ssl-static-key-ciphers enable"
+
+
+def test_plaintext_access_on_a_wan_interface_is_reported_by_both_rules():
+    text = mutate(clean_text(), "        set allowaccess ping\n", "        set allowaccess ping telnet https\n")
+    rules = sorted(finding.rule_id for finding in audit(text))
+    assert rules == ["fortios.mgmt.plaintext-admin-access", "fortios.mgmt.wan-admin-access"]
+
+
+def test_snmp_community_finding_never_carries_the_community_name():
+    text = clean_text() + 'config system snmp community\n    edit 7\n        set name "KANARCI-SNMP"\n    next\nend\n'
+    [finding] = hardening_findings(text, "fortios.snmp.v1v2c-community")
+    assert "KANARCI-SNMP" not in repr(finding.as_dict())
+    assert finding.object_key == "system snmp community/7"
+
+
+def test_idle_timeout_and_lockout_thresholds_are_inclusive():
+    for attribute, limit, rule_id in (
+        ("admintimeout", 5, "fortios.mgmt.idle-timeout"),
+        ("admin-lockout-threshold", 3, "fortios.mgmt.lockout-threshold"),
+    ):
+        for value, expected in ((limit, 0), (limit + 1, 1)):
+            text = mutate(clean_text(), '    set timezone "04"\n', '    set timezone "04"\n    set %s %d\n' % (attribute, value))
+            assert len(hardening_findings(text, rule_id)) == expected, (attribute, value)
+
+
+def test_ldap_with_starttls_passes_and_without_secure_is_reported():
+    entry = 'config user ldap\n    edit "dir"\n        set server "192.0.2.54"\n%s    next\nend\n'
+    assert hardening_findings(clean_text() + entry % "        set secure starttls\n", "fortios.auth.ldap-without-tls") == []
+    [finding] = hardening_findings(clean_text() + entry % "", "fortios.auth.ldap-without-tls")
+    assert dict(finding.evidence) == {"server": "dir", "setting": "unset"}
+
+
+def test_policy_service_all_ignores_a_deny_policy():
+    text = mutate(clean_text(), '        set service "web"\n', '        set service "ALL"\n')
+    assert len(hardening_findings(text, "fortios.policy.service-all")) == 1
+    denied = mutate(text, "        set action accept\n", "        set action deny\n")
+    assert hardening_findings(denied, "fortios.policy.service-all") == []
