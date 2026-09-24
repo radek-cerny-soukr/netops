@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.2.7 - 2026-09-24
+
+- Publish the package on PyPI as `netops-auditor`; `pip install netops-auditor` installs the pinned core with it. `pyproject.toml` gains the README as the package description, project URLs and classifiers, and declares the licence as the SPDX expression `MIT` with `license-files`; the build requirement rises to `setuptools>=77`.
+- Pin `netops-core==0.2.4`, which differs from 0.2.3 only in its package metadata. Link the README to its documents by absolute URLs, so that they also resolve on the PyPI project page, and describe installing from PyPI. No change to the code or the rule catalogues.
+
 ## 0.2.6 - 2026-09-24
 
 - Add `run --sarif`, a SARIF 2.1.0 report with rule metadata, file and line locations, the finding fingerprint as a partial fingerprint and suppressions, and `merge-sarif`, which combines the reports of several configurations into one run.

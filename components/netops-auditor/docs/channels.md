@@ -109,7 +109,7 @@ the hardening options, the workspace and the two kinds of authentication are des
 [`../../netops-core/docs/ssh.md`](../../netops-core/docs/ssh.md) and measured there against real
 devices. These documents ship in the `netops-core` archive, not in the auditor archive: that relative
 path resolves in a repository checkout; from a standalone auditor archive the same file is published
-at [`netops-core/v0.2.3`](https://github.com/radek-cerny-soukr/netops/blob/netops-core/v0.2.3/components/netops-core/docs/ssh.md).
+at [`netops-core/v0.2.4`](https://github.com/radek-cerny-soukr/netops/blob/netops-core/v0.2.4/components/netops-core/docs/ssh.md).
 What the auditor adds is the step table of the platform, the preflight and the `ChannelEvent` of
 every command; the prompt cleaning is `netops_core.prompt`. It adds **nothing** to the options of
 the client.
@@ -303,7 +303,7 @@ read-only account the prompt stayed in the snapshot - and in its hash.
 
 So the answer is cleaned by [`netops_core.prompt`](../../netops-core/docs/prompt.md) (published, for
 a standalone archive, at
-[`netops-core/v0.2.3`](https://github.com/radek-cerny-soukr/netops/blob/netops-core/v0.2.3/components/netops-core/docs/prompt.md)),
+[`netops-core/v0.2.4`](https://github.com/radek-cerny-soukr/netops/blob/netops-core/v0.2.4/components/netops-core/docs/prompt.md)),
 which the helper uses as well, by a rule that is deliberately narrow:
 
 - **only the first line** can lose a prefix, and only when that line starts with a prompt shape: at
@@ -402,9 +402,9 @@ auditor sends nothing before `show configuration` on EXOS. The prompt cleaning m
 [`../../netops-core/docs/prompt.md`](../../netops-core/docs/prompt.md) unchanged except for the `$`
 marker. Both relative paths resolve in a repository checkout; from a standalone auditor archive the
 same two files are published at
-[`netops-core/v0.2.3`](https://github.com/radek-cerny-soukr/netops/blob/netops-core/v0.2.3/components/netops-core/docs/ssh.md)
+[`netops-core/v0.2.4`](https://github.com/radek-cerny-soukr/netops/blob/netops-core/v0.2.4/components/netops-core/docs/ssh.md)
 and
-[`netops-core/v0.2.3`](https://github.com/radek-cerny-soukr/netops/blob/netops-core/v0.2.3/components/netops-core/docs/prompt.md).
+[`netops-core/v0.2.4`](https://github.com/radek-cerny-soukr/netops/blob/netops-core/v0.2.4/components/netops-core/docs/prompt.md).
 
 ## Channel `file`
 

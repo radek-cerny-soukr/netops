@@ -3,12 +3,12 @@
   "bomFormat": "CycloneDX",
   "components": [
     {
-      "bom-ref": "pkg:pypi/netops-core@0.2.3",
+      "bom-ref": "pkg:pypi/netops-core@0.2.4",
       "name": "netops-core",
-      "purl": "pkg:pypi/netops-core@0.2.3",
+      "purl": "pkg:pypi/netops-core@0.2.4",
       "scope": "required",
       "type": "library",
-      "version": "0.2.3"
+      "version": "0.2.4"
     },
     {
       "bom-ref": "requirements-L6",
@@ -30,14 +30,14 @@
   "dependencies": [
     {
       "dependsOn": [],
-      "ref": "pkg:pypi/netops-core@0.2.3"
+      "ref": "pkg:pypi/netops-core@0.2.4"
     },
     {
       "ref": "requirements-L6"
     },
     {
       "dependsOn": [
-        "pkg:pypi/netops-core@0.2.3"
+        "pkg:pypi/netops-core@0.2.4"
       ],
       "ref": "root-component"
     }
@@ -46,6 +46,33 @@
     "component": {
       "bom-ref": "root-component",
       "description": "Configuration audit for network devices, with the collection path inside the tool",
+      "externalReferences": [
+        {
+          "comment": "from pyproject urls: Documentation",
+          "type": "documentation",
+          "url": "https://github.com/radek-cerny-soukr/netops/blob/main/components/netops-auditor/README.md"
+        },
+        {
+          "comment": "from pyproject urls: Issues",
+          "type": "issue-tracker",
+          "url": "https://github.com/radek-cerny-soukr/netops/issues"
+        },
+        {
+          "comment": "from pyproject urls: Source",
+          "type": "other",
+          "url": "https://github.com/radek-cerny-soukr/netops/tree/main/components/netops-auditor"
+        },
+        {
+          "comment": "from pyproject urls: Changelog",
+          "type": "release-notes",
+          "url": "https://github.com/radek-cerny-soukr/netops/blob/main/components/netops-auditor/CHANGELOG.md"
+        },
+        {
+          "comment": "from pyproject urls: Homepage",
+          "type": "website",
+          "url": "https://github.com/radek-cerny-soukr/netops"
+        }
+      ],
       "licenses": [
         {
           "license": {
@@ -55,9 +82,9 @@
         }
       ],
       "name": "netops-auditor",
-      "purl": "pkg:pypi/netops-auditor@0.2.6",
+      "purl": "pkg:pypi/netops-auditor@0.2.7",
       "type": "application",
-      "version": "0.2.6"
+      "version": "0.2.7"
     },
     "properties": [
       {
