@@ -68,6 +68,10 @@ EXOS 33.7.1.6 on X440-G2: enrollment, tagged membership add/remove and undo, nat
 
 New profiles are limited to FortiOS 7.6.x and EXOS 33.7.x, with a successful test required on each actual device/build. This does not extend the previously measured FortiOS 8.0.0 address profile to group/DHCP operations. No packet forwarding or lease acquisition was claimed.
 
+## Admin 0.2.1 readiness and preview, 24 September 2026
+
+Read-only runs of `doctor` and `preview` from the release branch against the lab FortiGate 60F (FortiOS 7.6.7 build3704) and the X440-G2 (EXOS 33.7.1.6) used for the 0.2.0 validation. The switch reported every condition ready, including a still valid enrollment, and a VLAN create preview returned the plan and the prediction; a second preview still saw no such VLAN and the switch held no unsaved change. On the FortiGate both commands reported that the administrator accounts differed from the recorded baseline, and the device was not blocked, which `apply` does in that case. The journal, the audit log and the device blocks were identical before and after. No write was attempted.
+
 ## What "verified" does not cover here
 
 - **`ruckus_unleashed` cannot have a read-only account.** Measured 20 September 2026: the device's

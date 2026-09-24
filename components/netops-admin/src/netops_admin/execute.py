@@ -199,6 +199,124 @@ def apply(runtime, device_name: str, request, expected_before=ANY_STATE) -> dict
         raise
 
 
+def preview(runtime, device_name: str, request) -> dict:
+    device = runtime.config.devices.get(device_name)
+    if device is None:
+        raise Rejected(["device %r is not configured" % device_name])
+    adapter = _adapter(device.platform)
+    with runtime.store.lock(device.name):
+        known = runtime.store.request(request.request_id)
+        if known is not None:
+            return {"result": "known-request", "device": device.name, "change_id": known["change_id"],
+                    "reasons": ["request_id already started an operation; apply returns it without running again"]}
+        missing = []
+        try:
+            prepared = _prepared(runtime, device, adapter, request, ANY_STATE, False, missing)
+        except Rejected as exc:
+            return {"result": "rejected", "device": device.name, "reasons": list(exc.reasons)}
+    plan, audit_before, coverage = prepared[4], prepared[5], prepared[7]
+    return {
+        "result": "rejected" if missing else "ready",
+        "reasons": missing,
+        "device": device.name,
+        "platform": plan["platform"],
+        "firmware": plan["firmware"],
+        "table": plan["table"],
+        "op": plan["op"],
+        "key": plan["key"],
+        "predicted": plan["predicted"],
+        "commands": list(plan["commands"]),
+        "inverse_commands": len(plan["inverse"]),
+        "prechecks": list(plan["prechecks"]),
+        "rollback_evidence": plan["rollback_evidence"],
+        "plan_sha256": plan["plan_sha256"],
+        "audit_findings_before": len(audit_before),
+        "audit_coverage": coverage,
+        "safeguard_seconds": device.safeguard_seconds,
+    }
+
+
+def _prepared(runtime, device, adapter, request, expected_before, enrolling, missing=None):
+    config = runtime.config
+    _budgets(runtime, device)
+    blocked = runtime.store.blocked(device.name)
+    if blocked is not None:
+        raise Rejected(["the device is blocked (%s, operation %s); a person must investigate and unblock it"
+                        % (blocked.get("reason"), blocked.get("change_id") or "none")])
+    undelivered = _undelivered(runtime, device.name)
+    if undelivered:
+        raise Rejected(["the notification of operation %s was not delivered; run notify-retry, or a person"
+                        " unblocks the device after checking the notification channel" % undelivered[0]])
+    if runtime.store.running(device.name):
+        raise Rejected(["an unfinished operation exists on this device; run recover first"])
+    runtime.store.check_writable()
+    runtime.audit.check_writable()
+    export, why = audit.export_state(config.export_status_file, config.limits)
+    if export == "blocked":
+        raise Rejected(["audit export is blocked: %s" % why])
+    try:
+        access = runtime.access_factory(device)
+        before_text = access.snapshot()
+        try:
+            accounts = adapter.accounts_check(access, device, before_text)
+            known = runtime.store.baseline(device.name)
+            if known is not None and known != accounts:
+                raise Rejected(["the administrator accounts changed since the last operation"])
+        except Rejected:
+            if missing is None:
+                _block_accounts(runtime, device)
+            raise
+        leftovers = adapter.leftovers(access)
+        if leftovers:
+            raise Rejected(["a safeguard of an earlier operation is still installed: %s" % ", ".join(leftovers)])
+        hostname = adapter.hostname(access, before_text)
+        reasons = adapter.prechecks(access, device, before_text, adapter.prompt_spec(hostname))
+        if reasons:
+            raise Rejected(reasons)
+    except Rejected:
+        raise
+    except Exception as exc:
+        raise Rejected(["the device could not be read before any change: %s" % exc]) from None
+    plan = engine.build_plan(device.platform, before_text.encode("utf-8"), request,
+                             firmware=device.firmware, protected=device.protected, enrollment_probe=enrolling)
+    if missing is not None:
+        try:
+            enrollment.require(runtime, device, accounts, plan["firmware"])
+        except Rejected as exc:
+            missing.extend(exc.reasons)
+    elif not enrolling:
+        enrollment.require(runtime, device, accounts, plan["firmware"])
+    elif runtime.notifier is None or export not in ("acknowledged", "pending"):
+        raise Rejected(["enrollment requires notification and a healthy configured audit export"])
+    if len(plan["commands"]) > config.limits["plan_commands"] or len(plan["inverse"]) > config.limits["plan_commands"]:
+        raise Rejected(["the plan holds more than %d commands" % config.limits["plan_commands"]])
+    if expected_before is not ANY_STATE and plan["predicted"]["before"] != expected_before:
+        raise Rejected(["the object differs from the state the undo was planned against"])
+    try:
+        policy = device.audit_policy
+        audit_before = audit_gate.findings(device.platform, before_text, device.name, policy)
+        plan["device"] = device.name
+        predicted_text = prediction.snapshot_after(before_text, plan)
+        coverage = audit_gate.evaluate(device.platform, predicted_text, policy, plan["table"])
+        audit_gate.check_policy(plan, policy, predicted_text)
+        predicted_findings = audit_gate.new_blocking(device.platform, audit_before, predicted_text, device.name, policy)
+        if predicted_findings:
+            raise Rejected(["predicted audit findings: " + ", ".join(predicted_findings)])
+    except Rejected:
+        raise
+    except Exception as exc:
+        raise Rejected(["the auditor could not evaluate the snapshot before the change (%s)"
+                        % type(exc).__name__]) from None
+    try:
+        seen = engine.observed_state(plan, adapter.observe(access, plan))
+    except Exception as exc:
+        raise Rejected(["the check account could not read the object before the change (%s)"
+                        % type(exc).__name__]) from None
+    if seen != plan["predicted"]["before"]:
+        raise Rejected(["the check account sees the object in another state than the snapshot"])
+    return access, before_text, accounts, hostname, plan, audit_before, policy, coverage
+
+
 def _apply(runtime, device_name: str, request, expected_before, enrolling=False) -> dict:
     config = runtime.config
     device = config.devices.get(device_name)
@@ -214,76 +332,8 @@ def _apply(runtime, device_name: str, request, expected_before, enrolling=False)
             return runtime.store.operation(known["change_id"])
         if enrolling:
             runtime.store.clear_enrollment(device.name)
-        _budgets(runtime, device)
-        blocked = runtime.store.blocked(device.name)
-        if blocked is not None:
-            raise Rejected(["the device is blocked (%s, operation %s); a person must investigate and unblock it"
-                            % (blocked.get("reason"), blocked.get("change_id") or "none")])
-        undelivered = _undelivered(runtime, device.name)
-        if undelivered:
-            raise Rejected(["the notification of operation %s was not delivered; run notify-retry, or a person"
-                            " unblocks the device after checking the notification channel" % undelivered[0]])
-        if runtime.store.running(device.name):
-            raise Rejected(["an unfinished operation exists on this device; run recover first"])
-        runtime.store.check_writable()
-        runtime.audit.check_writable()
-        export, why = audit.export_state(config.export_status_file, config.limits)
-        if export == "blocked":
-            raise Rejected(["audit export is blocked: %s" % why])
-        try:
-            access = runtime.access_factory(device)
-            before_text = access.snapshot()
-            try:
-                accounts = adapter.accounts_check(access, device, before_text)
-                known = runtime.store.baseline(device.name)
-                if known is not None and known != accounts:
-                    raise Rejected(["the administrator accounts changed since the last operation"])
-            except Rejected:
-                _block_accounts(runtime, device)
-                raise
-            leftovers = adapter.leftovers(access)
-            if leftovers:
-                raise Rejected(["a safeguard of an earlier operation is still installed: %s" % ", ".join(leftovers)])
-            hostname = adapter.hostname(access, before_text)
-            reasons = adapter.prechecks(access, device, before_text, adapter.prompt_spec(hostname))
-            if reasons:
-                raise Rejected(reasons)
-        except Rejected:
-            raise
-        except Exception as exc:
-            raise Rejected(["the device could not be read before any change: %s" % exc]) from None
-        plan = engine.build_plan(device.platform, before_text.encode("utf-8"), request,
-                                 firmware=device.firmware, protected=device.protected, enrollment_probe=enrolling)
-        if not enrolling:
-            enrollment.require(runtime, device, accounts, plan["firmware"])
-        elif runtime.notifier is None or export not in ("acknowledged", "pending"):
-            raise Rejected(["enrollment requires notification and a healthy configured audit export"])
-        if len(plan["commands"]) > config.limits["plan_commands"] or len(plan["inverse"]) > config.limits["plan_commands"]:
-            raise Rejected(["the plan holds more than %d commands" % config.limits["plan_commands"]])
-        if expected_before is not ANY_STATE and plan["predicted"]["before"] != expected_before:
-            raise Rejected(["the object differs from the state the undo was planned against"])
-        try:
-            policy = device.audit_policy
-            audit_before = audit_gate.findings(device.platform, before_text, device.name, policy)
-            plan["device"] = device.name
-            predicted_text = prediction.snapshot_after(before_text, plan)
-            coverage = audit_gate.evaluate(device.platform, predicted_text, policy, plan["table"])
-            audit_gate.check_policy(plan, policy, predicted_text)
-            predicted_findings = audit_gate.new_blocking(device.platform, audit_before, predicted_text, device.name, policy)
-            if predicted_findings:
-                raise Rejected(["predicted audit findings: " + ", ".join(predicted_findings)])
-        except Rejected:
-            raise
-        except Exception as exc:
-            raise Rejected(["the auditor could not evaluate the snapshot before the change (%s)"
-                            % type(exc).__name__]) from None
-        try:
-            seen = engine.observed_state(plan, adapter.observe(access, plan))
-        except Exception as exc:
-            raise Rejected(["the check account could not read the object before the change (%s)"
-                            % type(exc).__name__]) from None
-        if seen != plan["predicted"]["before"]:
-            raise Rejected(["the check account sees the object in another state than the snapshot"])
+        access, before_text, accounts, hostname, plan, audit_before, policy, coverage = _prepared(
+            runtime, device, adapter, request, expected_before, enrolling)
         profile = find_profile(plan["platform"], plan["table"], plan["firmware"])
         change_id = secrets.token_hex(16)
         plan["safeguard_id"] = change_id

@@ -48,7 +48,7 @@ def arguments(**fields):
     return body
 
 
-def test_only_the_two_tools_exist():
+def test_only_the_declared_tools_exist():
     assert listed() == sorted(mcp_server.TOOL_NAMES)
 
 

@@ -2,7 +2,7 @@
 
 Bounded, reversible changes to network devices: one object of a supported table per request, planned from a fresh snapshot and executed behind a rollback safeguard on the device itself.
 
-This source tree targets `netops-admin/v0.2.0` (2026-09-24) and pins `netops-auditor==0.2.5` and `netops-core==0.2.3`. Version 0.1.0 was an unpublished internal milestone.
+This source tree targets `netops-admin/v0.2.1` (2026-09-24) and pins `netops-auditor==0.2.6` and `netops-core==0.2.3`. Version 0.1.0 was an unpublished internal milestone.
 
 [Start here: enrollment, policies and the new operations](docs/operations-020.md).
 
@@ -13,17 +13,20 @@ request (JSON)  +  configuration snapshot  →  netops-admin plan    →  plan (
 plan            +  later snapshot          →  netops-admin verify  →  match | mismatch
 request (JSON)  +  configured device       →  netops-admin apply   →  confirmed | reverted | rejected | unknown | revert-failed
 agent                                      →  MCP admin_apply      →  the same operation as apply
+configured device                          →  netops-admin doctor  →  ready | the conditions that fail
+request (JSON)  +  configured device       →  netops-admin preview →  ready | rejected, with the plan
 ```
 
 - `plan` validates the request against a table profile and the snapshot and either prints a plan or refuses with reasons. A plan holds the commands, the inverse commands, the predicted object state before and after, the prechecks that passed and digests binding it to the snapshot.
 - `verify --expect after` checks that a snapshot taken after applying the commands holds exactly the predicted object and that nothing else in the evaluated scope changed. `verify --expect before` checks the same after applying the inverse.
 - `apply` executes one request on a configured device: it installs a one-shot safeguard that would apply the inverse, applies the change, compares a new snapshot with the prediction, and removes the safeguard only when everything matches.
+- `doctor` and `preview` only read. `doctor` reports for one configured device every condition `apply` depends on - credentials, pinned host key, both identities, firmware and the tables measured on it, enrollment, leftover safeguards, the audit policy, audit export, notification, the journal and the budgets - as `ok`, `missing`, `refused` or `skipped`, without secrets. `preview` runs the same checks, planner, audit prediction and check-account read as `apply` for one request and returns the plan, the predicted object state and every reason `apply` would refuse it, a missing enrollment included. Neither installs a safeguard, writes a journal record or an audit event, blocks a device, counts against a budget or sends a notification; they only probe that the journal and the audit log are writable. `apply` plans again from a fresh snapshot.
 - `status`, `recover`, `notify-retry`, `unblock` and `undo` are commands for a person: read an operation, settle one left running by an interruption, resend its notification, lift a device block after an investigation, and return a confirmed operation as a new operation behind a new safeguard.
-- `python -m netops_admin.mcp_server` offers an agent exactly two tools, `admin_apply` and `admin_status`. There is no tool to cancel a safeguard, unblock a device, undo a change or edit a plan.
+- `python -m netops_admin.mcp_server` offers an agent four tools: `admin_apply`, `admin_status` and the read-only `admin_preview` and `admin_doctor`. There is no tool to cancel a safeguard, unblock a device, undo a change or edit a plan.
 
 Execution, the journal, the limits, the audit log, its export and the notification: [docs/execution.md](docs/execution.md). Planning rules and refusals: [docs/planning.md](docs/planning.md). Installation and configuration: [docs/installation.md](docs/installation.md). Release process: [docs/releasing.md](docs/releasing.md).
 
-Exit codes: `0` plan printed, snapshot matches or change confirmed, `1` snapshot does not match, `3` request refused, `4` change not confirmed, `2` usage error.
+Exit codes: `0` plan printed, snapshot matches, change confirmed, or preview or doctor ready, `1` snapshot does not match, `3` request refused or preview not ready, `4` change not confirmed, `5` doctor found the device not ready, `2` usage error.
 
 ## Profiles
 

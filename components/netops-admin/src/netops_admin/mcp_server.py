@@ -22,7 +22,7 @@ from netops_admin.errors import Rejected
 from netops_admin.request import parse_request
 
 CONFIG_VARIABLE = "NETOPS_ADMIN_CONFIG"
-TOOL_NAMES = ("admin_apply", "admin_status")
+TOOL_NAMES = ("admin_apply", "admin_status", "admin_preview", "admin_doctor")
 MAX_DIFFERENCES = 20
 EXIT_OK = 0
 EXIT_ERROR = 2
@@ -142,6 +142,59 @@ def admin_status(change_id: str | None = None, request_id: str | None = None) ->
     if record is None:
         return {"result": "unknown-operation", "reasons": ["no operation matches"]}
     return summary(execute.refresh_delivery(runtime, record))
+
+
+@mcp.tool(
+    name="admin_preview",
+    description=(
+        "Run every check of admin_apply for one request against the device and return the plan, the "
+        "predicted object state and the reasons apply would refuse it. Nothing is changed, installed, "
+        "journaled or notified; admin_apply plans again from a fresh snapshot."
+    ),
+)
+def admin_preview(
+    device: str,
+    table: str,
+    op: str,
+    key: str,
+    changes: dict[str, str | int | list[str] | None],
+    reason: str,
+    user_request: str,
+    request_id: str,
+) -> dict[str, Any]:
+    body = {"device": device, "table": table, "op": op, "key": key, "changes": changes, "reason": reason,
+            "user_request": user_request, "request_id": request_id}
+    if not _ACTIVE.acquire(blocking=False):
+        return rejected(Rejected(["another operation of this server is running; ask admin_status later"]))
+    try:
+        runtime = build_runtime(configuration())
+        try:
+            return execute.preview(runtime, device, parse_request(json.dumps(body).encode("utf-8")))
+        except Rejected as error:
+            return rejected(error)
+    finally:
+        _ACTIVE.release()
+
+
+@mcp.tool(
+    name="admin_doctor",
+    description=(
+        "Report whether a configured device is ready for changes: credentials, host key, identities, "
+        "firmware and supported tables, enrollment, safeguards, audit and notification. Reads only."
+    ),
+)
+def admin_doctor(device: str) -> dict[str, Any]:
+    from netops_admin import readiness
+
+    if not _ACTIVE.acquire(blocking=False):
+        return rejected(Rejected(["another operation of this server is running; ask admin_status later"]))
+    try:
+        try:
+            return readiness.doctor(build_runtime(configuration()), device)
+        except Rejected as error:
+            return rejected(error)
+    finally:
+        _ACTIVE.release()
 
 
 def main() -> int:

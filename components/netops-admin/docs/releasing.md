@@ -2,7 +2,7 @@
 
 Release tags follow the component scheme `<name>/v<version>`, where `<name>` is the project name
 declared in this component's `pyproject.toml`: this component tags
-`netops-admin/v0.2.0`, and the release title is `netops-admin 0.2.0`. Tags of another component
+`netops-admin/v0.2.1`, and the release title is `netops-admin 0.2.1`. Tags of another component
 are never touched by this procedure. A tag is deleted together with its release page when a newer
 version of the same component is published. The canonical origin is
 `https://github.com/radek-cerny-soukr/netops`.
@@ -28,7 +28,7 @@ credentials, host keys, or inventory and vault files. The release export is a po
 the component gate also reads the content of every released file and, outside a
 repository, holds the exported tree to exactly the released selection.
 
-## What 0.2.0 releases
+## What 0.2.1 releases
 
 This component releases **from source; it ships no container image**. The release carries four assets:
 
@@ -44,7 +44,7 @@ component runs from the unpacked archive on any Python 3.13 host.
 
 ### It needs `netops-core` and `netops-auditor` beside it
 
-The admin reads the credential store, the host key trust, the SSH transport and the interactive session from `netops-core`, and the configuration parsers and the snapshot collector from `netops-auditor`; `pyproject.toml` pins them as `netops-core==0.2.3` and `netops-auditor==0.2.5`. There is no index to resolve those pins against: **the operator installs the source archives of exactly those versions next to the admin**, verified against their own checksums. [installation.md](installation.md) gives the commands. In this repository the archives are the tree, so the tests take the components from `../netops-core/src` and `../netops-auditor/src` through `[tool.pytest.ini_options] pythonpath`. `fastmcp` is needed solely for the MCP surface.
+The admin reads the credential store, the host key trust, the SSH transport and the interactive session from `netops-core`, and the configuration parsers and the snapshot collector from `netops-auditor`; `pyproject.toml` pins them as `netops-core==0.2.3` and `netops-auditor==0.2.6`. There is no index to resolve those pins against: **the operator installs the source archives of exactly those versions next to the admin**, verified against their own checksums. [installation.md](installation.md) gives the commands. In this repository the archives are the tree, so the tests take the components from `../netops-core/src` and `../netops-auditor/src` through `[tool.pytest.ini_options] pythonpath`. `fastmcp` is needed solely for the MCP surface.
 
 ## Procedure
 
@@ -118,6 +118,6 @@ SBOM does not reproduce is not released.
 
 ## Replacing the previous public release
 
-`0.2.0` is the first release of this component, so nothing is replaced. For a later version: after the new release is published and independently verified, remove only this component's previous release page, its assets and its tag under explicit authorization for those exact deletions. Preserve any required rollback artifacts locally first. Other components' releases and tags remain untouched. Recheck the public release and tag lists, update the current-version links in the repository documentation, and check every release, tag and download URL against those lists. Do not link to a superseded tag: use a commit permalink for historical source.
+After the new release is published and independently verified, remove only this component's previous release page, its assets and its tag under explicit authorization for those exact deletions. Preserve any required rollback artifacts locally first. Other components' releases and tags remain untouched. Recheck the public release and tag lists, update the current-version links in the repository documentation, and check every release, tag and download URL against those lists. Do not link to a superseded tag: use a commit permalink for historical source.
 
-`requirements-release.in` of this component is byte-identical to the one of `netops-auditor` 0.2.5, and `requirements-release.lock` is that component's lock of 2026-09-20 (Python 3.13.15, `pip-tools==7.6.1`; the lock header records the command). A regeneration of either lock changes both files in the same commit.
+`requirements-release.in` of this component is byte-identical to the one of `netops-auditor` 0.2.6, and `requirements-release.lock` is that component's lock of 2026-09-20 (Python 3.13.15, `pip-tools==7.6.1`; the lock header records the command). A regeneration of either lock changes both files in the same commit.

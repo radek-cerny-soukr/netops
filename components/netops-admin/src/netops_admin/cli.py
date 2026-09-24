@@ -51,6 +51,7 @@ def _emit(document) -> None:
 
 
 EXIT_NOT_CONFIRMED = 4
+EXIT_NOT_READY = 5
 
 
 def build_runtime(config):
@@ -88,6 +89,15 @@ def _operate(args) -> int:
         return 0
 
     runtime = build_runtime(config)
+    if args.command == "doctor":
+        from netops_admin import readiness
+        report = readiness.doctor(runtime, args.device)
+        _emit(report)
+        return 0 if report["ready"] else EXIT_NOT_READY
+    if args.command == "preview":
+        result = execute.preview(runtime, args.device, parse_request(_read(args.request)))
+        _emit(result)
+        return 0 if result["result"] == "ready" else EXIT_REJECTED
     if args.command == "enroll":
         from netops_admin import enrollment
         record = enrollment.run(runtime, args.device, args.probe)
@@ -132,6 +142,13 @@ def main(argv=None) -> int:
     run.add_argument("--config", required=True, type=Path)
     run.add_argument("--device", required=True)
     run.add_argument("--request", required=True, type=Path)
+    look_ahead = commands.add_parser("preview", help="run every check of apply against the device and print the plan, without any change")
+    look_ahead.add_argument("--config", required=True, type=Path)
+    look_ahead.add_argument("--device", required=True)
+    look_ahead.add_argument("--request", required=True, type=Path)
+    ready = commands.add_parser("doctor", help="report whether a configured device is ready for changes, without any change")
+    ready.add_argument("--config", required=True, type=Path)
+    ready.add_argument("--device", required=True)
     enroll = commands.add_parser("enroll", help="operator: test actual on-device rollback before enabling writes")
     enroll.add_argument("--config", required=True, type=Path)
     enroll.add_argument("--device", required=True)
@@ -156,7 +173,8 @@ def main(argv=None) -> int:
     back.add_argument("--reason", required=True)
     args = parser.parse_args(argv)
     try:
-        if args.command in ("apply", "status", "recover", "unblock", "notify-retry", "undo", "enroll"):
+        if args.command in ("apply", "status", "recover", "unblock", "notify-retry", "undo", "enroll",
+                            "preview", "doctor"):
             return _operate(args)
         if args.command == "plan":
             request = parse_request(_read(args.request))

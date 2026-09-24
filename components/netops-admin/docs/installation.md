@@ -4,27 +4,27 @@
 
 ## Install
 
-1. Download the source archives of the three components from their releases in the repository: `netops-core` 0.2.3, `netops-auditor` 0.2.5 and `netops-admin` 0.2.0. Verify each archive against its `release-SHA256SUMS` and the Sigstore bundle, then unpack them.
+1. Download the source archives of the three components from their releases in the repository: `netops-core` 0.2.3, `netops-auditor` 0.2.6 and `netops-admin` 0.2.1. Verify each archive against its `release-SHA256SUMS` and the Sigstore bundle, then unpack them.
 2. Create a virtual environment with Python 3.13 and install the pinned dependencies with their hashes. The lock also carries the test and SBOM tools; `fastmcp` and its dependencies are the only ones the program uses.
 
    ```sh
    python3.13 -m venv /opt/netops-admin/venv
-   /opt/netops-admin/venv/bin/python -m pip install --require-hashes -r netops-admin-0.2.0/requirements-release.lock
+   /opt/netops-admin/venv/bin/python -m pip install --require-hashes -r netops-admin-0.2.1/requirements-release.lock
    ```
 
 3. Install the three components without resolving dependencies again. `pip` writes build metadata (`*.egg-info`) into the directory it installs from, so install from copies and keep the unpacked archives unchanged; the gate of an archive refuses any file outside its release selection.
 
    ```sh
-   cp -r netops-core-0.2.3 netops-auditor-0.2.5 netops-admin-0.2.0 build/
-   /opt/netops-admin/venv/bin/python -m pip install --no-deps build/netops-core-0.2.3 build/netops-auditor-0.2.5 build/netops-admin-0.2.0
+   cp -r netops-core-0.2.3 netops-auditor-0.2.6 netops-admin-0.2.1 build/
+   /opt/netops-admin/venv/bin/python -m pip install --no-deps build/netops-core-0.2.3 build/netops-auditor-0.2.6 build/netops-admin-0.2.1
    ```
 
 4. Check the installation and the unpacked archive:
 
    ```sh
    /opt/netops-admin/venv/bin/netops-admin --version
-   (cd netops-admin-0.2.0 && /opt/netops-admin/venv/bin/python -B scripts/check_gates.py)
-   (cd netops-admin-0.2.0 && /opt/netops-admin/venv/bin/python -B -m pytest -q -p no:cacheprovider)
+   (cd netops-admin-0.2.1 && /opt/netops-admin/venv/bin/python -B scripts/check_gates.py)
+   (cd netops-admin-0.2.1 && /opt/netops-admin/venv/bin/python -B -m pytest -q -p no:cacheprovider)
    ```
 
 After configuration, complete [enrollment and the first change](operations-020.md). Enrollment is mandatory and requires notification and audit export.

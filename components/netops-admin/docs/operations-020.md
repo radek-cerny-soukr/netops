@@ -4,7 +4,7 @@ Version 0.2.0 adds enrollment, an audit of the predicted configuration, and thre
 
 ## From installation to the first confirmed change
 
-1. Install Core 0.2.3, Auditor 0.2.5 and Admin 0.2.0 as described in [installation](installation.md). Create separate write and check credentials and pin the device SSH host key.
+1. Install Core 0.2.3, Auditor 0.2.6 and Admin 0.2.1 as described in [installation](installation.md). Create separate write and check credentials and pin the device SSH host key.
 2. Configure notification and a working audit exporter. Enrollment requires both. Restrict the device accounts and the admin host network access, and configure protected objects.
 3. Put an operator policy in a local file. Set the device's `audit_policy` to its absolute path in `admin.json`. Requests and MCP tools cannot provide or replace this policy.
 4. Run the appropriate enrollment command with an unused test subnet or VLAN tag:
@@ -15,7 +15,7 @@ Version 0.2.0 adds enrollment, an audit of the predicted configuration, and thre
    ```
 
    Enrollment creates an unreferenced temporary object, verifies it through the check account, deliberately lets the on-device timer restore the original state, and verifies cleanup and notification. It takes at least the configured safeguard interval. An interrupted or failed run never grants permission to write; investigate, recover if needed, and enroll again.
-5. Submit one request using `apply` or MCP `admin_apply`. Read `result`, `reason`, notification and audit delivery separately. A configuration change marked `confirmed` with `reason: not persisted` requires investigation and blocks further changes. Use `undo` for a confirmed change that should be returned.
+5. Before the first change, `netops-admin doctor --config … --device …` lists every condition that is still missing or refused; `netops-admin preview --config … --device … --request …` shows the plan and the reasons `apply` would refuse a request, without changing anything. Submit one request using `apply` or MCP `admin_apply`. Read `result`, `reason`, notification and audit delivery separately. A configuration change marked `confirmed` with `reason: not persisted` requires investigation and blocks further changes. Use `undo` for a confirmed change that should be returned.
 
 Enrollment binds the actual build, pinned device identity, access configuration, account and access-profile fingerprint, operator policy and profile files. Changing these requires another successful test. The enrollment probe namespace `netops-enroll-` is reserved. Enrollment is an operator CLI command, not an MCP tool. FortiOS 7.6.x and EXOS 33.7.x builds still need enrollment individually; FortiOS 8.0.0 remains limited to the measured address profile and build. FortiOS 7.4 and 8.0.1 or later are not supported.
 

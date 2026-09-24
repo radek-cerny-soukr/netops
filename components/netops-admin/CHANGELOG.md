@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.2.1 - 2026-09-24
+
+- Add `doctor`, a read-only readiness report of one device (credentials, host key, identities, firmware and measured tables, enrollment, safeguards, audit policy, export, notification, journal and budgets), and `preview`, which runs every check, the planner and the audit prediction of `apply` for one request without any change. Both are also MCP tools, `admin_doctor` and `admin_preview`. The checks `apply` runs before writing are now one function shared with `preview`.
+- Pin `netops-auditor==0.2.6`. The predicted and observed audits therefore also evaluate its twelve FortiOS hardening rules; as before, only a high or medium finding that is new or changed after the change refuses or returns it.
+
 ## 0.2.0 - 2026-09-24
 
 - Regress the exact FortiOS 8.0.0 build0167 address profile on FortiGate 80F, including enrollment and real timer returns. Add execution tests for firmware/profile isolation and document the command compatibility matrix and interactive account-provisioning confirmations.
