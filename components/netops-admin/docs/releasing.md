@@ -3,15 +3,13 @@
 Release tags follow the component scheme `<name>/v<version>`, where `<name>` is the project name
 declared in this component's `pyproject.toml`: this component tags
 `netops-admin/v0.2.1`, and the release title is `netops-admin 0.2.1`. Tags of another component
-are never touched by this procedure. A tag is deleted together with its release page when a newer
-version of the same component is published. The canonical origin is
+are never touched by this procedure. Publishing a newer version leaves the release page and the tag
+of earlier versions in place. The canonical origin is
 `https://github.com/radek-cerny-soukr/netops`.
 
-**This repository keeps exactly one release page and one tag per component.** Publishing a version
-removes the release page, the four downloadable assets and the tag of the version it replaces. Every
-release stays in the history as one signed commit on `main` whose message names the component and the
-version, so a reader who wants an earlier version works from that commit and this procedure, never
-from a page, a tag or an asset link that no longer exists.
+**Earlier versions stay published.** Publishing a version adds a release page, four downloadable
+assets and a tag, and leaves those of earlier versions in place; a published tag is never moved. Every
+release is also one signed commit on `main` whose message names the component and the version.
 
 This component lives in the `netops` monorepo under `components/netops-admin/`. Every command below
 runs in that directory unless stated otherwise. The repository as a whole has its own gate,
@@ -48,7 +46,7 @@ The admin reads the credential store, the host key trust, the SSH transport and 
 
 ## Procedure
 
-The current published release is linked from the [repository release table](https://github.com/radek-cerny-soukr/netops/blob/main/README.md#releases). The procedure below describes a **new** release: `<version>` means the newly reviewed version from this component's `pyproject.toml`, not an instruction to recreate the current tag. Confirm that its tag and release do not already exist. Published tags and assets must not be moved or overwritten.
+The current published release is linked from the [repository release table](https://github.com/radek-cerny-soukr/netops/blob/main/README.md#components). The procedure below describes a **new** release: `<version>` means the newly reviewed version from this component's `pyproject.toml`, not an instruction to recreate the current tag. Confirm that its tag and release do not already exist. Published tags and assets must not be moved or overwritten.
 
 1. Review every source change and freeze the release metadata, including the release date. The new
    version must agree in `pyproject.toml`, `src/netops_admin/__init__.py`, and the root of
@@ -116,8 +114,8 @@ and the archive is created with an explicit mode normalization, so the umask of 
 change the bytes. The SBOM is regenerated and compared byte for byte during step 2; a release whose
 SBOM does not reproduce is not released.
 
-## Replacing the previous public release
+## After publication
 
-After the new release is published and independently verified, remove only this component's previous release page, its assets and its tag under explicit authorization for those exact deletions. Preserve any required rollback artifacts locally first. Other components' releases and tags remain untouched. Recheck the public release and tag lists, update the current-version links in the repository documentation, and check every release, tag and download URL against those lists. Do not link to a superseded tag: use a commit permalink for historical source.
+After the new release is published and independently verified, update the current-version links in the repository documentation and check every release, tag and download URL against the public release and tag lists. The previous release page, its assets and its tag stay. Removing one is a separate decision that needs explicit authorization for that exact deletion and a local archive of its assets first; other components' releases and tags are never touched.
 
 `requirements-release.in` of this component is byte-identical to the one of `netops-auditor` 0.2.6, and `requirements-release.lock` is that component's lock of 2026-09-20 (Python 3.13.15, `pip-tools==7.6.1`; the lock header records the command). A regeneration of either lock changes both files in the same commit.

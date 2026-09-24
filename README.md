@@ -22,9 +22,27 @@ PYTHONPATH=src:../netops-core/src python3 -m netops_auditor run \
   --config tests/fixtures/secret_canary.conf
 ```
 
-It reports nine findings, two of them high: administrative access on a WAN interface and a policy that references an object which does not exist. Each finding names the rule, the object and the line, and never quotes the configuration. The sample carries twenty marked fake secrets; none of them reaches the report, in text or with `--json`.
+It reports nine findings, two of them high: administrative access on a WAN interface and a policy that references an object which does not exist. Each finding names the rule, the object and the line, and never quotes the configuration. The sample carries twenty marked fake secrets; none of them reaches the report, in text, with `--json` or with `--sarif`. Twelve of the FortiOS rules are hardening checks mapped to the CIS FortiGate 7.4.x Benchmark; the [CIS mapping](components/netops-auditor/docs/cis-mapping.md) says what each one checks and which recommendations no rule covers.
 
 On your own device, save the output of `show` on a FortiGate (or `show configuration` on an ExtremeXOS switch, with `--platform exos`) to a file and pass it with `--config`. To track change over time, add `--store audit.db`; accept the current findings once with `--baseline-accept --accepted-by <name> --note <text>`, and later runs report them as `open-known` and anything that appears as `new`. The rule catalogue, suppressions with expiry, collection straight from the device and the read-only MCP surface are described in the [auditor README](components/netops-auditor/README.md).
+
+### Audit configuration backups in CI
+
+If your configuration backups live in a Git repository, the auditor runs as a GitHub Action with no device, credential or network access and uploads its findings to code scanning as SARIF:
+
+```yaml
+- id: audit
+  uses: radek-cerny-soukr/netops/components/netops-auditor@0e3b407f4dd0fd92d4029d5aecda216c92dfac9c # netops-auditor 0.2.6
+  with:
+    platform: fortios
+    configs: |
+      backups/**/*.conf
+- uses: github/codeql-action/upload-sarif@2892aa5e19bbd11bc0cff5427e3b750a04d9e3c2 # v4.38.2
+  with:
+    sarif_file: ${{ steps.audit.outputs.sarif-file }}
+```
+
+The workflow needs `security-events: write`. Inputs, outputs and the SARIF mapping are in the [auditor README](components/netops-auditor/README.md#sarif-and-github-code-scanning).
 
 ### An agent that can look but not touch
 
@@ -32,7 +50,7 @@ On your own device, save the output of `show` on a FortiGate (or `show configura
 
 ### An agent that can change a little, and undo it
 
-[`netops-admin`](components/netops-admin/) changes one object of a supported table per request. Before writing it arms a rollback on the device itself (a FortiOS automation stitch or an ExtremeXOS Universal Port Manager timer), then compares the result with its prediction through a separate check account, and disarms the rollback only when everything matches. If the check cannot be completed, the timer on the device restores the previous state on its own. Six profiles: FortiOS addresses, address group members and DHCP reservations; ExtremeXOS VLANs, port display strings and port VLAN membership. [Start here](components/netops-admin/docs/operations-020.md).
+[`netops-admin`](components/netops-admin/) changes one object of a supported table per request. Before writing it arms a rollback on the device itself (a FortiOS automation stitch or an ExtremeXOS Universal Port Manager timer), then compares the result with its prediction through a separate check account, and disarms the rollback only when everything matches. If the check cannot be completed, the timer on the device restores the previous state on its own. Six profiles: FortiOS addresses, address group members and DHCP reservations; ExtremeXOS VLANs, port display strings and port VLAN membership. Two read-only commands help before the first change: `netops-admin doctor` reports every condition a device still lacks, and `netops-admin preview` shows the plan of a request and every reason it would be refused, without changing anything. [Start here](components/netops-admin/docs/operations-020.md).
 
 ## Components
 
@@ -43,7 +61,7 @@ On your own device, save the output of `show` on a FortiGate (or `show configura
 | [`netops-admin`](components/netops-admin/) | Bounded device changes, mandatory rollback enrollment and predicted/observed audit | [`netops-admin/v0.2.1`](https://github.com/radek-cerny-soukr/netops/releases/tag/netops-admin%2Fv0.2.1) (2026-09-24) |
 | [`netops-core`](components/netops-core/) | Shared access layer the other components build on: inventory, credential store, host key trust, SSH transport, audit records | [`netops-core/v0.2.3`](https://github.com/radek-cerny-soukr/netops/releases/tag/netops-core%2Fv0.2.3) (2026-09-21) |
 
-Every release carries a source archive, an SBOM, a checksum manifest and a Sigstore signature. The repository keeps exactly one release page and one tag per component; how releases are cut, signed and retired, and what the repository gate enforces, is in the [documentation map](docs/README.md#releases).
+Every release carries a source archive, an SBOM, a checksum manifest and a Sigstore signature. Earlier versions keep their release pages and tags; the table above links the current one. How releases are cut and signed, and what the repository gate enforces, is in the [documentation map](docs/README.md#releases).
 
 ## What has been tested on real devices
 

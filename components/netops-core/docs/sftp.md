@@ -7,13 +7,15 @@ setting when something fails.
 
 ## Why this lives in the core and not in a component
 
-Two components of the family need SFTP in the production path, and they need the same client with the
-same hardening:
+SFTP was placed here when two components of the family were expected to need it in the production
+path, with the same client and the same hardening:
 
 - the **helper** reads metadata of an enrolled path (`sftp_stat`), read-only;
-- the planned **admin** replaces a configuration file atomically, which is a `put` of one file.
+- the **admin** was planned to replace a configuration file atomically, which is a `put` of one file.
+  The released `netops-admin` changes one object per request through the device CLI and does not use
+  SFTP.
 
-A transport used by two components is a core concern, exactly like the exec channel. Putting it here
+A transport shared across components is a core concern, exactly like the exec channel. Putting it here
 also means there is one place where the client call, the credential handling and the workspace are
 written down, and one place the tests hold against.
 

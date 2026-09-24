@@ -1,6 +1,6 @@
 # netops-core
 
-The current release is `netops-core/v0.2.3` (2026-09-21); `netops-auditor` 0.2.4 and `netops-helper` 0.3.4 to 0.3.6 pin exactly that version.
+The current release is `netops-core/v0.2.3` (2026-09-21); `netops-auditor` 0.2.4 to 0.2.6, `netops-helper` 0.3.4 to 0.3.6 and `netops-admin` 0.2.0 and 0.2.1 pin exactly that version.
 
 The shared access layer of the `netops` family. It holds every piece a component needs to reach a
 device and to record what happened: the inventory of devices, the credential store, host key trust,
@@ -14,7 +14,7 @@ It is deliberately **not** a device driver: the platform names it knows are a cl
 prompt cleaning and inventory validation, not a per-vendor command set, and no module here reads or
 parses a device's configuration. It is **not** a policy engine: it does not decide whether a read is
 safe, whether an account is genuinely read-only, or whether a finding is a violation - those decisions,
-and the command or query catalogues that embody them, belong to the two components built on it. And it
+and the command or query catalogues that embody them, belong to the components built on it. And it
 is **not** a self-contained deployable: no image, no compose file, no MCP surface of its own; a caller
 takes the directory from the tree at build time.
 
@@ -97,8 +97,10 @@ one platform in its catalogue with no exec channel, and the SFTP metadata call f
 `sftp_stat` tool; its container image installs `askpass.py` on an executable path outside the `noexec`
 temporary directories it mounts, and names that path in `NETOPS_ASKPASS_PROGRAM` so password
 authentication still works there. Both write through `audit.py`, each under its own name from the
-closed list `COMPONENTS` - `"auditor"` or `"helper"`; `"admin"` is the third name, reserved for the
-write-capable component that is designed but not yet built.
+closed list `COMPONENTS` - `"auditor"` or `"helper"`; `"admin"` is the third name on that list.
+`netops-admin` takes the credential store, host key trust, the SSH exec and interactive session
+transports and prompt cleaning from here, but keeps its own predicted/observed audit log and does not
+write through `audit.py`.
 
 **This component ships no image.** It has no `Dockerfile`, no compose file, and no MCP surface. An
 image belongs to the component that runs, not to the library it links. Because there is no image,

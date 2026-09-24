@@ -1,8 +1,9 @@
 # Prompt cleaning
 
 `netops_core.prompt` removes the device prompt from a one-shot answer. It is four lines of rule and
-one table, and it lives here because both components above the core need exactly the same rule: the
-auditor hashes and stores the cleaned text, the helper returns it to a client.
+one table, and it lives here because every component above the core needs exactly the same rule: the
+auditor hashes and stores the cleaned text, the helper returns it to a client, and the admin compares
+the cleaned answers of its check account with its prediction.
 
 ## What a device prints
 

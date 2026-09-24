@@ -2,7 +2,7 @@
 
 Configuration audit for network devices. The auditor collects the configuration from the device itself, parses it with a platform-specific parser, evaluates the parsed configuration against a catalogue of deterministic rules, and reports findings - never the configuration itself, and never a credential.
 
-This source tree targets `netops-auditor/v0.2.6` (2026-09-24), which pins `netops-core==0.2.3`; the repository keeps one release page and one tag per component, and every release stays in the history of `main` as its own signed commit - see [`docs/releasing.md`](docs/releasing.md). The component is usable from the CLI, and its shape is fixed by its gates rather than by its documentation.
+This source tree targets `netops-auditor/v0.2.6` (2026-09-24), which pins `netops-core==0.2.3`; every version keeps its own release page and tag, and every release stays in the history of `main` as its own signed commit - see [`docs/releasing.md`](docs/releasing.md). The component is usable from the CLI, and its shape is fixed by its gates rather than by its documentation.
 
 ## What it does
 
@@ -18,7 +18,7 @@ This source tree targets `netops-auditor/v0.2.6` (2026-09-24), which pins `netop
 
 ## Management rules and operator policy
 
-The development catalogue now includes seven FortiOS and five EXOS management checks in addition to the original rules. These cover the Admin change scope and accept an optional operator policy. See [management policy](docs/management-policy.md) for scope, configuration, coverage reporting and limitations.
+The catalogue also carries seven FortiOS and five EXOS management checks, released in 0.2.5. These cover the Admin change scope and accept an optional operator policy. See [management policy](docs/management-policy.md) for scope, configuration, coverage reporting and limitations.
 
 ## Running it
 
