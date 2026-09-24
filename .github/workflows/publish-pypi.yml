@@ -1,0 +1,136 @@
+name: Publish to PyPI
+
+on:
+  workflow_dispatch:
+    inputs:
+      index:
+        description: Package index to upload to
+        type: choice
+        required: true
+        default: testpypi
+        options:
+          - testpypi
+          - pypi
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish-pypi-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    outputs:
+      component: ${{ steps.tag.outputs.component }}
+    steps:
+      - name: Accept only a release tag of a component published on PyPI
+        id: tag
+        env:
+          REF: ${{ github.ref }}
+        run: |
+          case "$REF" in
+            refs/tags/netops-core/v*|refs/tags/netops-auditor/v*|refs/tags/netops-admin/v*) ;;
+            *) echo "::error::start this workflow on a release tag of netops-core, netops-auditor or netops-admin, not on $REF"; exit 1 ;;
+          esac
+          tag="${REF#refs/tags/}"
+          component="${tag%%/v*}"
+          version="${tag#*/v}"
+          if ! printf '%s\n' "$version" | grep -Eqx '[0-9]+\.[0-9]+\.[0-9]+'; then
+            echo "::error::the tag $tag does not name a version X.Y.Z"; exit 1
+          fi
+          echo "component=$component" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Check out the tag
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Set up Python 3.13.15
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: 3.13.15
+
+      - name: Check that the tag names the project and version in pyproject.toml
+        env:
+          COMPONENT: ${{ steps.tag.outputs.component }}
+          VERSION: ${{ steps.tag.outputs.version }}
+        run: |
+          grep -qx "name = \"$COMPONENT\"" "components/$COMPONENT/pyproject.toml"
+          grep -qx "version = \"$VERSION\"" "components/$COMPONENT/pyproject.toml"
+
+      - name: Install the hash-pinned build tools
+        run: |
+          cat > "$RUNNER_TEMP/build-tools.txt" <<'EOF'
+          build==1.6.1 --hash=sha256:ecd351a4be9d35a9eaaba244a7687143c9c7d4aea6ac964e7e7ddab20cbcf4e7
+          packaging==26.3 --hash=sha256:d7193f7c8e4e93f444fde0262bf90af30e16fa0ad0ad44cb553c87339b23cd1c
+          pyproject_hooks==1.3.3 --hash=sha256:5fc53fdac9f7bd63fbcdc868fb5f90b4784d78a53a3d3388cd738b807441a20b
+          setuptools==84.0.0 --hash=sha256:51a52592b3b99e102b609654876bd65f19f999935166d1352678931132b0c670
+          wheel==0.48.0 --hash=sha256:3217dcc807155e45db462d7ef2431f5ddda0d7273b700d05a67b271ceb1287ab
+          EOF
+          python -m pip install --require-hashes --only-binary :all: --no-deps -r "$RUNNER_TEMP/build-tools.txt"
+
+      - name: Build the source distribution and the wheel
+        env:
+          COMPONENT: ${{ steps.tag.outputs.component }}
+          VERSION: ${{ steps.tag.outputs.version }}
+        run: |
+          export SOURCE_DATE_EPOCH="$(git log -1 --format=%ct)"
+          python -m build --no-isolation --sdist --wheel --outdir dist "components/$COMPONENT"
+          stem="${COMPONENT//-/_}-$VERSION"
+          test -f "dist/$stem.tar.gz"
+          test -f "dist/$stem-py3-none-any.whl"
+          test "$(ls dist | wc -l)" -eq 2
+          sha256sum dist/*
+
+      - name: Keep the two files for the upload job
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: dist
+          path: dist/
+          if-no-files-found: error
+
+  publish-testpypi:
+    if: inputs.index == 'testpypi'
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    environment:
+      name: testpypi
+      url: https://test.pypi.org/p/${{ needs.build.outputs.component }}
+    permissions:
+      id-token: write
+    steps:
+      - name: Fetch the built files
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: dist
+          path: dist/
+
+      - name: Upload to TestPyPI through trusted publishing
+        uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # v1.14.2
+        with:
+          repository-url: https://test.pypi.org/legacy/
+
+  publish-pypi:
+    if: inputs.index == 'pypi'
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    environment:
+      name: pypi
+      url: https://pypi.org/p/${{ needs.build.outputs.component }}
+    permissions:
+      id-token: write
+    steps:
+      - name: Fetch the built files
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: dist
+          path: dist/
+
+      - name: Upload to PyPI through trusted publishing
+        uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # v1.14.2

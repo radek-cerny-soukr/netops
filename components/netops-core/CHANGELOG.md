@@ -1,12 +1,17 @@
 # Changelog
 
+## 0.2.4 - 2026-09-24
+
+- Publish the package on PyPI as `netops-core`: a source distribution and a wheel built from the release tag and uploaded through trusted publishing by `.github/workflows/publish-pypi.yml`, a workflow added at the repository root with this version. `pyproject.toml` gains the README as the package description, project URLs and classifiers, and declares the licence as the SPDX expression `MIT` with `license-files`; the build requirement rises to `setuptools>=77`, which reads that form.
+- Link the README to its documents by absolute URLs, so that they also resolve on the PyPI project page, and describe installing from PyPI. No change to the code.
+
+This entry describes the current source version. Earlier entries are historical source records; use the repository release index for current downloads and commit history for superseded source. Previous artifacts may remain visible during a release transition and are retired only after replacement verification and archival. See the [release procedure](docs/releasing.md).
+
 ## 0.2.3 - 2026-09-21
 
 - Add `load(..., names=...)` selection so callers retain only the credential objects their operation needs. The default full-store API remains compatible; the complete JSON is still parsed transiently, so this is not an isolation boundary between stores.
 - Refresh the hash-locked release tooling and document its generator environment; Core still has no runtime dependencies or container image.
 - Verify the installed askpass command outside the checkout with valid and missing-file inputs. The Core suite passed 839 tests with installed askpass available; release export and executable-mode checks passed.
-
-This entry describes the current source version. Earlier entries are historical source records; use the repository release index for current downloads and commit history for superseded source. Previous artifacts may remain visible during a release transition and are retired only after replacement verification and archival. See the [release procedure](docs/releasing.md).
 
 ## 0.2.2 - 2026-09-20
 

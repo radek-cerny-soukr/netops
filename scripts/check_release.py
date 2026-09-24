@@ -29,6 +29,7 @@ CI_REQUIRED_FRAGMENTS = (
 ROOT_FILES = {
     ".dockerignore",
     ".github/workflows/ci.yml",
+    ".github/workflows/publish-pypi.yml",
     ".gitignore",
     "CONTRIBUTING.md",
     "LICENSE",

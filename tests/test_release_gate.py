@@ -65,6 +65,16 @@ def _fixture(tmp_path: Path) -> Path:
         "          python scripts/check_demo.py\n",
         encoding="utf-8",
     )
+    (workflows / "publish-pypi.yml").write_text(
+        "jobs:\n"
+        "  build:\n"
+        "    steps:\n"
+        "      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0\n"
+        "  publish-pypi:\n"
+        "    steps:\n"
+        "      - uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33\n",
+        encoding="utf-8",
+    )
     component = root / "components/demo"
     (component / "scripts").mkdir(parents=True)
     (component / "LICENSE").write_text("MIT\n", encoding="utf-8")
@@ -230,6 +240,34 @@ def test_gate_rejects_actions_that_are_not_sha_pinned() -> None:
             assert (
                 "GitHub Action is not SHA-pinned in ci.yml: actions/checkout@v7" in errors
             ), (form, errors)
+
+
+def test_gate_rejects_an_unpinned_action_in_the_publish_workflow() -> None:
+    with tempfile.TemporaryDirectory() as directory:
+        root = _fixture(Path(directory))
+        workflow = root / ".github/workflows/publish-pypi.yml"
+        workflow.write_text(
+            workflow.read_text(encoding="utf-8").replace(
+                "pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33",
+                "pypa/gh-action-pypi-publish@release/v1",
+            ),
+            encoding="utf-8",
+        )
+        errors = _gate_for(root).check(root)
+        assert (
+            "GitHub Action is not SHA-pinned in publish-pypi.yml: pypa/gh-action-pypi-publish@release/v1"
+            in errors
+        ), errors
+
+
+def test_gate_requires_the_publish_workflow() -> None:
+    with tempfile.TemporaryDirectory() as directory:
+        root = _fixture(Path(directory))
+        subprocess.run(
+            ["git", "-C", str(root), "rm", "-q", "-f", ".github/workflows/publish-pypi.yml"], check=True
+        )
+        errors = _gate_for(root).check(root)
+        assert "reviewed repository file is missing: .github/workflows/publish-pypi.yml" in errors, errors
 
 
 def test_gate_rejects_private_and_credential_markers() -> None:

@@ -1,8 +1,8 @@
 # Release process
 
 Release tags follow the component scheme `<name>/v<version>`, where `<name>` is the project name
-declared in this component's `pyproject.toml`: this component tags `netops-core/v0.2.3`, and the
-release title is `netops-core 0.2.3`. Tags of another component are never touched by this procedure.
+declared in this component's `pyproject.toml`: this component tags `netops-core/v0.2.4`, and the
+release title is `netops-core 0.2.4`. Tags of another component are never touched by this procedure.
 Publishing a newer version leaves the release page and the tag of earlier versions in place. The canonical origin is
 `https://github.com/radek-cerny-soukr/netops`.
 
@@ -21,7 +21,7 @@ credentials, host keys, or inventory and vault files. The release export is a po
 the component gate also reads the content of every released file and, outside a repository, holds the
 exported tree to exactly the released selection.
 
-## What 0.2.3 releases
+## What 0.2.4 releases
 
 This component releases **from source; it ships no container image**, because it is a library and
 nothing in it runs on its own. The release carries four assets:
@@ -36,6 +36,18 @@ nothing in it runs on its own. The release carries four assets:
 An image is not planned for a later version either: a component that runs brings its own image and
 takes this library from the tree at build time. The library runs on any Python 3.13 host with nothing
 installed beside the standard library.
+
+### Also on PyPI
+
+From this version the component is also published on PyPI as `netops-core`: a source distribution
+and a wheel built from the release tag. The workflow `.github/workflows/publish-pypi.yml` at the
+repository root is started by hand on that tag. It accepts only a tag of this family, checks that the
+tag names the version in `pyproject.toml`, builds both files with hash-pinned build tools and
+`SOURCE_DATE_EPOCH` set to the time of the tagged commit, and uploads them through PyPI trusted
+publishing, so no upload token is stored anywhere: first to TestPyPI and, once that installation has
+been checked, to PyPI. The two files are not assets of the release page and are not covered by its
+Sigstore bundle; the upload carries its own provenance attestation. A version already on PyPI is never
+uploaded again.
 
 ## Procedure
 

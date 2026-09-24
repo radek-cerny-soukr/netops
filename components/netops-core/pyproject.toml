@@ -1,14 +1,32 @@
 [build-system]
-requires = ["setuptools>=75", "wheel"]
+requires = ["setuptools>=77", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "netops-core"
-version = "0.2.3"
+version = "0.2.4"
 description = "Shared access layer of the netops family: inventory, credential store, host key trust, SSH transport, audit records"
-license = { text = "MIT" }
+readme = { file = "README.md", content-type = "text/markdown" }
+license = "MIT"
+license-files = ["LICENSE"]
 requires-python = ">=3.13"
 dependencies = []
+
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Intended Audience :: System Administrators",
+  "Operating System :: POSIX :: Linux",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.13",
+  "Topic :: System :: Networking",
+]
+
+[project.urls]
+Homepage = "https://github.com/radek-cerny-soukr/netops"
+Documentation = "https://github.com/radek-cerny-soukr/netops/blob/main/components/netops-core/README.md"
+Changelog = "https://github.com/radek-cerny-soukr/netops/blob/main/components/netops-core/CHANGELOG.md"
+Source = "https://github.com/radek-cerny-soukr/netops/tree/main/components/netops-core"
+Issues = "https://github.com/radek-cerny-soukr/netops/issues"
 
 [project.scripts]
 netops-askpass = "netops_core.askpass:main"

@@ -11,6 +11,33 @@
     "component": {
       "bom-ref": "root-component",
       "description": "Shared access layer of the netops family: inventory, credential store, host key trust, SSH transport, audit records",
+      "externalReferences": [
+        {
+          "comment": "from pyproject urls: Documentation",
+          "type": "documentation",
+          "url": "https://github.com/radek-cerny-soukr/netops/blob/main/components/netops-core/README.md"
+        },
+        {
+          "comment": "from pyproject urls: Issues",
+          "type": "issue-tracker",
+          "url": "https://github.com/radek-cerny-soukr/netops/issues"
+        },
+        {
+          "comment": "from pyproject urls: Source",
+          "type": "other",
+          "url": "https://github.com/radek-cerny-soukr/netops/tree/main/components/netops-core"
+        },
+        {
+          "comment": "from pyproject urls: Changelog",
+          "type": "release-notes",
+          "url": "https://github.com/radek-cerny-soukr/netops/blob/main/components/netops-core/CHANGELOG.md"
+        },
+        {
+          "comment": "from pyproject urls: Homepage",
+          "type": "website",
+          "url": "https://github.com/radek-cerny-soukr/netops"
+        }
+      ],
       "licenses": [
         {
           "license": {
@@ -20,9 +47,9 @@
         }
       ],
       "name": "netops-core",
-      "purl": "pkg:pypi/netops-core@0.2.3",
+      "purl": "pkg:pypi/netops-core@0.2.4",
       "type": "library",
-      "version": "0.2.3"
+      "version": "0.2.4"
     },
     "properties": [
       {
