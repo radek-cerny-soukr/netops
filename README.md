@@ -32,7 +32,7 @@ If your configuration backups live in a Git repository, the auditor runs as a Gi
 
 ```yaml
 - id: audit
-  uses: radek-cerny-soukr/netops/components/netops-auditor@8a7c0bc504c9e7bb46b0937807c05293add2c019 # netops-auditor 0.2.7
+  uses: radek-cerny-soukr/netops/components/netops-auditor@871dbbd7ad3ace53dce3262a71ed0097ea3d63a0 # netops-auditor 0.2.8
   with:
     platform: fortios
     configs: |
