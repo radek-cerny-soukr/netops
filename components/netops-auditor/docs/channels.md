@@ -109,7 +109,7 @@ the hardening options, the workspace and the two kinds of authentication are des
 [`../../netops-core/docs/ssh.md`](../../netops-core/docs/ssh.md) and measured there against real
 devices. These documents ship in the `netops-core` archive, not in the auditor archive: that relative
 path resolves in a repository checkout; from a standalone auditor archive the same file is published
-at [`netops-core/v0.2.4`](https://github.com/radek-cerny-soukr/netops/blob/netops-core/v0.2.4/components/netops-core/docs/ssh.md).
+at [`netops-core/v0.2.5`](https://github.com/radek-cerny-soukr/netops/blob/netops-core/v0.2.5/components/netops-core/docs/ssh.md).
 What the auditor adds is the step table of the platform, the preflight and the `ChannelEvent` of
 every command; the prompt cleaning is `netops_core.prompt`. It adds **nothing** to the options of
 the client.
@@ -165,6 +165,7 @@ entry in the inventory, `legacy_ssh`, and it is a **named profile**, not a list 
 |---|---|
 | `null` | nothing, the session stays on current algorithms |
 | `"rsa-sha1"` | `-o HostKeyAlgorithms=+ssh-rsa -o PubkeyAcceptedAlgorithms=+ssh-rsa` |
+| `"rsa-sha1-dh14"` | the same two and `-o KexAlgorithms=+diffie-hellman-group14-sha1` (no auditor platform needs it today) |
 
 The profile name is a key into a table in `netops_core.legacy_ssh`; the options themselves are written
 down in that module. No string from the inventory ever reaches `-o`, so an inventory file cannot
@@ -182,9 +183,12 @@ The channel event, which is what the database keeps, does not carry the profile 
 
 Two details that measurement decided rather than reasoning:
 
-- **The host key scan needs nothing.** `ssh-keyscan` asks for its default key types
-  (`rsa`, `ecdsa`, `ed25519`), so it reads an `ssh-rsa` key from those switches and the pin is
-  verified the usual way. The profile is therefore not passed to the scan, only to `ssh`.
+- **The host key scan needs nothing for `rsa-sha1`.** The scan of `netops-core` asks for
+  `ed25519`, then `ecdsa`, then `rsa`, one connection at a time, so it reads the `ssh-rsa` key of
+  those switches and the pin is verified the usual way. The collector nevertheless passes the
+  profile to the scan as well as to `ssh`, because `rsa-sha1-dh14` changes how the key is read:
+  `ssh-keyscan` offers no SHA-1 key exchange, so for such a device the scan is one `ssh` connection
+  that authenticates with nothing - see [SSH transport](../../netops-core/docs/ssh.md).
 - **Only the two options above.** With them the negotiation gets past the host key and on to
   authentication; the key exchange picked `diffie-hellman-group16-sha512` and the negotiated cipher
   was the OpenSSH `chacha20-poly1305`, so no legacy key exchange or cipher profile is needed. If a box
@@ -303,7 +307,7 @@ read-only account the prompt stayed in the snapshot - and in its hash.
 
 So the answer is cleaned by [`netops_core.prompt`](../../netops-core/docs/prompt.md) (published, for
 a standalone archive, at
-[`netops-core/v0.2.4`](https://github.com/radek-cerny-soukr/netops/blob/netops-core/v0.2.4/components/netops-core/docs/prompt.md)),
+[`netops-core/v0.2.5`](https://github.com/radek-cerny-soukr/netops/blob/netops-core/v0.2.5/components/netops-core/docs/prompt.md)),
 which the helper uses as well, by a rule that is deliberately narrow:
 
 - **only the first line** can lose a prefix, and only when that line starts with a prompt shape: at
@@ -389,6 +393,17 @@ hardware failed on it, which no mock would have shown.
 On FortiOS two dumps in a row were byte identical, and nine days apart, with dozens of changes in
 between, every `ENC` field still matched.
 
+On 25 September 2026 the released auditor 0.2.7 with Core 0.2.4 collected the configuration of the
+EXOS-VM virtual switch, ExtremeXOS 33.6.1.14, through this channel with `legacy_ssh: "rsa-sha1"` and
+an administrator account holding only a key, evaluated the 9 EXOS rules and reported the one finding
+the switch deserved (`exos.logging.no-syslog-target`); Core with the one-type-at-a-time host key scan
+produced a byte-identical snapshot of the same switch. See
+[live lab measurements](../../../docs/lab-measurements-2026-09-25.md#netops-auditor-on-exos-vm).
+On 26 September 2026, before its release, auditor 0.2.8 with Core 0.2.5 collected the configuration of
+an X440-G2 running ExtremeXOS 33.7.1.6 through this channel and returned the same snapshot and the same
+findings as released 0.2.7 with Core 0.2.4 at the same time; see
+[verified support](../../../docs/verified-support.md#admin-023-and-auditor-028-validation-26-september-2026).
+
 That table is the anchor: if the channel does not work for you, this is the hardware and the firmware
 where the behaviour was observed. The measurements above were taken with the historical collector of 0.1.0
 (its release, tag and artifact downloads have since been removed), which
@@ -402,9 +417,9 @@ auditor sends nothing before `show configuration` on EXOS. The prompt cleaning m
 [`../../netops-core/docs/prompt.md`](../../netops-core/docs/prompt.md) unchanged except for the `$`
 marker. Both relative paths resolve in a repository checkout; from a standalone auditor archive the
 same two files are published at
-[`netops-core/v0.2.4`](https://github.com/radek-cerny-soukr/netops/blob/netops-core/v0.2.4/components/netops-core/docs/ssh.md)
+[`netops-core/v0.2.5`](https://github.com/radek-cerny-soukr/netops/blob/netops-core/v0.2.5/components/netops-core/docs/ssh.md)
 and
-[`netops-core/v0.2.4`](https://github.com/radek-cerny-soukr/netops/blob/netops-core/v0.2.4/components/netops-core/docs/prompt.md).
+[`netops-core/v0.2.5`](https://github.com/radek-cerny-soukr/netops/blob/netops-core/v0.2.5/components/netops-core/docs/prompt.md).
 
 ## Channel `file`
 

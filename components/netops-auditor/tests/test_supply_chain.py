@@ -15,7 +15,7 @@ URL = re.compile(r"[a-z][a-z0-9+.-]*://[^\s\"]*")
 ABSOLUTE_PATH = re.compile(r"(?<![A-Za-z0-9_.~-])/[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)+")
 WINDOWS_PATH = re.compile(r"[A-Za-z]:\\\\?[A-Za-z0-9_.-]")
 CORE_NAME = "netops-core"
-CORE_VERSION = "0.2.4"
+CORE_VERSION = "0.2.5"
 CORE_REQUIREMENT = "%s==%s" % (CORE_NAME, CORE_VERSION)
 CORE_PURL = "pkg:pypi/%s@%s" % (CORE_NAME, CORE_VERSION)
 

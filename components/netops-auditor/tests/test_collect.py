@@ -1343,8 +1343,10 @@ def test_ssh_host_key_mismatch_stops_before_the_connection():
     credential = SshCredential()
     error = ssh_failure(runner, credential=credential)
     assert credential.uses == 0
-    assert len(runner.calls) == 1
-    assert runner.calls[0]["argv"][0] == "ssh-keyscan"
+    assert [call["argv"][0] for call in runner.calls] == ["ssh-keyscan"] * 3
+    assert [call["argv"][call["argv"].index("-t") + 1] for call in runner.calls] == [
+        "ed25519", "ecdsa", "rsa",
+    ]
     assert runner.identity is None
     assert "no offered host key matches the pinned fingerprint" in str(error)
     assert KEY_PIN in str(error)
@@ -1710,8 +1712,9 @@ def test_ssh_without_a_legacy_profile_binds_no_algorithm_option():
 
 
 def test_the_family_holds_the_options_behind_the_profile_name():
-    assert PROFILES == (LEGACY_PROFILE,)
+    assert PROFILES == (LEGACY_PROFILE, "rsa-sha1-dh14")
     assert OPENSSH_OPTIONS[LEGACY_PROFILE] == LEGACY_OPTIONS
+    assert OPENSSH_OPTIONS["rsa-sha1-dh14"] == LEGACY_OPTIONS + ("KexAlgorithms=+diffie-hellman-group14-sha1",)
 
 
 @pytest.mark.parametrize("platform", ("fortios", "exos"))

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.8 - 2026-09-26
+
+- Pin `netops-core==0.2.5`. The host key scan now asks for one key type at a time, so a collection no longer uses up the VTY lines of a small device before its own connection, and it works with the OpenSSH 10.0p2 `ssh-keyscan`.
+- Pass the device's `legacy_ssh` profile to the host key scan as well as to `ssh`, so a device with `legacy_ssh: "rsa-sha1-dh14"` (classic Cisco IOS, SHA-1 key exchange only) can be pinned and collected. The auditor has no Cisco rule catalogue; the change keeps the channel consistent with the core.
+- Documentation: the collection channels describe the scan and the profile, and the `ssh` channel records the collection from the EXOS-VM 33.6.1.14 virtual switch on 25 September 2026 (9 EXOS rules, one correct finding, a byte-identical snapshot with the new scan) and from an X440-G2 with ExtremeXOS 33.7.1.6 before the release (the same snapshot and findings as 0.2.7).
+
 ## 0.2.7 - 2026-09-24
 
 - Publish the package on PyPI as `netops-auditor`; `pip install netops-auditor` installs the pinned core with it. `pyproject.toml` gains the README as the package description, project URLs and classifiers, and declares the licence as the SPDX expression `MIT` with `license-files`; the build requirement rises to `setuptools>=77`.

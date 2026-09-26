@@ -15,7 +15,7 @@ document of `netops-core`, file version 2**, and its schema is
 [`../../netops-core/docs/vault.md`](../../netops-core/docs/vault.md). This document ships in the
 `netops-core` archive, not in the auditor archive: that relative path resolves in a repository
 checkout; from a standalone auditor archive the same file is published at
-[`netops-core/v0.2.4`](https://github.com/radek-cerny-soukr/netops/blob/netops-core/v0.2.4/components/netops-core/docs/vault.md).
+[`netops-core/v0.2.5`](https://github.com/radek-cerny-soukr/netops/blob/netops-core/v0.2.5/components/netops-core/docs/vault.md).
 What follows is what the auditor adds to it.
 
 ```json
@@ -35,7 +35,7 @@ What follows is what the auditor adds to it.
 | `credentials` | an object; the key is the record name an inventory entry refers to in `credential` |
 | `credentials.<name>.kind` | one of `password`, `ssh-key`, `api-token`, `snmp-community` |
 | `credentials.<name>.login` | the account name, **required** for `password` and `ssh-key`, **forbidden** for the other two |
-| `credentials.<name>.value` | the secret itself; for `ssh-key` the whole private key text, header line and all, newlines written as `\n` - the example above is a placeholder, and the real shape is in [`../../netops-core/docs/vault.md`](../../netops-core/docs/vault.md) (from a standalone archive, published at [`netops-core/v0.2.4`](https://github.com/radek-cerny-soukr/netops/blob/netops-core/v0.2.4/components/netops-core/docs/vault.md)) |
+| `credentials.<name>.value` | the secret itself; for `ssh-key` the whole private key text, header line and all, newlines written as `\n` - the example above is a placeholder, and the real shape is in [`../../netops-core/docs/vault.md`](../../netops-core/docs/vault.md) (from a standalone archive, published at [`netops-core/v0.2.5`](https://github.com/radek-cerny-soukr/netops/blob/netops-core/v0.2.5/components/netops-core/docs/vault.md)) |
 
 The file is read at mode `0600` or `0400` and at no other mode, and a vault path that is a symbolic
 link is refused before the mode is read.
@@ -232,7 +232,7 @@ device, and the `legacy_ssh` exception are in [`inventory.md`](inventory.md); th
 document is in [`../../netops-core/docs/inventory.md`](../../netops-core/docs/inventory.md), which
 ships in the `netops-core` archive, not the auditor archive: from a standalone auditor archive the
 same file is published at
-[`netops-core/v0.2.4`](https://github.com/radek-cerny-soukr/netops/blob/netops-core/v0.2.4/components/netops-core/docs/inventory.md).
+[`netops-core/v0.2.5`](https://github.com/radek-cerny-soukr/netops/blob/netops-core/v0.2.5/components/netops-core/docs/inventory.md).
 
 ## The platform picks the parser and the catalogue
 

@@ -610,7 +610,9 @@ def collect_ssh(
         )
 
     try:
-        host_key_line = hostkey.scan(address, port, host_key_fingerprint, seconds, run=keyscan)
+        host_key_line = hostkey.scan(
+            address, port, host_key_fingerprint, seconds, run=keyscan, legacy=profile
+        )
     except hostkey.HostKeyError as error:
         raise CollectError(str(error), failed()) from None
     events, payload, taken, marked = [], b"", None, False

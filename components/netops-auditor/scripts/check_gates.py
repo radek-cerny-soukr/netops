@@ -92,7 +92,7 @@ RELEASE_ALLOWED_DOMAINS = ALLOWED_DOMAINS + (
     "sigstore.dev",
 )
 RESERVED_TLDS = frozenset(("example", "invalid", "test", "localhost"))
-ALLOWED_LITERALS = frozenset(("33.7.1.6", "1.3.6.1", "aa:bb:cc:dd:ee:ff"))
+ALLOWED_LITERALS = frozenset(("33.7.1.6", "33.6.1.14", "1.3.6.1", "aa:bb:cc:dd:ee:ff"))
 DOCUMENTATION_MAC_PREFIX = "00:00:5e:00:53:"
 
 IPV4_PATTERN = re.compile(
