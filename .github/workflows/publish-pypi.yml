@@ -32,8 +32,8 @@ jobs:
           REF: ${{ github.ref }}
         run: |
           case "$REF" in
-            refs/tags/netops-core/v*|refs/tags/netops-auditor/v*|refs/tags/netops-admin/v*) ;;
-            *) echo "::error::start this workflow on a release tag of netops-core, netops-auditor or netops-admin, not on $REF"; exit 1 ;;
+            refs/tags/netops-core/v*|refs/tags/netops-auditor/v*|refs/tags/netops-admin/v*|refs/tags/netops-helper/v*) ;;
+            *) echo "::error::start this workflow on a release tag of netops-core, netops-auditor, netops-admin or netops-helper, not on $REF"; exit 1 ;;
           esac
           tag="${REF#refs/tags/}"
           component="${tag%%/v*}"

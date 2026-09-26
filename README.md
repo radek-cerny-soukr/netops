@@ -56,16 +56,16 @@ The workflow needs `security-events: write`. Inputs, outputs and the SARIF mappi
 
 | Component | What it does | Released |
 |---|---|---|
-| [`netops-auditor`](components/netops-auditor/) | Configuration audit; collects the configuration from the device itself or reads a file | [`netops-auditor/v0.2.7`](https://github.com/radek-cerny-soukr/netops/releases/tag/netops-auditor%2Fv0.2.7) (2026-09-24) |
-| [`netops-helper`](components/netops-helper/) | Read-only MCP server for bounded network troubleshooting | [`netops-helper/v0.3.6`](https://github.com/radek-cerny-soukr/netops/releases/tag/netops-helper%2Fv0.3.6) (2026-09-21) |
-| [`netops-admin`](components/netops-admin/) | Bounded device changes, mandatory rollback enrollment and predicted/observed audit | [`netops-admin/v0.2.2`](https://github.com/radek-cerny-soukr/netops/releases/tag/netops-admin%2Fv0.2.2) (2026-09-24) |
-| [`netops-core`](components/netops-core/) | Shared access layer the other components build on: inventory, credential store, host key trust, SSH transport, audit records | [`netops-core/v0.2.4`](https://github.com/radek-cerny-soukr/netops/releases/tag/netops-core%2Fv0.2.4) (2026-09-24) |
+| [`netops-auditor`](components/netops-auditor/) | Configuration audit; collects the configuration from the device itself or reads a file | [`netops-auditor/v0.2.8`](https://github.com/radek-cerny-soukr/netops/releases/tag/netops-auditor%2Fv0.2.8) (2026-09-26) |
+| [`netops-helper`](components/netops-helper/) | Read-only MCP server for bounded network troubleshooting | [`netops-helper/v0.3.7`](https://github.com/radek-cerny-soukr/netops/releases/tag/netops-helper%2Fv0.3.7) (2026-09-26) |
+| [`netops-admin`](components/netops-admin/) | Bounded device changes, mandatory rollback enrollment and predicted/observed audit | [`netops-admin/v0.2.3`](https://github.com/radek-cerny-soukr/netops/releases/tag/netops-admin%2Fv0.2.3) (2026-09-26) |
+| [`netops-core`](components/netops-core/) | Shared access layer the other components build on: inventory, credential store, host key trust, SSH transport, audit records | [`netops-core/v0.2.5`](https://github.com/radek-cerny-soukr/netops/releases/tag/netops-core%2Fv0.2.5) (2026-09-26) |
 
-Every release carries a source archive, an SBOM, a checksum manifest and a Sigstore signature. Core, Auditor and Admin are also published on PyPI (`pip install netops-auditor`, `pip install netops-admin`); the helper is not. Earlier versions keep their release pages and tags; the table above links the current one. How releases are cut and signed, and what the repository gate enforces, is in the [documentation map](docs/README.md#releases).
+Every release carries a source archive, an SBOM, a checksum manifest and a Sigstore signature. All four are also published on PyPI (`pip install netops-auditor`, `pip install netops-admin`; `pip install netops-helper` installs only the helper's client-side proxy, its server runs as a container image). Earlier versions keep their release pages and tags; the table above links the current one. How releases are cut and signed, and what the repository gate enforces, is in the [documentation map](docs/README.md#releases).
 
 ## What has been tested on real devices
 
-FortiOS (7.6.x and 8.0.0) and ExtremeXOS (33.7.x) have been exercised end to end against real devices. The Cisco, Arista and Juniper catalogues of the helper are reviewed against vendor references and simulated on the wire, but have not yet been run against a device. [Verified platform support](docs/verified-support.md) states, per platform, firmware, transport, authentication and account privilege, what was measured and what was not.
+FortiOS (7.6.x and 8.0.0) and ExtremeXOS (33.7.x) have been exercised end to end against real devices. The helper's Arista EOS, Junos, Cisco IOS, IOS-XE and NX-OS catalogues have been run query by query against the vendors' virtual images (cEOS and vEOS 4.36.1F, vJunos-switch 26.2R1.7, IOL 17.18.2, IOSv 15.9(3)M12, IOSvL2 15.2, Nexus 9300v and 9500v 9.3(12)) and ExtremeXOS also against EXOS-VM 33.6.1.14; no physical device of those three vendors has been measured yet. Cisco IOS-XE and classic IOS need `netops-core` 0.2.5 and `netops-helper` 0.3.7, see [live lab measurements](docs/lab-measurements-2026-09-25.md). [Verified platform support](docs/verified-support.md) states, per platform, firmware, transport, authentication and account privilege, what was measured and what was not.
 
 ## Security
 
