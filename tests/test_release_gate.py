@@ -40,6 +40,7 @@ def _fixture(tmp_path: Path) -> Path:
     (root / "docs").mkdir()
     (root / "docs/README.md").write_text("# Documentation map\n", encoding="utf-8")
     (root / "docs/verified-support.md").write_text("# Verified platform support\n", encoding="utf-8")
+    (root / "docs/lab-measurements-2026-09-25.md").write_text("# Live lab measurements\n", encoding="utf-8")
     (root / "scripts").mkdir()
     shutil.copy2(ROOT / "scripts/check_release.py", root / "scripts/check_release.py")
     (root / "tests").mkdir()

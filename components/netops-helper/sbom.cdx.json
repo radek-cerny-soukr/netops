@@ -5035,6 +5035,33 @@
     "component": {
       "bom-ref": "root-component",
       "description": "Read-only MCP engine for bounded network troubleshooting",
+      "externalReferences": [
+        {
+          "comment": "from pyproject urls: Documentation",
+          "type": "documentation",
+          "url": "https://github.com/radek-cerny-soukr/netops/blob/main/components/netops-helper/README.md"
+        },
+        {
+          "comment": "from pyproject urls: Issues",
+          "type": "issue-tracker",
+          "url": "https://github.com/radek-cerny-soukr/netops/issues"
+        },
+        {
+          "comment": "from pyproject urls: Source",
+          "type": "other",
+          "url": "https://github.com/radek-cerny-soukr/netops/tree/main/components/netops-helper"
+        },
+        {
+          "comment": "from pyproject urls: Changelog",
+          "type": "release-notes",
+          "url": "https://github.com/radek-cerny-soukr/netops/blob/main/components/netops-helper/CHANGELOG.md"
+        },
+        {
+          "comment": "from pyproject urls: Homepage",
+          "type": "website",
+          "url": "https://github.com/radek-cerny-soukr/netops"
+        }
+      ],
       "licenses": [
         {
           "license": {
@@ -5045,7 +5072,7 @@
       ],
       "name": "netops-helper",
       "type": "application",
-      "version": "0.3.6"
+      "version": "0.3.7"
     },
     "properties": [
       {

@@ -1,6 +1,6 @@
 # netops-core
 
-The current release is `netops-core/v0.2.4` (2026-09-24), the first one also published on PyPI: `pip install netops-core`. `netops-auditor` 0.2.7 and `netops-admin` 0.2.2 pin exactly that version. It differs from 0.2.3 only in its package metadata; `netops-auditor` 0.2.4 to 0.2.6, `netops-helper` 0.3.4 to 0.3.6 and `netops-admin` 0.2.0 and 0.2.1 pin 0.2.3, which is not on PyPI.
+The current release is `netops-core/v0.2.5` (2026-09-26), also published on PyPI: `pip install netops-core`. `netops-auditor` 0.2.8, `netops-admin` 0.2.3 and `netops-helper` 0.3.7 pin exactly that version. It reads a host key one key type at a time and adds the per-device SSH profile `rsa-sha1-dh14` for devices that offer only SHA-1 key exchange; see the [changelog](https://github.com/radek-cerny-soukr/netops/blob/main/components/netops-core/CHANGELOG.md). `netops-auditor` 0.2.7 and `netops-admin` 0.2.2 pin 0.2.4, the first version on PyPI; earlier releases pin 0.2.3, which is not on PyPI.
 
 The shared access layer of the `netops` family. It holds every piece a component needs to reach a
 device and to record what happened: the inventory of devices, the credential store, host key trust,
@@ -84,8 +84,8 @@ key trust and the askpass program in [`docs/ssh.md`](https://github.com/radek-ce
 
 ## How the other components use it
 
-`netops-core` is published on PyPI from 0.2.4, and `netops-auditor` and `netops-admin` depend on it
-there by an exact pin, so `pip install netops-auditor` installs the matching core with it. Inside this
+`netops-core` is published on PyPI from 0.2.4, and `netops-auditor`, `netops-admin` and, from 0.3.7,
+`netops-helper` depend on it there by an exact pin, so `pip install netops-auditor` installs the matching core with it. Inside this
 repository a component takes it from the tree instead: the consuming component installs the directory
 `components/netops-core` into its own environment or image, or puts `components/netops-core/src` on
 `PYTHONPATH`, and the `netops-helper` image carries a copy from the tree. No consumer resolves a

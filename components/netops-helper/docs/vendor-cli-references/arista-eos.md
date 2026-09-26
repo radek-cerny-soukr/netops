@@ -34,6 +34,17 @@ The complete [EOS User Manual PDF](https://www.arista.com/en/assets/data/pdf/use
 
 Parameterized entries require exact enrollment and platform-specific slot kinds. IPv4 and IPv6 addresses are distinct canonical literal types. Interface contexts distinguish general, physical, LLDP, LACP, STP, and OSPF interface grammars.
 
+## Live measurements, 25 September 2026
+
+The whole 33-query catalogue was run query by query through the released helper 0.3.6 and again through the source of helper 0.3.7 deployed as a candidate runner, against two virtual images. The per-query table, the lab and the device configuration are in [Live lab measurements](../../../../docs/lab-measurements-2026-09-25.md#arista-eos).
+
+| Image | Account | Result |
+| --- | --- | --- |
+| cEOS-lab 4.36.1F (`4.36.1F-48405728.4361F`, container) | privilege 1, role `network-operator`, ed25519 key, no password | 33 answered: 32 with exit status 0, `environment` with exit status 1 |
+| vEOS-lab 4.36.1F (virtual machine) | the same | 33 answered: 29 with exit status 0, 4 with exit status 1 |
+
+Every exit status 1 was a complete answer for a feature the lab switch does not have: `show system environment all` ends with `% There seem to be no power supplies connected.` on both images, and on the unconfigured vEOS `show ip bgp summary` and `show ipv6 bgp summary` end with `% BGP inactive` and `show ipv6 interface brief` with `% No IPv6 configured interfaces`. They remain successful reads. A command above the account's privilege (`show running-config`, `configure`, `bash`) is answered `% Invalid input (privileged mode required) at line 1` and an unknown one `% Invalid input at line 1`, both with exit status 1; from 0.3.7 the helper reports `% Invalid input` as `device_cli_error`. No legacy SSH exception is needed. Not measured: EOS on hardware, the 4.36.2F baseline, licensed features, and AAA command authorization.
+
 ## Explicit exclusions
 
 - Running/startup/full configuration, configuration sessions, files, logs, debug, support/tech-support, packet capture, Bash, and commands that clear, test, reload, restart, or write state are prohibited.

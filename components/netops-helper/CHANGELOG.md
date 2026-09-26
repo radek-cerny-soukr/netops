@@ -2,6 +2,15 @@
 
 The latest entry describes the current source version; earlier entries are historical source records. Use the repository release index for current downloads and commit history for superseded source. See the [release procedure](docs/releasing.md).
 
+## 0.3.7 - 2026-09-26
+
+- Pin `netops-core==0.2.5`: the host key scan asks for one key type at a time, so an IOS-XE device with five VTY lines is no longer refused (every call failed through the 0.3.6 runner on IOS-XE 17.18.2), and it copes with the comment line the OpenSSH 10.0p2 `ssh-keyscan` of the image writes to standard output.
+- Accept `legacy_ssh: "rsa-sha1-dh14"` and pass it to the host key scan, so classic Cisco IOS devices that offer only SHA-1 key exchange become reachable; SHA-1 key exchange stays off for every other device. Measured on IOSv 15.9(3)M12 and IOSvL2 15.2.
+- Accept `Ethernet<slot>/<port>` (abbreviation `Et`, 0-15) as a physical interface of `cisco_ios` and `cisco_xe`, the naming of Cisco router ports and of the IOL images.
+- Report CLI refusals of Cisco IOS and IOS-XE (`Line has invalid autocommand "<command>"`, exit status 0), Arista EOS (`% Invalid input ... at line N`), Junos (`error: syntax error, ...`, `error: unknown command: ...`, `error: permission denied: ...`, `error: the <name> subsystem is not running`, exit status 0) and NX-OS (`Syntax error while parsing '...'`, `% Permission denied for the role`) as `device_cli_error`, as for FortiOS and ExtremeXOS; 0.3.6 returned them as successful reads. ExtremeXOS `Method is not implemented on this platform.` is `device_cli_error` as well.
+- Publish the package on PyPI as `netops-helper`, for the client side: `pyproject.toml` gains the README as the package description, project URLs and classifiers, and declares the licence as the SPDX expression `MIT` with `license-files`; the README links its documents by absolute URLs and says at the top that the server runs as the container image, not from that installation. `.github/workflows/publish-pypi.yml` accepts `netops-helper/v*` tags.
+- Documentation: the first live measurements of `arista_eos`, `juniper_junos`, `juniper_junos_els`, `cisco_xe`, `cisco_ios` and `cisco_nxos` on the vendors' virtual images, with the result of every catalogue query, in [live lab measurements](../../docs/lab-measurements-2026-09-25.md) and the [verified support matrix](../../docs/verified-support.md); measured sections in the vendor CLI references, the read-only account page and the reference index; the complete list of recognized CLI refusals in the security model, the tools reference and the README.
+
 ## 0.3.6 - 2026-09-21
 
 - Accept `"parameters": null` in `ssh_read` as an absent key. The proxy refused it in argument validation and in the pre-auth scope check, although the server signature and the advertised tool schema allow `null`. A slot-less query now forwards, a query that needs a slot is still refused as `policy_scope`, and lists, strings, numbers and `null` slot values stay `invalid_params`; the new contract check failed on the unmodified proxy.

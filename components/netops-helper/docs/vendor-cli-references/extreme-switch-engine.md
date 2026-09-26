@@ -99,6 +99,12 @@ Measured refusals from the same session, recorded as facts rather than candidate
 - `show ip-security dhcp-snooping entries` is answered with `%% Incomplete command`; the binding database can only be asked for one VLAN, and Phase 1 has no VLAN inventory type.
 - `show log configuration` is outside the boundary as configuration and log content, and was not run.
 
+### EXOS-VM 33.6.1.14, measured on 25 September 2026
+
+The 49-query catalogue was also run query by query against the EXOS-VM virtual switch, ExtremeXOS 33.6.1.14, with a user-level account holding an RSA key and `legacy_ssh: "rsa-sha1"`, through the released helper 0.3.6 and again through the source of helper 0.3.7 deployed as a candidate runner, with the same result: 40 answered with exit status 0; 7 with exit status 250 and a complete answer (`interface_details`, `vlan_details`, `ipv6_neighbor_address`, `route_summary`, `ipv6_route_summary`, `sharing`, `stacking`); and 2 were `device_cli_error` with exit status 254. The per-query table is in [Live lab measurements](../../../../docs/lab-measurements-2026-09-25.md#extremexos-on-exos-vm-extreme_exos).
+
+Two answers differ from the X440-G2 hardware measured on 17 September 2026 and belong to the virtual switch: `show qosprofile` answers `%% Incomplete command` and `show stacking-support` `%% Unrecognized command`, where 33.7.1 on hardware answered both with exit status 0. `show stacking` answers `Method is not implemented on this platform.` with exit status 250. Helper 0.3.6 returned that text as a successful read with the status; from 0.3.7 it is `device_cli_error`.
+
 ### Version, model, and feature constraints
 
 - The documentation baseline is 33.7.1. A switch running another Switch Engine release must be reviewed against that release before these templates are assumed compatible.

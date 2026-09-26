@@ -38,11 +38,15 @@ Role behavior differs across releases and external RADIUS/TACACS policy. Test ea
 
 Measured on 17 September 2026 against ExtremeXOS 33.7.1 with this code: a user-level account (`create account user <name> <password>`) answered 46 of the 47 catalogue queries, byte-identical to an administrator account - the thirty-two whitelisted before that session and the fourteen added from it - and was refused `show accounts` as well as `show configuration`, the latter with `This user does not have permissions for this command.` (exit status 254). Four queries (`show port <port> information detail`, `show iproute ipv6 summary`, `show neighbor-discovery cache ipv6 <address>`, `show sharing`) end with exit status 250 and a complete answer; the helper returns the answer and reports the status. The forty-seventh query, the slotted `inline_power_port`, was measured on 18 September 2026 under the same user-level account through `ssh_read`: exit status 0 and 195 bytes for one enrolled port, so all 47 queries of that dated catalogue had been measured under that account; this does not cover later additions. The factory `user` account ships enabled and without a password: delete it or set one before the switch is enrolled anywhere.
 
+Measured on 25 September 2026 against the EXOS-VM 33.6.1.14 virtual switch with a user-level account holding an RSA key and `legacy_ssh: "rsa-sha1"`: all 49 catalogue queries answered, 2 of them `device_cli_error` for commands the virtual switch lacks and, from helper 0.3.7, `show stacking` a third (`Method is not implemented on this platform.`); see [Extreme Networks Switch Engine](vendor-cli-references/extreme-switch-engine.md#exos-vm-336114-measured-on-25-september-2026).
+
 ### Cisco IOS
 
 Use a dedicated low-privilege identity with a parser view or external AAA command authorization that permits the exact enrolled command set. Numeric privilege level alone may be too broad or too narrow and must not be treated as proof.
 
 Confirm there is no path to enable mode, configuration mode, running/startup configuration display, file display/copy, debug, reload, support collection, embedded scripting, or shell escape. Test the exact interface grammar and every enabled query over the same SSH transport.
+
+Measured on 25 September 2026 against the IOSv 15.9(3)M12 and IOSvL2 15.2(20200924) virtual images with a privilege-1 local user holding only an RSA public key: every catalogue command was transported over the exec channel, and a command the image does not implement or the account may not run - `show running-config`, `configure terminal`, an unknown `show` - answered `Line has invalid autocommand "<command>"` with exit status 0, which the helper reports as `device_cli_error` from 0.3.7. Both images offer SHA-1 key exchange only, so helper 0.3.6 does not reach them; from helper 0.3.7 and Core 0.2.5 the per-device exception `legacy_ssh: "rsa-sha1-dh14"` lets it, and with it the catalogue ran on both images (19 and 26 of 27 queries with exit status 0, the rest commands the image lacks). See [verified support](../../../docs/verified-support.md#live-lab-measurements-25-september-2026) and, for the exact account configuration, [device preparation](../../../docs/lab-measurements-2026-09-25.md#device-preparation). Privilege 1 is what was measured, not a recommendation.
 
 ### Cisco IOS-XE
 
@@ -50,11 +54,15 @@ Use a dedicated identity with exact command authorization, not a reused administ
 
 Permit only the catalog commands actually enrolled for the target and validate both positive reads and negative commands through the production AAA policy. Treat a role label or privilege number as insufficient without command logs.
 
+Measured on 25 September 2026 against IOS-XE 17.18.2 IOL router and L2 images with a privilege-1 local user holding only an RSA public key: the same `Line has invalid autocommand "<command>"` answer with exit status 0 for commands outside the account's privilege and for commands the image lacks (the router image has no `show interfaces status`, `show vlan brief`, `show mac address-table`, `show etherchannel summary` or `show environment all`). The images have five VTY lines; the released helper's host key scan used them all, which Core 0.2.5 fixes. Exact account configuration: [device preparation](../../../docs/lab-measurements-2026-09-25.md#device-preparation).
+
 ### Cisco NX-OS
 
 Use a dedicated NX-OS RBAC role or external AAA policy with the smallest required show-command rules and VDC/tenant scope. Do not assume a built-in operator role is automatically a perfect match for this catalog.
 
 Deny configuration, checkpoint/rollback, file and bootflash access, guestshell/bash, install, reload, debug, Ethanalyzer/capture, support bundles, and full configuration display/export. Verify rule ordering and inherited permissions, then test every enabled command against the exact VDC and software release.
+
+Measured on 25 September 2026 against Nexus 9300v and 9500v NX-OS 9.3(12) with `username <name> role network-operator` and an RSA `sshkey`: all 30 catalogue queries answered; `show running-config` was refused with `% Permission denied for the role` (exit status 30) and an unknown command with `Syntax error while parsing '<command>'` (exit status 16), the same answer the HSRP, VRRP and vPC commands give while their feature is disabled. Both are `device_cli_error` from helper 0.3.7. Exact account configuration: [device preparation](../../../docs/lab-measurements-2026-09-25.md#device-preparation).
 
 ### Arista EOS
 
@@ -62,11 +70,15 @@ Use a dedicated EOS role or AAA command-authorization policy that permits only t
 
 Deny enable/configuration paths, bash or shell access, file and extension management, event-handler changes, reload, debug, packet capture, support bundles, and configuration display/export. Test role inheritance and command-regex behavior with the actual EOS release instead of relying on a generic read-only label.
 
+Measured on 25 September 2026 against cEOS-lab 4.36.1F with `username <name> privilege 1 role network-operator nopassword` and an ed25519 `ssh-key`: all 33 catalogue queries answered; `show running-config`, `configure` and `bash` were refused with `% Invalid input (privileged mode required) at line 1` and exit status 1, an unknown command with `% Invalid input at line 1`. The same account on the vEOS-lab 4.36.1F virtual machine answered all 33 as well. Exact account configuration: [device preparation](../../../docs/lab-measurements-2026-09-25.md#device-preparation).
+
 ### Junos OS
 
 Use a dedicated login class with the minimum operational permissions and explicit allow/deny command policy. Restrict logical-system, routing-instance, or tenant visibility where applicable.
 
 Do not grant configuration or maintenance permissions merely to make operational commands work. Explicitly deny configuration display/export, `configure`, file operations, request/maintenance actions, shell access, support collection, packet capture, and secret-bearing outputs. Validate both classic and ELS target profiles separately because accepted interface syntax and query catalogs differ.
+
+Measured on 25 September 2026 against vJunos-switch 26.2R1.7 with the built-in `read-only` login class and an ed25519 key: all 25 `juniper_junos` and all 29 `juniper_junos_els` queries answered with exit status 0; `configure` was refused with `error: unknown command: configure`, `show configuration system login` with `error: permission denied: system` and an unknown command with `error: syntax error, expecting <command>: ...`, each with exit status 0. The root account on this release requires an encrypted password even when a root SSH key is configured. Exact account configuration: [device preparation](../../../docs/lab-measurements-2026-09-25.md#device-preparation).
 
 ### Ruckus Unleashed
 

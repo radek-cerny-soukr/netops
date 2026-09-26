@@ -240,13 +240,13 @@ The exception is named per device, in that device's inventory entry, and nowhere
 
 A profile requires a host key pin: weakening the algorithms of a session whose key is not recognised would make no sense, and the inventory refuses it.
 
-`legacy_ssh` accepts exactly `null` (the default, modern algorithms only) or the string `"rsa-sha1"`. `"rsa-sha1"` re-enables the `ssh-rsa` host key algorithm for that one device and nothing else. Any other value, including an algorithm name, fails closed in the inventory loader and in the server's authentication envelope.
+`legacy_ssh` accepts exactly `null` (the default, modern algorithms only), `"rsa-sha1"` or `"rsa-sha1-dh14"`. `"rsa-sha1"` re-enables the `ssh-rsa` host key algorithm for that one device and nothing else. `"rsa-sha1-dh14"` does the same and adds exactly one SHA-1 key exchange, `diffie-hellman-group14-sha1`, for that one device; it exists for classic Cisco IOS switches and routers, which offer no other key exchange (measured on IOSv 15.9(3)M12 and IOSvL2 15.2: `diffie-hellman-group14-sha1`, `diffie-hellman-group1-sha1` and `diffie-hellman-group-exchange-sha1` only, and no command to change it). `diffie-hellman-group1-sha1` and the SHA-1 group exchange stay disabled even there. Any other value, including an algorithm name, fails closed in the inventory loader and in the server's authentication envelope.
 
 There is deliberately no global switch and no list of algorithm names in configuration. A named profile expands to a fixed algorithm set written in the code, so an operator file can never widen the cryptography of a connection beyond what the component already ships and reviewed. Enabling SHA-1 for one target must not enable it for the others, which a global option or an inherited default could not guarantee.
 
-SHA-1 key exchange has no profile at all and stays disabled for every target. If a device needs it, it is out of scope for this component.
+SHA-1 key exchange stays disabled for every target that does not carry `"rsa-sha1-dh14"`. Because `ssh-keyscan` cannot be told to offer a SHA-1 key exchange, the host key of such a target is read by one `ssh` connection that authenticates with nothing (every authentication method off, login `netops-hostkey`) into a private, temporary known-hosts file; the pinned fingerprint is then checked exactly as for a key scan, and the credential is used only afterwards. The device logs that connection as a failed login of `netops-hostkey`.
 
-One profile governs both transports. `ssh_read` (the OpenSSH `ssh` client of `netops-core`) and `sftp_stat` (the OpenSSH `sftp` client of `netops-core`) read the same field, so a target cannot be reachable over one and unreachable over the other. On both paths the profile becomes the two options `HostKeyAlgorithms=+ssh-rsa` and `PubkeyAcceptedAlgorithms=+ssh-rsa`, appended after the hardening options so an exception can only widen the algorithm list, never replace the hardening.
+One profile governs both transports. `ssh_read` (the OpenSSH `ssh` client of `netops-core`) and `sftp_stat` (the OpenSSH `sftp` client of `netops-core`) read the same field, so a target cannot be reachable over one and unreachable over the other. On both paths `"rsa-sha1"` becomes the two options `HostKeyAlgorithms=+ssh-rsa` and `PubkeyAcceptedAlgorithms=+ssh-rsa`, and `"rsa-sha1-dh14"` those two and `KexAlgorithms=+diffie-hellman-group14-sha1`, appended after the hardening options so an exception can only widen the algorithm list, never replace the hardening.
 
 An enrolled exception is visible at runtime, not only in the policy file: `target_scope` returns `legacy_ssh` for the alias, and every audit record for a device call on that target carries `"legacy_ssh":"rsa-sha1"`. Records for targets without the exception stay unchanged and carry no such field.
 
@@ -256,7 +256,8 @@ When a target needs the exception and does not have it, the tool result names it
 LegacySshProfileRequired: target "device-alias" offers no SSH host key or key exchange
 algorithm enabled by default; for a target which offers only ssh-rsa host keys set
 "legacy_ssh": "rsa-sha1" in its inventory.json entry, which allows them for that
-device alone. SHA-1 key exchange has no profile and stays disabled.
+device alone; a target which also offers only SHA-1 key exchange needs "legacy_ssh":
+"rsa-sha1-dh14", which adds diffie-hellman-group14-sha1 and nothing else for that device alone.
 ```
 
 On the `ssh_read` path that message replaces the client's own refusal, which names the offered algorithm but no remedy. It is raised only when the client reports that the algorithm sets do not intersect and the device has no profile yet; an unrelated timeout, an authentication failure, or a wrong host key keeps its own error, and a device that already carries the exception gets the plain failure.
@@ -267,11 +268,11 @@ On the SFTP path the message depends on which side reports first. `sftp` is a fa
 
 There is no `known_hosts` file any more, on either side. Trust is the pin, and the pin is a field of the device.
 
-For a device, `host_key_fingerprint` travels in the envelope and the **server** verifies it: before any credential is used, the server runs `ssh-keyscan` against the enrolled address, compares `SHA256:` fingerprints, and refuses the operation by name when the pinned key was not offered. It never prints a key. The same verified key becomes the single known-hosts line of that one operation, for both the `ssh` path (`ssh_read`) and the `sftp` path (`sftp_stat`), and it is removed with the operation. Both paths use the same `netops_core.hostkey` code as the auditor.
+For a device, `host_key_fingerprint` travels in the envelope and the **server** verifies it: before any credential is used, the server runs `ssh-keyscan` against the enrolled address, one key type at a time (for a `"rsa-sha1-dh14"` target the unauthenticated `ssh` connection described above instead), compares `SHA256:` fingerprints, and refuses the operation by name when the pinned key was not offered. It never prints a key. The same verified key becomes the single known-hosts line of that one operation, for both the `ssh` path (`ssh_read`) and the `sftp` path (`sftp_stat`), and it is removed with the operation. Both paths use the same `netops_core.hostkey` code as the auditor.
 
 For the runner, the proxy does the same locally with `ssh-keyscan` before it starts `ssh`, and writes the one matching line into its private temporary directory.
 
-Obtain both pins over an independently trusted channel, exactly as `ssh-keygen -lf` prints them. A wrong or changed key fails closed on first contact; there is no first-use acceptance to disable.
+Obtain both pins over an independently trusted channel, exactly as `ssh-keygen -lf` prints them. For a `"rsa-sha1-dh14"` device a plain `ssh-keyscan` cannot negotiate at all, so take the fingerprint from the device itself or from an OpenSSH client that carries the same three options over a path you trust. A wrong or changed key fails closed on first contact; there is no first-use acceptance to disable.
 
 ## Stable proxy and SSH transport errors
 

@@ -40,22 +40,33 @@ from .sanitize import digest_text, redact
 
 
 _LEGACY_SSH_HOST_KEY_ALGS = ("ssh-rsa",)
+_LEGACY_SSH_KEX_ALGS = ("diffie-hellman-group14-sha1",)
 _SSH_LEGACY_PROFILES: dict[str | None, tuple[str, ...]] = {
     None: (),
     "rsa-sha1": _LEGACY_SSH_HOST_KEY_ALGS,
+    "rsa-sha1-dh14": _LEGACY_SSH_HOST_KEY_ALGS,
+}
+_SSH_LEGACY_KEX: dict[str | None, tuple[str, ...]] = {
+    None: (),
+    "rsa-sha1": (),
+    "rsa-sha1-dh14": _LEGACY_SSH_KEX_ALGS,
 }
 _OPENSSH_LEGACY_OPTIONS = ("HostKeyAlgorithms", "PubkeyAcceptedAlgorithms")
 if (
     set(_SSH_LEGACY_PROFILES) != {None, *LEGACY_SSH_PROFILES}
+    or set(_SSH_LEGACY_KEX) != set(_SSH_LEGACY_PROFILES)
     or _SSH_LEGACY_PROFILES[None]
+    or _SSH_LEGACY_KEX[None]
     or any(
         set(enabled) - set(_LEGACY_SSH_HOST_KEY_ALGS)
         for enabled in _SSH_LEGACY_PROFILES.values()
     )
+    or any(set(kex) - set(_LEGACY_SSH_KEX_ALGS) for kex in _SSH_LEGACY_KEX.values())
     or tuple(core_legacy_ssh.PROFILES) != LEGACY_SSH_PROFILES
     or any(
         core_legacy_ssh.openssh_options(profile)
         != tuple(f"{option}=+{name}" for option in _OPENSSH_LEGACY_OPTIONS for name in enabled)
+        + tuple(f"KexAlgorithms=+{name}" for name in _SSH_LEGACY_KEX[profile])
         for profile, enabled in _SSH_LEGACY_PROFILES.items()
         if profile is not None
     )
@@ -216,7 +227,7 @@ class DeviceCredential:
 def host_key_line(
     auth: TargetAuth, address: str | None = None, platform: str | None = None,
 ) -> str:
-    """Read the offered host keys with ssh-keyscan and keep the one matching the pin.
+    """Read the offered host keys through netops_core.hostkey.scan and keep the one matching the pin.
 
     A cache hit answers without a keyscan at all; a miss queues the keyscan
     itself through the same per-device lane as every other SSH-family
@@ -232,6 +243,7 @@ def host_key_line(
         with _paced_connection(target, auth.port, effective_platform):
             line = core_hostkey.scan(
                 target, auth.port, auth.host_key_fingerprint, _HOST_KEY_SCAN_TIMEOUT_SECONDS,
+                legacy=auth.legacy_ssh,
             )
     except core_hostkey.HostKeyError as exc:
         raise AuthenticationContextError(
@@ -272,7 +284,9 @@ def _legacy_ssh_required(auth: TargetAuth) -> LegacySshProfileRequired:
         f'target "{auth.alias}" offers no SSH host key or key exchange algorithm '
         f"enabled by default; for a target which offers only {names} host keys set "
         f'"legacy_ssh": "rsa-sha1" in its inventory.json entry, which allows them '
-        f"for that device alone. SHA-1 key exchange has no profile and stays disabled."
+        f"for that device alone; a target which also offers only SHA-1 key exchange "
+        f'needs "legacy_ssh": "rsa-sha1-dh14", which adds diffie-hellman-group14-sha1 '
+        f"and nothing else for that device alone."
     )
 
 
@@ -383,6 +397,14 @@ def read_from_device(
     return _exec_read(auth, normalized, command)
 
 
+_CISCO_AUTOCOMMAND_REFUSAL = re.compile(
+    r'(?m)^[ \t]*Line has invalid autocommand "[^"\r\n]*"[ \t]*\r?$'
+)
+_JUNOS_REFUSAL = re.compile(
+    r"(?m)^[ \t]*error: (?:syntax error, expecting <command>: [^\r\n]*"
+    r"|unknown command: [^\r\n]*|permission denied: [^\r\n]*"
+    r"|the [a-z0-9-]+ subsystem is not running)[ \t]*\r?$"
+)
 _CLI_REFUSALS = {
     "fortinet": re.compile(
         r"(?mi)^[ \t]*(?:Command fail\.(?:[ \t]+Return code[ \t]+-?[0-9]+)?"
@@ -390,7 +412,19 @@ _CLI_REFUSALS = {
     ),
     "extreme_exos": re.compile(
         r"(?mi)^[ \t]*(?:This user does not have permissions for this command\."
+        r"|Method is not implemented on this platform\."
         r"|%%[ \t]+(?:Invalid input detected|Unrecognized command|Incomplete command|Ambiguous command)[^\r\n]*)[ \t]*\r?$"
+    ),
+    "cisco_ios": _CISCO_AUTOCOMMAND_REFUSAL,
+    "cisco_xe": _CISCO_AUTOCOMMAND_REFUSAL,
+    "arista_eos": re.compile(
+        r"(?m)^[ \t]*% Invalid input(?: \([^)\r\n]*\))? at line [0-9]+[ \t]*\r?$"
+    ),
+    "juniper_junos": _JUNOS_REFUSAL,
+    "juniper_junos_els": _JUNOS_REFUSAL,
+    "cisco_nxos": re.compile(
+        r"(?m)^[ \t]*(?:Syntax error while parsing '[^'\r\n]*'"
+        r"|% Permission denied for the role)[ \t]*\r?$"
     ),
 }
 

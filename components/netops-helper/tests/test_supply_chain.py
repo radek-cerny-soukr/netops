@@ -54,7 +54,9 @@ def test_sbom_contains_all_direct_dependencies() -> None:
 
 def test_release_license_is_mit() -> None:
     assert (ROOT / "LICENSE").read_text().startswith("MIT License\n")
-    assert 'license = { text = "MIT" }' in (ROOT / "pyproject.toml").read_text()
+    project = (ROOT / "pyproject.toml").read_text()
+    assert 'license = "MIT"' in project
+    assert 'license-files = ["LICENSE"]' in project
 
 
 def test_healthcheck_uses_system_trust_without_private_ca_name() -> None:
@@ -300,7 +302,7 @@ def test_version_invariant_rejects_changed_pyproject(tmp_path: Path) -> None:
     root = _version_fixture(tmp_path)
     _replace_exact(
         root / "pyproject.toml",
-        "version = \"0.3.6\"",
+        "version = \"0.3.7\"",
         "version = \"not-a-release\"",
     )
     errors = _load_release_module("check_public_release")._version_invariant_errors(root)
@@ -313,7 +315,7 @@ def test_version_invariant_rejects_changed_package_version(tmp_path: Path) -> No
     root = _version_fixture(tmp_path)
     _replace_exact(
         root / "src/netops_helper/__init__.py",
-        "__version__ = \"0.3.6\"",
+        "__version__ = \"0.3.7\"",
         "__version__ = \"9.9.9\"",
     )
     errors = _load_release_module("check_public_release")._version_invariant_errors(root)
@@ -328,7 +330,7 @@ def test_version_invariant_rejects_nested_and_function_version_bindings(
         "nested": "\nif True:\n    __version__ = \"9.9.9\"\n",
         "function": (
             "\ndef version_decoy():\n"
-            "    __version__ = \"0.3.6\"\n"
+            "    __version__ = \"0.3.7\"\n"
             "    return __version__\n"
         ),
     }
@@ -366,7 +368,7 @@ def test_version_invariant_rejects_changed_compose_image(tmp_path: Path) -> None
     root = _version_fixture(tmp_path)
     _replace_exact(
         root / "compose.yaml",
-        "image: local/netops-helper:0.3.6",
+        "image: local/netops-helper:0.3.7",
         "image: local/netops-helper:9.9.9",
     )
     errors = _load_release_module("check_public_release")._version_invariant_errors(root)
@@ -516,7 +518,7 @@ def test_public_allowlist_contains_all_0_2_contracts() -> None:
         for path in exporter.selected_files(ROOT)
     }
     assert len(selected) == 97
-    assert exporter.VERSION == "0.3.6"
+    assert exporter.VERSION == "0.3.7"
     assert required_tests <= exporter.TESTS
     assert required_tests <= gate.REQUIRED_RELEASE_PATHS
     assert dependency_free_required <= dependency_free_tests
@@ -547,7 +549,7 @@ def _public_source_fixture(tmp_path: Path) -> Path:
         check=True,
         text=True,
     )
-    exported = output / "netops-helper-0.3.6"
+    exported = output / "netops-helper-0.3.7"
     manifest = json.loads(
         (exported / "release-manifest.json").read_text(encoding="utf-8")
     )
@@ -709,7 +711,7 @@ def test_release_selection_rejects_unsafe_entries(tmp_path: Path) -> None:
 
 def test_release_export_preserves_existing_destination(tmp_path: Path) -> None:
     output = tmp_path / "existing-output"
-    destination = output / "netops-helper-0.3.6"
+    destination = output / "netops-helper-0.3.7"
     destination.mkdir(parents=True)
     marker = destination / "marker"
     marker_bytes = SELECTION_MARKER.encode("utf-8")
@@ -758,7 +760,7 @@ def test_release_export_rejects_symlinked_output(tmp_path: Path) -> None:
     parent_link.symlink_to(actual, target_is_directory=True)
 
     cases = {
-        "direct": (direct_link, actual / "netops-helper-0.3.6"),
+        "direct": (direct_link, actual / "netops-helper-0.3.7"),
         "parent": (
             parent_link / "nested-output",
             actual / "nested-output",
@@ -803,7 +805,7 @@ def test_release_gate_rejects_missing_vendor_contract(tmp_path: Path) -> None:
         ],
         check=True,
     )
-    exported = output / "netops-helper-0.3.6"
+    exported = output / "netops-helper-0.3.7"
     (exported / "release-manifest.json").unlink()
     gate = _load_release_module("check_public_release")
 
@@ -926,7 +928,7 @@ def test_release_tree_integrity_fails_closed(tmp_path: Path) -> None:
         ],
         check=True,
     )
-    exported = output / "netops-helper-0.3.6"
+    exported = output / "netops-helper-0.3.7"
     gate = _load_release_module("check_public_release")
     assert gate._release_tree_integrity_errors(exported) == []
 
@@ -1224,7 +1226,7 @@ def test_public_export_contains_no_python_bytecode(tmp_path: Path) -> None:
         ],
         check=True,
     )
-    exported = tmp_path / "netops-helper-0.3.6"
+    exported = tmp_path / "netops-helper-0.3.7"
     assert not [path for path in exported.rglob("*") if "__pycache__" in path.parts]
     assert not list(exported.rglob("*.pyc"))
     assert not list(exported.rglob("*.pyo"))
@@ -1270,7 +1272,7 @@ def test_release_export_compose_builds_from_archive_root(tmp_path: Path) -> None
         ],
         check=True,
     )
-    exported = output / "netops-helper-0.3.6"
+    exported = output / "netops-helper-0.3.7"
     compose_text = (exported / "compose.yaml").read_text(encoding="utf-8")
     assert "      context: .\n" in compose_text
     assert "../.." not in compose_text
@@ -1291,7 +1293,7 @@ def test_release_export_keeps_askpass_executable(tmp_path: Path) -> None:
         ],
         check=True,
     )
-    exported = output / "netops-helper-0.3.6"
+    exported = output / "netops-helper-0.3.7"
     askpass_mode = stat.S_IMODE(
         (exported / "src/netops_core/askpass.py").stat().st_mode
     )

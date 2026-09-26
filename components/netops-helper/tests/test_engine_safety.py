@@ -41,7 +41,7 @@ def known_hosts_line(host: str, port: int) -> str:
 
 
 def offered_scan(scanned: list | None = None):
-    def scan(host, port, pin, timeout_seconds, run=None):
+    def scan(host, port, pin, timeout_seconds, run=None, legacy=None):
         if scanned is not None:
             scanned.append((host, port, pin, timeout_seconds))
         return known_hosts_line(host, port)
@@ -50,7 +50,7 @@ def offered_scan(scanned: list | None = None):
 
 
 def refusing_scan(message: str = "no offered host key matches the pinned fingerprint"):
-    def scan(host, port, pin, timeout_seconds, run=None):
+    def scan(host, port, pin, timeout_seconds, run=None, legacy=None):
         raise engine.core_hostkey.HostKeyError(message)
 
     return scan
@@ -576,15 +576,39 @@ def test_the_legacy_profile_is_the_only_thing_the_transport_forwards(monkeypatch
 def test_legacy_ssh_profile_tables_share_one_vocabulary() -> None:
     from netops_core import legacy_ssh as core_legacy
 
-    assert LEGACY_SSH_PROFILES == ("rsa-sha1",)
+    assert LEGACY_SSH_PROFILES == ("rsa-sha1", "rsa-sha1-dh14")
     assert tuple(core_legacy.PROFILES) == LEGACY_SSH_PROFILES
     assert set(engine._SSH_LEGACY_PROFILES) == {None, *LEGACY_SSH_PROFILES}
+    assert set(engine._SSH_LEGACY_KEX) == {None, *LEGACY_SSH_PROFILES}
     assert engine._SSH_LEGACY_PROFILES[None] == ()
     assert engine._SSH_LEGACY_PROFILES["rsa-sha1"] == engine._LEGACY_SSH_HOST_KEY_ALGS
+    assert engine._SSH_LEGACY_PROFILES["rsa-sha1-dh14"] == engine._LEGACY_SSH_HOST_KEY_ALGS
+    assert engine._SSH_LEGACY_KEX == {
+        None: (), "rsa-sha1": (), "rsa-sha1-dh14": ("diffie-hellman-group14-sha1",),
+    }
     assert core_legacy.openssh_options(None) == ()
     assert core_legacy.openssh_options("rsa-sha1") == (
         "HostKeyAlgorithms=+ssh-rsa", "PubkeyAcceptedAlgorithms=+ssh-rsa",
     )
+    assert core_legacy.openssh_options("rsa-sha1-dh14") == (
+        "HostKeyAlgorithms=+ssh-rsa", "PubkeyAcceptedAlgorithms=+ssh-rsa",
+        "KexAlgorithms=+diffie-hellman-group14-sha1",
+    )
+
+
+def test_the_host_key_scan_gets_the_profile_of_the_target(monkeypatch) -> None:
+    seen = []
+
+    def fake_scan(host, port, pin, timeout, **kwargs):
+        seen.append(kwargs.get("legacy"))
+        raise engine.core_hostkey.HostKeyError("stop")
+
+    monkeypatch.setattr(engine.core_hostkey, "scan", fake_scan)
+    engine._HOST_KEY_LINE_CACHE.clear()
+    for profile in (None, "rsa-sha1", "rsa-sha1-dh14"):
+        with pytest.raises(AuthenticationContextError):
+            engine.host_key_line(auth(legacy_ssh=profile))
+    assert seen == [None, "rsa-sha1", "rsa-sha1-dh14"]
 
 
 def test_a_refused_negotiation_names_the_target_and_the_profile(monkeypatch) -> None:

@@ -1,9 +1,15 @@
 from __future__ import annotations
 
-PROFILES = ("rsa-sha1",)
+PROFILES = ("rsa-sha1", "rsa-sha1-dh14")
 OPENSSH_OPTIONS = {
     "rsa-sha1": ("HostKeyAlgorithms=+ssh-rsa", "PubkeyAcceptedAlgorithms=+ssh-rsa"),
+    "rsa-sha1-dh14": (
+        "HostKeyAlgorithms=+ssh-rsa",
+        "PubkeyAcceptedAlgorithms=+ssh-rsa",
+        "KexAlgorithms=+diffie-hellman-group14-sha1",
+    ),
 }
+SHA1_KEX_PROFILES = ("rsa-sha1-dh14",)
 
 
 class LegacySshError(Exception):
@@ -28,3 +34,7 @@ def openssh_options(profile) -> tuple:
     if name is None:
         return ()
     return OPENSSH_OPTIONS[name]
+
+
+def needs_sha1_key_exchange(profile) -> bool:
+    return checked(profile) in SHA1_KEX_PROFILES

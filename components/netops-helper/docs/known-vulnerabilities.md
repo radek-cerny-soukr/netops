@@ -1,19 +1,19 @@
 # Known vulnerability findings
 
-## Helper 0.3.6 runtime scan
+## Helper 0.3.7 runtime scan
 
-Helper 0.3.6 uses the official Python 3.14.7 slim-trixie ARM64 image pinned by digest and installs `openssh-client` from Debian trixie after applying available package upgrades. Its Python dependency versions are unchanged from the reviewed 20 September update; both Helper lockfiles have been regenerated for Python 3.14.7 with the same hash-pinned generator.
+Helper 0.3.7 uses the same runtime as 0.3.6: the official Python 3.14.7 slim-trixie ARM64 image pinned by digest, with `openssh-client` installed from Debian trixie after applying available package upgrades. The Python dependency versions and both Helper lockfiles are unchanged from 0.3.6, and every package that the scan matches has the same version as in the 0.3.6 image.
 
-The 21 September 2026 Grype 0.118.0 scan of the rebuilt runtime reports:
+The 26 September 2026 Grype 0.118.0 scan of the image, with the vulnerability database built on 25 September, reports:
 
 | Report entries | Critical | High | Medium | Low | Negligible | Unknown |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| Active (`matches`) | 0 | 50 | 58 | 10 | 68 | 1 |
+| Active (`matches`) | 0 | 51 | 60 | 12 | 68 | 0 |
 | Existing reviewed exception (`ignoredMatches`) | 1 | 0 | 0 | 0 | 0 | 0 |
 
-The image SBOM and full Grype JSON accompanying each build are authoritative. These are package matches, not a count of distinct flaws or proven exploitable paths. Compared with the previous 0.3.4 candidate, the only removed package/CVE match is CVE-2026-82049 in Python. No new package/CVE match was added. No finding was hidden or downgraded to achieve the reduction.
+The image SBOM and full Grype JSON accompanying each build are authoritative. These are package matches, not a count of distinct flaws or proven exploitable paths. Compared with the 21 September report of 0.3.6 (0, 50, 58, 10, 68 and 1 active), no package changed; the differences come from the newer vulnerability database. CVE-2026-82560 in `perl-base` (Pod::Text) is now rated High instead of Unknown, and CVE-2026-86805 (Medium, a race in the glibc dynamic loader) and CVE-2026-95818 (Low, a stack overflow in the same loader) were added for `libc6` and `libc-bin`; all three are `not-fixed` in Debian trixie. No finding was hidden or downgraded.
 
-### Fixed: Python TAR extraction
+### Fixed in 0.3.6: Python TAR extraction
 
 CVE-2026-82049 allowed hard-link extraction to relocate a relative symbolic link so that it could expose or change a file outside the destination. The runtime now uses Python 3.14.7. An isolated regression reproduces the outside-file modification on 3.13.15, verifies its absence on the updated runtime with both `data` and `tar` filters, and verifies valid regular files and hard links still extract successfully.
 
@@ -45,4 +45,4 @@ Sources: [forwarding policy finding](https://security-tracker.debian.org/tracker
 
 Every build must scan its exact image with a current valid vulnerability database and retain both active and ignored matches. Active Critical findings block the release. Each ignored Critical finding requires an applied rule and an explicit risk review. High and Medium findings remain disclosed even when policy allows the release. Remove an exception only after verifying the corresponding package is fixed; neither a renamed image nor a source-version string is sufficient evidence.
 
-Helper 0.3.3 and the earlier 0.3.4 candidate had 51 active High matches. Their historical reports describe those images, not the corrected runtime. Repeat the scan and review for every rebuilt image.
+Helper 0.3.3 and the earlier 0.3.4 candidate had 51 active High matches, and 0.3.6 had 50 on 21 September; the same packages now match 51 with a newer database. Historical reports describe their images on their date. Repeat the scan and review for every rebuilt image.

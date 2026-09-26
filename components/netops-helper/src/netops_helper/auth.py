@@ -49,7 +49,7 @@ class EgressScopeError(PolicyScopeError):
     error_code = "egress_scope"
 
 
-LEGACY_SSH_PROFILES = ("rsa-sha1",)
+LEGACY_SSH_PROFILES = ("rsa-sha1", "rsa-sha1-dh14")
 ENVELOPE_VERSION = "0.3.0"
 CREDENTIAL_KINDS = ("password", "ssh-key")
 PRIVATE_KEY_PREFIX = "-----BEGIN "

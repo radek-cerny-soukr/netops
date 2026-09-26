@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "netops-core"
-version = "0.2.4"
+version = "0.2.5"
 description = "Shared access layer of the netops family: inventory, credential store, host key trust, SSH transport, audit records"
 readme = { file = "README.md", content-type = "text/markdown" }
 license = "MIT"

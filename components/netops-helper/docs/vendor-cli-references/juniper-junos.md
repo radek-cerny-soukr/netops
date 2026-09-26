@@ -52,6 +52,21 @@ The ELS catalogue is an explicit superset of the common catalogue:
 
 These commands must not appear in the common profile merely because a target reports `juniper_junos`.
 
+## Live measurements, 25 September 2026
+
+Both profiles were run query by query through the released helper 0.3.6 and again through the source of helper 0.3.7 deployed as a candidate runner against vJunos-switch 26.2R1.7 (it reports the model `ex9214`), with an account of the built-in login class `read-only` holding an ed25519 key. The per-query tables, the lab and the device configuration are in [Live lab measurements](../../../../docs/lab-measurements-2026-09-25.md#junos-juniper_junos).
+
+| Profile | Released 0.3.6 | 0.3.7 candidate |
+| --- | --- | --- |
+| `juniper_junos` | 25 of 25 with exit status 0 | 25 of 25 with exit status 0 |
+| `juniper_junos_els` | 29 of 29 with exit status 0 | 28 with exit status 0, `virtual_chassis` `device_cli_error` |
+
+- `arp_interface`, `ipv6_neighbors_interface`, `ospf_neighbors_interface` and `ospfv3_neighbors_interface` take a logical interface. Asked for the physical `ge-0/0/0` they are refused by the proxy before any connection (MCP error `-32009`); enrolled as `irb.10` they answered. Enroll the unit (`ge-0/0/0.0`, `irb.10`), not the port, for these four.
+- `show virtual-chassis` on a switch that is not a virtual chassis member answers `error: the virtual-chassis-control subsystem is not running` with exit status 0. Helper 0.3.6 returned it as a successful read; 0.3.7 reports it as `device_cli_error`.
+- Junos answers a refusal with exit status 0: `configure` gives `error: unknown command: configure`, `show configuration system login` gives `error: permission denied: system`, an unknown command `error: syntax error, expecting <command>: ...`. Helper 0.3.7 reports these `error:` lines as `device_cli_error`; 0.3.6 returned them as successful reads.
+
+The measured target is a switch image. The claim of `juniper_junos` for routing platforms (MX, SRX, PTX) and every hardware model remain unmeasured, as does AAA command authorization.
+
 ## Explicit exclusions
 
 - `show configuration` and abbreviated configuration families, configuration rollback/history, rescue/backup configuration, and configuration database exports are prohibited.

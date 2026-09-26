@@ -28,7 +28,7 @@ An unknown field is refused, naming the device and the field; a missing field is
 | `role` | string | one of `ROLES = ("perimetr", "interni", "lab")` |
 | `credential` | string or `null` | a record name in the credential store. The inventory never opens the vault and never checks that the record exists |
 | `host_key_fingerprint` | string or `null` | a pin in the form `SHA256:` plus 43 base64 characters (`hostkey.checked_pin`); requires `address` to be set |
-| `legacy_ssh` | string or `null` | a profile name from `legacy_ssh.PROFILES` (today only `rsa-sha1`); requires `host_key_fingerprint` to be set |
+| `legacy_ssh` | string or `null` | a profile name from `legacy_ssh.PROFILES` (`rsa-sha1` or `rsa-sha1-dh14`); requires `host_key_fingerprint` to be set |
 | `auditor` | object or `null` | the section of the auditor; core only requires it to be `null` or an object |
 | `helper` | object or `null` | the section of the helper, under the same rule |
 
@@ -97,7 +97,10 @@ documentation addresses and both names are in the RFC 2606 reserved domain.
 ## Legacy SSH is an exception per device
 
 `legacy_ssh` names a profile, never an algorithm list, so no string from the inventory becomes part of
-a command line. `PROFILES = ("rsa-sha1",)` expands to `HostKeyAlgorithms=+ssh-rsa` and
-`PubkeyAcceptedAlgorithms=+ssh-rsa` for that one device. The profile requires a host key pin: an
+a command line. `PROFILES = ("rsa-sha1", "rsa-sha1-dh14")`: `rsa-sha1` expands to `HostKeyAlgorithms=+ssh-rsa` and
+`PubkeyAcceptedAlgorithms=+ssh-rsa` for that one device, `rsa-sha1-dh14` to the same two options and
+`KexAlgorithms=+diffie-hellman-group14-sha1`, for devices such as classic Cisco IOS that offer no other
+key exchange. `netops_core.hostkey.scan(..., legacy=...)` reads the host key of an `rsa-sha1-dh14` device with one
+unauthenticated `ssh` connection instead of `ssh-keyscan`, which cannot offer a SHA-1 key exchange. The profile requires a host key pin: an
 exception for a device whose key is not pinned would weaken the algorithms without anything left to
 recognise the device by, and it is refused with that reason. There is no global switch.

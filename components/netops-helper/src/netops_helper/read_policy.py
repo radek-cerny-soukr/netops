@@ -94,9 +94,23 @@ def _canonical_fortios_interface(value: str) -> str | None:
     return None
 
 
+def _canonical_cisco_ethernet(value: str) -> str | None:
+    match = re.fullmatch(r"(Ethernet|Et)([0-9]+)/([0-9]+)", value)
+    if not match:
+        return None
+    slot = _canonical_decimal(match[2], 0, 15)
+    port = _canonical_decimal(match[3], 0, 15)
+    if slot is None or port is None:
+        return None
+    return f"Ethernet{slot}/{port}"
+
+
 def _canonical_cisco_ios_interface(value: str, physical_only: bool) -> str | None:
     if value.casefold() in _CISCO_IOS_RESERVED:
         return None
+    ethernet = _canonical_cisco_ethernet(value)
+    if ethernet is not None:
+        return ethernet
     match = re.fullmatch(
         r"(GigabitEthernet|Gi)([0-9]+)/([0-9]+)(?:/([0-9]+))?",
         value,
@@ -134,6 +148,9 @@ def _canonical_cisco_ios_interface(value: str, physical_only: bool) -> str | Non
 
 
 def _canonical_cisco_xe_physical(value: str) -> str | None:
+    ethernet = _canonical_cisco_ethernet(value)
+    if ethernet is not None:
+        return ethernet
     match = re.fullmatch(
         r"(GigabitEthernet|Gi|TwoGigabitEthernet|Tw|"
         r"FiveGigabitEthernet|Fi|TenGigabitEthernet|Te|"

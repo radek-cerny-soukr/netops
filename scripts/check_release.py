@@ -36,6 +36,7 @@ ROOT_FILES = {
     "README.md",
     "SECURITY.md",
     "docs/README.md",
+    "docs/lab-measurements-2026-09-25.md",
     "docs/verified-support.md",
     "scripts/check_release.py",
     "tests/test_release_gate.py",
@@ -75,6 +76,7 @@ ALLOWED_DOMAINS = (
 ALLOWED_LITERALS = frozenset(
     (
         "33.7.1.6",
+        "33.6.1.14",
         "1.3.6.1",
         "aa:bb:cc:dd:ee:ff",
     )

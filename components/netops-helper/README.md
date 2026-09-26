@@ -1,6 +1,8 @@
 # NetOps Helper
 
-The current release is `netops-helper/v0.3.6` (2026-09-21), which pins `netops-core==0.2.3` and vendors `src/netops_core` inside its own release archive.
+The current release is `netops-helper/v0.3.7` (2026-09-26), which pins `netops-core==0.2.5` and vendors `src/netops_core` inside its own release archive.
+
+**On PyPI this package is the client side only.** `pip install netops-helper` installs the stdio proxy `netops-helper-proxy` that an MCP client launches, with the pinned `netops-core`. The server does not run from that installation: it runs as a container image built from the release archive on a separate runner host, as the [installation guide](https://github.com/radek-cerny-soukr/netops/blob/main/components/netops-helper/docs/installation.md) describes.
 
 NetOps Helper phase 1 is a security-focused, read-only MCP server for bounded network troubleshooting. It gives any compatible MCP client explicitly enrolled diagnostic visibility without exposing a configuration path. It is intentionally not a general CLI, configuration reader, log browser, or network-discovery service.
 
@@ -37,7 +39,7 @@ The remote FastMCP server registers exactly 10 tools: two control-plane tools an
 - Named SSH troubleshooting queries for FortiOS, Extreme Switch Engine, Cisco IOS, IOS-XE and NX-OS, Arista EOS, Junos, Linux, and Ruckus Unleashed.
 - Opt-in ARP/neighbor, MAC/FDB, and LLDP/CDP queries where a reviewed platform command exists.
 - Typed parameters selected from per-device interface, service, address, software-switch, VLAN, managed-switch and certificate inventories.
-- Opt-in VLAN detail, DHCP snooping, certificate metadata and managed-switch status, PoE, MAC, stacking and LLDP through the FortiGate controller; see [measured limits](docs/configuration.md#scoped-diagnostic-queries).
+- Opt-in VLAN detail, DHCP snooping, certificate metadata and managed-switch status, PoE, MAC, stacking and LLDP through the FortiGate controller; see [measured limits](https://github.com/radek-cerny-soukr/netops/blob/main/components/netops-helper/docs/configuration.md#scoped-diagnostic-queries).
 - SNMPv2c GET with a dedicated community record that is never the device secret.
 - SFTP metadata under per-device non-root paths; no remote file body download.
 - FTPS directory listing and explicitly acknowledged read-only plain FTP listing.
@@ -45,7 +47,7 @@ The remote FastMCP server registers exactly 10 tools: two control-plane tools an
 
 `target_scope` does not return the device address, the login, any credential name, the secret, the community, or the host key pin. It intentionally returns enrolled inventories, SFTP metadata/listing roots, and egress addresses; this can reveal target addressing and other operational topology. Treat it as credential-free but environment-sensitive data.
 
-See [Tool reference](docs/tools.md), [Read-only accounts](docs/read-only-accounts.md), [Configuration](docs/configuration.md), [Onboarding](docs/onboarding.md), and [Installation](docs/installation.md).
+See [Tool reference](https://github.com/radek-cerny-soukr/netops/blob/main/components/netops-helper/docs/tools.md), [Read-only accounts](https://github.com/radek-cerny-soukr/netops/blob/main/components/netops-helper/docs/read-only-accounts.md), [Configuration](https://github.com/radek-cerny-soukr/netops/blob/main/components/netops-helper/docs/configuration.md), [Onboarding](https://github.com/radek-cerny-soukr/netops/blob/main/components/netops-helper/docs/onboarding.md), and [Installation](https://github.com/radek-cerny-soukr/netops/blob/main/components/netops-helper/docs/installation.md).
 
 ## Deliberate non-capabilities
 
@@ -64,7 +66,7 @@ A future Phase 2 may consider configuration or other body reads only under a sep
 - Every request is checked against the exact helper section and per-tool egress scope before a credential is forwarded.
 - No platform in the query catalogue sends a paging preamble any more; `ssh_read` sends exactly the one reviewed command and nothing else. FortiOS sessions still require preverified `output standard`, because FortiOS itself pages and the helper never writes into device configuration to turn that off.
 - SSH-family reads inherit `netops-core`'s bounded receive: a device that keeps sending past the capture budget is killed and the call is refused with nothing of what it sent returned. This runs ahead of, and independently from, the helper's own later 2 MB snapshot cap on the decoded output.
-- SSH and SFTP refuse the `ssh-rsa` host key algorithm and SHA-1 key exchange for every device. A device which offers only `ssh-rsa` needs the named per-device exception `legacy_ssh: "rsa-sha1"` in its inventory entry; there is no global switch and no algorithm list in configuration. See [Legacy SSH algorithms](docs/configuration.md#legacy-ssh-algorithms).
+- SSH and SFTP refuse the `ssh-rsa` host key algorithm and SHA-1 key exchange for every device. A device which offers only `ssh-rsa` needs the named per-device exception `legacy_ssh: "rsa-sha1"` in its inventory entry, and a classic Cisco IOS device which also offers only SHA-1 key exchange needs `legacy_ssh: "rsa-sha1-dh14"`; there is no global switch and no algorithm list in configuration. See [Legacy SSH algorithms](https://github.com/radek-cerny-soukr/netops/blob/main/components/netops-helper/docs/configuration.md#legacy-ssh-algorithms).
 - Host key trust is a pin in the inventory, verified on the server before any credential is used, and the runner is pinned the same way; there is no `known_hosts` file and no first-use acceptance.
 - The client supplies query names and typed parameters, never raw commands.
 - Inventory-bound slots prevent device output from becoming a new command argument or expanding target scope.
@@ -72,13 +74,13 @@ A future Phase 2 may consider configuration or other body reads only under a sep
 - Injected credentials and recognized secret forms are redacted on a best-effort basis; policy and remote permissions must keep secret-bearing data out of scope.
 - Every device response is marked as untrusted data and must run in a dedicated read-only agent/session.
 - Proxy and transport failures are reported by a fixed classified category (for example `ssh_host_key`, `auth_material`, `rate_limit`) and a fixed public message, never the device's or the SSH client's own words; raw stderr is sanitized before use and never relayed.
-- Recognized FortiOS and EXOS CLI refusals return `ok: false` with `device_cli_error`, even when SSH returns zero; valid EXOS output with status 250 remains available. See [SSH results](docs/tools.md#pagination-and-snapshots).
+- Recognized CLI refusals of FortiOS, EXOS, Cisco IOS, IOS-XE and NX-OS, Arista EOS and Junos return `ok: false` with `device_cli_error`, even when SSH returns zero; valid EXOS output with status 250 remains available. See [SSH results](https://github.com/radek-cerny-soukr/netops/blob/main/components/netops-helper/docs/tools.md#pagination-and-snapshots).
 - Mandatory audit writes a durable `started` record before a device operation and a terminal record afterward; interrupted attempts can remain visibly incomplete.
 - Audit JSONL contains allowlisted metadata only and rotates into five 2 MB segments.
 
-Read [Security model](docs/security-model.md), [Egress control](docs/egress-control.md), [Security policy](../../SECURITY.md), and the release-specific [known vulnerability findings](docs/known-vulnerabilities.md) before deployment.
+Read [Security model](https://github.com/radek-cerny-soukr/netops/blob/main/components/netops-helper/docs/security-model.md), [Egress control](https://github.com/radek-cerny-soukr/netops/blob/main/components/netops-helper/docs/egress-control.md), [Security policy](https://github.com/radek-cerny-soukr/netops/blob/main/SECURITY.md), and the release-specific [known vulnerability findings](https://github.com/radek-cerny-soukr/netops/blob/main/components/netops-helper/docs/known-vulnerabilities.md) before deployment.
 
-**This release ships Debian trixie's `openssh-client` with one Critical finding Debian marks wont-fix (CVE-2026-60002; fixed upstream in OpenSSH 10.4, which trixie does not ship), the only entry the release gate ignores in this image.** It is a reviewed, dated exception, not a fix; the [findings document](docs/known-vulnerabilities.md) says what it exposes, what contains it, what to do if that is not acceptable, and why two further `openssh-client` entries the scanner reports as High are `sshd` code this image does not carry.
+**This release ships Debian trixie's `openssh-client` with one Critical finding Debian marks wont-fix (CVE-2026-60002; fixed upstream in OpenSSH 10.4, which trixie does not ship), the only entry the release gate ignores in this image.** It is a reviewed, dated exception, not a fix; the [findings document](https://github.com/radek-cerny-soukr/netops/blob/main/components/netops-helper/docs/known-vulnerabilities.md) says what it exposes, what contains it, what to do if that is not acceptable, and why two further `openssh-client` entries the scanner reports as High are `sshd` code this image does not carry.
 
 ## Requirements
 
@@ -94,8 +96,8 @@ Read [Security model](docs/security-model.md), [Egress control](docs/egress-cont
 This sequence deliberately creates the Compose network and container in a stopped state. Do not start the helper until the generated egress contract has been reviewed, applied, and checked.
 
 1. Clone and verify the same release on the proxy host and runner as needed.
-2. Create dedicated target accounts and independently test both allowed reads and denied configuration, export, maintenance, and shell actions. Follow [Read-only accounts](docs/read-only-accounts.md).
-3. Create the four operator files: `vault.json` with mode `600`, `inventory.json` with one entry per device, `egress-policy.json`, and `runner.json`. Follow [the four operator files](docs/configuration.md#the-four-operator-files) and [credentials and protocol use](docs/configuration.md#credentials-and-protocol-use). Name a separate `snmp_credential` only for devices that need SNMP. Write the host key fingerprint of the runner and of every device into those files. Then run `python3 scripts/check_operator_config.py`, a read-only preflight validator that reads only those four files and never contacts a device or opens a network connection, to validate all four before continuing - see [Onboarding](docs/onboarding.md) for the guided walkthrough of this whole sequence and for migrating an older configuration.
+2. Create dedicated target accounts and independently test both allowed reads and denied configuration, export, maintenance, and shell actions. Follow [Read-only accounts](https://github.com/radek-cerny-soukr/netops/blob/main/components/netops-helper/docs/read-only-accounts.md).
+3. Create the four operator files: `vault.json` with mode `600`, `inventory.json` with one entry per device, `egress-policy.json`, and `runner.json`. Follow [the four operator files](https://github.com/radek-cerny-soukr/netops/blob/main/components/netops-helper/docs/configuration.md#the-four-operator-files) and [credentials and protocol use](https://github.com/radek-cerny-soukr/netops/blob/main/components/netops-helper/docs/configuration.md#credentials-and-protocol-use). Name a separate `snmp_credential` only for devices that need SNMP. Write the host key fingerprint of the runner and of every device into those files. Then run `python3 scripts/check_operator_config.py`, a read-only preflight validator that reads only those four files and never contacts a device or opens a network connection, to validate all four before continuing - see [Onboarding](https://github.com/radek-cerny-soukr/netops/blob/main/components/netops-helper/docs/onboarding.md) for the guided walkthrough of this whole sequence and for migrating an older configuration.
 4. On the runner, build the image and create the network and container without starting the service:
 
    ```bash
@@ -123,7 +125,7 @@ This sequence deliberately creates the Compose network and container in a stoppe
      --expected /restricted/path/netops-helper-egress.json
    ```
 
-   Continue only after `egress_apply=ok` and `egress_check=ok` and after reviewing the residual INPUT-path risk in [Egress control](docs/egress-control.md).
+   Continue only after `egress_apply=ok` and `egress_check=ok` and after reviewing the residual INPUT-path risk in [Egress control](https://github.com/radek-cerny-soukr/netops/blob/main/components/netops-helper/docs/egress-control.md).
 
 7. Start the already-created service and confirm its state:
 
@@ -132,11 +134,11 @@ This sequence deliberately creates the Compose network and container in a stoppe
    docker compose ps
    ```
 
-8. Configure the proxy as a stdio MCP server in a dedicated read-only profile of any compatible client: the command `netops-helper-proxy` when the component is installed, or `scripts/remote_mcp_proxy.py` when it is run from an unpacked archive. The proxy needs `netops_core` and `netops_helper` on its path; see [Installation](docs/installation.md#2-install-the-shared-access-layer-on-the-proxy-host). Start a fresh session, call `helper_status`, inspect `target_scope` for one listed device, and test one harmless enrolled query against a controlled test target.
+8. Configure the proxy as a stdio MCP server in a dedicated read-only profile of any compatible client: the command `netops-helper-proxy` when the component is installed, or `scripts/remote_mcp_proxy.py` when it is run from an unpacked archive. The proxy needs `netops_core` and `netops_helper` on its path; see [Installation](https://github.com/radek-cerny-soukr/netops/blob/main/components/netops-helper/docs/installation.md#2-install-the-shared-access-layer-on-the-proxy-host). Start a fresh session, call `helper_status`, inspect `target_scope` for one listed device, and test one harmless enrolled query against a controlled test target.
 
-A device credential reuses its login and secret across SSH, SFTP, FTPS, and plain FTP; plain FTP transmits them without encryption. SNMPv2c sends its separate community in plaintext at the protocol layer. The stock image validates public trust; `tls_probe` and system-trust FTPS will normally reject private-CA or self-signed devices until a private image contains an independently verified trust anchor and the device certificate has a matching SAN. Follow the [credential](docs/configuration.md#credentials-and-protocol-use) and [private CA and FTPS pin](docs/configuration.md#private-tls-and-ftps-ca-san-and-pins) procedures; verification must not be disabled.
+A device credential reuses its login and secret across SSH, SFTP, FTPS, and plain FTP; plain FTP transmits them without encryption. SNMPv2c sends its separate community in plaintext at the protocol layer. The stock image validates public trust; `tls_probe` and system-trust FTPS will normally reject private-CA or self-signed devices until a private image contains an independently verified trust anchor and the device certificate has a matching SAN. Follow the [credential](https://github.com/radek-cerny-soukr/netops/blob/main/components/netops-helper/docs/configuration.md#credentials-and-protocol-use) and [private CA and FTPS pin](https://github.com/radek-cerny-soukr/netops/blob/main/components/netops-helper/docs/configuration.md#private-tls-and-ftps-ca-san-and-pins) procedures; verification must not be disabled.
 
-The Compose network has `internal: false` so diagnostics can reach targets. Bundle schema 3 installs only an IPv4 iptables/DOCKER-USER ruleset. IPv6 is disabled on this Docker network with `enable_ipv6: false`; no ip6tables protection is claimed. DOCKER-USER covers forwarded traffic, not necessarily traffic to services on the runner's INPUT path. Treat egress as constrained only after the live checks in [Egress control](docs/egress-control.md).
+The Compose network has `internal: false` so diagnostics can reach targets. Bundle schema 3 installs only an IPv4 iptables/DOCKER-USER ruleset. IPv6 is disabled on this Docker network with `enable_ipv6: false`; no ip6tables protection is claimed. DOCKER-USER covers forwarded traffic, not necessarily traffic to services on the runner's INPUT path. Treat egress as constrained only after the live checks in [Egress control](https://github.com/radek-cerny-soukr/netops/blob/main/components/netops-helper/docs/egress-control.md).
 
 ## Development
 
@@ -148,8 +150,8 @@ PYTHONPATH=src:../netops-core/src python tests/run_tests.py
 python scripts/check_public_release.py
 ```
 
-The base image is digest-pinned and runtime dependencies are hash-locked, but the image is not fully reproducible: the one distribution package it installs, `openssh-client`, is deliberately left unpinned so a rebuild keeps receiving its security updates - see [Reproducibility of the image](docs/releasing.md#reproducibility-of-the-image). Release metadata includes CycloneDX SBOM data. A clean test run is necessary but not sufficient; review the source diff, effective target permissions, complete vulnerability report, license inventory, egress behavior on the actual ARM64 runner, and residual risks.
+The base image is digest-pinned and runtime dependencies are hash-locked, but the image is not fully reproducible: the one distribution package it installs, `openssh-client`, is deliberately left unpinned so a rebuild keeps receiving its security updates - see [Reproducibility of the image](https://github.com/radek-cerny-soukr/netops/blob/main/components/netops-helper/docs/releasing.md#reproducibility-of-the-image). Release metadata includes CycloneDX SBOM data. A clean test run is necessary but not sufficient; review the source diff, effective target permissions, complete vulnerability report, license inventory, egress behavior on the actual ARM64 runner, and residual risks.
 
 ## License
 
-MIT. See [LICENSE](LICENSE).
+MIT. See [LICENSE](https://github.com/radek-cerny-soukr/netops/blob/main/components/netops-helper/LICENSE).

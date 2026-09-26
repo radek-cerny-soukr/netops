@@ -123,6 +123,29 @@ host key answer is a handful of lines, never a configuration. A peer that keeps 
 budget is killed and the scan is refused with `SshError`, the same as an oversized command answer;
 the `run=` argument stays the seam the tests use.
 
+The scan asks for one key type at a time - `ed25519`, then `ecdsa`, then `rsa` - with `ssh-keyscan -t`,
+and stops at the first line that matches the pin. Without `-t`, `ssh-keyscan` opens one connection per
+key type at once; measured on 25 September 2026 against IOS-XE 17.18.2 images with five VTY lines,
+those sessions were still closing when the real connection arrived and it was reset (`Connection
+refused`), on every call through an OpenSSH 10.0p2 client and on one call in five through OpenSSH
+9.2p1. One type at a time never opens more than one connection to the device and, on a device whose
+pinned key is ed25519, opens exactly one. `ssh-keyscan` exits 1 when the device has no key of the
+requested type, and the OpenSSH 10.0p2 client still writes its `# <host>:<port> SSH-2.0-...`
+comment line to standard output in that case (9.2p1 wrote it to standard error). An answer counts
+only when it holds at least one line that is not a comment; one that is empty or holds only comment
+lines moves on to the next type, whatever the status. An answer with a key line and a status other
+than 0 is still refused. All attempts share the one timeout:
+the first gets all of it, a later one only what is left, and none starts with less than a second.
+
+For a device whose inventory entry carries `legacy_ssh: "rsa-sha1-dh14"` the scan cannot use
+`ssh-keyscan`, which offers no SHA-1 key exchange and has no option to add one. `scan(...,
+legacy="rsa-sha1-dh14")` instead runs one `ssh` with every authentication method switched off, the
+login `netops-hostkey`, `StrictHostKeyChecking=accept-new` into a known-hosts file inside a private
+temporary directory, and the profile's options; the connection ends at authentication, the file then
+holds the key the device offered, and the same pin comparison decides. The directory is removed before
+the scan returns. Measured on 25 September 2026: IOSv 15.9(3)M12 and IOSvL2 15.2 offered only
+`ssh-rsa` over `diffie-hellman-group14-sha1`, and the probe returned the pinned key.
+
 ## The workspace
 
 Every call creates its own directory with `tempfile.mkdtemp(prefix="netops-core-")` and mode 0700. It
@@ -198,6 +221,12 @@ host key pinned from a prior `ssh-keyscan`. Each row is one real device.
 | ExtremeXOS 33.7 (offers only `ssh-rsa`) | `ssh-key` | `null` | refused before the credential was used: `Unable to negotiate ... no matching host key type found. Their offer: ssh-rsa`, rc 255, with the remedy naming `legacy_ssh` |
 | ExtremeXOS 33.7 | `ssh-key` | `rsa-sha1` | `show version`, rc 0, 443 bytes |
 | ExtremeXOS 33.7 | `password` through askpass | `rsa-sha1` | `show version`, rc 0, 443 bytes, byte-identical to the key run |
+
+Recorded 25 September 2026 with the one-type-at-a-time host key scan, from a host with OpenSSH
+9.2p1: the scan found the pinned key on FortiOS 7.6.7 and 8.0 (ed25519, one connection), ExtremeXOS
+33.7.1 (`ssh-rsa`, three connections), cEOS-lab 4.36.1F and vJunos-switch 26.2R1.7 (ed25519) and
+IOS-XE 17.18.2 (RSA only, three connections), and the following `ssh` to the two IOS-XE images was
+accepted on every one of the 54 calls that reached them.
 
 After every call the workspace directory was gone and the password file handed to the run had been
 removed by the caller. The Ruckus access point has no exec channel and is measured in

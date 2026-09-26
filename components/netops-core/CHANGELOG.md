@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.5 - 2026-09-26
+
+- Scan the host key one key type at a time (`ssh-keyscan -t ed25519`, then `ecdsa`, then `rsa`) and stop at the pinned key. Without `-t`, `ssh-keyscan` opened one connection per key type at once; on IOS-XE 17.18.2 images with five VTY lines the SSH connection that followed was reset, every time through OpenSSH 10.0p2. `ssh-keyscan -t` exits 1 for a type the device lacks, so an answer without a key line moves on to the next type; the attempts share the original timeout. Checked live against FortiOS 7.6.7 and 8.0, ExtremeXOS 33.7.1, cEOS-lab 4.36.1F, vJunos-switch 26.2R1.7 and IOS-XE 17.18.2. `keyscan_argv` takes an optional `key_type`.
+- Count a scan answer only when it holds a line that is not a comment. The OpenSSH 10.0p2 `ssh-keyscan` writes its `# <host>:<port> SSH-2.0-...` comment to standard output even when the device has no key of the requested type (9.2p1 wrote it to standard error); taken for an answer with a failing status, it refused IOS-XE and NX-OS devices whose only key is RSA.
+- Add the per-device `legacy_ssh` profile `rsa-sha1-dh14` for classic Cisco IOS, which offers only SHA-1 key exchange (measured on IOSv 15.9(3)M12 and IOSvL2 15.2): the `rsa-sha1` options and exactly `KexAlgorithms=+diffie-hellman-group14-sha1`, for the one device that names it. `netops_core.hostkey.scan(..., legacy=...)` reads the host key of such a device with one unauthenticated `ssh` connection into a private temporary known-hosts file, since `ssh-keyscan` cannot offer a SHA-1 key exchange; the pin check is unchanged.
+- Documentation: the SSH transport describes the one-type-at-a-time scan, the comment line of OpenSSH 10.0p2 and the probe of `rsa-sha1-dh14`.
+
 ## 0.2.4 - 2026-09-24
 
 - Publish the package on PyPI as `netops-core`: a source distribution and a wheel built from the release tag and uploaded through trusted publishing by `.github/workflows/publish-pypi.yml`, a workflow added at the repository root with this version. `pyproject.toml` gains the README as the package description, project URLs and classifiers, and declares the licence as the SPDX expression `MIT` with `license-files`; the build requirement rises to `setuptools>=77`, which reads that form.
