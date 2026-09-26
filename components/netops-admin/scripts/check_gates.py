@@ -47,7 +47,7 @@ FILE_RULES = {
 }
 FORBIDDEN_NAMES = frozenset(("eval", "exec", "compile", "__import__", "breakpoint"))
 FORBIDDEN_ATTRIBUTES = frozenset(("system", "popen", "spawnv", "spawnve", "execv", "execve", "fork"))
-DEPENDENCIES = ["netops-auditor==0.2.7", "netops-core==0.2.4"]
+DEPENDENCIES = ["netops-auditor==0.2.8", "netops-core==0.2.5"]
 COMPONENT = "netops-admin"
 PLATFORMS = frozenset(("fortios", "exos"))
 RELEASE_SELECTOR = ("scripts", "create_release_artifacts.py")

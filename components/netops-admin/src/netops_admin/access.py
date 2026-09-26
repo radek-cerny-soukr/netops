@@ -36,7 +36,8 @@ class DeviceAccess:
         if address not in self._host_key_lines:
             try:
                 self._host_key_lines[address] = hostkey.scan(
-                    address, self.device.port, self.device.host_key_fingerprint, QUERY_TIMEOUT_SECONDS
+                    address, self.device.port, self.device.host_key_fingerprint, QUERY_TIMEOUT_SECONDS,
+                    legacy=self.device.legacy_ssh,
                 )
             except hostkey.HostKeyError as exc:
                 raise AccessError("host key check failed: %s" % exc) from None

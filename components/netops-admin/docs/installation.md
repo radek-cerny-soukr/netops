@@ -6,41 +6,41 @@
 
 ### From PyPI
 
-1. Create a virtual environment with Python 3.13 and install the admin. `pip` installs the pinned `netops-core` 0.2.4 and `netops-auditor` 0.2.7 with it; none of the three needs anything outside the standard library.
+1. Create a virtual environment with Python 3.13 and install the admin. `pip` installs the pinned `netops-core` 0.2.5 and `netops-auditor` 0.2.8 with it; none of the three needs anything outside the standard library.
 
    ```sh
    python3.13 -m venv /opt/netops-admin/venv
-   /opt/netops-admin/venv/bin/python -m pip install netops-admin==0.2.2
+   /opt/netops-admin/venv/bin/python -m pip install netops-admin==0.2.3
    /opt/netops-admin/venv/bin/netops-admin --version
    ```
 
-2. For the MCP surface, install `fastmcp` and its dependencies with their hashes from `requirements-release.lock` of the `netops-admin` 0.2.2 source archive, as in step 2 below. The CLI does not need it.
+2. For the MCP surface, install `fastmcp` and its dependencies with their hashes from `requirements-release.lock` of the `netops-admin` 0.2.3 source archive, as in step 2 below. The CLI does not need it.
 
 ### From the release archives
 
 Use this path when every file should be verified against the signed checksums of a release page before it is installed.
 
-1. Download the source archives of the three components from their releases in the repository: `netops-core` 0.2.4, `netops-auditor` 0.2.7 and `netops-admin` 0.2.2. Verify each archive against its `release-SHA256SUMS` and the Sigstore bundle, then unpack them.
+1. Download the source archives of the three components from their releases in the repository: `netops-core` 0.2.5, `netops-auditor` 0.2.8 and `netops-admin` 0.2.3. Verify each archive against its `release-SHA256SUMS` and the Sigstore bundle, then unpack them.
 2. Create a virtual environment with Python 3.13 and install the pinned dependencies with their hashes. The lock also carries the test and SBOM tools; `fastmcp` and its dependencies are the only ones the program uses.
 
    ```sh
    python3.13 -m venv /opt/netops-admin/venv
-   /opt/netops-admin/venv/bin/python -m pip install --require-hashes -r netops-admin-0.2.2/requirements-release.lock
+   /opt/netops-admin/venv/bin/python -m pip install --require-hashes -r netops-admin-0.2.3/requirements-release.lock
    ```
 
 3. Install the three components without resolving dependencies again. `pip` writes build metadata (`*.egg-info`) into the directory it installs from, so install from copies and keep the unpacked archives unchanged; the gate of an archive refuses any file outside its release selection.
 
    ```sh
-   cp -r netops-core-0.2.4 netops-auditor-0.2.7 netops-admin-0.2.2 build/
-   /opt/netops-admin/venv/bin/python -m pip install --no-deps build/netops-core-0.2.4 build/netops-auditor-0.2.7 build/netops-admin-0.2.2
+   cp -r netops-core-0.2.5 netops-auditor-0.2.8 netops-admin-0.2.3 build/
+   /opt/netops-admin/venv/bin/python -m pip install --no-deps build/netops-core-0.2.5 build/netops-auditor-0.2.8 build/netops-admin-0.2.3
    ```
 
 4. Check the installation and the unpacked archive:
 
    ```sh
    /opt/netops-admin/venv/bin/netops-admin --version
-   (cd netops-admin-0.2.2 && /opt/netops-admin/venv/bin/python -B scripts/check_gates.py)
-   (cd netops-admin-0.2.2 && /opt/netops-admin/venv/bin/python -B -m pytest -q -p no:cacheprovider)
+   (cd netops-admin-0.2.3 && /opt/netops-admin/venv/bin/python -B scripts/check_gates.py)
+   (cd netops-admin-0.2.3 && /opt/netops-admin/venv/bin/python -B -m pytest -q -p no:cacheprovider)
    ```
 
 After configuration, complete [enrollment and the first change](operations-020.md). Enrollment is mandatory and requires notification and audit export.
@@ -103,7 +103,7 @@ One JSON file, mode 0600, names everything the tool may touch. The MCP server re
 | `devices.<alias>.check_credential` | required: the credential of the read-only check account; it must log in as another account than `credential` |
 | `devices.<alias>.check_address` | optional: another management address of the same device for the check account, so the check takes another path |
 | `devices.<alias>.accounts` | ExtremeXOS: required, the complete list of accounts on the switch. FortiOS: the administrators the write account sees, by default only itself; name the check account here |
-| `devices.<alias>.legacy_ssh` | `rsa-sha1` for a device that offers only an `ssh-rsa` host key |
+| `devices.<alias>.legacy_ssh` | `rsa-sha1` for a device that offers only an `ssh-rsa` host key; `rsa-sha1-dh14` for one that also offers only SHA-1 key exchange. The profile applies to the host key scan as well as to `ssh`, see [SSH transport](../../netops-core/docs/ssh.md). No profile of this component lists such a device yet |
 | `devices.<alias>.safeguard_seconds` | 60 to 900, default 180; `confirm_margin_seconds` 15 to that value minus 15, default 45 |
 | `devices.<alias>.audit_policy` | absolute path to the operator-owned Auditor policy; see [examples](operations-020.md) |
 | `devices.<alias>.protected` | table → names the tool refuses to touch, including objects that refer to them |

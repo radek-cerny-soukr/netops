@@ -93,7 +93,7 @@ def test_the_check_account_uses_its_own_management_address(monkeypatch):
         calls.append((address, credential.login, host_key_line))
         return SimpleNamespace(rc=250 if credential.login == "netops-check" else 0, stdout=b"Port:\t10\n")
 
-    def scan(address, port, pin, timeout):
+    def scan(address, port, pin, timeout, legacy=None):
         scans.append(address)
         return "%s ssh-rsa AAAA" % address
 

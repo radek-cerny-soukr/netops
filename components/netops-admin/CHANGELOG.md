@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.3 - 2026-09-26
+
+- Pin `netops-auditor==0.2.8` and `netops-core==0.2.5`, for the host key scan that asks for one key type at a time.
+- Pass the device's `legacy_ssh` profile to the host key scan. No profile of this component accepts a device that needs `rsa-sha1-dh14` yet; the change keeps the access path consistent with the core.
+- Documentation: the installation lists `rsa-sha1-dh14` and says the profile also governs the host key scan.
+- Validated before the release on FortiOS 7.6.7 (enrollment, address create, update, delete, group update, `undo` and two returns by the on-device timer) and read only on ExtremeXOS 33.7.1.6 (`doctor`, `preview`); see [verified support](../../docs/verified-support.md#admin-023-and-auditor-028-validation-26-september-2026).
+
 ## 0.2.2 - 2026-09-24
 
 - Publish the package on PyPI as `netops-admin`; `pip install netops-admin` installs the pinned auditor and core with it. `pyproject.toml` gains the README as the package description, project URLs and classifiers, and declares the licence as the SPDX expression `MIT` with `license-files`; the build requirement rises to `setuptools>=77`.

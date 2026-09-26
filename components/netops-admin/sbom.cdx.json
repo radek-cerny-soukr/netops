@@ -3,20 +3,20 @@
   "bomFormat": "CycloneDX",
   "components": [
     {
-      "bom-ref": "pkg:pypi/netops-auditor@0.2.7",
+      "bom-ref": "pkg:pypi/netops-auditor@0.2.8",
       "name": "netops-auditor",
-      "purl": "pkg:pypi/netops-auditor@0.2.7",
+      "purl": "pkg:pypi/netops-auditor@0.2.8",
       "scope": "required",
       "type": "library",
-      "version": "0.2.7"
+      "version": "0.2.8"
     },
     {
-      "bom-ref": "pkg:pypi/netops-core@0.2.4",
+      "bom-ref": "pkg:pypi/netops-core@0.2.5",
       "name": "netops-core",
-      "purl": "pkg:pypi/netops-core@0.2.4",
+      "purl": "pkg:pypi/netops-core@0.2.5",
       "scope": "required",
       "type": "library",
-      "version": "0.2.4"
+      "version": "0.2.5"
     },
     {
       "bom-ref": "requirements-L5",
@@ -38,19 +38,19 @@
   "dependencies": [
     {
       "dependsOn": [],
-      "ref": "pkg:pypi/netops-auditor@0.2.7"
+      "ref": "pkg:pypi/netops-auditor@0.2.8"
     },
     {
       "dependsOn": [],
-      "ref": "pkg:pypi/netops-core@0.2.4"
+      "ref": "pkg:pypi/netops-core@0.2.5"
     },
     {
       "ref": "requirements-L5"
     },
     {
       "dependsOn": [
-        "pkg:pypi/netops-auditor@0.2.7",
-        "pkg:pypi/netops-core@0.2.4"
+        "pkg:pypi/netops-auditor@0.2.8",
+        "pkg:pypi/netops-core@0.2.5"
       ],
       "ref": "root-component"
     }
@@ -95,9 +95,9 @@
         }
       ],
       "name": "netops-admin",
-      "purl": "pkg:pypi/netops-admin@0.2.2",
+      "purl": "pkg:pypi/netops-admin@0.2.3",
       "type": "application",
-      "version": "0.2.2"
+      "version": "0.2.3"
     },
     "properties": [
       {

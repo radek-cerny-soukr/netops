@@ -185,6 +185,8 @@ The switch configuration after the port scenarios equals, byte for byte, the one
 
 ## Not measured, or known limits
 
+- The fingerprint of the administrator accounts includes their access profiles. A fingerprint recorded while a profile carried temporary permissions no longer matches once they are removed, and the next `doctor`, `preview` or `apply` refuses the device with `the administrator accounts changed since the last operation`. Measured on 26 September 2026 on FortiOS 7.6.7: compare the profiles and entries with a snapshot from the time of the fingerprint, and only when the difference is the reverted permission run `unblock` with that reason; the accounts check then records the current state. Do not change permissions while an operation is running.
+- For 0.2.3 the DHCP reservation profile on FortiOS and the write profiles on ExtremeXOS were not run again on a device; the release changes only the access path, which the FortiOS address and group operations and the read-only EXOS checks of 26 September 2026 exercised.
 - The branch that refuses to confirm when too little time is left before the safeguard fires is covered by tests only: on the lab firewall the whole sequence took about 10 s and on the switch about 15 s until the confirmation, so even the shortest allowed safeguard (60 s) left enough time.
 - On ExtremeXOS the account check, a foreign change during the window, a safeguard that does not read back, a failed save and `undo` are covered by tests only.
 - The limits of the table in [Limits](#limits) are covered by tests only; none was exhausted on a device.
