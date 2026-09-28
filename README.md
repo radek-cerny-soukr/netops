@@ -63,9 +63,25 @@ The workflow needs `security-events: write`. Inputs, outputs and the SARIF mappi
 
 Every release carries a source archive, an SBOM, a checksum manifest and a Sigstore signature. All four are also published on PyPI (`pip install netops-auditor`, `pip install netops-admin`; `pip install netops-helper` installs only the helper's client-side proxy, its server runs as a container image). Earlier versions keep their release pages and tags; the table above links the current one. How releases are cut and signed, and what the repository gate enforces, is in the [documentation map](docs/README.md#releases).
 
-## What has been tested on real devices
+## What has been tested
 
-FortiOS (7.6.x and 8.0.0) and ExtremeXOS (33.7.x) have been exercised end to end against real devices; the admin's ExtremeXOS write profiles also against the EXOS-VM 33.6.1.14 image. The helper's Arista EOS, Junos, Cisco IOS, IOS-XE and NX-OS catalogues have been run query by query against the vendors' virtual images (cEOS and vEOS 4.36.1F, vJunos-switch 26.2R1.7, IOL 17.18.2, IOSv 15.9(3)M12, IOSvL2 15.2, Nexus 9300v and 9500v 9.3(12)) and ExtremeXOS also against EXOS-VM 33.6.1.14; no physical device of those three vendors has been measured yet. Cisco IOS-XE and classic IOS need `netops-core` 0.2.5 and `netops-helper` 0.3.7, see [live lab measurements](docs/lab-measurements-2026-09-25.md). [Verified platform support](docs/verified-support.md) states, per platform, firmware, transport, authentication and account privilege, what was measured and what was not.
+Every entry below is a dated run of this code against a device over the network. "Image" means the vendor's virtual appliance in a lab; hardware is named as such. All dates are September 2026. The per-query and per-scenario detail, including every refusal and failure, is in [verified platform support](docs/verified-support.md) and [live lab measurements](docs/lab-measurements-2026-09-25.md).
+
+| Platform and build | Device | `netops-helper` (reads) | `netops-auditor` | `netops-admin` (writes) |
+|---|---|---|---|---|
+| FortiOS 8.0.0 build0167 | FortiGate 60F and 80F (hardware) | 40 catalogue queries under a read-only profile, 17 Sep | `ssh` collection from both, `fortios-rest` from the 80F, 12–20 Sep | address table: create, update, delete, `undo` and return by the on-device stitch, over the command line and MCP, 23, 24 and 28 Sep; group and DHCP profiles refused on this build by design |
+| FortiOS 7.6.7 build3704 | FortiGate 60F (hardware) | 45 queries with released 0.3.7: 43 exit 0, 2 `device_cli_error`, 26 Sep | - | address, address group member and DHCP reservation with `undo` and stitch return, 24 Sep; address and group again with 0.2.3, 26 Sep |
+| ExtremeXOS 33.7.1.6 | Extreme X440-G2-12p (hardware, two units) | 47 queries under a user-level account, 17–18 Sep; SNMPv2c, 20 Sep | collection and rules, 20 Sep; again with 0.2.8, 26 Sep | VLAN, port display string and port VLAN membership with `undo` and UPM timer return, 23–24 Sep (0.2.0); `doctor` and `preview` with 0.2.3, 26 Sep |
+| ExtremeXOS 33.6.1.14 | EXOS-VM image | 49 queries with released 0.3.7: 40 exit 0, 6 exit 250 with a complete answer, 3 `device_cli_error`, 26 Sep | collection, one finding, 25 Sep | the same three profiles with 0.2.4: command line and MCP, `undo`, timer return and refusals, 28 Sep |
+| Arista EOS 4.36.1F | cEOS-lab and vEOS-lab images | 33 queries with released 0.3.7, 26 Sep; with the 0.3.7 candidate, traffic, VLAN and trunk isolation, inter-VLAN routing, DHCP, LLDP, restart persistence and an SSH outage checked against the helper's answers, 25 Sep | - | - |
+| Cisco NX-OS 9.3(12) | Nexus 9300v and 9500v images | 30 queries with released 0.3.7 (9500v 30 exit 0; 9300v 29 exit 0, `lldp_neighbors` exit 244), 26 Sep; with the candidate, cross-host traffic, trunk failure and recovery, and LLDP through the 9300v, 25 Sep | - | - |
+| Cisco IOS-XE 17.18.2 | IOL router and IOL L2 images | 27 queries with released 0.3.7: 21 and 26 exit 0, the rest `device_cli_error`, 26 Sep | - | - |
+| Cisco IOS 15.9(3)M12 and 15.2 | IOSv and IOSvL2 images | 27 queries with released 0.3.7: 19 and 26 exit 0, the rest `device_cli_error`, 26 Sep | - | - |
+| Junos 26.2R1.7 | vJunos-switch image | released 0.3.7: `juniper_junos` 25 exit 0 of 25, `juniper_junos_els` 28 exit 0 and 1 `device_cli_error` of 29, 26 Sep | - | - |
+| Linux | a small ARM host | `kernel` and `hostname` live, 20 Sep; the rest wire-simulated | - | - |
+| Ruckus Unleashed 200.13 | one access point (hardware) | wire mechanics live, 16 Sep; the platform cannot have a read-only account | - | - |
+
+Not covered by any run so far: physical Arista, Juniper or Cisco devices; NX-OS 10.x; a Junos routing platform; AAA or TACACS+ command authorization; redundant LACP/STP failover and BGP/OSPF convergence as functional tests; writes on X440-G2 hardware since 0.2.0; FortiOS 8.0.0 group and DHCP writes. Rows for images show command and CLI behaviour, not a hardware forwarding plane. Cisco IOS-XE and classic IOS need `netops-core` 0.2.5 and `netops-helper` 0.3.7.
 
 ## Security
 

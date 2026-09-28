@@ -45,7 +45,7 @@ Virtual appliances in a GNS3 3.0.6 lab, each with a dedicated read-only account 
 | `extreme_exos` | EXOS-VM 33.6.1.14 | 49 answered: 40 exit 0, 7 exit 250 with a complete answer, 2 `device_cli_error` (`show qosprofile` is incomplete and `show stacking-support` unknown on the virtual switch) | the same; from 0.3.7 `show stacking` (`Method is not implemented on this platform.`, exit 250) is a third `device_cli_error` |
 | `fortinet` | the runner's existing FortiOS 7.6.7 target | - | 3 of 3 checked queries exit 0 |
 
-The auditor was run against the same EXOS-VM 33.6.1.14 through its `ssh` channel with `legacy_ssh: "rsa-sha1"`, under a separate administrator account authenticated with an SSH key in that comparison: released Auditor 0.2.7 with Core 0.2.4 collected the configuration, evaluated the 9 EXOS rules and reported one finding (`exos.logging.no-syslog-target`, correct for a switch without a syslog target); Core 0.2.5, then still the branch, produced a byte-identical snapshot. `netops-admin` was not exercised on the lab: its profiles accept the FortiOS 7.6 and ExtremeXOS 33.7 families and the exact builds they list, and EXOS-VM 33.6.1.14 is neither (`find_profile` refuses it as not measured).
+The auditor was run against the same EXOS-VM 33.6.1.14 through its `ssh` channel with `legacy_ssh: "rsa-sha1"`, under a separate administrator account authenticated with an SSH key in that comparison: released Auditor 0.2.7 with Core 0.2.4 collected the configuration, evaluated the 9 EXOS rules and reported one finding (`exos.logging.no-syslog-target`, correct for a switch without a syslog target); Core 0.2.5, then still the branch, produced a byte-identical snapshot. `netops-admin` was not exercised in this series: its profiles then accepted the FortiOS 7.6 and ExtremeXOS 33.7 families and the exact builds they list, and EXOS-VM 33.6.1.14 was neither (`find_profile` refused it as not measured). Admin 0.2.4 added that build after measuring the timer on it; see [Admin 0.2.4 validation](#admin-024-validation-28-september-2026).
 
 The later [T-067 functional series](lab-measurements-2026-09-25.md#functional-and-fault-tests-t-067) adds actual ICMP/HTTP, VLAN/trunk isolation, inter-VLAN routing, DHCP acquisition, controlled SSH/data outages, cEOS persistence and cross-host cEOS-Nexus traffic on the candidate. Nexus LLDP returned a real neighbour with the native VLAN allowed at both trunk ends; the exit-244 catalogue row above remains the earlier observation. The follow-up Auditor run used a password credential and found the same missing-syslog rule; snapshot equality was checked only within the original key-authenticated comparison. T-067 covers four overlapping virtual instances, not four additional image variants. Its 40 PASS / 16 FAIL records include setup, repetitions and cleanup, not a product pass rate. Outbound cEOS SVI ACL attachment was rejected; Admin execution, protocol convergence and redundant failover were not measured by that series.
 
@@ -59,7 +59,26 @@ What was learned, and what changed because of it:
 - **OpenSSH 10.0p2 `ssh-keyscan` writes its banner comment to standard output.** With `-t` for a type the device lacks it prints `# host SSH-2.0-...` on stdout and exits 1; 9.2p1 wrote the comment to stderr. The first candidate took that comment for an answer with a failing status and refused IOS-XE and NX-OS devices whose only key is RSA, every time through the runner; a type now counts only when the answer holds a line that is not a comment.
 - **NX-OS refuses with a non-zero exit status.** `Syntax error while parsing '...'` (16) for an unknown command, and for HSRP, VRRP and vPC commands while the feature is disabled; `% Permission denied for the role` (30) for a command above the role. Both are now `device_cli_error`.
 
-Not measured: NX-OS 10.x (the catalogue baseline; the lab has 9.3(12)), a Junos routing platform, AAA or TACACS command authorization on any of these platforms, and the fixes in a release build.
+Not measured: NX-OS 10.x (the catalogue baseline; the lab has 9.3(12)), a Junos routing platform, and AAA or TACACS command authorization on any of these platforms. The fixes were measured again in the release build on 26 September 2026, see [below](#released-helper-037-re-measurement-26-september-2026).
+
+## Released helper 0.3.7 re-measurement, 26 September 2026
+
+After the release, the released `netops-helper` 0.3.7 image was deployed as the runner, with the released proxy and `netops-core` 0.2.5, and the catalogue was run again through it against the ten lab images above, vJunos under both Junos profiles, and the lab FortiGate 60F: twelve entries in all. Compared with the candidate runner of 25 September exactly one answer changed: the ExtremeXOS `stacking` query, exit status 250 there, is now `device_cli_error`, as intended for 0.3.7.
+
+| Platform | Target | Released 0.3.7 |
+| --- | --- | --- |
+| `fortinet` | FortiGate 60F, FortiOS 7.6.7 build3704 | 45 queries: 43 exit 0, 2 `device_cli_error` (`sslvpn_*`), the same as on 23 September |
+| `cisco_xe` | IOS-XE 17.18.2 IOL router | 21 exit 0, 6 `device_cli_error` |
+| `cisco_xe` | IOS-XE 17.18.2 IOL L2 | 26 exit 0, 1 `device_cli_error` |
+| `arista_eos` | cEOS-lab 4.36.1F | 32 exit 0, 1 exit 1 |
+| `arista_eos` | vEOS-lab 4.36.1F | 29 exit 0, 4 exit 1 |
+| `cisco_ios` | IOSv 15.9(3)M12 | 19 exit 0, 8 `device_cli_error` |
+| `cisco_ios` | IOSvL2 15.2(20200924) | 26 exit 0, 1 `device_cli_error` |
+| `extreme_exos` | EXOS-VM 33.6.1.14 | 40 exit 0, 6 exit 250, 3 `device_cli_error` |
+| `cisco_nxos` | Nexus 9500v 9.3(12) | 30 exit 0 of 30 |
+| `cisco_nxos` | Nexus 9300v 9.3(12) | 29 exit 0, `lldp_neighbors` exit 244 |
+| `juniper_junos_els` | vJunos-switch 26.2R1.7 | 28 exit 0, 1 `device_cli_error` |
+| `juniper_junos` | vJunos-switch 26.2R1.7 | 25 exit 0 of 25 |
 
 ## Helper 0.3.4 additions: direct CLI evidence
 
@@ -124,6 +143,8 @@ Run before the release from its source tree (Admin 0.2.4 with Auditor 0.2.8 and 
 - **Refused before any mutation:** `Default` and `Mgmt` as keys (protected), a membership outside the operator policy, an unsaved change of another account, and a membership request while the port rules of the operator policy were missing (`mandatory audit rules were not evaluated`). A change of the operator policy invalidated the enrollment until a new one passed.
 - **Released 0.2.3 against the same image:** `doctor` not ready with all three EXOS tables `not measured on this firmware`, and `preview` `rejected`.
 - **Known limit:** a port that was never configured has no line in `show configuration` on this image, so a membership of it is refused by the planner (`object '<port>' does not exist`) until its native VLAN is configured explicitly.
+- **Configuration comparisons on this image:** the first configuration change of a port (a display string or a VLAN membership) also makes `show configuration` list `configure sys-recovery-level switch reset`. That is the documented default of the command, not a change the admin made; changes that do not touch a port do not add it, and it stays after the port change is undone. A comparison across a first port change should expect the line.
+
 - **FortiOS with the unchanged code:** the same day the released 0.2.3 source, whose FortiOS code 0.2.4 keeps, ran on FortiOS 8.0.0 build0167 (FortiGate 60F): address create, update and delete, `undo`, a return by the on-device stitch after a lost check-account read, and over MCP `doctor`, a `preview` that changed nothing, create, update and delete, a repeated `request_id` returning the same operation, `admin_status`, and a protected key refused. `firewall addrgrp` and the DHCP reservation profile were refused there as `not measured on firmware '8.0.0 build0167'`, as intended.
 - Not run for 0.2.4: SIGKILL with `recover`, a foreign change during the window and a failed save on the EXOS-VM image, and any write on X440-G2 hardware.
 

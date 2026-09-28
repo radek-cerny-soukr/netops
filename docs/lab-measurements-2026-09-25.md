@@ -2,7 +2,7 @@
 
 This page combines the catalogue measurements behind the [verified support matrix](verified-support.md#live-lab-measurements-25-september-2026) with the later [functional and fault tests](#functional-and-fault-tests-t-067). Both series ran on 25 September 2026; the records were reconciled on 26 September. The catalogue series covers Arista EOS, Juniper Junos (both profiles), Cisco IOS-XE, IOS, NX-OS and EXOS-VM. The follow-up adds actual traffic, controlled failures and recovery. The query tables retain the observations of their original run; later results do not overwrite them.
 
-The measurements cover `netops-helper` and, for one platform, `netops-auditor`. `netops-admin` was not run against these images: its profiles list the exact FortiOS and ExtremeXOS builds they were measured on, and none of these images is one of them.
+The measurements cover `netops-helper` and, for one platform, `netops-auditor`. `netops-admin` was not run in this series: its profiles then listed exact FortiOS and ExtremeXOS builds, and none of these images was one of them. On 28 September 2026 Admin 0.2.4 was run against the same EXOS-VM 33.6.1.14 image, see [verified support](verified-support.md#admin-024-validation-28-september-2026). The released helper 0.3.7 was measured again on 26 September 2026, see [its results](verified-support.md#released-helper-037-re-measurement-26-september-2026).
 
 ## Comparing the two series
 
@@ -495,7 +495,7 @@ Prepare separate management, isolated endpoint VLANs, persistent cEOS flash stor
 
 The Linux endpoints used FRR/BusyBox tools. Their mutable container tag was not accompanied by a recorded image digest, so byte-identical endpoint reproduction is not established. Nested images and an engineering build demonstrate behavior in this lab, not vendor certification of the environment. Hardware forwarding, PoE, physical optics/error behavior, production throughput and latency were not tested.
 
-T-067 did not exercise forwarding on Junos, IOS, IOS-XE or Nexus 9500v, redundant LACP/STP failover, BGP/OSPF convergence, DHCP renewal timers, AAA, or an Admin apply/rollback operation. Earlier catalogue responses for these topics remain command/transport evidence; they do not fill these functional gaps. No new release build was measured during the documentation merge.
+The series of 25 September did not exercise forwarding on Junos, IOS, IOS-XE or Nexus 9500v, redundant LACP/STP failover, BGP/OSPF convergence, DHCP renewal timers, AAA, or an Admin apply/rollback operation. Later runs on 28 September 2026 exercised Admin writes, `undo` and the on-device return on a lab FortiGate with FortiOS 8.0.0 build0167, over the command line and MCP, and on EXOS-VM 33.6.1.14 with Admin 0.2.4; see [verified support](verified-support.md#admin-024-validation-28-september-2026). Earlier catalogue responses for these topics remain command/transport evidence; they do not fill these functional gaps. No new release build was measured during the documentation merge.
 
 ## Changes that came out of the run
 
@@ -515,6 +515,6 @@ Each of these came with tests that fail on the code before it:
 - Physical Arista, Juniper or Cisco devices. EXOS-VM does not expand the separately measured physical ExtremeXOS coverage; the FortiOS regression check above is not a new full-device validation.
 - NX-OS 10.x, the catalogue baseline (the images are 9.3(12)); a Junos routing platform (the image is an EX-family switch); IOS-XE on Catalyst hardware.
 - AAA, TACACS+ or RADIUS command authorization on any of these platforms: every account was local.
-- The released versions that will carry the branch fixes: the "branch" columns are a candidate build.
+- The "branch" columns are a candidate build; the released helper 0.3.7 was measured again on 26 September 2026 ([results](verified-support.md#released-helper-037-re-measurement-26-september-2026)).
 
-- The functional gaps described under [T-067](#reproduction-and-remaining-limits), including hardware forwarding and Admin execution on these images.
+- The functional gaps described under [T-067](#reproduction-and-remaining-limits), including hardware forwarding. Admin execution was added on EXOS-VM 33.6.1.14 only.
