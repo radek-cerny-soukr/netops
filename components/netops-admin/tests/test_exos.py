@@ -106,6 +106,14 @@ def test_rejections(exos_snapshot, fields, fragment):
 def test_firmware_is_required_and_must_be_measured(exos_snapshot):
     rejected(exos_snapshot, "must state it", firmware=None)
     rejected(exos_snapshot, "not measured on firmware", firmware="33.7.2")
+    rejected(exos_snapshot, "not measured on firmware", firmware="33.6.1")
+    rejected(exos_snapshot, "not measured on firmware", firmware="33.6.2")
+
+
+def test_measured_exos_vm_build_is_accepted(exos_snapshot):
+    document = plan(exos_snapshot, firmware="33.6.1.14")
+    assert document["firmware"] == "33.6.1.14"
+    assert document["commands"] == ["create vlan guest tag 3000"]
 
 
 def test_snapshot_without_vlan_module_is_refused(exos_snapshot):

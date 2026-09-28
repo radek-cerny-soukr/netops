@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.4 - 2026-09-28
+
+- Enable the ExtremeXOS profiles `vlan`, `ports` and `vlan-membership` on build 33.6.1.14, the EXOS-VM image, after the on-device UPM timer was measured there with the same commands as on 33.7.1.6.
+- Known limit, measured on 33.6.1.14: a port that was never configured sits in the Default VLAN without a line in `show configuration`, so VLAN membership cannot plan it until its native VLAN is configured explicitly.
+- No code path changes; the pins stay `netops-auditor==0.2.8` and `netops-core==0.2.5`.
+- Validated before the release on ExtremeXOS 33.6.1.14 EXOS-VM (enrollment, VLAN create, description update and `undo`, port display string and `undo`, tagged membership added over the command line and removed over MCP, a native VLAN move returned by the on-device timer, the VLAN removed by `undo`); see [verified support](../../docs/verified-support.md#admin-024-validation-28-september-2026).
+
 ## 0.2.3 - 2026-09-26
 
 - Pin `netops-auditor==0.2.8` and `netops-core==0.2.5`, for the host key scan that asks for one key type at a time.

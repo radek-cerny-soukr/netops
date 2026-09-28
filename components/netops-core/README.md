@@ -1,6 +1,6 @@
 # netops-core
 
-The current release is `netops-core/v0.2.5` (2026-09-26), also published on PyPI: `pip install netops-core`. `netops-auditor` 0.2.8, `netops-admin` 0.2.3 and `netops-helper` 0.3.7 pin exactly that version. It reads a host key one key type at a time and adds the per-device SSH profile `rsa-sha1-dh14` for devices that offer only SHA-1 key exchange; see the [changelog](https://github.com/radek-cerny-soukr/netops/blob/main/components/netops-core/CHANGELOG.md). `netops-auditor` 0.2.7 and `netops-admin` 0.2.2 pin 0.2.4, the first version on PyPI; earlier releases pin 0.2.3, which is not on PyPI.
+The current release is `netops-core/v0.2.5` (2026-09-26), also published on PyPI: `pip install netops-core`. `netops-auditor` 0.2.8, `netops-admin` 0.2.4 and `netops-helper` 0.3.7 pin exactly that version. It reads a host key one key type at a time and adds the per-device SSH profile `rsa-sha1-dh14` for devices that offer only SHA-1 key exchange; see the [changelog](https://github.com/radek-cerny-soukr/netops/blob/main/components/netops-core/CHANGELOG.md). `netops-auditor` 0.2.7 and `netops-admin` 0.2.2 pin 0.2.4, the first version on PyPI; earlier releases pin 0.2.3, which is not on PyPI.
 
 The shared access layer of the `netops` family. It holds every piece a component needs to reach a
 device and to record what happened: the inventory of devices, the credential store, host key trust,

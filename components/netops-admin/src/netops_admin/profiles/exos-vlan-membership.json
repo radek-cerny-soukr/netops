@@ -2,7 +2,8 @@
   "platform": "exos",
   "table": "vlan-membership",
   "versions": [
-    "33.7.1.6"
+    "33.7.1.6",
+    "33.6.1.14"
   ],
   "ops": [
     "update"
@@ -32,5 +33,5 @@
   "volatile": [],
   "reserved_values": {},
   "inverse_identity_changes": {},
-  "rollback_evidence": "EXOS 33.7.1.6, 2026-09-24: tagged addition and removal and native VLAN moves restored by a one-shot UPM timer. The inverse of a native VLAN move is a move back to the original VLAN."
+  "rollback_evidence": "EXOS 33.7.1.6, 2026-09-24: tagged addition and removal and native VLAN moves restored by a one-shot UPM timer. The inverse of a native VLAN move is a move back to the original VLAN. ExtremeXOS 33.6.1.14 EXOS-VM under GNS3, 2026-09-28: tagged addition and removal, a native VLAN move and a native move combined with tagging restored by the same timer."
 }

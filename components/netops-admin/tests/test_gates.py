@@ -79,7 +79,7 @@ def test_private_material_in_a_released_file_is_reported(component):
 
 def test_sbom_version_drift_is_reported(component):
     sbom = component / "sbom.cdx.json"
-    sbom.write_text(sbom.read_text(encoding="utf-8").replace('"version": "0.2.3"', '"version": "0.0.9"', 1),
+    sbom.write_text(sbom.read_text(encoding="utf-8").replace('"version": "0.2.4"', '"version": "0.0.9"', 1),
                     encoding="utf-8")
     assert any("sbom.cdx.json" in error for error in gates.gate_version_metadata(component))
 

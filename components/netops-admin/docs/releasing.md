@@ -2,7 +2,7 @@
 
 Release tags follow the component scheme `<name>/v<version>`, where `<name>` is the project name
 declared in this component's `pyproject.toml`: this component tags
-`netops-admin/v0.2.3`, and the release title is `netops-admin 0.2.3`. Tags of another component
+`netops-admin/v0.2.4`, and the release title is `netops-admin 0.2.4`. Tags of another component
 are never touched by this procedure. Publishing a newer version leaves the release page and the tag
 of earlier versions in place. The canonical origin is
 `https://github.com/radek-cerny-soukr/netops`.
@@ -26,7 +26,7 @@ credentials, host keys, or inventory and vault files. The release export is a po
 the component gate also reads the content of every released file and, outside a
 repository, holds the exported tree to exactly the released selection.
 
-## What 0.2.3 releases
+## What 0.2.4 releases
 
 This component releases **from source; it ships no container image**. The release carries four assets:
 

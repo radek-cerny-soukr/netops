@@ -95,9 +95,9 @@
         }
       ],
       "name": "netops-admin",
-      "purl": "pkg:pypi/netops-admin@0.2.3",
+      "purl": "pkg:pypi/netops-admin@0.2.4",
       "type": "application",
-      "version": "0.2.3"
+      "version": "0.2.4"
     },
     "properties": [
       {

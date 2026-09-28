@@ -2,7 +2,7 @@
 
 Bounded, reversible changes to network devices: one object of a supported table per request, planned from a fresh snapshot and executed behind a rollback safeguard on the device itself.
 
-This source tree targets `netops-admin/v0.2.3` (2026-09-26) and pins `netops-auditor==0.2.8` and `netops-core==0.2.5`; `pip install netops-admin` installs all three from PyPI. Version 0.1.0 was an unpublished internal milestone.
+This source tree targets `netops-admin/v0.2.4` (2026-09-28) and pins `netops-auditor==0.2.8` and `netops-core==0.2.5`; `pip install netops-admin` installs all three from PyPI. Version 0.1.0 was an unpublished internal milestone.
 
 [Start here: enrollment, policies and the new operations](https://github.com/radek-cerny-soukr/netops/blob/main/components/netops-admin/docs/operations-020.md).
 
@@ -35,11 +35,11 @@ Exit codes: `0` plan printed, snapshot matches, change confirmed, or preview or 
 | FortiOS | `firewall address` (ipmask) | 7.6.x; 8.0.0 build0167 | create, update, delete | `subnet`, `comment` | automation stitch |
 | FortiOS | `firewall addrgrp` (static) | 7.6.x | update | `member` list | automation stitch |
 | FortiOS | `system dhcp server/reserved-address` | 7.6.x | create, update, delete | `ip`, `mac`, `description` | automation stitch |
-| ExtremeXOS | `vlan` | 33.7.x | create, update, delete | `tag` (create), `description` | UPM timer |
-| ExtremeXOS | `ports` | 33.7.x | update | `display-string` | UPM timer |
-| ExtremeXOS | `vlan-membership` | 33.7.x | update | `tagged` list, `untagged` VLAN | UPM timer |
+| ExtremeXOS | `vlan` | 33.7.x, 33.6.1.14 | create, update, delete | `tag` (create), `description` | UPM timer |
+| ExtremeXOS | `ports` | 33.7.x, 33.6.1.14 | update | `display-string` | UPM timer |
+| ExtremeXOS | `vlan-membership` | 33.7.x, 33.6.1.14 | update | `tagged` list, `untagged` VLAN | UPM timer |
 
-Every device and build requires a successful operator enrollment before writing. The new FortiOS profiles were measured on 7.6.7 build3704; EXOS profiles on 33.7.1.6. Version 0.2.3 changes only the device access path (the host key scan of `netops-core` 0.2.5); before its release it was run live on FortiOS 7.6.7 for enrollment and the address and address group profiles, including two returns by the on-device timer, and read only on ExtremeXOS 33.7.1.6. The DHCP reservation profile and the EXOS write profiles were last run live with 0.2.0. See [verified support](https://github.com/radek-cerny-soukr/netops/blob/main/docs/verified-support.md#admin-023-and-auditor-028-validation-26-september-2026).
+Every device and build requires a successful operator enrollment before writing. The new FortiOS profiles were measured on 7.6.7 build3704; EXOS profiles on 33.7.1.6 (Extreme X440-G2) and, from 0.2.4, on 33.6.1.14, the EXOS-VM image. Version 0.2.4 changes only the list of measured EXOS builds; before its release the three EXOS profiles were run live on EXOS-VM 33.6.1.14, including `undo`, a return by the on-device timer and the MCP surface. On X440-G2 hardware the EXOS write profiles, and on FortiOS the DHCP reservation profile, were last run live with 0.2.0. See [verified support](https://github.com/radek-cerny-soukr/netops/blob/main/docs/verified-support.md#admin-024-validation-28-september-2026).
 
 ## Example
 

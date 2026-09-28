@@ -183,12 +183,42 @@ The configurations after the scenarios equal the ones before them. On the FortiO
 
 The switch configuration after the port scenarios equals, byte for byte, the one before them.
 
+## Measured on the ExtremeXOS 33.6.1.14 EXOS-VM image
+
+EXOS-VM 33.6.1.14 is the virtual ExtremeXOS image Extreme publishes for labs, not a switch model: these measurements cover the CLI and the on-device UPM timer, not a forwarding plane. Before the three EXOS profiles were enabled on this build (0.2.4), the timer was measured by hand with the commands the planner emits for 33.7.1.6: a one-shot UPM timer 60 s ahead, the change applied after it, the result read by the check account.
+
+| Scenario | Result |
+|---|---|
+| VLAN create with tag and description, description change, description removal, delete of a VLAN with a description | the timer restored the previous state 0–2 s after the planned second; the rest of the configuration unchanged |
+| tagged add, tagged removal, native VLAN move, combined native and tagged change on one port | restored 1 s after the planned second |
+| port display string set, replaced, removed | restored 0–1 s after the planned second |
+| timer deleted before it fired | the change stayed |
+| membership of a port that was never configured | refused by the planner, `object '5' does not exist`: on this image such a port has no line in `show configuration` |
+
+Then, on 28 September 2026, with the 0.2.4 source tree, its own write and check accounts, an operator policy and a safeguard of 60 s:
+
+| Scenario | Result |
+|---|---|
+| enrollment | probe returned by the timer, `reverted`, enrollment `valid`; a later change of the operator policy made `doctor` ask for a new enrollment, which passed the same way |
+| VLAN create, description update and its `undo`, then `undo` of the create | `confirmed` each; the VLAN is gone |
+| port display string set and its `undo` | `confirmed` |
+| tagged membership added over the command line, removed over MCP | `confirmed`; `admin_status` by `request_id` returned the same operation |
+| native VLAN move with the check account read lost after the change | returned by the timer: `reverted`, `check identity unavailable` |
+| `Default` or `Mgmt` as the key | `rejected` before any mutation: protected |
+| a membership outside the operator policy | `rejected`: `violates exos.management.port-policy` |
+| a membership with the port rules of the operator policy missing | `rejected` before any mutation: `mandatory audit rules were not evaluated: port-policy` |
+| unsaved change of another account on the switch | `rejected` before any mutation |
+| released 0.2.3 against the same image | `doctor` not ready, all three tables `not measured on this firmware`; `preview` `rejected` |
+
+Every operation's notification was sent. The switch configuration after the series equals the one before its first change, line for line.
+
 ## Not measured, or known limits
 
 - The fingerprint of the administrator accounts includes their access profiles. A fingerprint recorded while a profile carried temporary permissions no longer matches once they are removed, and the next `doctor`, `preview` or `apply` refuses the device with `the administrator accounts changed since the last operation`. Measured on 26 September 2026 on FortiOS 7.6.7: compare the profiles and entries with a snapshot from the time of the fingerprint, and only when the difference is the reverted permission run `unblock` with that reason; the accounts check then records the current state. Do not change permissions while an operation is running.
 - For 0.2.3 the DHCP reservation profile on FortiOS and the write profiles on ExtremeXOS were not run again on a device; the release changes only the access path, which the FortiOS address and group operations and the read-only EXOS checks of 26 September 2026 exercised.
 - The branch that refuses to confirm when too little time is left before the safeguard fires is covered by tests only: on the lab firewall the whole sequence took about 10 s and on the switch about 15 s until the confirmation, so even the shortest allowed safeguard (60 s) left enough time.
-- On ExtremeXOS the account check, a foreign change during the window, a safeguard that does not read back, a failed save and `undo` are covered by tests only.
+- On ExtremeXOS the account check, a foreign change during the window, a safeguard that does not read back and a failed save are covered by tests only; `undo` was run on the X440-G2 for 0.2.0 and on the EXOS-VM image for 0.2.4.
+- For 0.2.4 the ExtremeXOS profiles on the X440-G2 (33.7.1.6) and the FortiOS profiles were not run again with the release source; the release changes only the list of measured EXOS builds. On the EXOS-VM image SIGKILL with `recover`, a foreign change during the window and a failed save were not run.
 - The limits of the table in [Limits](#limits) are covered by tests only; none was exhausted on a device.
 - A new auditor finding after a change is covered by tests only, with the real rules of the auditor on a fixture: the supported tables do not reach any rule of the auditor, and a change elsewhere in the configuration is already refused as a change outside the planned object.
 - Without `check_address` the check account reads the object over the same management path as the write account; it proves another identity, not another path. The check reads the configuration, not whether the traffic behaves as intended.
