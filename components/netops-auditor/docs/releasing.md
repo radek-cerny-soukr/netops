@@ -2,7 +2,7 @@
 
 Release tags follow the component scheme `<name>/v<version>`, where `<name>` is the project name
 declared in this component's `pyproject.toml`: this component tags
-`netops-auditor/v0.2.9`, and the release title is `netops-auditor 0.2.9`. Tags of another component
+`netops-auditor/v0.2.10`, and the release title is `netops-auditor 0.2.10`. Tags of another component
 are never touched by this procedure. Publishing a newer version leaves the release page and the tag
 of earlier versions in place. The canonical origin is
 `https://github.com/radek-cerny-soukr/netops`.
@@ -26,7 +26,7 @@ credentials, host keys, or inventory and vault files. The release export is a po
 the component gate also reads the content of every released file and, outside a
 repository, holds the exported tree to exactly the released selection.
 
-## What 0.2.9 releases
+## What 0.2.10 releases
 
 This component releases **from source; it ships no container image**. The release carries four assets:
 
@@ -55,11 +55,11 @@ uploaded again.
 ### It needs `netops-core` beside it
 
 The auditor reads the inventory, the credential store, the host key trust and the SSH
-transport from `netops-core`, and `pyproject.toml` pins it as `netops-core==0.2.6`.
+transport from `netops-core`, and `pyproject.toml` pins it as `netops-core==0.2.7`.
 Once both are uploaded, `pip install netops-auditor` would resolve that pin on PyPI and install the
 core with it. Until then **the operator installs the `netops-core` source archive of exactly that
-version next to the auditor**: download `netops-core-0.2.6-source.tar.gz` with the release
-`SHA256SUMS` and its Sigstore bundle from the `netops-core` 0.2.6 page of the
+version next to the auditor**: download `netops-core-0.2.7-source.tar.gz` with the release
+`SHA256SUMS` and its Sigstore bundle from the `netops-core` 0.2.7 page of the
 [releases](https://github.com/radek-cerny-soukr/netops/releases), verify the bundle with `cosign` and
 the archive against `SHA256SUMS` as
 [Verifying a release](https://github.com/radek-cerny-soukr/netops/blob/main/docs/README.md#verifying-a-release)
@@ -70,7 +70,7 @@ this repository the archive is the tree, so the tests and the CI job take the co
 `fastmcp` is needed solely for the MCP surface.
 
 Either way works, and both are covered by the CI job. Installing the two unpacked directories into
-one environment - `python -m pip install <netops-core directory> <netops-auditor directory>` - puts
+one environment - `(umask 022; python -m pip install <netops-core directory> <netops-auditor directory>)` - puts
 the rule catalogues inside the installed package and puts the command `netops-auditor` on the path,
 which is the name every message and every example in these documents uses. Running from the unpacked
 tree with `src` on `PYTHONPATH` and `python -m netops_auditor` is the same program.
@@ -99,8 +99,11 @@ The current published release is linked from the [repository release table](http
    python3 scripts/create_release_artifacts.py --output path/to/new-output
    ```
 
-   The test suite reads `netops-core` from `../netops-core/src`; away from this tree, put the
-   unpacked source archive of the pinned version there or on `PYTHONPATH`.
+   Run source tests beside exactly one Core tree: `../netops-core` in the monorepository or
+   `../netops-core-0.2.7` after unpacking the pinned release archive. The supply-chain tests verify
+   its package identity and exact version in both layouts. For the archive layout, set
+   `PYTHONPATH="src:../netops-core-0.2.7/src"`; no rename or symlink is needed. The GitHub Action
+   keeps the monorepository layout provided by the checkout.
 
    The export destination must not already exist. Run the gate once more **inside** the export; away
    from a repository it also proves the exported tree matches the release selection and the manifest:

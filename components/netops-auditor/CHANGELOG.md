@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.2.10 - 2026-10-06
+
+- Pin netops-core 0.2.7.
+- Verify release archives beside their exact versioned Core sibling without renaming or symlinking it; reject missing, ambiguous or incorrectly versioned Core trees.
+
 ## 0.2.9 - 2026-10-06
 
 - Update locked PyJWT to 2.15.0 to reject deeply nested JWT payloads with DecodeError.

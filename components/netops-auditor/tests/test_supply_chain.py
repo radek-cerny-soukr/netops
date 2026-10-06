@@ -4,6 +4,8 @@ import tomllib
 from fnmatch import fnmatch
 from pathlib import Path
 
+import pytest
+
 from netops_auditor.suppressions import MIGRATE_COMMAND
 
 COMPONENT = Path(__file__).resolve().parents[1]
@@ -15,7 +17,7 @@ URL = re.compile(r"[a-z][a-z0-9+.-]*://[^\s\"]*")
 ABSOLUTE_PATH = re.compile(r"(?<![A-Za-z0-9_.~-])/[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)+")
 WINDOWS_PATH = re.compile(r"[A-Za-z]:\\\\?[A-Za-z0-9_.-]")
 CORE_NAME = "netops-core"
-CORE_VERSION = "0.2.6"
+CORE_VERSION = "0.2.7"
 CORE_REQUIREMENT = "%s==%s" % (CORE_NAME, CORE_VERSION)
 CORE_PURL = "pkg:pypi/%s@%s" % (CORE_NAME, CORE_VERSION)
 
@@ -79,12 +81,41 @@ def test_sbom_carries_the_shared_access_layer_as_the_required_dependency():
     ]
 
 
-def test_the_pinned_core_version_is_the_one_in_the_tree():
-    document = tomllib.loads(
-        (COMPONENT.parent / CORE_NAME / "pyproject.toml").read_text(encoding="utf-8")
-    )["project"]
+def _core_tree(parent):
+    candidates = [path for path in (parent / CORE_NAME, parent / (CORE_NAME + "-" + CORE_VERSION))
+                  if path.is_dir()]
+    assert len(candidates) == 1, "provide exactly one pinned Core source tree beside Auditor"
+    core = candidates[0]
+    document = tomllib.loads((core / "pyproject.toml").read_text(encoding="utf-8"))["project"]
     assert document["name"] == CORE_NAME
     assert document["version"] == CORE_VERSION
+    assert (core / "src/netops_core/__init__.py").is_file()
+    return core
+
+
+def test_the_pinned_core_version_is_the_one_in_the_tree():
+    _core_tree(COMPONENT.parent)
+
+
+@pytest.mark.parametrize("versioned", [False, True])
+def test_core_source_layout_accepts_repository_and_pinned_archive(tmp_path, versioned):
+    core = tmp_path / (CORE_NAME + "-" + CORE_VERSION if versioned else CORE_NAME)
+    (core / "src/netops_core").mkdir(parents=True)
+    (core / "src/netops_core/__init__.py").write_text("")
+    (core / "pyproject.toml").write_text('[project]\nname="netops-core"\nversion="0.2.7"\n')
+    assert _core_tree(tmp_path) == core
+    (core / "pyproject.toml").write_text('[project]\nname="netops-core"\nversion="0.0.1"\n')
+    with pytest.raises(AssertionError):
+        _core_tree(tmp_path)
+
+
+def test_core_source_layout_rejects_missing_or_ambiguous_trees(tmp_path):
+    with pytest.raises(AssertionError):
+        _core_tree(tmp_path)
+    (tmp_path / CORE_NAME).mkdir()
+    (tmp_path / (CORE_NAME + "-" + CORE_VERSION)).mkdir()
+    with pytest.raises(AssertionError):
+        _core_tree(tmp_path)
 
 
 def test_every_link_into_the_core_archive_names_the_pinned_version():
@@ -164,4 +195,4 @@ def test_the_action_runs_the_sources_it_ships_with():
     text = ACTION.read_text(encoding="utf-8")
     assert 'PYTHONPATH="$NETOPS_SOURCE/src:$NETOPS_SOURCE/../netops-core/src"' in text
     assert (COMPONENT / "src" / "netops_auditor" / "__main__.py").is_file()
-    assert (COMPONENT.parent / "netops-core" / "src" / "netops_core" / "__init__.py").is_file()
+    assert (_core_tree(COMPONENT.parent) / "src/netops_core/__init__.py").is_file()
