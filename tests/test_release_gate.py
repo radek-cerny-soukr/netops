@@ -578,3 +578,24 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+
+
+def test_diagnostic_multicast_exception_requires_rejection_fixture():
+    gate = _load_gate()
+    relative = "components/netops-helper/tests/test_fortios_diagnostics.py"
+    source = (ROOT / relative).read_text(encoding="utf-8")
+    assert not gate._address_errors(relative, source, False)
+    assert gate._address_errors("tests/other.py", source, False)
+    for before, after in (
+        ("def test_invalid_request(kwargs):", "def test_accepted_request(kwargs):"),
+        ("values.update(kwargs)", "pass"),
+        ("values.update(kwargs)", "values.update(kwargs)\n    values.clear()"),
+        ("pytest.raises(ValueError)", "pytest.raises(AssertionError)"),
+        ("d.validate(**values)", "d.authorize(**values)"),
+    ):
+        assert before in source
+        assert gate._address_errors(relative, source.replace(before, after, 1), False)
+    address = str(ipaddress.IPv4Address(0xE0000001))
+    assert gate._address_errors(relative, source + "\nOTHER = " + repr(address) + "\n", False)
+    private_source = source.replace(address, RFC1918_TEST_ADDRESS)
+    assert gate._address_errors(relative, private_source, False)

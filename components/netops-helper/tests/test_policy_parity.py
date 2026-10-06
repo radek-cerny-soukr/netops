@@ -56,7 +56,7 @@ REPRESENTATIVE_SLOT_VALUES = {
     "eos_interface": "Ethernet1",
     "eos_physical_interface": "Ethernet3/1",
     "eos_lldp_interface": "Management1",
-    "eos_lacp_interface": "Port-Channel10",
+    "eos_lacp_interface": "Ethernet1",
     "eos_stp_interface": "Port-Channel10",
     "eos_ospf_interface": "Vlan4094",
     "junos_interface": "ae0.0",
@@ -300,7 +300,7 @@ class PolicyParityTests(unittest.TestCase):
         }
         expected_counts = {
             "linux": 16,
-            "fortinet": 46,
+            "fortinet": 50,
             "extreme_exos": 49,
             "cisco_ios": 27,
             "cisco_xe": 27,
@@ -318,7 +318,7 @@ class PolicyParityTests(unittest.TestCase):
             },
             expected_counts,
         )
-        self.assertEqual(sum(expected_counts.values()), 286)
+        self.assertEqual(sum(expected_counts.values()), 290)
         expected_names = {
             platform: frozenset(queries)
             for platform, queries in read_policy.READ_QUERIES.items()
@@ -478,6 +478,14 @@ class PolicyParityTests(unittest.TestCase):
             (
                 "Junos LACP subtype",
                 "juniper_junos", "lacp_interface", "ae0.0",
+            ),
+            (
+                "EOS LACP aggregate",
+                "arista_eos", "lacp_peer_interface", "Port-Channel10",
+            ),
+            (
+                "EOS LACP management",
+                "arista_eos", "lacp_peer_interface", "Management1",
             ),
         )
         for label, platform, query_name, value in cases:

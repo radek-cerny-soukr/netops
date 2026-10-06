@@ -90,9 +90,12 @@ EXACT = {
 TESTS = {
     "tests/conftest.py", "tests/run_tests.py", "tests/test_apply_egress_rules.py",
     "tests/test_audit_rotation.py", "tests/test_egress_scripts.py",
-    "tests/test_engine_contracts.py", "tests/test_engine_safety.py",
+    "tests/test_engine_contracts.py", "tests/test_engine_safety.py", "tests/test_schema_read.py",
+    "tests/test_fortios_diagnostics.py",
     "tests/test_ssh_wire_safety.py",
+    "tests/test_ftp_wire_safety.py",
     "tests/test_cli_errors.py",
+    "tests/test_malformed_inputs.py",
     "tests/test_runtime_tar_safety.py",
     "tests/test_connection_pacing.py",
     "tests/test_phase1_surface.py",
@@ -106,6 +109,7 @@ TESTS = {
     "tests/test_sanitize.py", "tests/test_security.py",
     "tests/test_sftp_safety.py", "tests/test_supply_chain.py",
     "tests/test_check_operator_config.py",
+    "tests/test_secret_canaries.py",
 }
 SCRIPTS = {
     "scripts/apply_egress_rules.py", "scripts/check_egress_rules.py",

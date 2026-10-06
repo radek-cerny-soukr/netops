@@ -53,6 +53,8 @@ MANIFEST_FIELDS = {
     "files",
 }
 REQUIRED_RELEASE_PATHS = {
+    "src/netops_helper/schema_read.py", "tests/test_schema_read.py",
+    "tests/test_fortios_diagnostics.py",
     "docs/query-catalog.md",
     "docs/query-sources.json",
     "scripts/apply_egress_rules.py",
@@ -65,7 +67,10 @@ REQUIRED_RELEASE_PATHS = {
     "tests/test_check_operator_config.py",
     "tests/test_engine_contracts.py",
     "tests/test_ssh_wire_safety.py",
+    "tests/test_ftp_wire_safety.py",
+    "tests/test_secret_canaries.py",
     "tests/test_cli_errors.py",
+    "tests/test_malformed_inputs.py",
     "tests/test_runtime_tar_safety.py",
     "tests/test_connection_pacing.py",
     "tests/test_policy_parity.py",
@@ -143,6 +148,122 @@ def _mcp_tool(function: ast.FunctionDef | ast.AsyncFunctionDef) -> bool:
     )
 
 
+def _schema_snapshot_allowed(tree: ast.AST) -> bool:
+    functions=[n for n in getattr(tree,"body",()) if isinstance(n,ast.FunctionDef) and n.name=="schema_read"]
+    if len(functions)!=1:
+        return False
+    function=functions[0]
+    if not any(isinstance(n,ast.Name) and n.id=="_audit_device_call" for n in function.decorator_list):
+        return False
+    imports=[n for n in ast.walk(function) if isinstance(n,ast.ImportFrom) and n.level==1 and n.module is None]
+    if not any(any(a.name=="schema_read" and a.asname=="reader" for a in n.names) for n in imports):
+        return False
+    calls=[n for n in ast.walk(function) if isinstance(n,ast.Call)]
+    controls={}
+    for call in calls:
+        if isinstance(call.func,ast.Attribute) and isinstance(call.func.value,ast.Name) and call.func.value.id=="reader":
+            controls.setdefault(call.func.attr,[]).append(call)
+    if any(len(controls.get(name,()))!=1 for name in ("binding","selectors","verify_status","snapshot")):
+        return False
+    reads=[n for n in calls if isinstance(n.func,ast.Name) and n.func.id=="read_from_device"]
+    if len(reads)!=2 or any(len(n.args)!=3 for n in reads):
+        return False
+    status=[n for n in reads if isinstance(n.args[2],ast.Constant) and n.args[2].value=="get system status"]
+    snapshots=[n for n in reads if isinstance(n.args[2],ast.Constant) and n.args[2].value=="show full-configuration"]
+    if len(status)!=1 or len(snapshots)!=1:
+        return False
+    ordered=[controls["binding"][0],controls["selectors"][0],status[0],controls["verify_status"][0],snapshots[0],controls["snapshot"][0]]
+    if [n.lineno for n in ordered]!=sorted(n.lineno for n in ordered):
+        return False
+    if any(not isinstance(n.args[0],ast.Name) or n.args[0].id!="auth" or
+           not isinstance(n.args[1],ast.Constant) or n.args[1].value!="fortinet" for n in reads):
+        return False
+    parents={child:parent for parent in ast.walk(function) for child in ast.iter_child_nodes(parent)}
+    expected={"binding":["auth"],"selectors":["auth","library","path","view","vdom","keys"],
+              "verify_status":["library","status"]}
+    for name,arguments in expected.items():
+        if [getattr(arg,"id",None) for arg in controls[name][0].args]!=arguments:
+            return False
+    identity_assignment=parents.get(controls["verify_status"][0])
+    if not isinstance(identity_assignment,ast.Assign) or len(identity_assignment.targets)!=1 or not isinstance(identity_assignment.targets[0],ast.Name):
+        return False
+    context_name=identity_assignment.targets[0].id
+    stores=[n for n in ast.walk(function) if isinstance(n,ast.Name) and n.id==context_name and isinstance(n.ctx,ast.Store)]
+    if len(stores)!=1:
+        return False
+    context_keywords=[n for n in controls["snapshot"][0].keywords if n.arg=="current_vdom"]
+    if len(context_keywords)!=1 or not isinstance(context_keywords[0].value,ast.Name) or context_keywords[0].value.id!=context_name:
+        return False
+    snapshot_assignment=parents.get(snapshots[0])
+    if not isinstance(snapshot_assignment,ast.Assign) or len(snapshot_assignment.targets)!=1:
+        return False
+    target=snapshot_assignment.targets[0]
+    if not isinstance(target,ast.Tuple) or [getattr(n,"id",None) for n in target.elts]!=["rc","raw"]:
+        return False
+    for node in ast.walk(function):
+        if isinstance(node,ast.Name) and node.id=="raw" and isinstance(node.ctx,ast.Load):
+            parent=parents[node]
+            refusal=isinstance(parent,ast.Call) and isinstance(parent.func,ast.Name) and parent.func.id=="_cli_refused" and len(parent.args)==2 and parent.args[1] is node
+            selection=parent is controls["snapshot"][0] and len(parent.args)>=2 and parent.args[1] is node
+            if not (refusal or selection):
+                return False
+    return True
+
+
+def _diagnostic_vdom_allowed(tree: ast.AST) -> bool:
+    functions=[n for n in getattr(tree,"body",()) if isinstance(n,ast.FunctionDef) and n.name=="run"]
+    if len(functions)!=1:
+        return False
+    function=functions[0]
+    calls=[n for n in ast.walk(function) if isinstance(n,ast.Call)]
+    reads=[n for n in calls if isinstance(n.func,ast.Attribute) and isinstance(n.func.value,ast.Name)
+           and n.func.value.id=="shell" and n.func.attr=="command" and n.args
+           and isinstance(n.args[0],ast.Constant) and n.args[0].value=="show full-configuration system vdom-property"]
+    if len(reads)!=1:
+        return False
+    expected=ast.parse('table is None or domain not in table.entries',mode="eval").body
+    checks=[n for n in ast.walk(function) if isinstance(n,ast.If) and ast.dump(n.test)==ast.dump(expected)
+            and any(isinstance(child,ast.Raise) for child in n.body)]
+    if len(checks)!=1:
+        return False
+    assignments=[n for n in ast.walk(function) if isinstance(n,ast.Name) and n.id=="table" and isinstance(n.ctx,ast.Store)]
+    if len(assignments)!=1:
+        return False
+    parents={child:parent for parent in ast.walk(function) for child in ast.iter_child_nodes(parent)}
+    expected_value=ast.parse('fortios.parse(shell.command("show full-configuration system vdom-property")).section("system vdom-property")',mode="eval").body
+    assignment=parents.get(assignments[0])
+    if not isinstance(assignment,ast.Assign) or ast.dump(assignment.value)!=ast.dump(expected_value):
+        return False
+    edits=[n for n in calls if isinstance(n.func,ast.Attribute) and isinstance(n.func.value,ast.Name)
+           and n.func.value.id=="shell" and n.func.attr=="navigate" and n.args
+           and any(isinstance(part,ast.Constant) and isinstance(part.value,str) and part.value.startswith('edit "') for part in ast.walk(n.args[0]))]
+    if len(edits)!=1 or not any(isinstance(part,ast.Name) and part.id=="domain" for part in ast.walk(edits[0].args[0])):
+        return False
+    return reads[0].lineno<checks[0].lineno<edits[0].lineno
+
+
+def _diagnostic_wrapper_allowed(tree: ast.AST) -> bool:
+    functions=[n for n in getattr(tree,"body",()) if isinstance(n,ast.FunctionDef) and n.name=="fortios_diagnostics"]
+    if len(functions)!=1:
+        return False
+    function=functions[0]
+    if not any(isinstance(n,ast.Name) and n.id=="_audit_device_call" for n in function.decorator_list):
+        return False
+    expected={"diagnostics.validate": ["recipe","address","interface","count","timeout","max_bytes","vdom"],
+              "diagnostics.authorize": ["auth","recipe","address","interface","vdom"],
+              "reader.binding": ["auth"],
+              "diagnostics.run": ["shell","library","recipe","address","interface","count","timeout","vdom"]}
+    found={}
+    for call in (n for n in ast.walk(function) if isinstance(n,ast.Call)):
+        if isinstance(call.func,ast.Attribute) and isinstance(call.func.value,ast.Name):
+            name=call.func.value.id+"."+call.func.attr
+            if name in expected:
+                if name in found or [getattr(arg,"id",None) for arg in call.args]!=expected[name]:
+                    return False
+                found[name]=call.lineno
+    return set(found)==set(expected) and list(found[name] for name in expected)==sorted(found.values())
+
+
 def _phase1_surface_errors(root: Path) -> list[str]:
     errors: list[str] = []
     source_root = root / "src/netops_helper"
@@ -215,6 +336,13 @@ def _phase1_surface_errors(root: Path) -> list[str]:
                 for marker in ("config_export", "backup_config", "raw_command")
             ):
                 errors.append(f"phase-1 server registers forbidden tool: {node.name}")
+
+    diagnostic_tools=[n for n in source_trees[server_path].body if isinstance(n,ast.FunctionDef) and n.name=="fortios_diagnostics" and _mcp_tool(n)]
+    if diagnostic_tools:
+        engine=source_trees.get(source_root/"engine.py")
+        recipes=source_trees.get(source_root/"fortios_diagnostics.py")
+        if engine is None or recipes is None or not _diagnostic_wrapper_allowed(engine) or not _diagnostic_vdom_allowed(recipes):
+            errors.append("bounded diagnostic audit, grants, binding or VDOM controls are incomplete")
 
     removed_body_read_identifiers = {
         "https_get",
@@ -312,6 +440,20 @@ def _phase1_surface_errors(root: Path) -> list[str]:
     for source_path in source_paths:
         relative = source_path.relative_to(root).as_posix()
         source_text = source_texts[source_path]
+        if relative == "src/netops_helper/engine.py" and _schema_snapshot_allowed(source_trees[source_path]):
+            function=next(n for n in source_trees[source_path].body if isinstance(n,ast.FunctionDef) and n.name=="schema_read")
+            lines=source_text.splitlines(keepends=True)
+            bounded="".join(lines[function.lineno-1:function.end_lineno])
+            if bounded.count("show full-configuration")==1 and source_text.count("show full-configuration")==1:
+                source_text=source_text.replace("show full-configuration","[bounded schema snapshot]",1)
+        if relative == "src/netops_helper/fortios_diagnostics.py" and _diagnostic_vdom_allowed(source_trees[source_path]):
+            vdom_token="show full-configuration system vdom-property"
+            interface_token='show full-configuration system interface "'
+            owner=ast.parse('interfaces is None or set(interfaces.entries)!={interface} or interfaces.entries[interface].value("vdom")!=domain',mode="eval").body
+            guards=[n for n in ast.walk(source_trees[source_path]) if isinstance(n,ast.If) and ast.dump(n.test)==ast.dump(owner) and any(isinstance(child,ast.Raise) for child in n.body)]
+            if len(guards)==1 and source_text.count("show full-configuration")==2:
+                source_text=source_text.replace(vdom_token,"[verified VDOM inventory]",1)
+                source_text=source_text.replace(interface_token,"[verified interface owner]"+chr(34),1)
         for pattern in forbidden_catalog_patterns:
             if pattern in source_text:
                 errors.append(

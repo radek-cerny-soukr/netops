@@ -14,6 +14,29 @@ from .model import (
 
 
 QUERIES: dict[str, Query] = {
+    # State views measured on FortiGate-VM64-KVM 7.6.7 build3704 and
+    # 8.0.0 build0167. Each query still requires its own target grant.
+    "ping_options": Query(
+        "execute ping-options view-settings",
+        NO_SLOTS,
+        "Read current and default IPv4 ping options without changing them.",
+    ),
+    "traceroute_options": Query(
+        "execute traceroute-options view-settings",
+        NO_SLOTS,
+        "Read current IPv4 traceroute options without changing them.",
+    ),
+    "debug_state": Query(
+        "diagnose debug info",
+        NO_SLOTS,
+        "Read enabled debug state without starting, stopping, or resetting debug.",
+        high_volume=True,
+    ),
+    "session_filter_state": Query(
+        "diagnose sys session filter",
+        NO_SLOTS,
+        "Read current session filters without replacing or clearing them.",
+    ),
     "certificate_details": Query(
         "get vpn certificate local details {certificate}",
         {"certificate": Slot("certificates", "certificate_name")},

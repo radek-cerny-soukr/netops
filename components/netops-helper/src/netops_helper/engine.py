@@ -29,12 +29,14 @@ from netops_core import prompt as core_prompt
 from netops_core import session as core_session
 from netops_core import sftp as core_sftp
 from netops_core import ssh as core_ssh
+from netops_core.inputs import InputError, read_regular
 
 from .audit import AuditPostOperationError, AuditPreflightError, record
 from .auth import (
     LEGACY_SSH_PROFILES, AuthenticationContextError, EgressScopeError,
     LegacySshProfileRequired, TargetAuth,
 )
+from .inventory import unique_object
 from .read_policy import READ_QUERIES, normalize_platform, render_read_query
 from .sanitize import digest_text, redact
 
@@ -489,9 +491,12 @@ def _page_text(text: str, offset: int, max_bytes: int) -> dict[str, Any]:
     }
 
 
+INVALID_AUDIT_VALUE = "<invalid>"
+
+
 def _audit_fields(arguments: dict[str, Any], result: dict[str, Any]) -> dict[str, Any]:
     fields: dict[str, Any] = {}
-    for name in ("port", "count", "offset", "max_bytes"):
+    for name in ("port", "count", "offset", "max_bytes", "timeout"):
         value = arguments.get(name)
         if isinstance(value, int) and not isinstance(value, bool):
             fields[name] = value
@@ -501,16 +506,22 @@ def _audit_fields(arguments: dict[str, Any], result: dict[str, Any]) -> dict[str
             fields[name if name != "acknowledge_unencrypted" else "plaintext_acknowledged"] = value
     if isinstance(arguments.get("oids"), list):
         fields["item_count"] = len(arguments["oids"])
-    for name in ("query", "platform"):
-        value = arguments.get(name)
-        if isinstance(value, str):
-            fields[name] = value
-    if isinstance(fields.get("platform"), str):
+    platform: str | None = None
+    if "platform" in arguments:
         try:
-            fields["platform"] = normalize_platform(fields["platform"])
+            platform = normalize_platform(arguments["platform"])
         except ValueError:
-            pass
-    path = arguments.get("remote_path")
+            fields["platform"] = INVALID_AUDIT_VALUE
+        else:
+            fields["platform"] = platform
+    if "query" in arguments:
+        query = arguments["query"]
+        valid = platform is not None and isinstance(query, str) and query in READ_QUERIES[platform]
+        fields["query"] = query if valid else INVALID_AUDIT_VALUE
+    if "recipe" in arguments:
+        value = arguments["recipe"]
+        fields["recipe"] = value if isinstance(value, str) and value in {"ping","traceroute","sniffer","sessions","flow"} else INVALID_AUDIT_VALUE
+    path = arguments.get("remote_path",arguments.get("path"))
     if isinstance(path, str):
         fields["path_sha256"] = digest_text(path)
     for name in (
@@ -704,6 +715,127 @@ def ssh_read(
     }
 
 
+class _FortiosDiagnosticShell:
+    def __init__(self, session):
+        self.session = session
+        _, login = session.expect([b"# ", b"$ "], 15)
+        marker = login.splitlines()[-1]
+        if not re.fullmatch(rb"[A-Za-z0-9_.+-]+(?: \([A-Za-z0-9_.+-]+\))? [#$] ", marker):
+            raise ValueError("the FortiOS session prompt cannot be verified")
+        self.prompt = marker
+        session.discard(login)
+
+    def _answer(self, command, timeout):
+        _, raw = self.session.expect([self.prompt], timeout)
+        text = _pty_body(raw, command, self.prompt)
+        if _cli_refused("fortinet", text):
+            raise ValueError("the device refused a diagnostic step")
+        return text
+
+    def command(self, command, timeout=10):
+        self.session.send(command)
+        return self._answer(command, timeout)
+
+    def navigate(self, command):
+        self.session.send(command)
+        _, raw = self.session.expect([b"# ", b"$ "], 10)
+        marker = raw.splitlines()[-1]
+        if not re.fullmatch(rb"[A-Za-z0-9_.+-]+(?: \([A-Za-z0-9_.+-]+\))? [#$] ", marker):
+            raise ValueError("the FortiOS context prompt cannot be verified")
+        text = _pty_body(raw, command, marker)
+        if _cli_refused("fortinet", text):
+            raise ValueError("the device refused the diagnostic context")
+        self.prompt = marker
+        return text
+
+    def listen(self, timeout):
+        return self._answer("", timeout)
+
+    def interrupt(self):
+        self.session.interrupt()
+
+
+@_audit_device_call
+def fortios_diagnostics(auth: TargetAuth, recipe: str, address: str, interface: str,
+                        count: int = 3, timeout: int = 5, max_bytes: int = 16000, vdom: str | None = None) -> dict[str, Any]:
+    from . import fortios_diagnostics as diagnostics
+    from . import schema_read as reader
+    diagnostics.validate(recipe, address, interface, count, timeout, max_bytes, vdom)
+    diagnostics.authorize(auth, recipe, address, interface, vdom)
+    library = reader.binding(auth)
+    target_address = _resolve_target_ipv4(auth)[0]
+    known_hosts = host_key_line(auth, target_address, "fortinet")
+    try:
+        with _paced_connection(target_address, auth.port, "fortinet"):
+            with core_session.Session(target_address, auth.port, auth.login, DeviceCredential(auth),
+                                      known_hosts, legacy_ssh=auth.legacy_ssh,
+                                      timeout_seconds=30, capture_max_bytes=131072) as session:
+                shell = _FortiosDiagnosticShell(session)
+                raw, timed_out = diagnostics.run(shell, library, recipe, address, interface, count, timeout, vdom)
+    except Exception:
+        raise ValueError("bounded FortiOS diagnostic failed; the session was closed") from None
+    cleaned = redact(raw, auth.secrets)
+    data = cleaned.encode("utf-8")
+    if recipe == "sessions":
+        parts = re.split(r"(?m)(?=^session info:)", cleaned)
+        if len(parts) > count + 1:
+            cleaned = "".join(parts[:count + 1])
+    returned = cleaned.encode("utf-8")[:max_bytes].decode("utf-8", "ignore")
+    return {"ok": True, "target": auth.alias, "recipe": recipe, "schema_sha256": library.sha256,
+            "content_sha256": digest_text(cleaned),
+            "identity": library.identity, "deadline_reached": timed_out,
+            "cleanup": "verified", "total_bytes": len(data), "returned_bytes": len(returned.encode("utf-8")),
+            "truncated": returned != redact(raw, auth.secrets),
+            "untrusted_device_output": returned}
+
+
+@_audit_device_call
+def schema_read(
+    auth: TargetAuth, path: str, view: str, vdom: str | None,
+    owners: list[str] | None, offset: int, max_bytes: int,
+) -> dict[str, Any]:
+    from . import schema_read as reader
+    offset,max_bytes=_validate_pagination(offset,max_bytes)
+    library=reader.binding(auth)
+    keys=[] if owners is None else owners
+    reader.selectors(auth,library,path,view,vdom,keys)
+    cache_key=_ssh_cache_key(auth,"fortinet","schema_read",{
+        "path":path,"view":view,"vdom":json.dumps(vdom),"owners":json.dumps(keys),
+        "schema":library.sha256})
+    if offset:
+        cached=_load_cached_ssh_output(cache_key)
+        if cached is None:
+            raise ValueError("schema pagination state expired; restart at offset 0")
+        rc,cleaned=cached
+        source="cached"
+    else:
+        try:
+            rc,status=read_from_device(auth,"fortinet","get system status")
+        except Exception:
+            raise ValueError("SSH schema identity read failed") from None
+        if rc not in (0,None) or _cli_refused("fortinet",status):
+            raise ValueError("the device refused the identity check")
+        current_vdom=reader.verify_status(library,status)
+        try:
+            rc,raw=read_from_device(auth,"fortinet","show full-configuration")
+        except Exception:
+            raise ValueError("SSH schema snapshot read failed") from None
+        if rc not in (0,None) or _cli_refused("fortinet",raw):
+            raise ValueError("the device refused the schema snapshot")
+        report=reader.snapshot(library,raw,path,view,vdom,keys,auth.secrets,current_vdom=current_vdom)
+        cleaned=json.dumps(report,ensure_ascii=False,separators=(",",":"))
+        if len(cleaned.encode("utf-8"))>_SSH_CAPTURE_MAX_BYTES:
+            raise ValueError("schema result exceeds its safety cap")
+        source="fresh"
+    page=_page_text(cleaned,offset,max_bytes)
+    if page["next_offset"] is not None:
+        if offset==0:_store_cached_ssh_output(cache_key,rc,cleaned)
+    else:
+        with _SSH_CACHE_LOCK:_SSH_PAGE_CACHE.pop(cache_key,None)
+    return {"ok":True,"target":auth.alias,"platform":"fortinet","query":"schema_read",
+            "schema_sha256":library.sha256,"pagination_source":source,**page}
+
+
 @_audit_device_call
 def dns_probe(auth: TargetAuth) -> dict[str, Any]:
     auth.require_dns()
@@ -823,7 +955,10 @@ async def snmp_get(auth: TargetAuth, oids: list[str], port: int) -> dict[str, An
         raise ValueError("provide between 1 and 20 bounded string OIDs")
     community = auth.require_snmp_community()
     auth.require_udp_port(port)
-    address = _resolve_target_ipv4(auth)[0]
+    try:
+        address = _resolve_target_ipv4(auth)[0]
+    except OSError as exc:
+        return {"ok": False, "target": auth.alias, "error": _safe_error(exc, auth)}
 
     from pysnmp.hlapi.v3arch.asyncio import (
         CommunityData, ContextData, ObjectIdentity, ObjectType, SnmpEngine,
@@ -831,8 +966,8 @@ async def snmp_get(auth: TargetAuth, oids: list[str], port: int) -> dict[str, An
     )
 
     engine = SnmpEngine()
-    transport = await UdpTransportTarget.create((address, port), timeout=2, retries=1)
     try:
+        transport = await UdpTransportTarget.create((address, port), timeout=2, retries=1)
         error_indication, error_status, error_index, var_binds = await get_cmd(
             engine,
             CommunityData(community, mpModel=1),
@@ -894,7 +1029,9 @@ async def sftp_stat(auth: TargetAuth, remote_path: str) -> dict[str, Any]:
         return answer
     answer["size"] = entry.size
     answer["mode"] = None if entry.mode is None else oct(entry.mode & 0o7777)
-    answer["modified_ls"] = entry.modified_ls
+    answer["modified_ls"] = (
+        None if entry.modified_ls is None else redact(entry.modified_ls, auth.secrets)
+    )
     return answer
 
 
@@ -920,36 +1057,51 @@ def _safe_remote_path(auth: TargetAuth, remote_path: str) -> str:
 
 TLS_PINS_PATH = Path("/etc/netops-helper/tls-pins.json")
 TLS_CERT_DIR = Path("/etc/netops-helper/certs")
+TLS_PINS_MAX_BYTES = 1024 * 1024
 PLAIN_FTP_WARNING = (
     "WARNING: Plain FTP is unencrypted. Credentials and directory listing data "
     "are transmitted in plaintext."
 )
 
 
+class FtpsPinError(RuntimeError):
+    pass
+
+
 def _ftps_context(alias: str) -> tuple[ssl.SSLContext, str | None]:
     try:
-        configured = json.loads(TLS_PINS_PATH.read_text(encoding="utf-8"))
+        configured = json.loads(read_regular(TLS_PINS_PATH, TLS_PINS_MAX_BYTES).decode("utf-8"),
+                                object_pairs_hook=unique_object)
     except FileNotFoundError:
         context = ssl.create_default_context()
         context.minimum_version = ssl.TLSVersion.TLSv1_2
         return context, None
-    except (OSError, json.JSONDecodeError) as exc:
-        raise RuntimeError("FTPS pin configuration is invalid") from exc
+    except (OSError, InputError, ValueError, RecursionError) as exc:
+        raise FtpsPinError("FTPS pin configuration is invalid") from exc
+    if not isinstance(configured, dict):
+        raise FtpsPinError("FTPS pin configuration is invalid")
     entry = configured.get(alias)
     if entry is None:
         context = ssl.create_default_context()
         context.minimum_version = ssl.TLSVersion.TLSv1_2
         return context, None
     if not isinstance(entry, dict):
-        raise RuntimeError("FTPS pin entry is invalid")
+        raise FtpsPinError("FTPS pin entry is invalid")
     digest = str(entry.get("sha256", "")).lower()
     if len(digest) != 64 or any(char not in "0123456789abcdef" for char in digest):
-        raise RuntimeError("FTPS pin digest is invalid")
-    certificate = Path(str(entry.get("certificate", ""))).resolve()
-    certificate_root = TLS_CERT_DIR.resolve()
-    if certificate_root not in certificate.parents or not certificate.is_file():
-        raise RuntimeError("FTPS pin certificate is unavailable")
-    context = ssl.create_default_context(cafile=str(certificate))
+        raise FtpsPinError("FTPS pin digest is invalid")
+    try:
+        certificate = Path(str(entry.get("certificate", ""))).resolve()
+        certificate_root = TLS_CERT_DIR.resolve()
+        usable = certificate_root in certificate.parents and certificate.is_file()
+    except (OSError, ValueError, RuntimeError):
+        usable = False
+    if not usable:
+        raise FtpsPinError("FTPS pin certificate is unavailable")
+    try:
+        context = ssl.create_default_context(cafile=str(certificate))
+    except (OSError, ValueError) as exc:
+        raise FtpsPinError("FTPS pin certificate is unreadable") from exc
     context.minimum_version = ssl.TLSVersion.TLSv1_2
     context.check_hostname = False
     if hasattr(ssl, "VERIFY_X509_PARTIAL_CHAIN"):
@@ -988,6 +1140,48 @@ def _install_ftp_passive_guard(
 _FTP_LIST_MAX_BYTES = 2_000_000
 _FTP_LIST_MAX_NAMES = 500
 _FTP_TOTAL_TIMEOUT_SECONDS = 30.0
+_FTP_CONTROL_MAX_BYTES = 262_144
+
+
+def _install_ftp_control_budget(client: ftplib.FTP) -> None:
+    original_getline = client.getline
+    received = 0
+
+    def bounded_getline() -> str:
+        nonlocal received
+        line = original_getline()
+        received += len(line.encode(client.encoding, errors="replace")) + 2
+        if received > _FTP_CONTROL_MAX_BYTES:
+            raise ValueError("FTP control replies exceed the receive byte budget")
+        return line
+
+    client.getline = bounded_getline  # type: ignore[method-assign]
+
+
+def _require_pinned_peer(peer: ssl.SSLSocket, pin_digest: str, channel: str) -> None:
+    certificate = peer.getpeercert(binary_form=True)
+    actual = hashlib.sha256(certificate or b"").hexdigest()
+    if not certificate or not hmac.compare_digest(actual, pin_digest):
+        raise ssl.SSLCertVerificationError(f"pinned FTPS certificate mismatch{channel}")
+
+
+def _install_ftps_data_pin(client: ftplib.FTP_TLS, pin_digest: str) -> None:
+    original_ntransfercmd = client.ntransfercmd
+
+    def pinned_ntransfercmd(command: str, rest: Any = None) -> tuple[Any, int | None]:
+        connection, size = original_ntransfercmd(command, rest)
+        try:
+            if not isinstance(connection, ssl.SSLSocket):
+                raise ssl.SSLCertVerificationError(
+                    "pinned FTPS certificate mismatch on the data connection"
+                )
+            _require_pinned_peer(connection, pin_digest, " on the data connection")
+        except BaseException:
+            connection.close()
+            raise
+        return connection, size
+
+    client.ntransfercmd = pinned_ntransfercmd  # type: ignore[method-assign]
 
 
 class _FTPBudget:
@@ -1091,16 +1285,33 @@ def ftp_list(
         )
     auth.require_tcp_port(port)
     auth.require_passive_tcp_range()
-    control_address = _resolve_target_ipv4(auth)[0]
+    try:
+        control_address = _resolve_target_ipv4(auth)[0]
+    except OSError as exc:
+        return {
+            "ok": False,
+            "target": auth.alias,
+            "tls": use_tls,
+            "transport_encrypted": use_tls,
+            "plaintext_acknowledged": not use_tls and acknowledge_unencrypted,
+            "security_warning": None if use_tls else PLAIN_FTP_WARNING,
+            "certificate_pinned": False,
+            "failure_stage": "resolve",
+            "error_type": type(exc).__name__,
+            "error": _safe_error(exc, auth),
+        }
     pin_digest: str | None = None
     security_warning: str | None = None
     if use_tls:
         context, pin_digest = _ftps_context(auth.alias)
         client: ftplib.FTP = ftplib.FTP_TLS(timeout=30, context=context)
+        if pin_digest is not None:
+            _install_ftps_data_pin(client, pin_digest)
     else:
         security_warning = PLAIN_FTP_WARNING
         client = ftplib.FTP(timeout=30)
     _install_ftp_passive_guard(client, auth, control_address)
+    _install_ftp_control_budget(client)
     budget = _FTPBudget(client)
     stage = "connect"
     try:
@@ -1111,10 +1322,7 @@ def ftp_list(
             budget.call(client.auth)
             if pin_digest is not None:
                 stage = "certificate_pin"
-                peer = client.sock.getpeercert(binary_form=True)
-                actual = hashlib.sha256(peer or b"").hexdigest()
-                if not peer or not hmac.compare_digest(actual, pin_digest):
-                    raise ssl.SSLCertVerificationError("pinned FTPS certificate mismatch")
+                _require_pinned_peer(client.sock, pin_digest, "")
             stage = "login_over_tls"
             budget.call(client.login, auth.login, auth.secret)
             stage = "protect_data_channel"

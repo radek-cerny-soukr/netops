@@ -8,7 +8,7 @@ from typing import Iterable
 
 
 _SECRET_LABELS = (
-    r"bearer|token|api[_ -]?key|password|passwd|secret|community"
+    r"(?:api|access)[_ -]?token|bearer|token|api[_ -]?key|password|passwd|secret|community"
 )
 ASSIGNED_QUOTED_SECRET = re.compile(
     rf"""(?ix)

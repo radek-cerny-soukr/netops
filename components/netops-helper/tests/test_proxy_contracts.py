@@ -5,18 +5,22 @@ from __future__ import annotations
 
 from base64 import b64encode, urlsafe_b64decode
 import ast
+import contextlib
 import copy
 import hashlib
 import hmac
 import importlib.util
+import io
 import json
 import os
 from pathlib import Path
+import socket
 import stat
 import subprocess
 import threading
 import sys
 import tempfile
+import time
 
 
 ROOT = Path(__file__).parents[1]
@@ -662,7 +666,7 @@ def check_query_authority_and_typed_pre_auth(
     }
     expected_counts = {
         "linux": 16,
-        "fortinet": 46,
+        "fortinet": 50,
         "extreme_exos": 49,
         "cisco_ios": 27,
         "cisco_xe": 27,
@@ -683,9 +687,9 @@ def check_query_authority_and_typed_pre_auth(
         for name in sorted(names)
     )
     assert hashlib.sha256(name_contract.encode()).hexdigest() == (
-        "bb14ae64915ffb9195fca8a4520057b0c1bfeabd18d198b75d2d2e6f44137a80"
+        "5b365239a6600c7f5a42300bb8cd718a0b8c0876051c38711db179a27bf816cf"
     )
-    assert sum(expected_counts.values()) == 286
+    assert sum(expected_counts.values()) == 290
 
     expected_kind_inventory = {
         "vlan_name": "vlans",
@@ -850,7 +854,7 @@ def check_query_authority_and_typed_pre_auth(
         ("arista_eos", "interface_details", "Ethernet1"),
         ("arista_eos", "interface_optics", "Ethernet3/1"),
         ("arista_eos", "lldp_neighbors_interface", "Management1"),
-        ("arista_eos", "lacp_peer_interface", "Port-Channel10"),
+        ("arista_eos", "lacp_peer_interface", "Ethernet8"),
         ("arista_eos", "stp_interface", "Ethernet1"),
         ("arista_eos", "ospf_neighbors_interface", "Vlan4094"),
         ("juniper_junos", "interface_details", "ae0.0"),
@@ -949,6 +953,10 @@ def check_query_authority_and_typed_pre_auth(
         (
             "juniper_junos", "lacp_interface",
             "ae0.0", "ae0.0",
+        ),
+        (
+            "arista_eos", "lacp_peer_interface",
+            "Port-Channel10", "Port-Channel10",
         ),
     )
     for index, (
@@ -1518,6 +1526,628 @@ def check_a_dead_child_is_reported_while_stdin_stays_open(module, directory: Pat
     assert b"netops_proxy_transport" not in remaining
 
 
+SERVER_REQUEST_REFUSAL = {
+    "code": -32601,
+    "message": "The NetOps Helper proxy does not relay server requests to the client.",
+}
+REFUSED_SERVER_METHODS = (
+    "sampling/createMessage", "elicitation/create", "roots/list", "tasks/get",
+)
+SESSION_ENDED_LINE = "netops_proxy_session category=session_terminated reason=%s"
+INVITING_CAPABILITIES = {
+    "sampling": {"tools": {}}, "elicitation": {"form": {}, "url": {}},
+    "roots": {"listChanged": True}, "experimental": {"probe": {}},
+}
+CAPABILITIES_META_KEY = "io.modelcontextprotocol/clientCapabilities"
+
+
+def _session_terminated(module, identifier, reason: str) -> dict:
+    return {"jsonrpc": "2.0", "id": identifier, "error": {
+        "code": -32015,
+        "message": module.SessionTerminatedError.public_message,
+        "data": {"category": "session_terminated", "reason": reason},
+    }}
+
+
+def check_server_output_is_never_relayed_unredacted(module) -> None:
+    proxy = module.Proxy()
+    proxy.session_secrets.update(dict.fromkeys((DEVICE_SECRET, "opaque-session-value")))
+    to_server: list[bytes] = []
+    proxy.server_writer = to_server.append
+    notification = {
+        "jsonrpc": "2.0", "method": "notifications/message",
+        "params": {"data": DEVICE_SECRET},
+    }
+    secret = DEVICE_SECRET.encode()
+    refused = (
+        b"plain text " + secret + b"\n",
+        json.dumps(DEVICE_SECRET).encode() + b"\n",
+        json.dumps(12345).encode() + b"\n",
+        json.dumps(None).encode() + b"\n",
+        json.dumps([DEVICE_SECRET, notification]).encode() + b"\n",
+        b"\xff\xfe " + secret + b"\n",
+        b'{"jsonrpc":"2.0","id":5,"result":{"text":"\xff ' + secret + b'"}}\n',
+        b"[" * 200_000 + b"]" * 200_000 + b"\n",
+    )
+    log = io.StringIO()
+    with contextlib.redirect_stderr(log):
+        for raw in refused:
+            proxy.open_session()
+            assert proxy.response(raw) == b"", raw[:40]
+            assert not proxy.session_open, raw[:40]
+        proxy.open_session()
+        assert proxy.response(b"\n") == b""
+        assert proxy.response(b"  \r\n") == b""
+        assert proxy.session_open
+        keyed = proxy.response(json.dumps({
+            "jsonrpc": "2.0", "method": "notifications/message",
+            "params": {"data": {"opaque-session-value": "value", "nested": [DEVICE_SECRET]}},
+        }).encode())
+    assert secret not in keyed and b"opaque-session-value" not in keyed
+    assert json.loads(keyed)["params"]["data"] == {
+        "<REDACTED>": "value", "nested": ["<REDACTED>"],
+    }
+    lines = log.getvalue().splitlines()
+    assert lines == ["netops_proxy_refused category=server_message"] * len(refused)
+    assert to_server == []
+
+
+def check_server_requests_to_the_client_are_refused(module) -> None:
+    proxy = module.Proxy()
+    proxy.pending[1] = "tools/call"
+    proxy.pending_tools[1] = "tcp_probe"
+    proxy.response_secrets[1] = (DEVICE_SECRET,)
+    to_server: list[bytes] = []
+    proxy.server_writer = to_server.append
+    log = io.StringIO()
+    marker = "server-chosen-prompt-text"
+    with contextlib.redirect_stderr(log):
+        for method in REFUSED_SERVER_METHODS:
+            request = {
+                "jsonrpc": "2.0", "id": 1, "method": method,
+                "params": {"messages": [{"content": {"type": "text", "text": marker}}]},
+            }
+            assert proxy.response(json.dumps(request).encode() + b"\n") == b""
+            assert proxy.pending[1] == "tools/call"
+            assert proxy.response_secrets[1] == (DEVICE_SECRET,)
+        assert proxy.response(b'{"jsonrpc":"2.0","id":"p","method":"ping"}\n') == b""
+        batch = [
+            {"jsonrpc": "2.0", "id": 7, "method": "roots/list"},
+            {"jsonrpc": "2.0", "id": 1, "result": {
+                "content": [{"type": "text", "text": DEVICE_SECRET}],
+            }},
+        ]
+        relayed = json.loads(proxy.response(json.dumps(batch).encode()))
+        proxy.pending[2] = "tools/call"
+        proxy.pending_tools[2] = "tcp_probe"
+        input_required = {"jsonrpc": "2.0", "id": 2, "result": {
+            "resultType": "input_required",
+            "inputRequests": {"ask": {
+                "method": "elicitation/create",
+                "params": {"message": marker, "requestedSchema": {"type": "object"}},
+            }},
+            "requestState": marker,
+        }}
+        refused_result = proxy.response(json.dumps(input_required).encode())
+        proxy.pending[3] = "tools/call"
+        proxy.pending_tools[3] = "tcp_probe"
+        complete = proxy.response(json.dumps({"jsonrpc": "2.0", "id": 3, "result": {
+            "resultType": "complete",
+            "content": [{"type": "text", "text": "{\"ok\":true}"}],
+        }}).encode())
+    replies = [json.loads(item) for item in to_server]
+    assert replies == [
+        {"jsonrpc": "2.0", "id": 1, "error": SERVER_REQUEST_REFUSAL}
+        for _ in REFUSED_SERVER_METHODS
+    ] + [
+        {"jsonrpc": "2.0", "id": "p", "result": {}},
+        {"jsonrpc": "2.0", "id": 7, "error": SERVER_REQUEST_REFUSAL},
+    ]
+    assert all(item.endswith(b"\n") for item in to_server)
+    assert [item["id"] for item in relayed] == [1]
+    assert DEVICE_SECRET not in relayed[0]["result"]["content"][0]["text"]
+    assert 1 not in proxy.pending and 1 not in proxy.response_secrets
+    assert json.loads(refused_result) == {"jsonrpc": "2.0", "id": 2, "error": {
+        "code": -32013,
+        "message": "The server asked the client for input; the read-only Helper does not relay such requests.",
+        "data": {"category": "server_input_request"},
+    }}
+    assert 2 not in proxy.pending and 2 not in proxy.pending_tools
+    assert json.loads(complete)["result"]["resultType"] == "complete"
+    output = log.getvalue()
+    assert marker not in output and DEVICE_SECRET not in output
+    assert output.splitlines() == [
+        "netops_proxy_refused category=server_request method=sampling/createMessage",
+        "netops_proxy_refused category=server_request method=elicitation/create",
+        "netops_proxy_refused category=server_request method=roots/list",
+        "netops_proxy_refused category=server_request method=other",
+        "netops_proxy_refused category=server_request method=roots/list",
+        "netops_proxy_refused category=server_input_request method=tools/call",
+    ]
+
+
+FAKE_HOSTILE_SSH = """#!%s
+import json, os, sys
+
+secret = %r
+message = json.loads(sys.stdin.buffer.readline())
+asks = [
+    {"jsonrpc": "2.0", "id": message["id"], "method": "sampling/createMessage", "params": {
+        "messages": [{"role": "user", "content": {"type": "text", "text": secret}}],
+    }},
+    {"jsonrpc": "2.0", "id": "r", "method": "roots/list"},
+    {"jsonrpc": "2.0", "id": "p", "method": "ping"},
+]
+for ask in asks:
+    sys.stdout.write(json.dumps(ask) + chr(10))
+sys.stdout.flush()
+replies = [json.loads(sys.stdin.buffer.readline()) for _ in asks]
+with open(os.environ["NETOPS_FAKE_SSH_RECORD"], "w", encoding="utf-8") as handle:
+    json.dump({"replies": replies}, handle)
+for line in (b"\\xff\\xfe " + secret.encode(), b"plain text " + secret.encode()):
+    sys.stdout.buffer.write(line + b"\\n")
+sys.stdout.write(json.dumps({
+    "jsonrpc": "2.0", "id": message["id"],
+    "result": {"content": [{"type": "text", "text": "answer " + secret}]},
+}) + chr(10))
+sys.stdout.flush()
+for raw in sys.stdin.buffer:
+    pass
+"""
+
+
+def check_hostile_server_lines_over_a_fake_ssh(module, directory: Path) -> None:
+    _, _, _, runner_path = _configure(module, directory)
+    pin = module.hostkey.fingerprint_of(RUNNER_HOST_KEY)
+    _write(runner_path, _runner(pin))
+    binaries = _fake_tools(directory)
+    hostile = binaries / "ssh"
+    hostile.write_text(FAKE_HOSTILE_SSH % (sys.executable, DEVICE_SECRET), encoding="utf-8")
+    hostile.chmod(0o755)
+    record = directory / "fake-ssh-record.json"
+    process = subprocess.Popen(
+        [sys.executable, "-B", str(LAUNCHER)],
+        cwd=directory,
+        env=_proxy_environment(module, directory, binaries, record),
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    answers: list[dict] = []
+    raw_lines: list[bytes] = []
+
+    def read_until_answer() -> None:
+        for line in iter(process.stdout.readline, b""):
+            raw_lines.append(line)
+            answers.append(json.loads(line))
+            if answers[-1].get("id") == 3:
+                return
+
+    try:
+        process.stdin.write(_request(3, "ssh_read", {
+            "target": "device-a", "platform": "fortios", "query": "system_status",
+        }) + b"\n")
+        process.stdin.flush()
+        reader = threading.Thread(target=read_until_answer)
+        reader.start()
+        reader.join(timeout=20)
+        assert not reader.is_alive(), "the pending request was not answered"
+    finally:
+        process.stdin.close()
+        code = process.wait(timeout=20)
+    rest = process.stdout.read()
+    stderr = process.stderr.read()
+    assert code == 0, stderr.decode(errors="replace")
+    assert rest == b""
+    secret = DEVICE_SECRET.encode()
+    assert all(secret not in line for line in raw_lines)
+    assert secret not in stderr
+    assert answers == [_session_terminated(module, 3, "server_message")], answers
+    replies = json.loads(record.read_text(encoding="utf-8"))["replies"]
+    assert replies == [
+        {"jsonrpc": "2.0", "id": 3, "error": SERVER_REQUEST_REFUSAL},
+        {"jsonrpc": "2.0", "id": "r", "error": SERVER_REQUEST_REFUSAL},
+        {"jsonrpc": "2.0", "id": "p", "result": {}},
+    ]
+    assert stderr.decode().splitlines() == [
+        "netops_proxy_refused category=server_request method=sampling/createMessage",
+        "netops_proxy_refused category=server_request method=roots/list",
+        "netops_proxy_refused category=server_message",
+        SESSION_ENDED_LINE % "server_message",
+    ]
+
+
+def check_client_capabilities_that_invite_server_requests_are_withheld(module) -> None:
+    proxy = module.Proxy()
+    initialize = {
+        "jsonrpc": "2.0", "id": 0, "method": "initialize", "params": {
+            "protocolVersion": "2025-11-25",
+            "capabilities": copy.deepcopy(INVITING_CAPABILITIES),
+            "clientInfo": {"name": "client", "version": "1"},
+        },
+    }
+    forwarded = json.loads(proxy.request(json.dumps(initialize).encode()))
+    assert forwarded["params"]["capabilities"] == {"experimental": {"probe": {}}}, forwarded
+    assert forwarded["params"]["clientInfo"] == {"name": "client", "version": "1"}
+    enveloped = {
+        "jsonrpc": "2.0", "id": 1, "method": "tools/list", "params": {"_meta": {
+            "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+            CAPABILITIES_META_KEY: copy.deepcopy(INVITING_CAPABILITIES),
+        }},
+    }
+    forwarded = json.loads(proxy.request(json.dumps(enveloped).encode()))
+    meta = forwarded["params"]["_meta"]
+    assert meta[CAPABILITIES_META_KEY] == {"experimental": {"probe": {}}}, forwarded
+    assert meta["io.modelcontextprotocol/protocolVersion"] == "2026-07-28"
+
+
+def check_waiting_requests_are_bounded(module) -> None:
+    proxy = module.Proxy()
+    emitted: list[dict] = []
+    proxy._emit = emitted.append
+    forwarded = [
+        proxy.request(json.dumps({
+            "jsonrpc": "2.0", "id": "w%d" % index, "method": "tools/list",
+        }).encode())
+        for index in range(1000)
+    ]
+    accepted = sum(item is not None for item in forwarded)
+    assert accepted < 1000, "the proxy holds %d unanswered requests" % len(proxy.pending)
+    limit = module.MAX_PENDING_REQUESTS
+    assert accepted == limit == len(proxy.pending) == len(proxy.pending_deadlines)
+    assert len(emitted) == 1000 - limit
+    assert emitted[0] == {"jsonrpc": "2.0", "id": "w%d" % limit, "error": {
+        "code": -32014, "message": module.PendingLimitError.public_message,
+        "data": {"category": "pending_limit", "max_pending_requests": limit},
+    }}
+    cancelled = {
+        "jsonrpc": "2.0", "method": "notifications/cancelled", "params": {"requestId": "w0"},
+    }
+    assert proxy.request(json.dumps(cancelled).encode()) is not None
+    answer = proxy.response(json.dumps({
+        "jsonrpc": "2.0", "id": "w0", "result": {"tools": []},
+    }).encode())
+    assert json.loads(answer)["id"] == "w0"
+    assert "w0" not in proxy.pending and "w0" not in proxy.pending_deadlines
+    again = {"jsonrpc": "2.0", "id": "again", "method": "tools/list"}
+    assert proxy.request(json.dumps(again).encode()) is not None
+    assert len(proxy.pending) == limit
+
+
+def check_an_unpaired_server_answer_ends_the_session(module) -> None:
+    proxy = module.Proxy()
+    emitted: list[dict] = []
+    proxy._emit = emitted.append
+    proxy.pending.update({1: "tools/call", 2: "tools/list"})
+    proxy.pending_tools[1] = "ssh_read"
+    proxy.response_secrets[1] = (DEVICE_SECRET,)
+    proxy.session_secrets.update(dict.fromkeys((DEVICE_SECRET,)))
+    unpaired = json.dumps({
+        "jsonrpc": "2.0", "id": None, "error": {"code": -32700, "message": "Parse error"},
+    }).encode()
+    late = json.dumps({"jsonrpc": "2.0", "id": 1, "result": {
+        "content": [{"type": "text", "text": "late " + DEVICE_SECRET}],
+    }}).encode()
+    log = io.StringIO()
+    with contextlib.redirect_stderr(log):
+        relayed = [proxy.response(unpaired), proxy.response(late)]
+    assert relayed == [b"", b""], relayed
+    assert emitted == []
+    assert proxy.pending_tools == {1: "ssh_read"}
+    held: list[tuple] = []
+
+    def terminate() -> None:
+        held.append((dict(proxy.response_secrets), dict(proxy.session_secrets)))
+
+    with contextlib.redirect_stderr(log):
+        proxy.finish_session(terminate)
+    assert held == [({1: (DEVICE_SECRET,)}, {DEVICE_SECRET: None})]
+    assert not proxy.pending and not proxy.pending_tools and not proxy.pending_deadlines
+    assert not proxy.response_secrets and not proxy.session_secrets
+    assert emitted == [
+        _session_terminated(module, 1, "unpaired_response"),
+        _session_terminated(module, 2, "unpaired_response"),
+    ]
+    assert log.getvalue().splitlines() == [SESSION_ENDED_LINE % "unpaired_response"]
+    proxy.open_session()
+    proxy.pending[5] = "tools/list"
+    answer = proxy.response(json.dumps({
+        "jsonrpc": "2.0", "id": 5, "result": {"tools": []},
+    }).encode())
+    assert json.loads(answer)["id"] == 5
+
+    batched = module.Proxy()
+    emitted.clear()
+    batched._emit = emitted.append
+    batched.pending.update({7: "tools/list"})
+    batch = [
+        {"jsonrpc": "2.0", "id": 7, "result": {"tools": []}},
+        {"jsonrpc": "2.0", "id": 8, "result": {"tools": []}},
+    ]
+    with contextlib.redirect_stderr(log):
+        assert batched.response(json.dumps(batch).encode()) == b""
+        batched.finish_session(lambda: None)
+    assert emitted == [_session_terminated(module, 7, "unpaired_response")]
+
+
+OVERSIZED_PROBE = b'{"jsonrpc":"2.0","id":99,"method":"tools/list"}'
+
+
+def check_an_oversized_client_line_is_refused_whole(module, directory: Path) -> None:
+    _, _, _, runner_path = _configure(module, directory)
+    _write(runner_path, _runner(module.hostkey.fingerprint_of(RUNNER_HOST_KEY)))
+    binaries = _fake_tools(directory)
+    record = directory / "fake-ssh-record.json"
+    record.unlink(missing_ok=True)
+    limit = module.MAX_REQUEST_BYTES
+    calls = b"".join((
+        b" " * (limit + 1) + OVERSIZED_PROBE + b"\n",
+        b" " * (2 * limit + 2) + OVERSIZED_PROBE.replace(b"99", b"98") + b"\n",
+        _request(1, "helper_status", {}) + b"\n",
+    ))
+    completed = subprocess.run(
+        [sys.executable, "-B", str(LAUNCHER)],
+        cwd=directory,
+        env=_proxy_environment(module, directory, binaries, record),
+        input=calls,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        timeout=60,
+        check=False,
+    )
+    assert completed.returncode == 0, completed.stderr.decode()
+    answers = [json.loads(line) for line in completed.stdout.splitlines() if line.strip()]
+    forwarded = [
+        json.loads(item)
+        for item in json.loads(record.read_text(encoding="utf-8"))["requests"]
+    ]
+    assert [item.get("id") for item in forwarded] == [1], forwarded
+    oversized = {"jsonrpc": "2.0", "id": None, "error": {
+        "code": -32700, "message": "Request exceeds the size limit.",
+    }}
+    assert answers[:2] == [oversized, oversized], answers
+    assert [item.get("id") for item in answers[2:]] == [1], answers
+
+
+def check_the_proxy_file_runs_as_a_script(module, directory: Path) -> None:
+    secret = "askpass-handoff-value"
+    name = "netops-helper-test-askpass-" + os.urandom(8).hex()
+    listener = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    listener.bind("\0" + name)
+    listener.listen(1)
+    listener.settimeout(20)
+
+    def serve() -> None:
+        try:
+            connection, _ = listener.accept()
+        except OSError:
+            return
+        with connection:
+            connection.sendall(secret.encode())
+
+    server = threading.Thread(target=serve, daemon=True)
+    server.start()
+    environment = {key: value for key, value in os.environ.items() if key != "PYTHONPATH"}
+    environment.update({
+        module.ASKPASS_MODE_ENV: "1", module.ASKPASS_SOCKET_ENV: name,
+        "PYTHONDONTWRITEBYTECODE": "1",
+    })
+    try:
+        askpass = subprocess.run(
+            [str(SCRIPT), "runner-user@runner.example.invalid's password: "],
+            cwd=directory, env=environment, stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            timeout=20, check=False, text=True,
+        )
+    finally:
+        listener.close()
+    assert askpass.returncode == 0, askpass.stderr
+    assert askpass.stdout == secret + "\n"
+    assert askpass.stderr == ""
+    help_environment = {key: value for key, value in os.environ.items() if key != "PYTHONPATH"}
+    help_environment.update({
+        "PYTHONPATH": str(ROOT.parent / "netops-core" / "src"),
+        "PYTHONDONTWRITEBYTECODE": "1",
+    })
+    shown = subprocess.run(
+        [sys.executable, str(SCRIPT), "--help"],
+        cwd=directory, env=help_environment, stdin=subprocess.DEVNULL,
+        stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+        timeout=20, check=False, text=True,
+    )
+    assert shown.returncode == 0, shown.stderr
+    assert "usage:" in shown.stdout
+
+
+FAKE_STALLING_SSH = """#!%s
+import json, os, subprocess, sys
+
+secret = %r
+refuse_restart = %r
+record = os.environ["NETOPS_FAKE_SSH_RECORD"]
+restarted = os.path.exists(record) and '"started"' in open(record, encoding="utf-8").read()
+late_writer = (
+    "import json, sys, time\\n"
+    "time.sleep(3.0)\\n"
+    "sys.stdout.write(sys.argv[1] + chr(10))\\n"
+    "sys.stdout.flush()\\n"
+    "with open(sys.argv[2], 'a', encoding='utf-8') as handle:\\n"
+    "    handle.write(json.dumps({'late_written': True}) + chr(10))\\n"
+)
+
+
+def note(entry):
+    with open(record, "a", encoding="utf-8") as handle:
+        handle.write(json.dumps(dict(entry, pid=os.getpid())) + chr(10))
+
+
+note({"started": True})
+for raw in sys.stdin.buffer:
+    message = json.loads(raw)
+    note({"message": message})
+    if "id" not in message:
+        continue
+    if message["id"] == "stall":
+        late = json.dumps({"jsonrpc": "2.0", "id": "stall", "result": {
+            "content": [{"type": "text", "text": "late " + secret}],
+        }})
+        subprocess.Popen([sys.executable, "-c", late_writer, late, record])
+        continue
+    if message.get("method") == "initialize" and refuse_restart and restarted:
+        sys.stdout.write(json.dumps({"jsonrpc": "2.0", "id": message["id"], "error": {
+            "code": -32603, "message": "refused",
+        }}) + chr(10))
+        sys.stdout.flush()
+        continue
+    if message.get("method") == "initialize":
+        result = {
+            "protocolVersion": message["params"]["protocolVersion"],
+            "capabilities": {"tools": {}}, "serverInfo": {"name": "fake", "version": "1"},
+        }
+    else:
+        result = {"content": [{"type": "text", "text": json.dumps({"ok": True})}]}
+    sys.stdout.write(json.dumps({"jsonrpc": "2.0", "id": message["id"], "result": result}) + chr(10))
+    sys.stdout.flush()
+"""
+
+
+def _stalling_proxy(module, directory: Path, refuse_restart: bool):
+    _, _, _, runner_path = _configure(module, directory)
+    _write(runner_path, _runner(module.hostkey.fingerprint_of(RUNNER_HOST_KEY)))
+    binaries = _fake_tools(directory)
+    stalling = binaries / "ssh"
+    stalling.write_text(
+        FAKE_STALLING_SSH % (sys.executable, DEVICE_SECRET, refuse_restart), encoding="utf-8",
+    )
+    stalling.chmod(0o755)
+    record = directory / "fake-ssh-sessions.jsonl"
+    record.unlink(missing_ok=True)
+    launcher = (
+        "import sys; sys.path[:0] = %r; "
+        "from netops_helper import proxy; "
+        "proxy.PENDING_RESPONSE_TIMEOUT_SECONDS = 1.0; "
+        "raise SystemExit(proxy.main())"
+    ) % ([str(ROOT / "src"), str(ROOT.parent / "netops-core" / "src")],)
+    process = subprocess.Popen(
+        [sys.executable, "-B", "-c", launcher],
+        cwd=directory,
+        env=_proxy_environment(module, directory, binaries, record),
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    lines: list[bytes] = []
+
+    def collect() -> None:
+        for line in iter(process.stdout.readline, b""):
+            lines.append(line)
+
+    reader = threading.Thread(target=collect, daemon=True)
+    reader.start()
+    return process, record, lines, reader
+
+
+def _answer_for(lines: list[bytes], identifier, timeout: float) -> dict:
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        for line in list(lines):
+            item = json.loads(line)
+            if item.get("id") == identifier:
+                return item
+        time.sleep(0.05)
+    raise AssertionError("no answer for %r in %r" % (identifier, lines))
+
+
+def _send(process, payload: bytes) -> None:
+    process.stdin.write(payload + b"\n")
+    process.stdin.flush()
+
+
+STALL_QUERY = {"target": "device-a", "platform": "fortios", "query": "system_status"}
+
+
+def _initialize_and_stall(process, lines: list[bytes]) -> dict:
+    _send(process, json.dumps({"jsonrpc": "2.0", "id": 0, "method": "initialize", "params": {
+        "protocolVersion": "2025-11-25",
+        "capabilities": copy.deepcopy(INVITING_CAPABILITIES),
+        "clientInfo": {"name": "client", "version": "1"},
+    }}).encode())
+    assert "result" in _answer_for(lines, 0, 20)
+    _send(process, json.dumps({"jsonrpc": "2.0", "method": "notifications/initialized"}).encode())
+    _send(process, _request("stall", "ssh_read", STALL_QUERY))
+    stalled = _answer_for(lines, "stall", 20)
+    assert "error" in stalled, stalled
+    return stalled
+
+
+def check_an_overdue_answer_ends_the_session_and_the_next_request_restarts_it(
+    module, directory: Path,
+) -> None:
+    process, record, lines, reader = _stalling_proxy(module, directory, False)
+
+    def late_written(timeout: float) -> bool:
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            if record.exists() and '"late_written"' in record.read_text(encoding="utf-8"):
+                return True
+            time.sleep(0.05)
+        return False
+
+    try:
+        stalled = _initialize_and_stall(process, lines)
+        assert late_written(10), "the late answer was never written"
+        time.sleep(0.5)
+        _send(process, _request("next", "ssh_read", STALL_QUERY))
+        following = _answer_for(lines, "next", 20)
+    finally:
+        process.stdin.close()
+        code = process.wait(timeout=20)
+    reader.join(timeout=5)
+    stderr = process.stderr.read().decode(errors="replace")
+    assert code == 0, stderr
+    assert stalled == _session_terminated(module, "stall", "response_timeout"), stalled
+    assert "result" in following and "error" not in following, following
+    assert all(DEVICE_SECRET.encode() not in line for line in lines)
+    assert [json.loads(line).get("id") for line in lines] == [0, "stall", "next"], lines
+    assert stderr.splitlines() == [SESSION_ENDED_LINE % "response_timeout"], stderr
+    sessions: dict[int, list[dict]] = {}
+    for line in record.read_text(encoding="utf-8").splitlines():
+        entry = json.loads(line)
+        if "message" in entry:
+            sessions.setdefault(entry["pid"], []).append(entry["message"])
+    assert len(sessions) == 2, sessions
+    first, second = sessions.values()
+    methods = ["initialize", "notifications/initialized", "tools/call"]
+    assert [item.get("method") for item in first] == methods, first
+    assert [item.get("method") for item in second] == methods, second
+    assert first[0]["params"]["capabilities"] == {"experimental": {"probe": {}}}
+    assert second[0]["params"] == first[0]["params"]
+    assert second[0]["id"] not in (0, "stall", "next")
+    assert first[2]["id"] == "stall" and second[2]["id"] == "next"
+
+
+def check_a_session_that_cannot_restart_ends_the_proxy(module, directory: Path) -> None:
+    process, record, lines, reader = _stalling_proxy(module, directory, True)
+    try:
+        stalled = _initialize_and_stall(process, lines)
+        _send(process, _request("next", "ssh_read", STALL_QUERY))
+        following = _answer_for(lines, "next", 40)
+        code = process.wait(timeout=20)
+    finally:
+        if process.poll() is None:
+            process.kill()
+            process.wait(timeout=10)
+    reader.join(timeout=5)
+    stderr = process.stderr.read().decode(errors="replace")
+    assert code == 2, stderr
+    assert stalled == _session_terminated(module, "stall", "response_timeout"), stalled
+    assert following == _session_terminated(module, "next", "session_start"), following
+    assert all(DEVICE_SECRET.encode() not in line for line in lines)
+    assert stderr.splitlines() == [
+        SESSION_ENDED_LINE % "response_timeout", SESSION_ENDED_LINE % "session_start",
+    ], stderr
+
+
 def _main_function_call_names(source_path: Path) -> set[str]:
     tree = ast.parse(source_path.read_text(encoding="utf-8"))
     main_function = next(
@@ -1543,14 +2173,44 @@ def check_shared_legacy_configuration_detection() -> None:
     assert "legacy_configuration_detail" in preflight_calls
 
 
+def check_bounded_diagnostic_scope(module):
+    from types import SimpleNamespace
+    request={"target":"fg-1","recipe":"ping","address":"192.0.2.183","interface":"port2","vdom":"VD1"}
+    assert module.Proxy._validate_tool_arguments("fortios_diagnostics",request)==request
+    for field,value in (("recipe","reset"),("address","192.0.2.183;reboot"),("interface",None),
+                        ("interface","any"),("vdom","VD1\\nend"),("count",True),
+                        ("count",9),("timeout",11),("max_bytes",16001)):
+        bad=dict(request);bad[field]=value
+        try:
+            module.Proxy._validate_tool_arguments("fortios_diagnostics",bad)
+        except module.ToolArgumentsError:
+            pass
+        else:
+            raise AssertionError("invalid diagnostic request accepted")
+    inventory={"diagnostic_recipes":("ping",),"addresses":("192.0.2.183",),
+               "interfaces":("port2",),"diagnostic_vdoms":("VD1",)}
+    section=SimpleNamespace(egress={},catalog_platform=lambda:"fortinet",
+                            enabled_queries=("system_status",),read_inventory=inventory)
+    module.Proxy._authorize_tool("fortios_diagnostics",request,None,section)
+    for category in inventory:
+        section.read_inventory={key:value for key,value in inventory.items() if key!=category}
+        try:
+            module.Proxy._authorize_tool("fortios_diagnostics",request,None,section)
+        except module.PolicyScopeError:
+            pass
+        else:
+            raise AssertionError("unenrolled diagnostic request accepted")
+
+
 def main() -> int:
     module = _load_proxy()
+    check_bounded_diagnostic_scope(module)
     assert stat.S_IMODE(SCRIPT.stat().st_mode) == 0o755
     assert module.DEFAULT_RATE_REQUESTS == 30
     expected_control = {"helper_status", "read_query_catalog", "target_scope"}
     expected_device = {
         "dns_probe", "tcp_probe", "icmp_probe", "tls_probe", "ssh_read",
-        "snmp_get", "sftp_stat", "ftp_list",
+        "snmp_get", "sftp_stat", "ftp_list", "schema_read", "fortios_diagnostics",
     }
     assert module.CONTROL_TOOLS == expected_control
     assert module.DEVICE_TOOLS == expected_device
@@ -1558,8 +2218,8 @@ def main() -> int:
     assert module.REMOTE_SERVER_TOOLS == (
         expected_control | expected_device
     ) - {"target_scope"}
-    assert module.SSH_TOOLS == {"ssh_read", "sftp_stat"}
-    assert len(module.TOOL_ARGUMENT_SCHEMAS) == 11
+    assert module.SSH_TOOLS == {"ssh_read", "sftp_stat", "schema_read", "fortios_diagnostics"}
+    assert len(module.TOOL_ARGUMENT_SCHEMAS) == 13
     assert module.SSH_TRANSPORT_FAILURE_MESSAGE == (
         "The remote MCP SSH transport failed."
     )
@@ -1608,6 +2268,18 @@ def main() -> int:
         check_ssh_launch_hardening(module, directory)
         check_end_to_end_over_a_fake_ssh(module, directory)
         check_a_dead_child_is_reported_while_stdin_stays_open(module, directory)
+        check_server_output_is_never_relayed_unredacted(module)
+        check_server_requests_to_the_client_are_refused(module)
+        check_client_capabilities_that_invite_server_requests_are_withheld(module)
+        check_waiting_requests_are_bounded(module)
+        check_an_unpaired_server_answer_ends_the_session(module)
+        check_hostile_server_lines_over_a_fake_ssh(module, directory)
+        check_an_oversized_client_line_is_refused_whole(module, directory)
+        check_the_proxy_file_runs_as_a_script(module, directory)
+        check_an_overdue_answer_ends_the_session_and_the_next_request_restarts_it(
+            module, directory,
+        )
+        check_a_session_that_cannot_restart_ends_the_proxy(module, directory)
     check_shared_legacy_configuration_detection()
     print("proxy_contract_tests=passed")
     return 0

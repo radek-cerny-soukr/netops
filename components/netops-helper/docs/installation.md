@@ -8,7 +8,7 @@ NetOps Helper phase 1 uses three trust zones:
 
 The proxy and execution host may share one machine in a deployment. Device-side authorization, the egress contract, and the dedicated client session remain separate mandatory boundaries.
 
-The published ARM64 container runs digest-pinned Python 3.14.7. The source packages retain Python 3.13 as their minimum; installing them does not upgrade the interpreter or OpenSSH on the proxy host. Keep those host dependencies patched separately. Review the [release findings](known-vulnerabilities.md) for the exact image scan and remaining exposure.
+The published ARM64 container runs digest-pinned Python 3.14.8. The source packages retain Python 3.13 as their minimum; installing them does not upgrade the interpreter or OpenSSH on the proxy host. Keep those host dependencies patched separately. Review the [release findings](known-vulnerabilities.md) for the exact image scan and remaining exposure.
 
 ## 1. Prepare target accounts
 
@@ -22,11 +22,43 @@ The same device credential is used for SSH, SFTP, FTPS, and plain FTP. Plain FTP
 
 ## 2. Install the shared access layer on the proxy host
 
-The proxy and the egress generator import `netops_core` and `netops_helper`. From 0.3.7 both are on PyPI: `python -m pip install netops-helper==0.3.7` in the environment that runs the proxy installs the helper and the `netops-core` version it pins. Alternatively take them from the tree of this repository: install `components/netops-core` and `components/netops-helper` into that environment, or put `components/netops-core/src` and `components/netops-helper/src` on `PYTHONPATH`. The scripts add both directories themselves when they are started from a checkout, so a checkout needs no further setup.
+The proxy and the egress generator import `netops_core` and `netops_helper`. Install them from the release assets: the source archive of this release and the source archive of `netops-core` 0.2.6, which it pins. Download each archive with the release `SHA256SUMS` and its Sigstore bundle from the release page, verify the bundle with [cosign](https://github.com/sigstore/cosign) and the archive against `SHA256SUMS`, and stop if either check fails:
 
-From a release export the same two ways apply to the unpacked archives: `python -m pip install <netops-core directory> <netops-helper directory>` into the environment that runs the proxy, or their `src` directories on `PYTHONPATH`. **Both archives are needed for that path on a host without an index**, and in that order: the helper archive carries a copy of `netops_core` for the image build, but its metadata pins `netops-core==0.2.5`, so `pip install <netops-helper directory>` on its own fetches that version from PyPI, or ends in `No matching distribution found for netops-core` where no index is reachable. That is the pin doing its job, not a damaged archive.
+```sh
+for release in netops-helper:0.3.8 netops-core:0.2.6; do
+  component=${release%%:*}
+  version=${release#*:}
+  base="https://github.com/radek-cerny-soukr/netops/releases/download/${component}%2Fv${version}"
+  for name in source.tar.gz release-SHA256SUMS release-SHA256SUMS.sigstore.json; do
+    curl -fsSLO "${base}/${component}-${version}-${name}" || exit 1
+  done
+  cosign verify-blob \
+    --bundle "${component}-${version}-release-SHA256SUMS.sigstore.json" \
+    --certificate-identity 325383355+radek-cerny-soukr@users.noreply.github.com \
+    --certificate-oidc-issuer https://github.com/login/oauth \
+    "${component}-${version}-release-SHA256SUMS" || exit 1
+  sha256sum --check --ignore-missing "${component}-${version}-release-SHA256SUMS" || exit 1
+done
+```
 
-Installing has two practical advantages over `PYTHONPATH` on a proxy host. It puts the proxy on the path as the command **`netops-helper-proxy`**, which is what a client is then configured to launch instead of an absolute path into an unpacked archive. And it puts the askpass program on the path as **`netops-askpass`**, which `NETOPS_ASKPASS_PROGRAM` may name on a host whose temporary directory is mounted `noexec`; without it, such a host cannot hand a password to the client at all, because the program written beside the secret cannot be executed there.
+Each archive must report `Verified OK` from `cosign` and `OK` from `sha256sum`. The certificate identity and issuer are the maintainer's GitHub account, the same for every component; [Verifying a release](https://github.com/radek-cerny-soukr/netops/blob/main/docs/README.md#verifying-a-release) describes the check for any release asset. Each archive also carries its own `SHA256SUMS` for the files inside it. Unpack both archives in the same directory and check those files:
+
+```sh
+tar -xzf netops-helper-0.3.8-source.tar.gz
+tar -xzf netops-core-0.2.6-source.tar.gz
+(cd netops-helper-0.3.8 && sha256sum -c SHA256SUMS)
+(cd netops-core-0.2.6 && sha256sum -c SHA256SUMS)
+```
+
+Every file must report `OK`.
+
+This guide installs the signed GitHub source assets. PyPI publication is separate and carries only the client proxy plus its exact Core dependency; check version availability before selecting that channel. The server image and its hash-locked runtime are still installed from the verified release assets. You can also install `components/netops-core` and `components/netops-helper` from a checkout, or place their `src` directories on `PYTHONPATH`. Checkout scripts add those two source directories themselves.
+
+From a release export the same two ways apply to the unpacked archives: `python -m pip install <netops-core directory> <netops-helper directory>` into the environment that runs the proxy, or their `src` directories on `PYTHONPATH`. **Both archives are needed for that path on a host without an index**, and in that order: the helper archive carries a copy of `netops_core` for the image build, but its metadata pins `netops-core==0.2.6`, so `pip install <netops-helper directory>` on its own looks for that version on the package index, and ends in `No matching distribution found for netops-core` where the index does not carry it or no index is reachable. That is the pin doing its job, not a damaged archive.
+
+Installing has one practical advantage over `PYTHONPATH` on a proxy host: it puts the proxy on the path as the command **`netops-helper-proxy`**, which is what a client is then configured to launch instead of an absolute path into an unpacked archive.
+
+The proxy does not read `NETOPS_ASKPASS_PROGRAM`. For a runner password it names its own entry point as the OpenSSH askpass program - the command it was started as (`netops-helper-proxy` or `scripts/remote_mcp_proxy.py`), otherwise the `proxy.py` file of the installed or unpacked `netops_helper` package, whichever is first an executable regular file - and hands the password to that process over a private abstract socket, so the password is never written to a file and nothing is executed from the proxy host's temporary directory. When neither is executable, the proxy refuses to start with `auth_material` (`The proxy has no executable entry point to hand the runner password to the client.`). `NETOPS_ASKPASS_PROGRAM` and the `netops-askpass` command of `netops-core` matter where `netops_core.ssh` itself hands a device password to `ssh`; in the Helper that is only the server inside the image (section 4).
 
 ## 3. Prepare configuration and trust on the proxy host
 
@@ -45,7 +77,7 @@ For private TLS or FTPS trust, complete [the private CA, SAN, and FTPS pin proce
 
 ## 4. Build and create stopped Docker resources
 
-Install Docker Engine with Compose v2 and obtain a verified release on the execution host. The image needs both `src/netops_helper` and `src/netops_core`. In the repository `compose.yaml` builds from the repository root and passes the two build arguments `COMPONENT_DIR=components/netops-helper` and `CORE_PACKAGE_DIR=components/netops-core/src/netops_core`; in a release export (`scripts/create_release_artifacts.py`), which carries `src/netops_core` inside the component tree, the exported `compose.yaml` builds from the archive root (`context: .`) with the Dockerfile's own defaults (`COMPONENT_DIR=.`, `CORE_PACKAGE_DIR=src/netops_core`), so `docker compose build --pull=false` in the unpacked archive is the documented path. The Compose network contract is:
+Install Docker Engine with Compose v2 and obtain a verified release on the execution host, downloaded and checked as in [section 2](#2-install-the-shared-access-layer-on-the-proxy-host); to load the published image instead of building it, add `linux-arm64.oci.tar` and `image-digest.txt` to the downloaded names. The image needs both `src/netops_helper` and `src/netops_core`. In the repository `compose.yaml` builds from the repository root and passes the two build arguments `COMPONENT_DIR=components/netops-helper` and `CORE_PACKAGE_DIR=components/netops-core/src/netops_core`; in a release export (`scripts/create_release_artifacts.py`), which carries `src/netops_core` inside the component tree, the exported `compose.yaml` builds from the archive root (`context: .`) with the Dockerfile's own defaults (`COMPONENT_DIR=.`, `CORE_PACKAGE_DIR=src/netops_core`), so `docker compose build --pull=false` in the unpacked archive is the documented path. The Compose network contract is:
 
 - network name `netops-helper`;
 - bridge interface `nh-egress0`;
@@ -107,7 +139,7 @@ A successful transfer proves only byte equality. It does not replace review of t
 
 Read [Egress control](egress-control.md) before changing the host firewall. Retain an out-of-band recovery path.
 
-Review the schema-3 bundle on the runner before applying it. Confirm at minimum:
+Review the schema-4 bundle on the runner before applying it. Confirm at minimum:
 
 - `manifest_sha256` matches a fresh digest of the canonical normalized manifest, the ruleset was rendered from that manifest, and the effective network scope is intended;
 - profile is the intended `strict-target` or explicitly accepted `lan-constrained` profile; for `lan-constrained`, every CIDR is a canonical subnet wholly inside RFC1918 space and every target destination lies within the declared LAN union;
@@ -115,6 +147,7 @@ Review the schema-3 bundle on the runner before applying it. Confirm at minimum:
 - `network_ipv6_enabled` is `false` and `ipv6_boundary` is `docker-network-disabled`;
 - every IPv4 destination, TCP/UDP port or range, resolver, and LAN CIDR is expected; remember that `lan-constrained` applies the union of all enrolled ports/ranges and ICMP permission to every declared LAN CIDR;
 - the final IPv4 managed-chain action is drop;
+- `host_input` is `{"default_action": "drop", "established_related": "accept", "allow_dns": false}`, and `allow_dns` is `true` only when a resolver is an address of the runner itself;
 - the bundle exposes no unintended environment data.
 
 Then invoke the privileged apply helper with the explicit consent flag and immediately run the read-only checker:
@@ -128,7 +161,7 @@ sudo python3 scripts/check_egress_rules.py \
 
 Continue only after `egress_apply=ok` and `egress_check=ok`. The helper requires root, a mode-`600` bundle, Docker inspection, `nft`, and `iptables-save`/`iptables-restore`. It rejects native Docker nftables, an indeterminate backend, an unreachable IPv4 DOCKER-USER path, a network mismatch, or any Docker IPv6 state other than exact boolean false.
 
-Bundle schema 3 contains one IPv4 ruleset and apply uses one IPv4 `iptables-restore` COMMIT. It never invokes ip6tables and does not claim an IPv6 firewall transaction. IPv6 is instead disabled on this Docker network by Compose. DOCKER-USER filters forwarded bridge traffic; it does not protect services reached through the runner's INPUT path. The checker validates its defined network and forwarding contract, not complete host containment.
+Bundle schema 4 contains one IPv4 ruleset and apply uses one IPv4 `iptables-restore` COMMIT. It never invokes ip6tables and does not claim an IPv6 firewall transaction. IPv6 is instead disabled on this Docker network by Compose. DOCKER-USER filters forwarded bridge traffic, and the host INPUT guard drops every new connection from the bridge to the runner itself. A schema 3 bundle of 0.3.7 or earlier is refused as `bundle_schema_outdated`; regenerate it. The checker validates its defined network, forwarding and host INPUT contract, not complete host containment.
 
 ## 7. Start the service only after the check
 
@@ -187,7 +220,7 @@ The ARM64 live network test must also verify:
 - survival and ordering of the DOCKER-USER jump across Docker restart;
 - checker detection of rule drift.
 
-DOCKER-USER alone does not cover INPUT. If runner-host services require protection, design a host-specific INPUT policy only after observing actual Docker DNS/NAT behavior, then retest it.
+The host INPUT guard is verified by the checker only as rules; confirm with live traffic that runner services time out from the container through the bridge address, the other bridge addresses and the LAN address. See [Egress control](egress-control.md#host-input-guard).
 
 ## Change procedure
 

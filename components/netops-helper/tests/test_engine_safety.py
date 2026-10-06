@@ -123,7 +123,7 @@ def test_ssh_cache_key_binds_the_credential_and_audit_platform_is_canonical() ->
     )
     fields = engine._audit_fields({"platform": "fortios", "query": "system_status"}, {})
     assert fields["platform"] == "fortinet"
-    assert engine._audit_fields({"platform": "not-a-platform"}, {})["platform"] == "not-a-platform"
+    assert engine._audit_fields({"platform": "not-a-platform"}, {})["platform"] == "<invalid>"
 
 
 def test_exec_read_scans_and_connects_to_the_resolved_address(monkeypatch) -> None:
@@ -980,3 +980,97 @@ def test_audited_key_operation_never_writes_the_key(tmp_path, monkeypatch) -> No
     assert "BEGIN OPENSSH PRIVATE KEY" not in written
     assert "replace-me" not in written
     assert "replace-me" not in json.dumps(result)
+
+
+def _unresolvable_target() -> TargetAuth:
+    base = replace(auth(), snmp_community="snmp-secret")
+    return replace(
+        base, host="device-a.example.invalid",
+        egress=replace(base.egress, allow_dns=True),
+    )
+
+
+def _forbidden(message: str):
+    def refuse(*args, **kwargs):
+        raise AssertionError(message)
+
+    return refuse
+
+
+def test_every_device_tool_answers_a_failed_name_resolution_with_ok_false(monkeypatch) -> None:
+    events = []
+    monkeypatch.setattr(
+        engine, "record", lambda event, **kwargs: events.append((event, kwargs["status"])),
+    )
+    monkeypatch.setattr(
+        engine.socket, "getaddrinfo",
+        lambda *args, **kwargs: (_ for _ in ()).throw(
+            engine.socket.gaierror(engine.socket.EAI_NONAME, "Name or service not known")
+        ),
+    )
+    monkeypatch.setattr(engine.socket, "create_connection", _forbidden("no socket may open"))
+    monkeypatch.setattr(engine, "ping", _forbidden("no ping may start"))
+    monkeypatch.setattr(engine.core_hostkey, "scan", _forbidden("no keyscan may start"))
+    monkeypatch.setattr(engine.ftplib.FTP, "connect", _forbidden("no FTP connection may open"))
+    backend = types.ModuleType("pysnmp.hlapi.v3arch.asyncio")
+    backend.UdpTransportTarget = types.SimpleNamespace(
+        create=_forbidden("no SNMP transport may open"),
+    )
+    backend.SnmpEngine = _forbidden("no SNMP engine may start")
+    monkeypatch.setitem(sys.modules, "pysnmp.hlapi.v3arch.asyncio", backend)
+    target = _unresolvable_target()
+    calls = {
+        "dns_probe": lambda: engine.dns_probe(target),
+        "tcp_probe": lambda: engine.tcp_probe(target, 443, 1.0),
+        "icmp_probe": lambda: engine.icmp_probe(target, 1),
+        "tls_probe": lambda: engine.tls_probe(target, 443, None),
+        "ssh_read": lambda: engine.ssh_read(
+            target, "fortios", "interface_details", {"interface": "port3"}, 0, 1000,
+        ),
+        "snmp_get": lambda: asyncio.run(engine.snmp_get(target, ["1.3.6"], 161)),
+        "sftp_stat": lambda: asyncio.run(engine.sftp_stat(target, "/safe/log")),
+        "ftp_list": lambda: engine.ftp_list(target, "/safe", True, 21),
+    }
+    for name, call in calls.items():
+        events.clear()
+        result = call()
+        assert result["ok"] is False, name
+        assert result["target"] == "device-a", name
+        assert "gaierror" in result["error"], name
+        assert "snmp-secret" not in json.dumps(result), name
+        assert events == [(name, "started"), (name, "failed")], name
+    assert calls["ftp_list"]()["failure_stage"] == "resolve"
+
+
+def test_audit_records_only_validated_platform_and_query_names(tmp_path, monkeypatch) -> None:
+    path = tmp_path / "audit.jsonl"
+    monkeypatch.setattr(audit, "_RECORDER", Recorder(path, "helper"))
+    monkeypatch.setattr(engine, "read_from_device", _forbidden("SSH connection must not open"))
+    marker = "audit-secret-marker"
+    for platform, query in (
+        (marker, "interface_details"),
+        ("fortios", marker),
+        (f"fortios {marker}", f"interface_details {marker}"),
+        ("fortios", "routing_table"),
+        (7, [marker]),
+    ):
+        if path.exists():
+            path.unlink()
+        with pytest.raises((ValueError, PolicyScopeError)):
+            engine.ssh_read(auth(), platform, query, None, 0, 1000)
+        written = path.read_text(encoding="utf-8")
+        assert marker not in written, (platform, query)
+        records = [json.loads(line) for line in written.splitlines()]
+        assert [item["status"] for item in records] == ["started", "failed"]
+        expected = {
+            "routing_table": ("fortinet", "routing_table"),
+            marker: ("fortinet", "<invalid>"),
+        }.get(query if isinstance(query, str) else None, ("<invalid>", "<invalid>"))
+        for item in records:
+            assert (item["platform"], item["query"]) == expected, (platform, query)
+    assert engine._audit_fields({"platform": "FortiOS", "query": "system_status"}, {}) == {
+        "platform": "fortinet", "query": "system_status",
+    }
+    assert engine._audit_fields({"platform": marker}, {}) == {"platform": "<invalid>"}
+    assert engine.INVALID_AUDIT_VALUE not in engine.READ_QUERIES
+    assert all(engine.INVALID_AUDIT_VALUE not in queries for queries in engine.READ_QUERIES.values())

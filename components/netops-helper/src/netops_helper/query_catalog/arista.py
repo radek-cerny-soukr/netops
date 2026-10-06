@@ -31,7 +31,7 @@ QUERIES: dict[str, Query] = {
     "lldp_neighbors_interface": Query("show lldp neighbors {interface}", _interface_slot("eos_lldp_interface"), "Show LLDP neighbors for one enrolled interface."),
     "lag_summary": Query("show port-channel dense", NO_SLOTS, "Summarize port-channel state and membership.", high_volume=True),
     "lacp_peers": Query("show lacp peer", NO_SLOTS, "Show LACP peer state.", high_volume=True),
-    "lacp_peer_interface": Query("show lacp interface {interface} peer", _interface_slot("eos_lacp_interface"), "Show LACP peer state for one enrolled interface."),
+    "lacp_peer_interface": Query("show lacp interface {interface} peer", _interface_slot("eos_lacp_interface"), "Show LACP peer state for one enrolled member Ethernet interface."),
     "stp_root": Query("show spanning-tree root", NO_SLOTS, "Show spanning-tree root state.", high_volume=True),
     "stp_interface": Query("show spanning-tree interface {interface}", _interface_slot("eos_stp_interface"), "Show spanning-tree state for one enrolled interface."),
     "route_summary": Query("show ip route summary", NO_SLOTS, "Summarize the IPv4 routing table."),

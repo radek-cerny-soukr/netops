@@ -7,10 +7,14 @@ from base64 import b64encode, urlsafe_b64encode
 import ast
 from contextlib import contextmanager
 import importlib
+import importlib.util
 import ipaddress
 import json
+import os
 from pathlib import Path
+import subprocess
 import sys
+import tomllib
 import types
 
 from netops_core.hostkey import fingerprint_of
@@ -44,6 +48,7 @@ from netops_helper.read_policy import (
     public_query_metadata,
     render_read_query,
     validate_inventory_item,
+    validate_query_inventory,
 )
 
 
@@ -566,7 +571,7 @@ def test_eos_and_junos_slot_kinds_accept_only_canonical_forms() -> None:
         ("interface_details", "Vlan4094"),
         ("interface_optics", "Ethernet3/1"),
         ("lldp_neighbors_interface", "Management1"),
-        ("lacp_peer_interface", "Port-Channel10"),
+        ("lacp_peer_interface", "Ethernet3/1"),
         ("stp_interface", "Ethernet1"),
         ("ospf_neighbors_interface", "Vlan4094"),
     )
@@ -602,6 +607,8 @@ def test_eos_and_junos_slot_kinds_accept_only_canonical_forms() -> None:
         ("arista_eos", "interface_optics", "Port-Channel10"),
         ("arista_eos", "lldp_neighbors_interface", "Loopback0"),
         ("arista_eos", "lacp_peer_interface", "Vlan4094"),
+        ("arista_eos", "lacp_peer_interface", "Port-Channel10"),
+        ("arista_eos", "lacp_peer_interface", "Management1"),
         ("arista_eos", "stp_interface", "Loopback0"),
         ("juniper_junos", "interface_details", "GE-0/0/0"),
         ("juniper_junos", "interface_details", "../ge-0/0/0"),
@@ -622,6 +629,43 @@ def test_eos_and_junos_slot_kinds_accept_only_canonical_forms() -> None:
             raise AssertionError(
                 f"unsafe {platform} interface was accepted for {query}"
             )
+
+
+def test_eos_lacp_peer_slot_accepts_only_member_ethernet() -> None:
+    for value in ("Ethernet8", "Ethernet3/1", "Ethernet1/2/3"):
+        assert _render_interface(
+            "arista_eos", "lacp_peer_interface", value,
+        ) == f"show lacp interface {value} peer"
+
+    for value in ("Port-Channel67", "Port-Channel1"):
+        try:
+            _render_interface("arista_eos", "lacp_peer_interface", value)
+        except ValueError as exc:
+            assert "member Ethernet interface" in str(exc), str(exc)
+        else:
+            raise AssertionError(f"{value} was accepted for lacp_peer_interface")
+
+    for value in ("Management1", "Loopback0", "Vlan10", "Port-Channel10.100"):
+        try:
+            _render_interface("arista_eos", "lacp_peer_interface", value)
+        except ValueError:
+            pass
+        else:
+            raise AssertionError(f"{value} was accepted for lacp_peer_interface")
+
+    validate_query_inventory(
+        "arista_eos", ("lacp_peer_interface",), {"interfaces": ("Ethernet8",)},
+    )
+    try:
+        validate_query_inventory(
+            "arista_eos",
+            ("lacp_peer_interface",),
+            {"interfaces": ("Port-Channel67",)},
+        )
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("Port-Channel enrolled only for lacp_peer_interface")
 
 
 def test_public_inventory_validator_is_exact_and_fail_closed() -> None:
@@ -1008,6 +1052,8 @@ def test_phase1_server_and_engine_expose_no_generic_body_reads() -> None:
         "icmp_probe",
         "tls_probe",
         "ssh_read",
+        "schema_read",
+        "fortios_diagnostics",
         "snmp_get",
         "sftp_stat",
         "ftp_list",
@@ -1060,6 +1106,137 @@ def test_phase1_server_and_engine_expose_no_generic_body_reads() -> None:
     assert "require_https_endpoint" not in auth_members
 
 
+SERVER_RUNTIME_MODULES = ("fastmcp", "mcp", "icmplib")
+
+
+def _skip(test: str, reason: str) -> None:
+    if "pytest" in sys.modules:
+        import pytest
+
+        pytest.skip(reason)
+    print(f"skipped {test}: {reason}")
+
+
+def _project_identity(root: Path) -> tuple[str, str]:
+    project = tomllib.loads((root / "pyproject.toml").read_text(encoding="utf-8"))["project"]
+    return project["name"], project["version"]
+
+
+def test_mcp_server_identity_is_the_helper_distribution() -> None:
+    root = Path(__file__).resolve().parents[1]
+    name, version = _project_identity(root)
+    package_tree = ast.parse(
+        (root / "src/netops_helper/__init__.py").read_text(encoding="utf-8")
+    )
+    package_versions = [
+        node.value.value
+        for node in package_tree.body
+        if isinstance(node, ast.Assign) and isinstance(node.value, ast.Constant)
+        and [getattr(target, "id", None) for target in node.targets] == ["__version__"]
+    ]
+    assert package_versions == [version], package_versions
+    server_tree = ast.parse(
+        (root / "src/netops_helper/server.py").read_text(encoding="utf-8")
+    )
+    constants = {
+        target.id: node.value.value
+        for node in server_tree.body
+        if isinstance(node, ast.Assign) and isinstance(node.value, ast.Constant)
+        for target in node.targets
+        if isinstance(target, ast.Name)
+    }
+    package_version_names = {
+        alias.asname or alias.name
+        for node in server_tree.body
+        if isinstance(node, ast.ImportFrom) and node.level == 1 and node.module is None
+        for alias in node.names
+        if alias.name == "__version__"
+    }
+    constructions = [
+        node.value
+        for node in server_tree.body
+        if isinstance(node, ast.Assign)
+        and [getattr(target, "id", None) for target in node.targets] == ["mcp"]
+        and isinstance(node.value, ast.Call)
+        and getattr(node.value.func, "id", None) == "FastMCP"
+    ]
+    assert len(constructions) == 1, "server.py must build exactly one FastMCP server"
+    construction = constructions[0]
+    assert construction.args, "the FastMCP server must be named"
+    named = construction.args[0]
+    server_name = (
+        constants.get(named.id) if isinstance(named, ast.Name)
+        else getattr(named, "value", None)
+    )
+    assert server_name == name, server_name
+    keywords = {keyword.arg: keyword.value for keyword in construction.keywords}
+    version_argument = keywords.get("version")
+    assert isinstance(version_argument, ast.Name), (
+        "FastMCP must receive version=__version__, otherwise initialize reports the "
+        "FastMCP library version"
+    )
+    assert version_argument.id in package_version_names, version_argument.id
+    assert not any(
+        isinstance(node, (ast.Assign, ast.AugAssign, ast.AnnAssign))
+        and any(
+            isinstance(target, ast.Attribute)
+            and isinstance(target.value, ast.Name) and target.value.id == "mcp"
+            for target in (node.targets if isinstance(node, ast.Assign) else [node.target])
+        )
+        for node in ast.walk(server_tree)
+    ), "the server identity must not be rewritten after construction"
+
+
+def test_initialize_reports_the_helper_distribution() -> None:
+    root = Path(__file__).resolve().parents[1]
+    missing = [
+        module for module in SERVER_RUNTIME_MODULES
+        if importlib.util.find_spec(module) is None
+    ]
+    if missing:
+        _skip(
+            "test_initialize_reports_the_helper_distribution",
+            "server runtime modules are not installed: " + ", ".join(missing),
+        )
+        return
+    name, version = _project_identity(root)
+    environment = dict(os.environ)
+    environment["PYTHONPATH"] = os.pathsep.join(
+        item for item in (
+            str(root / "src"), str(root.parent / "netops-core" / "src"),
+            os.environ.get("PYTHONPATH", ""),
+        ) if item
+    )
+    environment["PYTHONDONTWRITEBYTECODE"] = "1"
+    request = {
+        "jsonrpc": "2.0", "id": 1, "method": "initialize",
+        "params": {
+            "protocolVersion": "2025-06-18", "capabilities": {},
+            "clientInfo": {"name": "contract-test", "version": "0"},
+        },
+    }
+    completed = subprocess.run(
+        [sys.executable, "-B", "-m", "netops_helper.server"],
+        input=(json.dumps(request) + "\n").encode("utf-8"),
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        env=environment,
+        cwd=root,
+        timeout=120,
+        check=False,
+    )
+    answers = []
+    for line in completed.stdout.decode("utf-8", "replace").splitlines():
+        try:
+            answers.append(json.loads(line))
+        except json.JSONDecodeError:
+            continue
+    initialized = [answer for answer in answers if answer.get("id") == 1]
+    assert len(initialized) == 1, completed.stderr.decode("utf-8", "replace")[-2000:]
+    server_info = initialized[0]["result"]["serverInfo"]
+    assert (server_info["name"], server_info["version"]) == (name, version), server_info
+
+
 def main() -> int:
     test_snmp_community_is_optional_for_non_snmp_tools()
     test_snmp_community_is_distinct_and_part_of_secret_set()
@@ -1080,6 +1257,7 @@ def main() -> int:
     test_ip_address_families_are_enforced_and_canonicalized()
     test_extreme_physical_port_kind_is_single_and_canonical()
     test_eos_and_junos_slot_kinds_accept_only_canonical_forms()
+    test_eos_lacp_peer_slot_accepts_only_member_ethernet()
     test_public_inventory_validator_is_exact_and_fail_closed()
     test_public_query_metadata_preserves_legacy_catalog_shape()
     test_command_template_metadata_is_not_an_execution_input()
@@ -1088,6 +1266,8 @@ def main() -> int:
     test_phase1_catalog_has_no_configuration_export()
     test_ssh_continuation_cache_uses_absolute_capture_ttl()
     test_phase1_server_and_engine_expose_no_generic_body_reads()
+    test_mcp_server_identity_is_the_helper_distribution()
+    test_initialize_reports_the_helper_distribution()
     print("engine_contract_tests=passed")
     return 0
 

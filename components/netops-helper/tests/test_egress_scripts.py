@@ -141,9 +141,11 @@ def build(document: dict, policy: dict) -> dict:
 def observed_state(bundle: dict) -> dict:
     ruleset = bundle["ruleset"]
     ipv4 = "\n".join([
+        ruleset["ipv4"]["input_jump_rule"],
         "-A FORWARD -j DOCKER-USER",
         ruleset["ipv4"]["jump_rule"],
         *ruleset["ipv4"]["chain_rules"],
+        *ruleset["ipv4"]["input_chain_rules"],
     ])
     return {
         "backend": "iptables",
@@ -188,7 +190,7 @@ class GeneratorTests(unittest.TestCase):
         self.assertTrue(any("--dport 50000:50010 " in rule for rule in rules))
         self.assertFalse(any("--dport 2222 " in rule for rule in rules))
         self.assertTrue(bundle["manifest"]["allow_dns"])
-        self.assertEqual(bundle["bundle_schema"], 3)
+        self.assertEqual(bundle["bundle_schema"], 4)
         self.assertIs(bundle["manifest"]["network_ipv6_enabled"], False)
         self.assertEqual(
             bundle["manifest"]["ipv6_boundary"],
@@ -197,10 +199,79 @@ class GeneratorTests(unittest.TestCase):
         self.assertNotIn("ipv6_mode", bundle["manifest"])
         self.assertEqual(
             set(bundle["ruleset"]),
-            {"backend", "chain", "ipv4"},
+            {"backend", "chain", "input_chain", "ipv4"},
         )
         self.assertNotIn('"ipv6":', encoded)
         self.assertNotIn("ip6tables", encoded)
+
+    def test_bundle_guards_host_input_from_the_bridge(self) -> None:
+        for profile in ("strict-target", "lan-constrained"):
+            with self.subTest(profile=profile):
+                bundle = build(*fixture(profile))
+                digest = bundle["manifest_sha256"]
+                self.assertEqual(bundle["manifest"]["host_input"], {
+                    "default_action": "drop",
+                    "established_related": "accept",
+                    "allow_dns": False,
+                })
+                self.assertEqual(bundle["ruleset"]["input_chain"], "NETOPS_HELPER_INPUT")
+                ipv4 = bundle["ruleset"]["ipv4"]
+                self.assertEqual(
+                    ipv4["input_jump_rule"],
+                    f'-A INPUT -i nh-egress0 -m comment --comment "netops-helper-egress:{digest}"'
+                    " -j NETOPS_HELPER_INPUT",
+                )
+                self.assertEqual(ipv4["input_chain_rules"], [
+                    "-A NETOPS_HELPER_INPUT -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT",
+                    "-A NETOPS_HELPER_INPUT -j DROP",
+                ])
+                checker.validate_bundle(bundle)
+
+    def test_host_dns_input_is_opt_in_and_needs_dns_enrollment(self) -> None:
+        document, policy = fixture()
+        with tempfile.TemporaryDirectory() as temporary:
+            path = write_inventory(document, Path(temporary))
+            bundle = generator.build_bundle(
+                generator._devices(path), policy, generator.inventory_digest(path),
+                allow_host_dns=True,
+            )
+        self.assertIs(bundle["manifest"]["host_input"]["allow_dns"], True)
+        self.assertEqual(bundle["ruleset"]["ipv4"]["input_chain_rules"], [
+            "-A NETOPS_HELPER_INPUT -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT",
+            "-A NETOPS_HELPER_INPUT -d 203.0.113.5/32 -p tcp -m tcp --dport 53 -j ACCEPT",
+            "-A NETOPS_HELPER_INPUT -d 203.0.113.5/32 -p udp -m udp --dport 53 -j ACCEPT",
+            "-A NETOPS_HELPER_INPUT -d 203.0.113.53/32 -p tcp -m tcp --dport 53 -j ACCEPT",
+            "-A NETOPS_HELPER_INPUT -d 203.0.113.53/32 -p udp -m udp --dport 53 -j ACCEPT",
+            "-A NETOPS_HELPER_INPUT -j DROP",
+        ])
+        checker.validate_bundle(bundle)
+        document, policy = fixture()
+        helper(document, "device-beta")["egress"]["allow_dns"] = False
+        device(document, "device-beta")["address"] = "192.0.2.20"
+        with tempfile.TemporaryDirectory() as temporary:
+            path = write_inventory(document, Path(temporary))
+            with self.assertRaisesRegex(
+                generator.EgressContractError, "host DNS input requires DNS enrollment",
+            ):
+                generator.build_bundle(
+                    generator._devices(path), policy, generator.inventory_digest(path),
+                    allow_host_dns=True,
+                )
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            inventory_path = write_inventory(fixture()[0], root)
+            policy_path = root / "egress-policy.json"
+            policy_path.write_text(json.dumps(fixture()[1]), encoding="utf-8")
+            output_path = root / "egress.json"
+            completed = subprocess.run(
+                [sys.executable, "-B", str(GENERATOR_PATH),
+                 "--inventory", str(inventory_path), "--policy", str(policy_path),
+                 "--output", str(output_path), "--allow-host-dns"],
+                text=True, capture_output=True, check=False,
+            )
+            self.assertEqual((completed.returncode, completed.stderr), (0, ""))
+            written = json.loads(output_path.read_text(encoding="utf-8"))
+            self.assertIs(written["manifest"]["host_input"]["allow_dns"], True)
 
     def test_lan_profile_uses_union_only_inside_explicit_lan(self) -> None:
         document, policy = fixture("lan-constrained")
@@ -444,7 +515,36 @@ class GeneratorTests(unittest.TestCase):
             )
             self.assertEqual(completed.returncode, 2)
             self.assertEqual(completed.stdout, "")
-            self.assertEqual(completed.stderr, "egress_generation=failed\n")
+            self.assertEqual(
+                completed.stderr,
+                "egress_generation=failed reason=helper section of a device is invalid\n",
+            )
+            self.assertFalse(output_path.exists())
+
+    def test_cli_failure_names_a_port_range_overlap_without_input_values(self) -> None:
+        document, policy = fixture()
+        helper(document, "device-alpha")["egress"]["tcp_ports"] = []
+        helper(document, "device-alpha")["egress"]["tcp_port_ranges"] = [[20, 30]]
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            inventory_path = write_inventory(document, root)
+            policy_path = root / "egress-policy.json"
+            output_path = root / "egress.json"
+            policy_path.write_text(json.dumps(policy), encoding="utf-8")
+            completed = subprocess.run(
+                [sys.executable, "-B", str(GENERATOR_PATH),
+                 "--inventory", str(inventory_path),
+                 "--policy", str(policy_path), "--output", str(output_path)],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(completed.returncode, 2)
+            self.assertEqual(completed.stdout, "")
+            self.assertEqual(
+                completed.stderr,
+                "egress_generation=failed reason=effective port overlaps a same-protocol range\n",
+            )
             self.assertFalse(output_path.exists())
 
 
@@ -651,6 +751,75 @@ class CheckerTests(unittest.TestCase):
             "target is outside the declared LAN scope",
         ):
             checker.validate_bundle(bundle)
+
+    def test_checker_detects_a_missing_displaced_or_drifted_input_guard(self) -> None:
+        bundle = build(*fixture())
+        ipv4 = bundle["ruleset"]["ipv4"]
+        complete = observed_state(bundle)["ipv4_save"]
+        extra = "-A NETOPS_HELPER_INPUT -p tcp -m tcp --dport 22 -j ACCEPT"
+        cases = (
+            ("jump missing", complete.replace(ipv4["input_jump_rule"] + "\n", ""),
+             {"ipv4_input_jump_missing_or_not_first"}),
+            ("jump displaced", "-A INPUT -j ACCEPT\n" + complete,
+             {"ipv4_input_jump_missing_or_not_first"}),
+            ("chain missing", "\n".join(
+                line for line in complete.splitlines()
+                if not line.startswith("-A NETOPS_HELPER_INPUT ")
+            ), {"ipv4_input_rules_drift", "ipv4_input_default_deny_missing"}),
+            ("rule added", complete.replace(ipv4["input_chain_rules"][-1], extra + "\n" + ipv4["input_chain_rules"][-1]),
+             {"ipv4_input_rules_drift"}),
+            ("drop removed", complete.replace("\n" + ipv4["input_chain_rules"][-1], ""),
+             {"ipv4_input_rules_drift", "ipv4_input_default_deny_missing"}),
+        )
+        for name, save, expected in cases:
+            with self.subTest(name=name):
+                state = observed_state(bundle)
+                state["ipv4_save"] = save
+                self.assertEqual(set(checker.check(bundle, state)), expected)
+
+    def test_checker_rejects_a_tampered_host_input_contract(self) -> None:
+        for change in (
+            {"default_action": "accept"},
+            {"established_related": "drop"},
+            {"allow_dns": 1},
+            {"extra": True},
+        ):
+            with self.subTest(change=change):
+                bundle = build(*fixture())
+                bundle["manifest"]["host_input"].update(change)
+                digest = generator.manifest_digest(bundle["manifest"])
+                bundle["manifest_sha256"] = digest
+                bundle["ruleset"] = generator.build_ruleset(bundle["manifest"], digest)
+                with self.assertRaises(checker.EgressCheckError):
+                    checker.validate_bundle(bundle)
+        bundle = build(*fixture())
+        del bundle["manifest"]["host_input"]
+        with self.assertRaises(checker.EgressCheckError):
+            checker.validate_bundle(bundle)
+
+    def test_checker_refuses_a_bundle_without_the_input_guard_by_name(self) -> None:
+        bundle = build(*fixture())
+        bundle["bundle_schema"] = 3
+        del bundle["manifest"]["host_input"]
+        del bundle["ruleset"]["input_chain"]
+        del bundle["ruleset"]["ipv4"]["input_jump_rule"]
+        del bundle["ruleset"]["ipv4"]["input_chain_rules"]
+        with self.assertRaisesRegex(checker.BundleSchemaError, "regenerate"):
+            checker.validate_bundle(bundle)
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "egress.json"
+            path.write_text(json.dumps(bundle), encoding="utf-8")
+            path.chmod(0o600)
+            completed = subprocess.run(
+                [sys.executable, "-B", str(CHECKER_PATH), "--expected", str(path)],
+                text=True, capture_output=True, check=False,
+            )
+        self.assertEqual(completed.returncode, 2)
+        self.assertTrue(
+            completed.stderr.startswith("egress_check=failed code=bundle_schema_outdated "),
+            completed.stderr,
+        )
+        self.assertIn("regenerate", completed.stderr)
 
     def test_checker_rejects_alias_even_with_recomputed_digest(self) -> None:
         document, policy = fixture()

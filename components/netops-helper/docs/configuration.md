@@ -104,7 +104,7 @@ For a dedicated FTP identity, set `ssh_platform: null` and `enabled_queries: []`
 
 The SNMP community must be a different secret from the device secret. There is no password fallback for SNMP.
 
-Never place credentials in the project directory, command line, logs, inventory, generated egress bundle, or source control. The runner password is never exported into the `ssh` process environment; the proxy hands it to its own askpass re-execution once over a private abstract socket. A runner or device key is written to a mode-`600` file in the proxy's private temporary directory, which is removed when the proxy exits.
+Never place credentials in the project directory, command line, logs, inventory, generated egress bundle, or source control. The runner password is never exported into the `ssh` process environment; the proxy hands it to its own askpass re-execution once over a private abstract socket. That askpass program is the command the proxy was started as (`netops-helper-proxy` or `scripts/remote_mcp_proxy.py`), or `proxy.py` itself when that command is not an executable regular file; the proxy does not read `NETOPS_ASKPASS_PROGRAM`; `proxy.py` runs when executed directly and needs only the Python standard library in askpass mode. A runner key is written to a mode-`600` file in the proxy's private temporary directory, which is removed when the proxy exits. A device secret is never written to a file on the proxy host: the proxy reads it from the vault for one call and sends it in that call's authentication envelope over the runner SSH session. The server writes a device key, or a device password for the askpass program of `netops_core.ssh`, to a mode-`600` file in a per-operation directory under the container's `/tmp` tmpfs and removes that directory when the operation ends.
 
 > SNMPv2c provides no encryption. Its community is transmitted in plaintext in UDP packets. Use a separate least-privilege read-only community, restrict UDP egress and device source ACLs, and prefer SNMPv3 when available.
 
@@ -141,7 +141,7 @@ Any device with `allow_dns: true` requires at least one resolver here, and the p
 }
 ```
 
-`version` must be `1`. `host` is a bare name or address without a leading `-` and without `@`. `credential` names a vault record of kind `password` or `ssh-key`; a password is handed over through the askpass socket, a key through a mode-`600` identity file with `IdentitiesOnly=yes`. `host_key_fingerprint` is the same pin form as a device: before the credential is used, the proxy runs `ssh-keyscan` against `host` and `port`, keeps the offered line only when its fingerprint equals the pin, and writes exactly that one line into the private `UserKnownHostsFile` of the run. A pin that no offered key matches ends the run with the transport category `ssh_host_key` before any credential is read.
+`version` must be `1`. `host` is a bare name or address without a leading `-` and without `@`. `credential` names a vault record of kind `password` or `ssh-key`; a password is handed over through the askpass socket, a key through a mode-`600` identity file with `IdentitiesOnly=yes`. `host_key_fingerprint` is the same pin form as a device: before the credential is used, the proxy runs `ssh-keyscan` against `host` and `port`, keeps the offered line only when its fingerprint equals the pin, and writes exactly that one line into the private `UserKnownHostsFile` of the run. A pin that no offered key matches ends the run with the transport category `ssh_host_key` before the runner credential is used. It has been read by then: at startup the proxy loads `runner.json`, reads the runner credential from the vault, checks that a password can be handed over, and only then scans the runner's host key.
 
 ## Per-tool egress
 
@@ -167,7 +167,9 @@ Authorization is tool-specific:
 
 The firewall generator derives the device `port` only when at least one SSH query or SFTP metadata root is enabled. Do not duplicate that derived port in explicit `tcp_ports`. Explicit TCP scope remains necessary for TCP/TLS probes and FTP; no HTTPS port is derived.
 
-See [Egress control](egress-control.md) for schema-3 generation, review, application, and residual host-access limits.
+A device port inside a same-protocol `tcp_port_ranges` entry is refused for the same reason by the inventory check, the preflight and the generator, for example SSH port 22 of a device with SSH queries and a range `[20, 30]`: narrow the range so that it no longer contains the port.
+
+See [Egress control](egress-control.md) for schema-4 generation, review, application, and the host INPUT guard.
 
 ## The hidden authentication envelope
 
@@ -202,7 +204,7 @@ Some vendors use stricter interface or address grammar than the broad category. 
 
 For FortiOS, set `fortios_output_standard_verified: true` only after an administrator persistently configures and independently verifies console `output standard`. Other platforms leave it `false`.
 
-Phase 1 deliberately has no running, startup, full, or backup configuration query, no configuration export, no generic HTTP response-body or remote file-content reader, and no general device-log browser. Do not enroll secret stores, configuration backups, unrestricted log paths, or support bundles as SFTP roots even for metadata/listing access.
+The ordinary SSH catalogue has no configuration export. Optional `schema_read` requires separate measured path grants and a pinned server registry; it reads a full snapshot in memory and returns redacted selected attributes only. Optional recipes require separate scope grants and per-account permission checks. Do not enroll secret stores, configuration backups, unrestricted log paths or support bundles as SFTP roots even for metadata/listing access.
 
 ### Metadata and directory-listing roots
 
@@ -283,7 +285,7 @@ After a syntactically valid `tools/call` reaches recognized tool handling, targe
 | `unknown_alias` | `-32001` | `The target alias is not present in the credential vault.` No device of that name is in the inventory. |
 | `policy_rejected` | `-32002` | `The target is not enrolled by policy.` The device exists but has no helper section. |
 | `role_rejected` | `-32003` | `The target account is not explicitly enrolled as read-only.` |
-| `vault_permission` | `-32004` | `Credential vault permissions are invalid; mode 600 or 400 is required.` |
+| `vault_permission` | `-32004` | `Credential vault permissions are invalid; mode 600 is required.` Mode 400 is accepted as well; the message names only 600. |
 | `vault_schema` | `-32005` | `The credential vault schema is invalid.` |
 | `auth_material` | `-32006` | `Required authentication material is unavailable or invalid.` |
 | `rate_limit` | `-32007` | `The target request rate limit is exceeded.` The data includes `retry_after_seconds`. |
@@ -292,6 +294,10 @@ After a syntactically valid `tools/call` reaches recognized tool handling, targe
 | `invalid_params` | `-32602` | `Tool arguments do not match the exact input schema.` |
 | `runner_file` | `-32010` | `The runner file is unavailable or invalid.` |
 | `legacy_configuration` | `-32011` | The message names the four files and the removed variables. |
+| `server_message` | `-32012` | Not sent to the client. A server line that is not a JSON-RPC object, is not valid JSON, or is not valid UTF-8 is refused on standard error and ends the server session; the waiting requests receive `session_terminated` with `reason: server_message`. |
+| `server_input_request` | `-32013` | `The server asked the client for input; the read-only Helper does not relay such requests.` Sent in place of a result whose `resultType` is not `complete`. |
+| `pending_limit` | `-32014` | `Too many requests are waiting for a server answer; retry when one completes.` 64 requests are already waiting; `data.max_pending_requests` carries the limit and the request is not forwarded. |
+| `session_terminated` | `-32015` | `The proxy ended the server session before this request was answered.` Sent to every request still waiting when the proxy ends the server session; `data.reason` is `response_timeout`, `server_message`, `unpaired_response`, `session_start` or `transport_closed`. See [waiting requests and the server session](#waiting-requests-and-the-server-session). |
 | `internal_error` | `-32603` | `The proxy encountered an internal error.` |
 
 Do not interpret `rate_limit`, `policy_scope`, or `invalid_params` as credential failure. Correct the indicated operational state instead of rotating a valid password.
@@ -308,9 +314,9 @@ The categories are:
 | --- | --- |
 | `runner_file` | `The runner file is unavailable or invalid.` |
 | `legacy_configuration` | The message names `inventory.json`, `runner.json` and `egress-policy.json` and the removed files and variables. |
-| `vault_permission` | `Credential vault permissions are invalid; mode 600 or 400 is required.` |
+| `vault_permission` | `Credential vault permissions are invalid; mode 600 is required.` Mode 400 is accepted as well. |
 | `vault_schema` | `The credential vault schema is invalid.` |
-| `auth_material` | `Required authentication material is unavailable or invalid.` or `The proxy script is not executable.` |
+| `auth_material` | `Required authentication material is unavailable or invalid.` or `The proxy has no executable entry point to hand the runner password to the client.` The second is written when the runner credential is a password and neither the command the proxy was started as nor `proxy.py` is an executable regular file. |
 | `ssh_host_key` | `SSH host-key verification failed.` The runner offered no key matching its pin, or `ssh` refused the line built from it. |
 | `ssh_authentication` | `SSH authentication to the runner failed.` |
 | `ssh_connection` | `The SSH connection to the runner failed.` |
@@ -318,13 +324,41 @@ The categories are:
 | `ssh_timeout` | `The remote MCP transport timed out.` |
 | `ssh_transport` | `The local SSH process could not start.`, `The local SSH process pipes are unavailable.`, or `The remote MCP SSH transport failed.` |
 
+A refused server message or server request writes one line to the proxy's standard error. After a refused server request or `input_required` result the session continues; after a refused server message (`server_message`) the proxy ends the session as described below:
+
+```text
+netops_proxy_refused category=<server_message|server_request|server_input_request> [method=<method>]
+```
+
+`method` is `sampling/createMessage`, `elicitation/create` or `roots/list` for those server requests, `tools/call`, `prompts/get` or `resources/read` for a refused result, and `other` for anything else. Parameters, ids and message content are never written. The server receives JSON-RPC error `-32601` `The NetOps Helper proxy does not relay server requests to the client.` for every server request except `ping`, which the proxy answers with an empty result.
+
 Raw SSH stderr, topology details, remote command output, and credentials are not relayed. The proxy first sanitizes the bounded raw stream, uses it only to choose a fixed category, and emits fixed public text. Use that category plus runner-side privileged logs for diagnosis; do not weaken host-key verification to obtain more detail.
+
+## Waiting requests and the server session
+
+The proxy allows at most 128 nested object/array levels in a JSON document. It checks this iteratively after decoding and before storing request state or credentials, redacting a server message, or re-encoding it. A deeper client document is refused as `Invalid JSON.` (-32700, null id); a deeper server document closes the session as `server_message`. JSON decoded inside a text result has the same limit: a deeper value retains the existing untrusted-text or control-payload fallback. The byte-size and pending-request limits still apply.
+
+A client line longer than 1 MiB (1,048,576 bytes including its newline) is answered once with JSON-RPC error `-32700` `Request exceeds the size limit.` and `id: null`, and discarded up to its newline; no part of it reaches the server.
+
+At most 64 client requests wait for a server answer at a time. One more is answered at once with `pending_limit` and not forwarded; notifications are not counted. Each forwarded request must be answered within 300 seconds, counted from the moment the proxy accepted it, so time spent queued in the server counts as well.
+
+The proxy no longer trusts the server session and ends it when an answer is overdue (`response_timeout`), when the server sends a line that is not a JSON-RPC object (`server_message`), or when an answer carries an id that matches no waiting request, `id: null` included (`unpaired_response`). Ending the session means, in this order: nothing more from that session is relayed; the proxy kills the `ssh` child and waits for it to exit; every waiting request receives `session_terminated`; the credentials, SNMP communities and authentication envelopes kept for redacting that session's answers are released. A late answer from an ended session is discarded unread, so it reaches the client neither redacted nor unredacted. The proxy writes one line to its standard error:
+
+```text
+netops_proxy_session category=session_terminated reason=<response_timeout|server_message|unpaired_response|session_start>
+```
+
+The next client request starts a new session in the same proxy process: a new `ssh` child, the client's original `initialize` sent again under an id of the proxy (its answer is not relayed), `notifications/initialized` if the client had sent it, and then the request. A notification that arrives while no session is open is dropped. State the client set in the ended session, such as a logging level, is not restored. If the new `ssh` child does not start, or the server does not answer `initialize` within 30 seconds, the waiting requests receive `session_terminated` with `reason: session_start` and the proxy exits with status 2; the MCP client then has to start the proxy again.
+
+When the `ssh` child exits on its own, the proxy writes the transport diagnostic above, the waiting requests receive `session_terminated` with `reason: transport_closed`, and the proxy exits at the next client request instead of starting a new session.
 
 ## Mandatory audit failure semantics
 
 Every device-touching server operation requires a durable `started` audit record before network work and a terminal record afterward. If the preflight write fails, the operation is not started. If the terminal write fails, the operation may already have succeeded even though its response is replaced by an audit failure. A kill or host failure can leave only `started`; that means completion is unknown.
 
 The implementation distinguishes `AuditPreflightError` and `AuditPostOperationError`. Their Python `operation_started` class attributes are internal runtime/test semantics, not a documented structured JSON-RPC or MCP response field. Clients must not parse or depend on such a wire field. Diagnose using the returned tool failure, the presence or absence of the paired audit records, and server-side logs. This fail-closed observability policy is intentional; an unwritable audit volume is not a device-authentication failure.
+
+An audit record carries `platform` and `query` of `ssh_read` only as validated names: the canonical platform name, and a query name of that platform's catalogue. Any other value, including one the proxy never sends but a direct server call can, is recorded as `<invalid>`, so an argument never reaches `audit.jsonl` as written.
 
 ## Redaction boundary
 
@@ -356,7 +390,7 @@ For FTPS only, a private image may use an alias-specific pin. Copy the independe
 
 The JSON key must exactly match the target alias. `certificate` must resolve to an existing file strictly beneath `/etc/netops-helper/certs/` in the image, and `sha256` is the exact lowercase SHA-256 digest of the peer leaf certificate in DER form. Keep the source certificate under `config/container/certs/`; the Dockerfile copies that directory to the runtime path. Never publish deployment-specific certificates or a populated pin file.
 
-The alias-pin branch deliberately sets `check_hostname = False`. It still validates the peer chain against the specified certificate file, enables OpenSSL partial-chain verification when the runtime supports it, and separately compares the actual peer leaf digest with `sha256`. The digest comparison binds the exact leaf while the certificate file supplies the trust path. This branch does not claim SAN/hostname validation and does not apply to `tls_probe`.
+The alias-pin branch deliberately sets `check_hostname = False`. It still validates the peer chain against the specified certificate file, enables OpenSSL partial-chain verification when the runtime supports it, and separately compares the actual peer leaf digest with `sha256`, on the control connection after `AUTH TLS` and again on every protected data connection before any listing byte is read. The digest comparison binds the exact leaf on both channels while the certificate file supplies the trust path; a data connection presenting another leaf, even one issued by the pinned certificate, fails the listing with `pinned FTPS certificate mismatch on the data connection`. This branch does not claim SAN/hostname validation and does not apply to `tls_probe`.
 
 Without an alias pin, FTPS uses system trust and verifies the target hostname/address against SAN. `tls_probe` always uses system trust and verifies the selected target or enrolled alternate SNI against SAN. A legacy Common Name alone is insufficient for those hostname-verifying paths.
 
@@ -373,7 +407,7 @@ Before starting or restarting the helper, confirm:
 - no configuration, backup, secret store, support bundle, or broad log root is exposed;
 - TLS/FTPS certificate trust, SAN, and any FTPS pin are valid;
 - SNMP community is separate from the target password and UDP scope is narrow;
-- the schema-3 IPv4 bundle was regenerated, securely transferred, reviewed, explicitly applied, and checked;
+- the schema-4 IPv4 bundle was regenerated, securely transferred, reviewed, explicitly applied, and checked;
 - Docker network inspection reports the expected stable bridge and exact `EnableIPv6: false`;
 - live negative tests cover denied target egress and attempted runner-host access.
 
@@ -401,3 +435,7 @@ VLAN names contain 1-32 ASCII letters, digits, underscores or hyphens, starting 
 Add each required query to the target's `enabled_queries` and its exact selector to the matching inventory category. Existing enrollments stay unchanged and gain no automatic access. Controller requests use the enrolled FortiGate connection and its host-key pin; they do not connect directly to the managed switch. No FortiAP query is added in this release.
 
 Live CLI checks on 20-21 September 2026 observed certificate details under a read-only account on FortiOS 8.0.0 and DHCP bindings on EXOS 33.7.1. Three VLANs returned complete detail output through exec and interactive SSH on EXOS 33.7.1; status 250 is preserved, not normalized to zero. FortiOS 8.0.1 returned controller status, PoE, MAC and LLDP data using an administrator account. The tested switch does not support stacking and returned the recognized feature refusal -7622. These are direct CLI observations, not end-to-end MCP verification of the new queries. Restricted controller-profile permissions and positive stacking behavior remain unverified. Deployments must still validate each query with their intended read-only identity, firmware, hardware and output mode; see [read-only accounts](read-only-accounts.md) and the [FortiOS](vendor-cli-references/fortinet-fortios.md#scoped-diagnostic-queries) and [EXOS](vendor-cli-references/extreme-switch-engine.md#scoped-diagnostic-queries) evidence.
+
+### Optional FortiOS diagnostic grants
+
+Within helper.read_inventory, diagnostic_recipes is a finite list of ping, traceroute, sniffer, sessions and flow. Each call also requires enrolled addresses and interfaces; an explicit VDOM requires diagnostic_vdoms. Omit diagnostic_recipes to keep the tool unavailable for a target. The same server-owned NETOPS_SCHEMA_REGISTRY binding and enabled system_status query used by schema_read are required. Model/build support is measured and remains explicit.

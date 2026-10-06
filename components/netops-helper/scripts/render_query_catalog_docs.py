@@ -276,7 +276,7 @@ def validate_registry(
         )
         for source_type in ("official_vendor", "project_contract", "vendor_login_required")
     }
-    _fail(counted["official_vendor"] == 266, "vendor query count is not 266")
+    _fail(counted["official_vendor"] == 270, "vendor query count is not 270")
     _fail(counted["project_contract"] == 16, "project-contract query count is not 16")
     _fail(counted["vendor_login_required"] == 4, "login-source query count is not 4")
     _fail(sum(counted.values()) == len(queries), "a query carries an unknown source type")
@@ -335,7 +335,7 @@ def render_document(
         "",
         f"It records {total} exact named query templates across {len(PROFILE_ORDER)} canonical profiles. Parameters are accepted only through the listed inventory-bound type. `high-volume: yes` is a maintainer advisory that the fixed command returns a variable collection or history known or conservatively expected to require continuation pages. It does not change authorization, opt-in, rate accounting, timeout, snapshot or cache behavior, or the 2,000,000-byte capture cap. `high-volume: no` is not a promise that output is small, cheap, or bounded.",
         "",
-        "The Phase-1 catalog intentionally excludes running, startup, full, backup, and exported configuration; arbitrary CLI; logs except the bounded Linux service query; debug; support bundles; packet capture; file display; shells; and every write or lifecycle action.",
+        "The Phase-1 catalog intentionally excludes running, startup, full, backup, and exported configuration; arbitrary CLI; logs except the bounded Linux service query; debug activation or modification; support bundles; packet capture; file display; shells; and every write or lifecycle action.",
         "",
         "Source links establish reviewed syntax and purpose. They do not prove support, output shape, read-only AAA behavior, or transmitted bytes on a particular target. A source named without a link is a vendor guide that is only reachable behind a vendor login; its row carries the date the syntax was run on a device instead. See the [vendor audit index](vendor-cli-references.md) for limitations and exclusions.",
         "",

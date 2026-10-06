@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import ast
 import ipaddress
 from pathlib import Path
 import posixpath
@@ -381,10 +382,54 @@ def _documented_domain(candidate: str) -> bool:
     )
 
 
+def _negative_diagnostic_literals(relative: str, text: str) -> set[tuple[int, int, int]]:
+    if relative != "components/netops-helper/tests/test_fortios_diagnostics.py":
+        return set()
+    try:
+        module = ast.parse(text)
+    except SyntaxError:
+        return set()
+    accepted = set()
+    multicast = str(ipaddress.IPv4Address(0xE0000001))
+    for function in module.body:
+        if not isinstance(function, ast.FunctionDef) or function.name != "test_invalid_request":
+            continue
+        if [argument.arg for argument in function.args.args] != ["kwargs"]:
+            continue
+        statements = [ast.unparse(statement) for statement in function.body]
+        if len(statements) != 3 or statements[1] != "values.update(kwargs)":
+            continue
+        initial = function.body[0]
+        if not isinstance(initial, ast.Assign) or len(initial.targets) != 1 or ast.unparse(initial.targets[0]) != "values":
+            continue
+        if not isinstance(initial.value, ast.Call) or ast.unparse(initial.value.func) != "dict" or initial.value.args:
+            continue
+        if statements[2] != "with pytest.raises(ValueError):\n    d.validate(**values)":
+            continue
+        for decorator in function.decorator_list:
+            if not isinstance(decorator, ast.Call) or ast.unparse(decorator.func) != "pytest.mark.parametrize":
+                continue
+            if len(decorator.args) != 2 or not isinstance(decorator.args[0], ast.Constant) or decorator.args[0].value != "kwargs":
+                continue
+            cases = decorator.args[1]
+            if not isinstance(cases, ast.List):
+                continue
+            for case in cases.elts:
+                if not isinstance(case, ast.Dict) or len(case.keys) != 1:
+                    continue
+                key, value = case.keys[0], case.values[0]
+                if isinstance(key, ast.Constant) and key.value == "address" and isinstance(value, ast.Constant) and value.value == multicast:
+                    accepted.add((value.lineno, value.col_offset + 1, value.end_col_offset - 1))
+    return accepted
+
+
 def _address_errors(relative: str, text: str, domains: bool) -> list[str]:
     errors: list[str] = []
+    negative_literals = _negative_diagnostic_literals(relative, text)
     for number, line in enumerate(text.splitlines(), start=1):
         for match in IPV4_PATTERN.finditer(line):
+            if (number, match.start(1), match.end(1)) in negative_literals:
+                continue
             if match.group(1) in ALLOWED_LITERALS:
                 continue
             if _documented_ipv4(match.group(1)) is False:

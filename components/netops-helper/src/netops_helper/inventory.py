@@ -58,7 +58,7 @@ ACCOUNT_ROLE = "read-only"
 CATALOG_PLATFORMS = {"fortios": "fortinet", "exos": "extreme_exos"}
 CREDENTIAL_KINDS = ("password", "ssh-key")
 SNMP_CREDENTIAL_KIND = "snmp-community"
-INVENTORY_CATEGORIES = ("interfaces", "services", "addresses", "switches", "vlans", "managed_switches", "certificates")
+INVENTORY_CATEGORIES = ("interfaces", "services", "addresses", "switches", "vlans", "managed_switches", "certificates", "schema_paths", "diagnostic_recipes", "diagnostic_vdoms")
 POLICY_SCHEMA = 1
 BACKEND = "iptables"
 BRIDGE_NAME = "nh-egress0"
@@ -89,6 +89,23 @@ Device = core.Device
 
 class RoleError(InventoryError):
     """Raised when a device is not explicitly enrolled as a read-only account."""
+
+
+class EgressPortOverlapError(InventoryError):
+    """Raised when an explicit or derived egress port repeats a port of a same-protocol range."""
+
+
+class DuplicateKeyError(ValueError):
+    """Raised when a key is repeated within one JSON object of an operator input."""
+
+
+def unique_object(pairs) -> dict:
+    result = {}
+    for key, value in pairs:
+        if key in result:
+            raise DuplicateKeyError("a key is repeated within one JSON object")
+        result[key] = value
+    return result
 
 
 @dataclass(frozen=True)
@@ -141,11 +158,19 @@ def safe_dns_name(value: Any) -> bool:
     return all(SAFE_DNS_LABEL.fullmatch(label) for label in value.split("."))
 
 
+def _shape(value: Any) -> str:
+    if isinstance(value, dict):
+        return "the fields %s" % (", ".join(sorted(str(name) for name in value)) or "none")
+    if isinstance(value, list):
+        return "a list of %d entries" % len(value)
+    return type(value).__name__
+
+
 def _bounded_list(where: str, name: str, value: Any, maximum: int) -> list:
     if not isinstance(value, list) or len(value) > maximum:
         raise InventoryError(
-            "%s: %s must be a list of at most %d entries, got %r"
-            % (where, name, maximum, value)
+            "%s: %s must be a list of at most %d entries, got %s"
+            % (where, name, maximum, _shape(value))
         )
     return value
 
@@ -191,8 +216,8 @@ def _checked_port_ranges(where: str, name: str, value: Any) -> list:
 def _checked_egress(where: str, value: Any) -> dict:
     if not isinstance(value, dict) or set(value) != set(EGRESS_FIELDS):
         raise InventoryError(
-            "%s: egress must hold exactly the fields %s, got %r"
-            % (where, ", ".join(EGRESS_FIELDS), value)
+            "%s: egress must hold exactly the fields %s, got %s"
+            % (where, ", ".join(EGRESS_FIELDS), _shape(value))
         )
     addresses = _bounded_list(where, "egress addresses", value["addresses"], MAX_DESTINATIONS)
     for item in addresses:
@@ -232,7 +257,7 @@ def _checked_egress(where: str, value: Any) -> dict:
             for port in ports["%s_ports" % protocol]
             for start, end in ranges["%s_port_ranges" % protocol]
         ):
-            raise InventoryError(
+            raise EgressPortOverlapError(
                 "%s: an explicit egress %s port must not repeat a port of a %s range"
                 % (where, protocol, protocol)
             )
@@ -291,7 +316,9 @@ def _checked_queries(where: str, platform: str | None, value: Any) -> tuple:
 
 def _checked_read_inventory(where: str, value: Any) -> dict:
     if not isinstance(value, dict):
-        raise InventoryError("%s: read_inventory must be an object, got %r" % (where, value))
+        raise InventoryError(
+            "%s: read_inventory must be an object, got %s" % (where, _shape(value))
+        )
     unknown = sorted(set(value) - set(INVENTORY_CATEGORIES))
     if unknown:
         raise InventoryError(
@@ -300,12 +327,8 @@ def _checked_read_inventory(where: str, value: Any) -> dict:
     normalized: dict = {}
     for category in sorted(value):
         items = _bounded_list(
-            where, "read_inventory " + category, value[category], MAX_INVENTORY_ITEMS,
+            where, "read_inventory " + category, value[category], 4096 if category == "schema_paths" else MAX_INVENTORY_ITEMS,
         )
-        if len(set(items)) != len(items):
-            raise InventoryError(
-                "%s: read_inventory %s must be unique" % (where, category)
-            )
         clean: list = []
         for item in items:
             if (
@@ -331,6 +354,10 @@ def _checked_read_inventory(where: str, value: Any) -> dict:
                     % (where, category, validated, item)
                 )
             clean.append(item)
+        if len(set(clean)) != len(clean):
+            raise InventoryError(
+                "%s: read_inventory %s must be unique" % (where, category)
+            )
         normalized[category] = tuple(clean)
     return normalized
 
@@ -361,8 +388,8 @@ def _checked_roots(where: str, value: Any) -> tuple:
 def _checked_rate_limit(where: str, value: Any) -> dict:
     if not isinstance(value, dict) or set(value) != {"requests", "window_seconds"}:
         raise InventoryError(
-            "%s: rate_limit must hold exactly requests and window_seconds, got %r"
-            % (where, value)
+            "%s: rate_limit must hold exactly requests and window_seconds, got %s"
+            % (where, _shape(value))
         )
     requests, window = value["requests"], value["window_seconds"]
     if (
@@ -394,8 +421,8 @@ def _checked_credential(where: str, entry: Device, kinds: dict | None) -> None:
     kind = kinds.get(entry.credential)
     if kind is None:
         raise InventoryError(
-            "%s: credential %r is not a record of the credential store"
-            % (where, entry.credential)
+            "%s: credential names no record of the credential store; the value is not"
+            " repeated, a value that names no record may be a misplaced secret" % where
         )
     if kind not in CREDENTIAL_KINDS:
         raise InventoryError(
@@ -408,16 +435,17 @@ def _checked_snmp_credential(where: str, value: Any, kinds: dict | None) -> str 
     if value is None:
         return None
     if not isinstance(value, str) or not value.strip():
+        given = "a blank string" if isinstance(value, str) else type(value).__name__
         raise InventoryError(
             "%s: snmp_credential must be null or name a record in the credential store,"
-            " got %r" % (where, value)
+            " got %s" % (where, given)
         )
     if kinds is not None:
         kind = kinds.get(value)
         if kind is None:
             raise InventoryError(
-                "%s: snmp_credential %r is not a record of the credential store"
-                % (where, value)
+                "%s: snmp_credential names no record of the credential store; the value is not"
+                " repeated, a value that names no record may be a misplaced secret" % where
             )
         if kind != SNMP_CREDENTIAL_KIND:
             raise InventoryError(
@@ -447,11 +475,26 @@ def _checked_reach(where: str, entry: Device, egress: dict) -> None:
         )
 
 
+def _checked_derived_port(
+    where: str, entry: Device, platform: str | None, queries: tuple, roots: tuple, egress: dict,
+) -> None:
+    if not ((platform is not None and queries) or roots):
+        return
+    for start, end in egress["tcp_port_ranges"]:
+        if start <= entry.port <= end:
+            raise EgressPortOverlapError(
+                "%s: port %d of the device lies inside egress tcp_port_ranges [%d, %d]; the"
+                " egress rules add the port of a device with SSH queries or SFTP roots as an"
+                " explicit TCP port, and an explicit port must not repeat a port of a range,"
+                " so move the range off port %d" % (where, entry.port, start, end, entry.port)
+            )
+
+
 def section(entry: Device, kinds: dict | None = None) -> HelperSection:
     where = "device %s: helper section" % entry.name
     item = entry.helper
     if not isinstance(item, dict):
-        raise InventoryError("%s: must be an object, got %r" % (where, item))
+        raise InventoryError("%s: must be an object, got %s" % (where, _shape(item)))
     missing = [name for name in REQUIRED_SECTION_FIELDS if name not in item]
     if missing:
         raise InventoryError("%s: missing fields: %s" % (where, ", ".join(missing)))
@@ -482,12 +525,14 @@ def section(entry: Device, kinds: dict | None = None) -> HelperSection:
     egress = _checked_egress(where, item["egress"])
     _checked_credential(where, entry, kinds)
     _checked_reach(where, entry, egress)
+    roots = _checked_roots(where, item.get("sftp_roots", []))
+    _checked_derived_port(where, entry, platform, queries, roots, egress)
     return HelperSection(
         account_role=ACCOUNT_ROLE,
         ssh_platform=platform,
         enabled_queries=queries,
         read_inventory=read_inventory,
-        sftp_roots=_checked_roots(where, item.get("sftp_roots", [])),
+        sftp_roots=roots,
         fortios_output_standard_verified=verified,
         rate_limit=_checked_rate_limit(where, item.get("rate_limit", {
             "requests": DEFAULT_RATE_REQUESTS,
@@ -503,8 +548,8 @@ def section(entry: Device, kinds: dict | None = None) -> HelperSection:
 def egress_policy(value: Any, where: str = "egress policy") -> dict:
     if not isinstance(value, dict) or set(value) != set(EGRESS_POLICY_FIELDS):
         raise InventoryError(
-            "%s: must hold exactly the fields %s, got %r"
-            % (where, ", ".join(EGRESS_POLICY_FIELDS), value)
+            "%s: must hold exactly the fields %s, got %s"
+            % (where, ", ".join(EGRESS_POLICY_FIELDS), _shape(value))
         )
     if value["schema_version"] != POLICY_SCHEMA or isinstance(
         value["schema_version"], bool,

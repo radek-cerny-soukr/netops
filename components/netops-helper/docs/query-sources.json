@@ -509,6 +509,12 @@
       "baseline": "FortiOS 7.6.x and 8.0.0",
       "url": "https://docs.fortinet.com/document/fortigate/8.0.0/cli-reference/317104469/config-system-interface"
     },
+    "F-DEBUG-80": {
+      "vendor": "Fortinet",
+      "title": "FortiOS 8.0.0 CLI Reference: diagnose debug",
+      "baseline": "FortiOS 7.6.x and 8.0.0",
+      "url": "https://docs.fortinet.com/document/fortigate/8.0.0/cli-reference/159376337/diagnose-debug"
+    },
     "F-DIAG-HW-76": {
       "vendor": "Fortinet",
       "title": "FortiOS 7.6.3 diagnose hardware CLI reference",
@@ -605,6 +611,12 @@
       "baseline": "FortiOS 7.6.x and 8.0.0",
       "url": "https://docs.fortinet.com/document/fortigate/8.0.0/administration-guide/358640/basic-ospf-example"
     },
+    "F-PING-OPTIONS-76": {
+      "vendor": "Fortinet",
+      "title": "FortiOS 7.6.4 CLI Reference: execute ping-options",
+      "baseline": "FortiOS 7.6.x and 8.0.0",
+      "url": "https://docs.fortinet.com/document/fortigate/7.6.4/cli-reference/221756471/execute-ping-options"
+    },
     "F-SDWAN-80": {
       "vendor": "Fortinet",
       "title": "FortiOS 8.0.0 Administration Guide: Dynamic application steering with lowest cost and best quality strategies",
@@ -616,6 +628,12 @@
       "title": "FortiOS 8.0.0 Administration Guide: Text strings",
       "baseline": "FortiOS 7.6.x and 8.0.0",
       "url": "https://docs.fortinet.com/document/fortigate/8.0.0/administration-guide/651640/text-strings"
+    },
+    "F-TRACE-OPTIONS-80": {
+      "vendor": "Fortinet",
+      "title": "FortiOS 8.0.0 CLI Reference: execute traceroute-options",
+      "baseline": "FortiOS 7.6.x and 8.0.0",
+      "url": "https://docs.fortinet.com/document/fortigate/8.0.0/cli-reference/113792463/execute-traceroute-options"
     },
     "J-07A2F7009BE1": {
       "vendor": "Juniper Networks",
@@ -2336,6 +2354,14 @@
         "F-CERT-LOCAL"
       ]
     },
+    "fortinet/debug_state": {
+      "profile": "fortinet",
+      "query": "debug_state",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "F-DEBUG-80"
+      ]
+    },
     "fortinet/disk_status": {
       "profile": "fortinet",
       "query": "disk_status",
@@ -2618,6 +2644,14 @@
         "F-CHEAT-80"
       ]
     },
+    "fortinet/ping_options": {
+      "profile": "fortinet",
+      "query": "ping_options",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "F-PING-OPTIONS-76"
+      ]
+    },
     "fortinet/route_lookup": {
       "profile": "fortinet",
       "query": "route_lookup",
@@ -2657,6 +2691,14 @@
         "F-DIAG-SYS-76",
         "F-DIAG-SYS-80",
         "F-SDWAN-80"
+      ]
+    },
+    "fortinet/session_filter_state": {
+      "profile": "fortinet",
+      "query": "session_filter_state",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "F-DIAG-SYS-80"
       ]
     },
     "fortinet/session_stats": {
@@ -2704,6 +2746,14 @@
       "source_ids": [
         "F-DIAG-SYS-80",
         "F-CLI-80"
+      ]
+    },
+    "fortinet/traceroute_options": {
+      "profile": "fortinet",
+      "query": "traceroute_options",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "F-TRACE-OPTIONS-80"
       ]
     },
     "juniper_junos/arp_interface": {

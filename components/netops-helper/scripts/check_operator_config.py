@@ -22,6 +22,9 @@ from netops_core import vault as core_vault
 from netops_helper import inventory as helper_inventory
 from netops_helper import legacy_configuration
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import generate_egress_rules as egress_generator
+
 FILES = ("inventory.json", "vault.json", "egress-policy.json", "runner.json")
 RUNNER_VERSION = 1
 RUNNER_FIELDS = ("version", "host", "port", "credential", "host_key_fingerprint")
@@ -77,9 +80,13 @@ def _read_text(label: str, path: Path) -> str:
 def _parsed_json(label: str, path: Path) -> dict:
     text = _read_text(label, path)
     try:
-        document = json.loads(text)
+        document = json.loads(text, object_pairs_hook=helper_inventory.unique_object)
     except json.JSONDecodeError as error:
         raise _error(label, "is not valid JSON (%s)" % error.msg) from None
+    except helper_inventory.DuplicateKeyError:
+        raise _error(label, "repeats a key within one JSON object") from None
+    except (ValueError, RecursionError):
+        raise _error(label, "is not valid JSON (nested too deeply or a number too long)") from None
     if not isinstance(document, dict):
         raise _error(label, "must hold a JSON object")
     return document
@@ -173,7 +180,8 @@ def check(paths: dict) -> dict:
     if runner_kind is None:
         raise _error(
             "runner.json",
-            "credential %r is not a record of the credential store" % runner["credential"],
+            "credential names no record of the credential store; the value is not repeated,"
+            " a value that names no record may be a misplaced secret",
         )
     if runner_kind not in helper_inventory.CREDENTIAL_KINDS:
         raise _error(
@@ -185,6 +193,15 @@ def check(paths: dict) -> dict:
     policy_document = _parsed_json("egress-policy.json", paths["egress-policy.json"])
     policy = _egress_policy("egress-policy.json", policy_document)
     _checked_coverage("egress-policy.json", enrolled, policy)
+    try:
+        egress_generator.build_manifest(
+            devices, policy_document, egress_generator.inventory_digest(paths["inventory.json"]),
+        )
+    except egress_generator.EgressContractError as error:
+        raise _error(
+            "egress-policy.json",
+            "the egress rule generator refuses this enrollment: %s" % error,
+        ) from None
 
     return {"devices": len(helper_devices), "credentials": len(vault.names())}
 

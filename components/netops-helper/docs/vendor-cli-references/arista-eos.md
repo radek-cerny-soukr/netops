@@ -32,7 +32,7 @@ The profile key is `arista_eos`. It is a conservative common EOS profile. Availa
 
 The complete [EOS User Manual PDF](https://www.arista.com/en/assets/data/pdf/user-manual/um-books/EOS-User-Manual.pdf) is retained as a cross-reference. It is not copied into this repository.
 
-Parameterized entries require exact enrollment and platform-specific slot kinds. IPv4 and IPv6 addresses are distinct canonical literal types. Interface contexts distinguish general, physical, LLDP, LACP, STP, and OSPF interface grammars.
+Parameterized entries require exact enrollment and platform-specific slot kinds. IPv4 and IPv6 addresses are distinct canonical literal types. Interface contexts distinguish general, physical, LLDP, LACP, STP, and OSPF interface grammars. The LACP context of `lacp_peer_interface` accepts only member `Ethernet` interfaces: for a Port-Channel, `show lacp interface Port-ChannelN peer` returns only `Interface Port-ChannelN is not a member of a port channel.` (cEOS-lab 4.36.1F).
 
 ## Live measurements, 25 September 2026
 

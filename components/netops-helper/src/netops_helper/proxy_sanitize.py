@@ -81,7 +81,7 @@ def sanitize_object(value: Any, secrets: Iterable[object] = ()) -> Any:
             return [walk(child) for child in item]
         if isinstance(item, dict):
             return {
-                key: "<REDACTED>" if sensitive_key(key) else walk(child)
+                walk(key): "<REDACTED>" if sensitive_key(key) else walk(child)
                 for key, child in item.items()
             }
         return item

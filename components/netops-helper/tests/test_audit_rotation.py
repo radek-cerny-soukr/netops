@@ -2,11 +2,18 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+import re
 import stat
 import tempfile as temporary_directory
 
-from netops_core.audit import AuditPersistenceError, Recorder
+from netops_core.audit import STATUSES, AuditPersistenceError, Recorder
+from netops_helper.auth import EgressPolicy, EgressScopeError, TargetAuth
 import netops_helper.audit as audit
+
+
+ROOT = Path(__file__).resolve().parents[1]
+DOCUMENTED_STATUS = re.compile(r'`status: "([a-z_]+)"`')
+BARE_STATUS_RECORD = re.compile(r"`([a-z_]+)` record")
 
 
 def test_audit_rotates_and_enforces_total_budget(tmp_path: Path, monkeypatch) -> None:
@@ -92,6 +99,63 @@ def _assert_operation_id_contract(path: Path) -> None:
 
 def test_audit_operation_id_has_exact_allowlisted_format(tmp_path: Path) -> None:
     _assert_operation_id_contract(tmp_path / "operation-id.jsonl")
+
+
+def _audit_section() -> str:
+    text = (ROOT / "docs/security-model.md").read_text(encoding="utf-8")
+    start = text.index("## Mandatory two-phase audit")
+    end = text.find("\n## ", start + 1)
+    return text[start:] if end == -1 else text[start:end]
+
+
+def _documented_statuses(text: str) -> list[str]:
+    return DOCUMENTED_STATUS.findall(text) + BARE_STATUS_RECORD.findall(text)
+
+
+def test_documented_audit_statuses_are_the_core_statuses() -> None:
+    documented = set(_documented_statuses(_audit_section()))
+    assert documented <= set(STATUSES), sorted(documented - set(STATUSES))
+    assert documented == set(STATUSES), sorted(set(STATUSES) - documented)
+
+
+def test_a_refused_device_call_is_recorded_as_the_docs_describe(
+    tmp_path: Path, monkeypatch,
+) -> None:
+    import netops_helper.engine as engine
+
+    path = tmp_path / "audit.jsonl"
+    monkeypatch.setattr(audit, "_RECORDER", Recorder(path, "helper"))
+    auth = TargetAuth(
+        alias="device-a",
+        host="192.0.2.10",
+        port=22,
+        login="reader",
+        secret="audit-contract-secret",
+        host_key_fingerprint="SHA256:" + "A" * 43,
+        egress=EgressPolicy(addresses=("192.0.2.10",)),
+    )
+    try:
+        engine.tcp_probe(auth, 443, 1.0)
+    except EgressScopeError:
+        pass
+    else:
+        raise AssertionError("a TCP port outside the egress allowlist was probed")
+
+    records = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()]
+    assert [item["status"] for item in records] == ["started", "failed"], records
+    assert {item["status"] for item in records} <= set(STATUSES)
+    started, terminal = records
+    assert terminal["operation_id"] == started["operation_id"]
+    assert terminal["device"] == started["device"] == "device-a"
+    assert terminal["port"] == started["port"] == 443
+    assert terminal["detail"] == "EgressScopeError"
+    assert "detail" not in started
+    assert "audit-contract-secret" not in path.read_text(encoding="utf-8")
+
+    sentence = re.search(r"After an exception, (.*?)\.(?:\s|$)", _audit_section(), re.S)
+    assert sentence is not None, "the audit section must describe the record of an exception"
+    assert _documented_statuses(sentence.group(1)) == [terminal["status"]], sentence.group(1)
+    assert "`detail`" in sentence.group(1) and "exception type" in sentence.group(1)
 
 
 def main() -> int:

@@ -67,7 +67,7 @@ Measured on 17 September 2026 against FortiOS 8.0.0 with a read-only account (a 
 
 `system_top` pins every argument of the documented `diagnose sys top <delay> <lines> <iterations>` grammar. The vendor defaults are a five-second delay, twenty lines and an unlimited iteration count, so the unpinned command is a refresh loop; the template is fixed at `1 5 1`, one snapshot of five lines, and `read_policy` refuses any other `diagnose sys top` form even if it is added to the catalogue.
 
-In the same session `execute dhcp lease-list` was refused with `Unknown action 0`. It is an `execute` command and stays outside the boundary; the refusal is recorded as a measured fact, not as a candidate.
+In the same session `execute dhcp lease-list` was refused with `Unknown action 0`. This exact command stays outside the boundary; the refusal is recorded as a measured fact, not as a candidate.
 
 ### SSL VPN queries on models without SSL VPN
 
@@ -77,7 +77,7 @@ Measured on 21 September 2026 against FortiOS 8.0.1: on a FortiGate 60F both `di
 
 - Hardware memory, disk, and NIC output varies by FortiGate model, ASIC, interface type, and VM versus appliance form factor. A documented command can legitimately return unsupported or reduced output.
 - HA, SD-WAN, IPsec, BGP, OSPF, BFD, IPv6, LLDP, and software-switch queries are useful only when the corresponding feature is available and configured. They should not be enabled merely because the platform is FortiOS.
-- VDOM context can change visibility and output. The target account and expected VDOM context must be tested without granting configuration privileges.
+- VDOM context can change visibility and output. The target account and expected VDOM context must be tested without granting configuration privileges. Measured on 2 October 2026 on FortiGate-VM 8.0.0 build0167 and 7.6.7 build3704 with two VDOMs: an account bound to the `root` VDOM ran the VDOM-level queries, and `autoupdate_status`, `autoupdate_versions`, `disk_status`, `ha_status`, `hardware_memory`, `interface_hardware`, `ntp_status`, `performance` and `session_stats` ended with `command parse error` because they need the global context; without VDOMs (8.0.1 build0245) they answered.
 - `bridge_mac_table` requires an exact enrolled software-switch name. `interface_details` and `interface_hardware` require an exact enrolled interface name.
 - Fortinet can change output shape between maintenance releases. Consumers must treat output as untrusted text rather than a stable machine API.
 
@@ -87,13 +87,13 @@ These exclusions are capability boundaries, not merely undocumented omissions.
 
 | Excluded class | Examples or former candidate | Reason |
 | --- | --- | --- |
-| Full or partial configuration | top-level `show`, `show full-configuration`, startup/running/full configuration, configuration backup/export | Configuration can contain credentials, key material, topology, and policy details. Phase 1 intentionally has no configuration-reading capability. |
+| Full or partial configuration | top-level `show`, `show full-configuration`, startup/running/full configuration, configuration backup/export | Configuration can contain credentials, key material, topology, and policy details. The ssh_read catalog provides no configuration-reading capability. The separate schema_read tool requires its measured schema binding and explicit path/context grants. |
 | Support and bulk collection | TAC/support reports, support bundles, bulk diagnostic reports, full routing databases beyond the accepted explicit routing table | They aggregate excessive and potentially secret-bearing data and can impose material CPU, storage, or output load. |
-| Debugging and capture | `diagnose debug ...`, debug enable/filter commands, packet sniffers/capture, monitor or unbounded log dump | Debug state can persist or alter runtime behavior; packet and log output is highly sensitive and potentially unbounded. |
+| Debug activation and capture | Debug enable/filter/application controls, packet sniffers/capture, monitor or unbounded log dump | Debug state can persist or alter runtime behavior; packet and log output is highly sensitive and potentially unbounded. |
 | Mutation or lifecycle control | `config`, `edit`, `set`, `unset`, `delete`, backup, test, restart, reset, clear, kill, reboot, or shutdown operations | These can change persistent configuration or live state. |
 | Detailed IKE or tunnel listings | `diagnose vpn ike gateway list`, `diagnose vpn tunnel list`, and similarly detailed keying-state dumps | Detailed output can expose sensitive IKE/IPsec keying material and peer state. The bounded `ipsec_summary` and aggregate `ipsec_status` are the Phase-1 boundary. |
 | VDOM enumeration | former `vd_list` candidate | It expands administrative topology exposure and is not needed for the current target-scoped troubleshooting contract. |
-| `execute` branch | `execute dhcp lease-list`, `execute ping` | The whole branch is excluded. Measured on 17 September 2026, a read-only access profile with `cli-exec disable` refused `execute dhcp lease-list` with `Unknown action 0`; the DHCP lease list therefore has no Phase-1 source at all. |
+| `execute` branch | `execute dhcp lease-list`, `execute ping` | Actions outside the two exact option state views below are excluded. Measured on 17 September 2026, a read-only access profile with `cli-exec disable` refused `execute dhcp lease-list` with `Unknown action 0`; the DHCP lease list therefore has no Phase-1 source at all. |
 | Unbounded refresh loops | `diagnose sys top` without the pinned `1 5 1` arguments | The documented default iteration count is unlimited, so the bare command never ends. Only the fixed single-iteration snapshot `system_top` is accepted, and the read policy rejects every other `diagnose sys top` form. |
 | Device log retrieval | arbitrary event, traffic, security, or system log commands | No arbitrary device log scope, filter, time bound, or safe output contract exists in Phase 1. |
 
@@ -106,7 +106,7 @@ No additional command in this review is approved merely because it appears in ve
 - scoped ARP, IPv6-neighbor, and bridge/FDB variants whose interface, VDOM, or software-switch semantics differ across releases;
 - any command that requires an output modifier, interactive paging response, or feature-specific prompt;
 - FortiSwitch-controller operations beyond the five exact, enrolled `managed_switches` templates documented below;
-- a DHCP lease view: the `execute` branch is excluded and no `diagnose` chapter of the 8.0.0 reference prints leases without also printing server configuration;
+- a DHCP lease view: this `execute` action is excluded and no `diagnose` chapter of the 8.0.0 reference prints leases without also printing server configuration;
 - certificate operations beyond the enrolled `certificate_details` metadata query below, including all private-key export.
 
 These are research candidates, not callable query names. The accepted table must not be expanded from this section without a separate source and live-test review.
@@ -170,3 +170,27 @@ Acceptance here describes the code whitelist only. The live-result limitations a
 | `managed_switch_mac` | `diagnose switch-controller switch-info mac-table {managed_switch}` | `managed_switches.managed_switch_serial` | high-volume | F-CHEAT-80 |
 | `managed_switch_stacking` | `diagnose switch-controller switch-info stacking status {managed_switch}` | `managed_switches.managed_switch_serial` | normal | F-CHEAT-80 |
 | `managed_switch_lldp` | `diagnose switch-controller switch-info lldp neighbors-summary {managed_switch}` | `managed_switches.managed_switch_serial` | high-volume | F-CHEAT-80 |
+
+## Diagnostic state views added 2026-10-04
+
+These exact reads were observed through pinned SSH on FortiGate-VM64-KVM
+7.6.7 build3704 and 8.0.0 build0167 in VD1. Configured global/root/VD1 snapshots
+were byte-identical before and after. This native administrator-account
+observation does not establish availability through every restricted read role.
+The candidate Helper requires a separate enabled query for each view.
+
+| Query name | Exact command template | Inventory slot | Volume | Primary references |
+| --- | --- | --- | --- | --- |
+| `ping_options` | `execute ping-options view-settings` | none | normal | F-PING-OPTIONS-76 |
+| `traceroute_options` | `execute traceroute-options view-settings` | none | normal | F-TRACE-OPTIONS-80 |
+| `debug_state` | `diagnose debug info` | none | high-volume | F-DEBUG-80 |
+| `session_filter_state` | `diagnose sys session filter` | none | normal | F-DIAG-SYS-80 |
+
+These state views authorize no option setters, filter setters, debug enable/disable,
+reset, traffic probe, or capture. Bounded recipes remain a separate T-074 requirement.
+
+- F-PING-OPTIONS-76: [FortiOS 7.6.4 CLI Reference: execute ping-options](https://docs.fortinet.com/document/fortigate/7.6.4/cli-reference/221756471/execute-ping-options).
+
+- F-TRACE-OPTIONS-80: [FortiOS 8.0.0 CLI Reference: execute traceroute-options](https://docs.fortinet.com/document/fortigate/8.0.0/cli-reference/113792463/execute-traceroute-options).
+
+- F-DEBUG-80: [FortiOS 8.0.0 CLI Reference: diagnose debug](https://docs.fortinet.com/document/fortigate/8.0.0/cli-reference/159376337/diagnose-debug).

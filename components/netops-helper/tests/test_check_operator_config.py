@@ -205,9 +205,11 @@ class BrokenConfigurationTests(unittest.TestCase):
             document["devices"][0]["credential"] = "no-such-credential"
             _write(directory_path, "inventory.json", document, 0o644)
             with self.assertRaisesRegex(
-                checker.PreflightError, r"^inventory\.json: .*no-such-credential.*not a record",
-            ):
+                checker.PreflightError,
+                r"^inventory\.json: device device-a: .*credential names no record",
+            ) as caught:
                 checker.check(paths)
+            self.assertNotIn("no-such-credential", str(caught.exception))
 
     def test_no_helper_enrolled_device_names_inventory_json(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -227,8 +229,11 @@ class BrokenConfigurationTests(unittest.TestCase):
             document = copy.deepcopy(GOOD_RUNNER)
             document["credential"] = "no-such-credential"
             _write(directory_path, "runner.json", document, 0o644)
-            with self.assertRaisesRegex(checker.PreflightError, r"^runner\.json: .*not a record"):
+            with self.assertRaisesRegex(
+                checker.PreflightError, r"^runner\.json: credential names no record",
+            ) as caught:
                 checker.check(paths)
+            self.assertNotIn("no-such-credential", str(caught.exception))
 
     def test_a_runner_credential_of_the_wrong_kind_names_runner_json(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -281,6 +286,53 @@ class BrokenConfigurationTests(unittest.TestCase):
                 checker.check(paths)
 
 
+    def test_a_device_port_inside_a_tcp_range_names_inventory_json_and_the_port(self) -> None:
+        for name, helper in (
+            ("ssh queries", {}),
+            ("sftp roots only", {"ssh_platform": None, "enabled_queries": [], "sftp_roots": ["/srv"]}),
+        ):
+            with self.subTest(name=name), tempfile.TemporaryDirectory() as directory:
+                directory_path = Path(directory)
+                paths = _good_paths(directory_path)
+                document = copy.deepcopy(GOOD_INVENTORY)
+                document["devices"][0]["helper"].update(helper)
+                document["devices"][0]["helper"]["egress"]["tcp_port_ranges"] = [[20, 30]]
+                _write(directory_path, "inventory.json", document, 0o644)
+                with self.assertRaises(checker.PreflightError) as caught:
+                    checker.check(paths)
+                message = str(caught.exception)
+                self.assertTrue(message.startswith("inventory.json: device device-a"), message)
+                self.assertIn("port 22 of the device lies inside egress tcp_port_ranges [20, 30]", message)
+                self.assertNotIn(SECRET_MARKER, message)
+
+    def test_a_device_port_inside_a_tcp_range_passes_when_the_helper_never_uses_it(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            directory_path = Path(directory)
+            paths = _good_paths(directory_path)
+            document = copy.deepcopy(GOOD_INVENTORY)
+            document["devices"][0]["helper"].update({
+                "ssh_platform": None, "enabled_queries": [], "sftp_roots": [],
+            })
+            document["devices"][0]["helper"]["egress"]["tcp_port_ranges"] = [[20, 30]]
+            _write(directory_path, "inventory.json", document, 0o644)
+            self.assertEqual(checker.check(paths), {"devices": 1, "credentials": 2})
+
+    def test_an_enrollment_the_egress_generator_refuses_fails_the_preflight(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            directory_path = Path(directory)
+            paths = _good_paths(directory_path)
+            document = copy.deepcopy(GOOD_INVENTORY)
+            document["devices"][0]["helper"]["egress"]["allow_dns"] = True
+            _write(directory_path, "inventory.json", document, 0o644)
+            with self.assertRaises(checker.PreflightError) as caught:
+                checker.check(paths)
+            self.assertEqual(
+                str(caught.exception),
+                "egress-policy.json: the egress rule generator refuses this enrollment:"
+                " DNS enrollment requires DNS resolvers",
+            )
+
+
 class NoSecretLeaksThroughFindingsTests(unittest.TestCase):
     def test_a_broken_login_never_echoes_the_secret_value(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -303,6 +355,75 @@ class NoSecretLeaksThroughFindingsTests(unittest.TestCase):
             with self.assertRaises(checker.PreflightError) as caught:
                 checker.check(paths)
             self.assertNotIn(SECRET_MARKER, str(caught.exception))
+
+
+CANARY = "canary-pasted-where-a-name-belongs"
+
+
+def _inventory_with(change) -> dict:
+    document = copy.deepcopy(GOOD_INVENTORY)
+    change(document["devices"][0])
+    return document
+
+
+def _helper_with(name, value):
+    return lambda device: device["helper"].__setitem__(name, value)
+
+
+def _egress_with(name, value):
+    return lambda device: device["helper"]["egress"].__setitem__(name, value)
+
+
+CANARY_CASES = (
+    ("credential", "inventory.json", _inventory_with(lambda device: device.__setitem__("credential", CANARY))),
+    ("credential-list", "inventory.json",
+     _inventory_with(lambda device: device.__setitem__("credential", [CANARY]))),
+    ("device-password", "inventory.json",
+     _inventory_with(lambda device: device.__setitem__("password", CANARY))),
+    ("snmp_credential", "inventory.json", _inventory_with(_helper_with("snmp_credential", CANARY))),
+    ("helper-password", "inventory.json", _inventory_with(_helper_with("password", CANARY))),
+    ("egress-psk", "inventory.json", _inventory_with(_egress_with("psk", CANARY))),
+    ("egress-addresses", "inventory.json", _inventory_with(_egress_with("addresses", {"secret": CANARY}))),
+    ("egress-tcp_ports", "inventory.json", _inventory_with(_egress_with("tcp_ports", {"token": CANARY}))),
+    ("rate_limit-token", "inventory.json", _inventory_with(_helper_with(
+        "rate_limit", {"requests": 30, "window_seconds": 60, "token": CANARY}))),
+    ("read_inventory", "inventory.json", _inventory_with(_helper_with("read_inventory", [CANARY]))),
+    ("read_inventory-text", "inventory.json", _inventory_with(_helper_with("read_inventory", CANARY))),
+    ("egress-text", "inventory.json", _inventory_with(_helper_with("egress", CANARY))),
+    ("sftp_roots-text", "inventory.json", _inventory_with(_helper_with("sftp_roots", CANARY))),
+    ("sftp_roots", "inventory.json", _inventory_with(_helper_with("sftp_roots", {"password": CANARY}))),
+    ("enabled_queries", "inventory.json", _inventory_with(_helper_with("enabled_queries", {"key": CANARY}))),
+    ("vault-login", "vault.json", None),
+    ("runner-credential", "runner.json", dict(GOOD_RUNNER, credential=CANARY)),
+    ("egress-policy-secret", "egress-policy.json", dict(GOOD_EGRESS_POLICY, secret=CANARY)),
+    ("egress-policy-lan_cidrs", "egress-policy.json", dict(
+        GOOD_EGRESS_POLICY, profile="lan-constrained", lan_cidrs={"psk": CANARY})),
+)
+
+
+class CanaryInEveryReferenceFieldTests(unittest.TestCase):
+    def test_a_canary_in_a_reference_or_secret_like_field_never_reaches_the_output(self) -> None:
+        for name, label, document in CANARY_CASES:
+            with self.subTest(field=name), tempfile.TemporaryDirectory() as directory:
+                directory_path = Path(directory)
+                paths = _good_paths(directory_path)
+                if name == "vault-login":
+                    document = copy.deepcopy(GOOD_VAULT)
+                    document["credentials"]["runner-account"]["login"] = "reader:" + CANARY
+                _write(directory_path, label, document, 0o600 if label == "vault.json" else 0o644)
+                argv = [
+                    "check_operator_config.py",
+                    "--inventory", str(paths["inventory.json"]),
+                    "--vault", str(paths["vault.json"]),
+                    "--egress-policy", str(paths["egress-policy.json"]),
+                    "--runner", str(paths["runner.json"]),
+                ]
+                with mock.patch.object(sys, "argv", argv), redirect_stdout(
+                    StringIO()
+                ) as stdout, redirect_stderr(StringIO()) as stderr:
+                    self.assertEqual(checker.main(), 1)
+                self.assertIn("operator_config_check=failed detail=%s:" % label, stderr.getvalue())
+                self.assertNotIn(CANARY, stdout.getvalue() + stderr.getvalue())
 
 
 class MainCliTests(unittest.TestCase):

@@ -21,14 +21,21 @@ class EgressCheckError(ValueError):
     """Raised when expected or observed state cannot be checked safely."""
 
 
+class BundleSchemaError(EgressCheckError):
+    """Raised for a bundle generated before the current schema, which lacks the host INPUT guard."""
+
+
+HOST_INPUT_KEYS = {"default_action", "established_related", "allow_dns"}
+
+
 def _read_json(path: Path, *, require_mode_600: bool = False) -> dict[str, Any]:
     try:
         if require_mode_600 and stat.S_IMODE(path.stat().st_mode) != 0o600:
             raise EgressCheckError("expected bundle mode must be 600")
-        value = json.loads(path.read_text(encoding="utf-8"))
+        value = generator.read_json(path)
     except EgressCheckError:
         raise
-    except (OSError, json.JSONDecodeError, UnicodeError) as exc:
+    except generator.JSON_INPUT_ERRORS as exc:
         raise EgressCheckError("JSON input is unavailable or invalid") from exc
     if not isinstance(value, dict):
         raise EgressCheckError("JSON input must be an object")
@@ -38,7 +45,16 @@ def _read_json(path: Path, *, require_mode_600: bool = False) -> dict[str, Any]:
 def validate_bundle(bundle: dict[str, Any]) -> None:
     if set(bundle) != {"bundle_schema", "manifest", "manifest_sha256", "ruleset"}:
         raise EgressCheckError("bundle structure is invalid")
-    if bundle["bundle_schema"] != generator.BUNDLE_SCHEMA:
+    schema = bundle["bundle_schema"]
+    if (
+        isinstance(schema, int) and not isinstance(schema, bool)
+        and 1 <= schema < generator.BUNDLE_SCHEMA
+    ):
+        raise BundleSchemaError(
+            f"bundle schema {schema} has no host INPUT guard; regenerate the bundle with"
+            f" generate_egress_rules.py of this release (schema {generator.BUNDLE_SCHEMA})"
+        )
+    if schema != generator.BUNDLE_SCHEMA or isinstance(schema, bool):
         raise EgressCheckError("bundle schema is unsupported")
     manifest = bundle["manifest"]
     if not isinstance(manifest, dict):
@@ -47,12 +63,13 @@ def validate_bundle(bundle: dict[str, Any]) -> None:
         "schema_version", "profile", "backend", "network_name", "bridge_name",
         "network_ipv6_enabled", "ipv6_boundary", "default_action", "allow_dns",
         "dns_resolvers", "lan_cidrs", "inventory_sha256",
-        "targets",
+        "targets", "host_input",
     }
     if set(manifest) != expected_manifest_keys:
         raise EgressCheckError("manifest structure is invalid")
     if (
         manifest.get("schema_version") != generator.POLICY_SCHEMA
+        or not isinstance(manifest.get("profile"), str)
         or manifest.get("profile") not in {"strict-target", "lan-constrained"}
         or manifest.get("backend") != generator.BACKEND
         or manifest.get("network_name") != generator.NETWORK_NAME
@@ -72,6 +89,16 @@ def validate_bundle(bundle: dict[str, Any]) -> None:
         or not isinstance(manifest.get("targets"), list)
     ):
         raise EgressCheckError("manifest safety boundary is invalid")
+    host_input = manifest["host_input"]
+    if (
+        not isinstance(host_input, dict)
+        or set(host_input) != HOST_INPUT_KEYS
+        or host_input["default_action"] != "drop"
+        or host_input["established_related"] != "accept"
+        or not isinstance(host_input["allow_dns"], bool)
+        or (host_input["allow_dns"] and not manifest["allow_dns"])
+    ):
+        raise EgressCheckError("host INPUT guard is invalid")
     target_keys = {
         "destinations", "tcp_ports", "udp_ports", "tcp_port_ranges",
         "udp_port_ranges", "allow_icmp",
@@ -127,7 +154,9 @@ def validate_bundle(bundle: dict[str, Any]) -> None:
                     raise EgressCheckError("target port overlaps a same-protocol range")
             if not isinstance(scope["allow_icmp"], bool):
                 raise EgressCheckError("target ICMP scope is invalid")
-    except generator.EgressContractError as exc:
+    except (generator.EgressContractError, TypeError, ValueError, KeyError) as exc:
+        if isinstance(exc, EgressCheckError):
+            raise
         raise EgressCheckError("manifest network scope is invalid") from exc
     digest = generator.manifest_digest(manifest)
     if bundle["manifest_sha256"] != digest:
@@ -235,6 +264,14 @@ def _check_family(observed_save: str, expected: dict[str, Any], family: str) -> 
         errors.append(f"{family}_rules_drift")
     if not actual_chain or actual_chain[-1] != f"-A {generator.CHAIN_NAME} -j DROP":
         errors.append(f"{family}_default_deny_missing")
+    host_input = _chain_rules(observed_save, "INPUT")
+    if not host_input or host_input[0] != expected["input_jump_rule"]:
+        errors.append(f"{family}_input_jump_missing_or_not_first")
+    actual_input = _chain_rules(observed_save, generator.INPUT_CHAIN_NAME)
+    if actual_input != expected["input_chain_rules"]:
+        errors.append(f"{family}_input_rules_drift")
+    if not actual_input or actual_input[-1] != f"-A {generator.INPUT_CHAIN_NAME} -j DROP":
+        errors.append(f"{family}_input_default_deny_missing")
     return errors
 
 
@@ -278,6 +315,9 @@ def main() -> int:
         validate_bundle(bundle)
         observed = inspect_live_state(bundle)
         errors = check(bundle, observed)
+    except BundleSchemaError as exc:
+        print(f"egress_check=failed code=bundle_schema_outdated detail={exc}", file=sys.stderr)
+        return 2
     except (EgressCheckError, OSError):
         print("egress_check=failed code=inspection_error", file=sys.stderr)
         return 2

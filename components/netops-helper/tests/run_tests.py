@@ -29,6 +29,7 @@ SOURCE_PATH = os.pathsep.join(
 )
 DEPENDENCY_FREE_TESTS = (
     "tests/test_engine_contracts.py",
+    "tests/test_schema_read.py",
     "tests/test_query_catalog_arista.py",
     "tests/test_query_catalog_cisco.py",
     "tests/test_query_catalog_extreme.py",
@@ -44,6 +45,9 @@ DEPENDENCY_FREE_TESTS = (
     "tests/test_supply_chain.py",
     "tests/test_policy_parity.py",
     "tests/test_check_operator_config.py",
+    "tests/test_ftp_wire_safety.py",
+    "tests/test_secret_canaries.py",
+    "tests/test_malformed_inputs.py",
 )
 
 

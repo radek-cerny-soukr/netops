@@ -20,9 +20,10 @@ for SOURCE_ROOT in (
     if str(SOURCE_ROOT) not in sys.path:
         sys.path.insert(0, str(SOURCE_ROOT))
 from netops_helper import inventory as helper_inventory
+from netops_core.inputs import InputError, read_regular
 
 
-BUNDLE_SCHEMA = 3
+BUNDLE_SCHEMA = 4
 POLICY_SCHEMA = helper_inventory.POLICY_SCHEMA
 BRIDGE_NAME = helper_inventory.BRIDGE_NAME
 NETWORK_NAME = helper_inventory.NETWORK_NAME
@@ -30,6 +31,10 @@ NETWORK_IPV6_ENABLED = False
 IPV6_BOUNDARY = "docker-network-disabled"
 BACKEND = helper_inventory.BACKEND
 CHAIN_NAME = "NETOPS_HELPER_EGRESS"
+INPUT_CHAIN_NAME = "NETOPS_HELPER_INPUT"
+ESTABLISHED_RULE = (
+    f"-A {INPUT_CHAIN_NAME} -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT"
+)
 DIGEST_LENGTH = 64
 MAX_TARGETS = 256
 MAX_PORTS = helper_inventory.MAX_PORTS
@@ -41,10 +46,19 @@ class EgressContractError(ValueError):
     """Raised when egress inputs cannot produce a safe deterministic contract."""
 
 
+JSON_INPUT_MAX_BYTES = 4 * 1024 * 1024
+JSON_INPUT_ERRORS = (OSError, InputError, ValueError, RecursionError)
+
+
+def read_json(path: Path) -> Any:
+    return json.loads(read_regular(path, JSON_INPUT_MAX_BYTES).decode("utf-8"),
+                      object_pairs_hook=helper_inventory.unique_object)
+
+
 def _load_object(path: Path) -> dict[str, Any]:
     try:
-        value = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError, UnicodeError) as exc:
+        value = read_json(path)
+    except JSON_INPUT_ERRORS as exc:
         raise EgressContractError("input JSON is unavailable or invalid") from exc
     if not isinstance(value, dict):
         raise EgressContractError("input JSON must be an object")
@@ -65,9 +79,14 @@ def _devices(path: Path) -> tuple:
         raise EgressContractError("inventory is unavailable or invalid") from exc
 
 
+PORT_OVERLAP_REASON = "effective port overlaps a same-protocol range"
+
+
 def _section(entry: Any) -> Any:
     try:
         return helper_inventory.section(entry)
+    except helper_inventory.EgressPortOverlapError as exc:
+        raise EgressContractError(PORT_OVERLAP_REASON) from exc
     except helper_inventory.InventoryError as exc:
         raise EgressContractError("helper section of a device is invalid") from exc
 
@@ -182,7 +201,7 @@ def _normalize_target(
         tcp_ports = sorted(set(tcp_ports) | {entry.port})
     for ports, ranges in ((tcp_ports, tcp_ranges), (udp_ports, udp_ranges)):
         if any(start <= item <= end for item in ports for start, end in ranges):
-            raise EgressContractError("effective port overlaps a same-protocol range")
+            raise EgressContractError(PORT_OVERLAP_REASON)
     return ({
         "destinations": addresses,
         "tcp_ports": tcp_ports,
@@ -220,7 +239,7 @@ def require_ftp_scope(
 
 
 def build_manifest(
-    devices: tuple, policy: dict[str, Any], digest: str,
+    devices: tuple, policy: dict[str, Any], digest: str, allow_host_dns: bool = False,
 ) -> dict[str, Any]:
     global_scope = _normalize_global(policy)
     if not isinstance(digest, str) or len(digest) != DIGEST_LENGTH or any(
@@ -249,6 +268,12 @@ def build_manifest(
             for destination in target["destinations"]:
                 if not any(ipaddress.ip_address(destination) in lan for lan in lans):
                     raise EgressContractError("target is outside the declared LAN scope")
+    if not isinstance(allow_host_dns, bool):
+        raise EgressContractError("host DNS input must be true or false")
+    if allow_host_dns and not allow_dns:
+        raise EgressContractError(
+            "host DNS input requires DNS enrollment and DNS resolvers"
+        )
     return {
         "schema_version": POLICY_SCHEMA,
         "profile": global_scope["profile"],
@@ -263,6 +288,11 @@ def build_manifest(
         "lan_cidrs": global_scope["lan_cidrs"],
         "inventory_sha256": digest,
         "targets": targets,
+        "host_input": {
+            "default_action": "drop",
+            "established_related": "accept",
+            "allow_dns": allow_host_dns,
+        },
     }
 
 
@@ -274,10 +304,12 @@ def manifest_digest(manifest: dict[str, Any]) -> str:
     return hashlib.sha256(canonical_json(manifest)).hexdigest()
 
 
-def _accept_rule(destination: str, protocol: str, port: int | list[int]) -> str:
+def _accept_rule(
+    destination: str, protocol: str, port: int | list[int], chain: str = CHAIN_NAME,
+) -> str:
     rendered_port = str(port) if isinstance(port, int) else f"{port[0]}:{port[1]}"
     return (
-        f"-A {CHAIN_NAME} -d {destination} -p {protocol} -m {protocol} "
+        f"-A {chain} -d {destination} -p {protocol} -m {protocol} "
         f"--dport {rendered_port} -j ACCEPT"
     )
 
@@ -322,17 +354,35 @@ def build_ruleset(manifest: dict[str, Any], digest: str) -> dict[str, Any]:
         for lan in manifest["lan_cidrs"]:
             ipv4_rules.extend(_scope_rules(lan, union))
     ipv4_rules.append(f"-A {CHAIN_NAME} -j DROP")
+    input_jump = (
+        f'-A INPUT -i {BRIDGE_NAME} -m comment --comment "{marker}" '
+        f"-j {INPUT_CHAIN_NAME}"
+    )
+    input_rules = [ESTABLISHED_RULE]
+    if manifest["host_input"]["allow_dns"]:
+        for resolver in manifest["dns_resolvers"]:
+            for protocol in ("tcp", "udp"):
+                input_rules.append(
+                    _accept_rule(f"{resolver}/32", protocol, 53, INPUT_CHAIN_NAME)
+                )
+    input_rules.append(f"-A {INPUT_CHAIN_NAME} -j DROP")
     return {
         "backend": BACKEND,
         "chain": CHAIN_NAME,
-        "ipv4": {"jump_rule": jump, "chain_rules": ipv4_rules},
+        "input_chain": INPUT_CHAIN_NAME,
+        "ipv4": {
+            "jump_rule": jump,
+            "chain_rules": ipv4_rules,
+            "input_jump_rule": input_jump,
+            "input_chain_rules": input_rules,
+        },
     }
 
 
 def build_bundle(
-    devices: tuple, policy: dict[str, Any], digest: str,
+    devices: tuple, policy: dict[str, Any], digest: str, allow_host_dns: bool = False,
 ) -> dict[str, Any]:
-    manifest = build_manifest(devices, policy, digest)
+    manifest = build_manifest(devices, policy, digest, allow_host_dns)
     manifest_sha256 = manifest_digest(manifest)
     return {
         "bundle_schema": BUNDLE_SCHEMA,
@@ -371,7 +421,9 @@ def write_bundle(path: Path, bundle: dict[str, Any]) -> None:
             pass
 
 
-def generate(inventory_path: Path, policy_path: Path, output_path: Path) -> None:
+def generate(
+    inventory_path: Path, policy_path: Path, output_path: Path, allow_host_dns: bool = False,
+) -> None:
     resolved_inventory = inventory_path.resolve(strict=True)
     resolved_policy = policy_path.resolve(strict=True)
     resolved_output = output_path.parent.resolve(strict=True) / output_path.name
@@ -379,7 +431,9 @@ def generate(inventory_path: Path, policy_path: Path, output_path: Path) -> None
         raise EgressContractError("output must not replace an input")
     devices = _devices(resolved_inventory)
     policy = _load_object(resolved_policy)
-    bundle = build_bundle(devices, policy, inventory_digest(resolved_inventory))
+    bundle = build_bundle(
+        devices, policy, inventory_digest(resolved_inventory), allow_host_dns,
+    )
     write_bundle(resolved_output, bundle)
 
 
@@ -388,11 +442,24 @@ def main() -> int:
     parser.add_argument("--inventory", type=Path, required=True)
     parser.add_argument("--policy", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument(
+        "--allow-host-dns",
+        action="store_true",
+        help="also accept DNS from the bridge to the policy resolvers on the runner's INPUT path",
+    )
     arguments = parser.parse_args()
     try:
-        generate(arguments.inventory, arguments.policy, arguments.output)
-    except (EgressContractError, OSError):
-        print("egress_generation=failed", file=os.sys.stderr)
+        generate(
+            arguments.inventory, arguments.policy, arguments.output, arguments.allow_host_dns,
+        )
+    except EgressContractError as exc:
+        print(f"egress_generation=failed reason={exc}", file=os.sys.stderr)
+        return 2
+    except OSError:
+        print(
+            "egress_generation=failed reason=an input or the output file is unavailable",
+            file=os.sys.stderr,
+        )
         return 2
     return 0
 

@@ -10,7 +10,7 @@ Contributions are welcome when they preserve the fail-closed model.
 3. Add exact positive and negative tests for every command/path capability.
 4. Run the complete offline suite and public-release checker.
 5. Keep both hash lockfiles byte-identical when dependencies did not change. If a dependency, interpreter or
-   lock generator changes, pin and record the exact generator environment (Python 3.14.7 for Helper; Python 3.13.15 for Core and Auditor), regenerate
+   lock generator changes, pin and record the exact generator environment (Python 3.14.8 for Helper; Python 3.13.15 for Core and Auditor), regenerate
    both locks, and explain the complete dependency diff. Always regenerate and byte-compare the
    CycloneDX SBOM with the reviewed release environment.
 6. Update tool, limitation, security, and changelog documentation with behavior changes.
@@ -19,4 +19,4 @@ Do not add raw command input, a generic-shell escape hatch, automatic host-key a
 
 By submitting a contribution, you agree that it is licensed under the MIT License.
 
-Before publishing documentation, compare every current component version, release link, tag link and artifact filename with the actual GitHub releases and tags. Only one release and tag per component are retained. Use commit permalinks for version-specific source documentation so deleting a tag does not break it. Keep historical changelog entries explicitly separate from current download instructions.
+Before publishing documentation, compare every current component version, release link, tag link and artifact filename with the actual GitHub releases and tags. Published releases and tags stay published: a new version adds its own release page and tag, and earlier ones are removed only by a separate, explicit decision (see [Releases](docs/README.md#releases)). Use commit permalinks for version-specific source documentation so a link keeps pointing at the reviewed text even if a release is removed later. Keep historical changelog entries explicitly separate from current download instructions.

@@ -31,8 +31,9 @@ SAFE_INTERFACE = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.:/-]{0,63}")
 SAFE_SERVICE = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.@-]{0,127}")
 SAFE_SWITCH = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.:-]{0,63}")
 
+_EOS_ETHERNET = r"Ethernet[0-9]{1,5}(?:/[0-9]{1,5}){0,2}"
 _EOS_PHYSICAL = (
-    r"(?:Ethernet[0-9]{1,5}(?:/[0-9]{1,5}){0,2}|"
+    rf"(?:{_EOS_ETHERNET}|"
     r"Management[0-9]{1,5}(?:/[0-9]{1,5})?)"
 )
 _EOS_PC = r"Port-Channel[0-9]{1,5}"
@@ -344,7 +345,7 @@ _TOKEN_PATTERNS: Mapping[str, re.Pattern[str]] = {
     "eos_interface": re.compile(_EOS_INTERFACE),
     "eos_physical_interface": re.compile(_EOS_PHYSICAL),
     "eos_lldp_interface": re.compile(_EOS_PHYSICAL),
-    "eos_lacp_interface": re.compile(_EOS_PHYSICAL_OR_PC),
+    "eos_lacp_interface": re.compile(_EOS_ETHERNET),
     "eos_stp_interface": re.compile(_EOS_PHYSICAL_OR_PC),
     "eos_ospf_interface": re.compile(_EOS_INTERFACE),
     "junos_interface": re.compile(_JUNOS_INTERFACE),
@@ -378,6 +379,9 @@ _INVENTORY_KINDS = {
     "vlans": "vlan_name",
     "managed_switches": "managed_switch_serial",
     "certificates": "certificate_name",
+    "schema_paths": "fortios_config_path",
+    "diagnostic_recipes": "fortios_diagnostic_recipe",
+    "diagnostic_vdoms": "fortios_diagnostic_vdom",
 }
 
 _EXPECTED_PLATFORMS = frozenset({
@@ -411,6 +415,10 @@ _LINUX_COMMANDS = frozenset({
     "bridge fdb show",
 })
 _FORTINET_COMMANDS = frozenset({
+    "execute ping-options view-settings",
+    "execute traceroute-options view-settings",
+    "diagnose debug info",
+    "diagnose sys session filter",
     "get vpn certificate local details {certificate}",
     'diagnose switch-controller switch-info status {managed_switch}',
     'diagnose switch-controller switch-info poe summary {managed_switch}',
@@ -494,12 +502,16 @@ _SHELL_METACHARACTERS = frozenset({
 })
 
 
+MAX_SHOWN_PLATFORM = 64
+
+
 def normalize_platform(platform: str) -> str:
     if not isinstance(platform, str):
         raise ValueError("platform must be a string")
     normalized = PLATFORM_MAP.get(platform.strip().lower())
     if not normalized:
-        raise ValueError(f"unsupported platform: {platform}")
+        shown = platform if len(platform) <= MAX_SHOWN_PLATFORM else platform[:MAX_SHOWN_PLATFORM] + "..."
+        raise ValueError(f"unsupported platform: {shown}")
     return normalized
 
 
@@ -523,6 +535,18 @@ def _canonical_address(value: str, kind: str) -> str:
 def _validate_slot(value: str, kind: str) -> str:
     if not isinstance(value, str):
         raise ValueError(f"invalid typed {kind} value")
+    if kind == "fortios_diagnostic_vdom":
+        if re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,30}",value):
+            return value
+        raise ValueError("invalid diagnostic VDOM")
+    if kind == "fortios_diagnostic_recipe":
+        if value in {"ping", "traceroute", "sniffer", "sessions", "flow"}:
+            return value
+        raise ValueError("invalid diagnostic recipe")
+    if kind == "fortios_config_path":
+        if len(value) <= 128 and re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.+-]*(?: [A-Za-z0-9][A-Za-z0-9_.+-]*){0,31}",value):
+            return value
+        raise ValueError("invalid measured configuration path")
     if kind in {"address", "ipv4_address", "ipv6_address"}:
         return _canonical_address(value, kind)
     canonicalizer = _VENDOR_INTERFACE_CANONICALIZERS.get(kind)
@@ -538,6 +562,11 @@ def _validate_slot(value: str, kind: str) -> str:
         "virtual-router", "statistics",
     }:
         raise ValueError("reserved VLAN selector")
+    if kind == "eos_lacp_interface" and re.fullmatch(_EOS_PC, value):
+        raise ValueError(
+            "lacp_peer_interface needs a member Ethernet interface; "
+            "a Port-Channel is not a member of a port channel"
+        )
     pattern = _TOKEN_PATTERNS.get(kind)
     if pattern is not None and pattern.fullmatch(value):
         return value

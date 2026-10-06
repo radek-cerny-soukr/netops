@@ -15,6 +15,7 @@ from netops_core.hostkey import HostKeyError, checked_pin
 from netops_core.legacy_ssh import LegacySshError, checked as checked_legacy_ssh
 from netops_core.platforms import PlatformError, normalize as normalize_canonical_platform
 
+from .inventory import unique_object
 from .read_policy import (
     READ_QUERIES,
     normalize_platform,
@@ -263,7 +264,7 @@ def _normalize_egress(value: object) -> EgressPolicy:
 
 def _normalize_inventory(value: object) -> dict[str, tuple[str, ...]]:
     if not isinstance(value, dict) or any(
-        key not in {"interfaces", "services", "addresses", "switches", "vlans", "managed_switches", "certificates"}
+        key not in {"interfaces", "services", "addresses", "switches", "vlans", "managed_switches", "certificates", "schema_paths", "diagnostic_recipes", "diagnostic_vdoms"}
         or not isinstance(values, list)
         or not all(isinstance(item, str) for item in values)
         for key, values in value.items()
@@ -271,7 +272,7 @@ def _normalize_inventory(value: object) -> dict[str, tuple[str, ...]]:
         raise TypeError("read_inventory has an invalid structure")
     normalized: dict[str, tuple[str, ...]] = {}
     for key, values in value.items():
-        if len(values) > 256 or len(set(values)) != len(values):
+        if len(values) > (4096 if key == "schema_paths" else 256) or len(set(values)) != len(values):
             raise ValueError("read_inventory category is too large or contains duplicates")
         clean: list[str] = []
         for item in values:
@@ -370,7 +371,7 @@ class TargetAuth:
         try:
             padding = "=" * (-len(context) % 4)
             raw = urlsafe_b64decode((context + padding).encode("ascii"))
-            data = json.loads(raw.decode("utf-8"))
+            data = json.loads(raw.decode("utf-8"), object_pairs_hook=unique_object)
             if not isinstance(data, dict):
                 raise TypeError("authentication context must be an object")
             if set(data) - _ENVELOPE_KEYS:
@@ -465,7 +466,7 @@ class TargetAuth:
                 legacy_ssh=legacy_ssh,
             )
         except (
-            KeyError, TypeError, ValueError, UnicodeError,
+            KeyError, TypeError, ValueError, UnicodeError, RecursionError,
             HostKeyError, LegacySshError, PlatformError,
         ) as exc:
             raise AuthenticationContextError("invalid ephemeral authentication context") from exc

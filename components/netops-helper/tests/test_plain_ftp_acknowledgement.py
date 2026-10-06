@@ -62,6 +62,9 @@ class FakePlainFTP:
     def makepasv(self) -> tuple[str, int]:
         return self.control_host, 50_005
 
+    def getline(self) -> str:
+        raise AssertionError("the fake client reads no control reply")
+
     def login(self, login: str, password: str) -> None:
         assert self.connected
         assert login == "account" and password == "credential"

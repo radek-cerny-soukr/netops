@@ -302,7 +302,7 @@ def test_version_invariant_rejects_changed_pyproject(tmp_path: Path) -> None:
     root = _version_fixture(tmp_path)
     _replace_exact(
         root / "pyproject.toml",
-        "version = \"0.3.7\"",
+        "version = \"0.3.8\"",
         "version = \"not-a-release\"",
     )
     errors = _load_release_module("check_public_release")._version_invariant_errors(root)
@@ -315,7 +315,7 @@ def test_version_invariant_rejects_changed_package_version(tmp_path: Path) -> No
     root = _version_fixture(tmp_path)
     _replace_exact(
         root / "src/netops_helper/__init__.py",
-        "__version__ = \"0.3.7\"",
+        "__version__ = \"0.3.8\"",
         "__version__ = \"9.9.9\"",
     )
     errors = _load_release_module("check_public_release")._version_invariant_errors(root)
@@ -330,7 +330,7 @@ def test_version_invariant_rejects_nested_and_function_version_bindings(
         "nested": "\nif True:\n    __version__ = \"9.9.9\"\n",
         "function": (
             "\ndef version_decoy():\n"
-            "    __version__ = \"0.3.7\"\n"
+            "    __version__ = \"0.3.8\"\n"
             "    return __version__\n"
         ),
     }
@@ -368,7 +368,7 @@ def test_version_invariant_rejects_changed_compose_image(tmp_path: Path) -> None
     root = _version_fixture(tmp_path)
     _replace_exact(
         root / "compose.yaml",
-        "image: local/netops-helper:0.3.7",
+        "image: local/netops-helper:0.3.8",
         "image: local/netops-helper:9.9.9",
     )
     errors = _load_release_module("check_public_release")._version_invariant_errors(root)
@@ -489,7 +489,10 @@ def test_public_allowlist_contains_all_0_2_contracts() -> None:
         "tests/test_apply_egress_rules.py",
         "tests/test_egress_scripts.py",
         "tests/test_engine_contracts.py",
+        "tests/test_schema_read.py",
+    "tests/test_fortios_diagnostics.py",
         "tests/test_ssh_wire_safety.py",
+        "tests/test_ftp_wire_safety.py",
     "tests/test_connection_pacing.py",
         "tests/test_policy_parity.py",
         "tests/test_proxy_contracts.py",
@@ -498,6 +501,7 @@ def test_public_allowlist_contains_all_0_2_contracts() -> None:
         *VENDOR_CONTRACT_TESTS,
     }
     dependency_free_required = {
+        "tests/test_schema_read.py",
         "tests/test_supply_chain.py",
         *VENDOR_CONTRACT_TESTS,
     }
@@ -517,8 +521,8 @@ def test_public_allowlist_contains_all_0_2_contracts() -> None:
         path.relative_to(ROOT).as_posix()
         for path in exporter.selected_files(ROOT)
     }
-    assert len(selected) == 97
-    assert exporter.VERSION == "0.3.7"
+    assert len(selected) == 104
+    assert exporter.VERSION == "0.3.8"
     assert required_tests <= exporter.TESTS
     assert required_tests <= gate.REQUIRED_RELEASE_PATHS
     assert dependency_free_required <= dependency_free_tests
@@ -549,14 +553,14 @@ def _public_source_fixture(tmp_path: Path) -> Path:
         check=True,
         text=True,
     )
-    exported = output / "netops-helper-0.3.7"
+    exported = output / "netops-helper-0.3.8"
     manifest = json.loads(
         (exported / "release-manifest.json").read_text(encoding="utf-8")
     )
     core_modules = sorted(
         name for name in manifest["files"] if name.startswith("src/netops_core/")
     )
-    assert len(manifest["files"]) == 97 + len(core_modules)
+    assert len(manifest["files"]) == 104 + len(core_modules)
     assert "src/netops_core/audit.py" in core_modules
     (exported / "release-manifest.json").unlink()
     (exported / "SHA256SUMS").unlink()
@@ -711,7 +715,7 @@ def test_release_selection_rejects_unsafe_entries(tmp_path: Path) -> None:
 
 def test_release_export_preserves_existing_destination(tmp_path: Path) -> None:
     output = tmp_path / "existing-output"
-    destination = output / "netops-helper-0.3.7"
+    destination = output / "netops-helper-0.3.8"
     destination.mkdir(parents=True)
     marker = destination / "marker"
     marker_bytes = SELECTION_MARKER.encode("utf-8")
@@ -760,7 +764,7 @@ def test_release_export_rejects_symlinked_output(tmp_path: Path) -> None:
     parent_link.symlink_to(actual, target_is_directory=True)
 
     cases = {
-        "direct": (direct_link, actual / "netops-helper-0.3.7"),
+        "direct": (direct_link, actual / "netops-helper-0.3.8"),
         "parent": (
             parent_link / "nested-output",
             actual / "nested-output",
@@ -805,7 +809,7 @@ def test_release_gate_rejects_missing_vendor_contract(tmp_path: Path) -> None:
         ],
         check=True,
     )
-    exported = output / "netops-helper-0.3.7"
+    exported = output / "netops-helper-0.3.8"
     (exported / "release-manifest.json").unlink()
     gate = _load_release_module("check_public_release")
 
@@ -928,7 +932,7 @@ def test_release_tree_integrity_fails_closed(tmp_path: Path) -> None:
         ],
         check=True,
     )
-    exported = output / "netops-helper-0.3.7"
+    exported = output / "netops-helper-0.3.8"
     gate = _load_release_module("check_public_release")
     assert gate._release_tree_integrity_errors(exported) == []
 
@@ -1226,7 +1230,7 @@ def test_public_export_contains_no_python_bytecode(tmp_path: Path) -> None:
         ],
         check=True,
     )
-    exported = tmp_path / "netops-helper-0.3.7"
+    exported = tmp_path / "netops-helper-0.3.8"
     assert not [path for path in exported.rglob("*") if "__pycache__" in path.parts]
     assert not list(exported.rglob("*.pyc"))
     assert not list(exported.rglob("*.pyo"))
@@ -1272,7 +1276,7 @@ def test_release_export_compose_builds_from_archive_root(tmp_path: Path) -> None
         ],
         check=True,
     )
-    exported = output / "netops-helper-0.3.7"
+    exported = output / "netops-helper-0.3.8"
     compose_text = (exported / "compose.yaml").read_text(encoding="utf-8")
     assert "      context: .\n" in compose_text
     assert "../.." not in compose_text
@@ -1293,7 +1297,7 @@ def test_release_export_keeps_askpass_executable(tmp_path: Path) -> None:
         ],
         check=True,
     )
-    exported = output / "netops-helper-0.3.7"
+    exported = output / "netops-helper-0.3.8"
     askpass_mode = stat.S_IMODE(
         (exported / "src/netops_core/askpass.py").stat().st_mode
     )
@@ -1380,6 +1384,33 @@ def test_release_gate_rejects_dependency_drift(tmp_path: Path) -> None:
     assert gate._runtime_dependency_errors(tmp_path) == []
 
 
+def test_schema_snapshot_gate_is_narrow_and_rejects_missing_controls(tmp_path: Path) -> None:
+    gate=_load_release_module("check_public_release")
+    root=tmp_path/"schema-snapshot-boundary"
+    directory=root/"src/netops_helper";directory.mkdir(parents=True)
+    for name in ["server.py","schema_read.py","engine.py","fortios_diagnostics.py"]:
+        (directory/name).write_text((ROOT/"src/netops_helper"/name).read_text())
+    assert gate._phase1_surface_errors(root)==[]
+    engine=directory/"engine.py";original=engine.read_text()
+    mutations=[
+        original.replace("reader.selectors(auth,library,path,view,vdom,keys)","pass",1),
+        original.replace("current_vdom=reader.verify_status(library,status)",'current_vdom="root"',1),
+        original.replace("report=reader.snapshot(library,raw,path,view,vdom,keys,auth.secrets,current_vdom=current_vdom)","report=raw",1),
+        original.replace('library=reader.binding(auth)','library=None',1),
+        original.replace("current_vdom=current_vdom",'current_vdom="root"',1),
+        original.replace("current_vdom=reader.verify_status(library,status)",'current_vdom=reader.verify_status(library,status)\n        current_vdom="root"',1),
+        original.replace(",current_vdom=current_vdom","",1),
+        original.replace('    page=_page_text(cleaned,offset,max_bytes)','    return raw\n    page=_page_text(cleaned,offset,max_bytes)',1),
+        original+'\nEXPORTED_COMMAND="show full-configuration"\n',
+    ]
+    for mutant in mutations:
+        assert mutant!=original
+        engine.write_text(mutant)
+        errors=gate._phase1_surface_errors(root)
+        assert any("configuration export pattern" in error for error in errors)
+    engine.write_text(original)
+
+
 def main() -> int:
     test_runtime_inputs_and_install_metadata_agree()
     test_sbom_contains_all_direct_dependencies()
@@ -1446,6 +1477,7 @@ def main() -> int:
         test_grype_contract_counts_all_severities_and_fails_closed(temporary)
         test_release_tree_integrity_fails_closed(temporary)
         test_phase1_surface_rejects_forbidden_command_in_added_module(temporary)
+        test_schema_snapshot_gate_is_narrow_and_rejects_missing_controls(temporary)
         test_phase1_surface_rejects_removed_body_read_symbols_and_policy(temporary)
         test_public_gate_rejects_recursive_local_environment_markers(
             temporary / "local-environment-markers"

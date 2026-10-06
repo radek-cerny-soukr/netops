@@ -2,11 +2,12 @@
 """Explicit host-side installer for the generated iptables egress contract.
 
 The reviewed Docker network has IPv6 explicitly disabled, so this installer
-manages only the IPv4 DOCKER-USER path and rejects any missing, ambiguous, or
-enabled Docker IPv6 state before changing the firewall. The single IPv4
-iptables-restore COMMIT is atomic; later failures use a best-effort rollback of
-only this tool's marked jump and private chain. The contract does not claim to
-filter container-to-host traffic traversing INPUT.
+manages only the IPv4 path and rejects any missing, ambiguous, or enabled Docker
+IPv6 state before changing the firewall. It owns two marked jumps and two private
+chains: DOCKER-USER to the egress chain for forwarded traffic, and INPUT to the
+host guard for traffic from the bridge to the runner itself. The single IPv4
+iptables-restore COMMIT installs both atomically; later failures use a
+best-effort rollback of only these jumps and chains.
 """
 
 from __future__ import annotations
@@ -81,19 +82,24 @@ def load_bundle(path: Path) -> dict[str, Any]:
     try:
         if stat.S_IMODE(path.stat().st_mode) != 0o600:
             raise EgressApplyError("bundle_permissions")
-        raw = path.read_text(encoding="utf-8")
-        bundle = json.loads(raw)
+        bundle = generator.read_json(path)
     except EgressApplyError:
         raise
-    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+    except generator.JSON_INPUT_ERRORS as exc:
         raise EgressApplyError("bundle_invalid") from exc
     if not isinstance(bundle, dict):
         raise EgressApplyError("bundle_invalid")
+    _validated(bundle)
+    return bundle
+
+
+def _validated(bundle: dict[str, Any]) -> None:
     try:
         checker.validate_bundle(bundle)
+    except checker.BundleSchemaError as exc:
+        raise EgressApplyError("bundle_schema_outdated") from exc
     except checker.EgressCheckError as exc:
         raise EgressApplyError("bundle_invalid") from exc
-    return bundle
 
 
 def _inspect_host(bundle: dict[str, Any], runner: RunCallable) -> dict[str, Any]:
@@ -141,8 +147,8 @@ def _inspect_host(bundle: dict[str, Any], runner: RunCallable) -> dict[str, Any]
     }
 
 
-def _chain_exists(save: str) -> bool:
-    prefix = f":{generator.CHAIN_NAME} "
+def _chain_exists(save: str, chain: str = generator.CHAIN_NAME) -> bool:
+    prefix = f":{chain} "
     return any(line.startswith(prefix) for line in save.splitlines())
 
 
@@ -151,8 +157,8 @@ def _rules(save: str, chain: str) -> list[str]:
     return [line.strip() for line in save.splitlines() if line.strip().startswith(prefix)]
 
 
-def _references(save: str) -> list[str]:
-    pattern = re.compile(rf"(?:^| )-j {re.escape(generator.CHAIN_NAME)}(?: |$)")
+def _references(save: str, chain: str = generator.CHAIN_NAME) -> list[str]:
+    pattern = re.compile(rf"(?:^| )-j {re.escape(chain)}(?: |$)")
     return [
         line.strip() for line in save.splitlines()
         if line.strip().startswith("-A ") and pattern.search(line.strip())
@@ -187,18 +193,66 @@ def _valid_owned_chain_rule(line: str) -> bool:
     return tcp_or_udp is not None or icmp is not None
 
 
-def _is_owned_jump(line: str) -> bool:
+def _is_owned_jump(
+    line: str, source: str = "DOCKER-USER", target: str = generator.CHAIN_NAME,
+) -> bool:
     try:
         tokens = shlex.split(line, posix=True)
     except ValueError:
         return False
     return (
         len(tokens) == 10
-        and tokens[:4] == ["-A", "DOCKER-USER", "-i", generator.BRIDGE_NAME]
+        and tokens[:4] == ["-A", source, "-i", generator.BRIDGE_NAME]
         and tokens[4:7] == ["-m", "comment", "--comment"]
         and MARKER.fullmatch(tokens[7]) is not None
-        and tokens[8:] == ["-j", generator.CHAIN_NAME]
+        and tokens[8:] == ["-j", target]
     )
+
+
+def _is_owned_input_jump(line: str) -> bool:
+    return _is_owned_jump(line, "INPUT", generator.INPUT_CHAIN_NAME)
+
+
+def _valid_owned_input_rule(line: str) -> bool:
+    if line in {generator.ESTABLISHED_RULE, f"-A {generator.INPUT_CHAIN_NAME} -j DROP"}:
+        return True
+    match = re.fullmatch(
+        rf"-A {re.escape(generator.INPUT_CHAIN_NAME)} -d (\S+)/32 -p (tcp|udp) "
+        rf"-m \2 --dport 53 -j ACCEPT",
+        line,
+    )
+    if match is None:
+        return False
+    try:
+        return str(ipaddress.IPv4Address(match.group(1))) == match.group(1)
+    except ValueError:
+        return False
+
+
+def _snapshot_input(save: str) -> dict[str, Any]:
+    chain = generator.INPUT_CHAIN_NAME
+    chain_rules = _rules(save, chain)
+    references = _references(save, chain)
+    if not _chain_exists(save, chain):
+        if chain_rules or references:
+            raise EgressApplyError("foreign_chain_collision")
+        return {"exists": False, "jump": None, "position": None, "chain_rules": []}
+    host_input = _rules(save, "INPUT")
+    if (
+        len(references) != 1
+        or not _is_owned_input_jump(references[0])
+        or references[0] not in host_input
+        or not chain_rules
+        or chain_rules[-1] != f"-A {chain} -j DROP"
+        or any(not _valid_owned_input_rule(line) for line in chain_rules)
+    ):
+        raise EgressApplyError("foreign_chain_collision")
+    return {
+        "exists": True,
+        "jump": references[0],
+        "position": host_input.index(references[0]) + 1,
+        "chain_rules": chain_rules,
+    }
 
 
 def _has_exact_jump(line: str, source_chain: str, target_chain: str) -> bool:
@@ -219,7 +273,9 @@ def snapshot_owned(save: str) -> dict[str, Any]:
     marker_lines = [
         line.strip() for line in save.splitlines() if MARKER_PREFIX in line
     ]
-    if any(not _is_owned_jump(line) for line in marker_lines):
+    if any(
+        not _is_owned_jump(line) and not _is_owned_input_jump(line) for line in marker_lines
+    ):
         raise EgressApplyError("foreign_marker_collision")
     docker_user = _rules(save, "DOCKER-USER")
     if not checker._has_forward_jump(save):
@@ -229,10 +285,11 @@ def snapshot_owned(save: str) -> dict[str, Any]:
     exists = _chain_exists(save)
     chain_rules = _rules(save, generator.CHAIN_NAME)
     references = _references(save)
+    host_input = _snapshot_input(save)
     if not exists:
         if chain_rules or references:
             raise EgressApplyError("foreign_chain_collision")
-        return {"exists": False, "jump": None, "chain_rules": []}
+        return {"exists": False, "jump": None, "chain_rules": [], "input": host_input}
     if (
         len(references) != 1
         or not _is_owned_jump(references[0])
@@ -243,7 +300,9 @@ def snapshot_owned(save: str) -> dict[str, Any]:
         or any(not _valid_owned_chain_rule(line) for line in chain_rules)
     ):
         raise EgressApplyError("foreign_chain_collision")
-    return {"exists": True, "jump": references[0], "chain_rules": chain_rules}
+    return {
+        "exists": True, "jump": references[0], "chain_rules": chain_rules, "input": host_input,
+    }
 
 
 def _delete_rule(rule: str) -> str:
@@ -252,24 +311,32 @@ def _delete_rule(rule: str) -> str:
     return "-D " + rule[3:]
 
 
-def _insert_jump(rule: str) -> str:
-    prefix = "-A DOCKER-USER "
+def _insert_jump(rule: str, chain: str = "DOCKER-USER", position: int = 1) -> str:
+    prefix = f"-A {chain} "
     if not rule.startswith(prefix):
         raise EgressApplyError("ruleset_invalid")
-    return "-I DOCKER-USER 1 " + rule[len(prefix):]
+    return f"-I {chain} {position} " + rule[len(prefix):]
 
 
 def build_apply_payload(
     snapshot: dict[str, Any], expected: dict[str, Any],
 ) -> str:
     commands = ["*filter"]
+    host_input = snapshot["input"]
     if snapshot["exists"]:
         commands.append(_delete_rule(snapshot["jump"]))
     else:
         commands.append(f"-N {generator.CHAIN_NAME}")
+    if host_input["exists"]:
+        commands.append(_delete_rule(host_input["jump"]))
+    else:
+        commands.append(f"-N {generator.INPUT_CHAIN_NAME}")
     commands.append(f"-F {generator.CHAIN_NAME}")
+    commands.append(f"-F {generator.INPUT_CHAIN_NAME}")
     commands.append(_insert_jump(expected["jump_rule"]))
     commands.extend(expected["chain_rules"])
+    commands.append(_insert_jump(expected["input_jump_rule"], "INPUT"))
+    commands.extend(expected["input_chain_rules"])
     commands.extend(["COMMIT", ""])
     return "\n".join(commands)
 
@@ -277,16 +344,24 @@ def build_apply_payload(
 def build_rollback_payload(
     snapshot: dict[str, Any], expected: dict[str, Any],
 ) -> str:
+    host_input = snapshot["input"]
     commands = [
         "*filter",
         _delete_rule(expected["jump_rule"]),
         f"-F {generator.CHAIN_NAME}",
+        _delete_rule(expected["input_jump_rule"]),
+        f"-F {generator.INPUT_CHAIN_NAME}",
     ]
     if snapshot["exists"]:
         commands.append(_insert_jump(snapshot["jump"]))
         commands.extend(snapshot["chain_rules"])
     else:
         commands.append(f"-X {generator.CHAIN_NAME}")
+    if host_input["exists"]:
+        commands.append(_insert_jump(host_input["jump"], "INPUT", host_input["position"]))
+        commands.extend(host_input["chain_rules"])
+    else:
+        commands.append(f"-X {generator.INPUT_CHAIN_NAME}")
     commands.extend(["COMMIT", ""])
     return "\n".join(commands)
 
@@ -314,10 +389,7 @@ def _rollback(
 
 
 def apply_bundle(bundle: dict[str, Any], runner: RunCallable = subprocess.run) -> None:
-    try:
-        checker.validate_bundle(bundle)
-    except checker.EgressCheckError as exc:
-        raise EgressApplyError("bundle_invalid") from exc
+    _validated(bundle)
     observed = _inspect_host(bundle, runner)
     ruleset = bundle["ruleset"]
     snapshot = snapshot_owned(observed["ipv4_save"])

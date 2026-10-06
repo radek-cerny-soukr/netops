@@ -14,6 +14,10 @@ from netops_helper.read_policy import _validate_query_command, render_read_query
 # retained history, and variable protocol peer, session, and tunnel lists can
 # need continuation. Aggregate status and inventory-bound detail stay False.
 EXPECTED = {
+    "ping_options": ("execute ping-options view-settings", (), False),
+    "traceroute_options": ("execute traceroute-options view-settings", (), False),
+    "debug_state": ("diagnose debug info", (), True),
+    "session_filter_state": ("diagnose sys session filter", (), False),
     "certificate_details": ("get vpn certificate local details {certificate}", (("certificate", "certificates", "certificate_name"),), False),
     'managed_switch_status': ('diagnose switch-controller switch-info status {managed_switch}', (('managed_switch', 'managed_switches', 'managed_switch_serial'),), False),
     'managed_switch_poe': ('diagnose switch-controller switch-info poe summary {managed_switch}', (('managed_switch', 'managed_switches', 'managed_switch_serial'),), False),
@@ -116,6 +120,12 @@ def test_exact_catalogue_contract() -> None:
 def test_commands_are_narrow_read_only_cli() -> None:
     commands = {query.command for query in QUERIES.values()}
     for command in commands:
+        if command in {
+            "execute ping-options view-settings",
+            "execute traceroute-options view-settings",
+            "diagnose debug info",
+        }:
+            continue
         assert command.startswith(("get ", "diagnose "))
         assert CONTROL_OR_SHELL.search(command) is None
         assert "\\" not in command
@@ -126,6 +136,26 @@ def test_commands_are_narrow_read_only_cli() -> None:
     assert "diagnose vpn tunnel list" not in commands
     assert all(" ike " not in f" {command.lower()} " for command in commands)
     assert all("tunnel list" not in command.lower() for command in commands)
+
+
+
+def test_state_views_do_not_authorize_nearby_mutations() -> None:
+    for command in (
+        "execute ping-options reset", "execute ping-options repeat-count 0",
+        "execute ping-options interface port1", "execute ping 192.0.2.1",
+        "execute traceroute-options reset", "execute traceroute-options queries 1",
+        "execute traceroute 192.0.2.1", "diagnose debug enable",
+        "diagnose debug disable", "diagnose debug reset",
+        "diagnose debug application authd -1", "diagnose debug flow trace start 10",
+        "diagnose sys session filter clear", "diagnose sys session filter src 192.0.2.1",
+        "execute ping-options view-settings extra", "diagnose debug info;diagnose debug enable",
+    ):
+        try:
+            _validate_query_command("fortinet", command)
+        except RuntimeError:
+            continue
+        raise AssertionError("a state-view grant authorized a nearby mutation")
+
 
 
 def test_interface_kinds_are_bounded_and_inventory_exact() -> None:
@@ -216,6 +246,7 @@ def test_descriptions_are_present_and_ascii() -> None:
 def main() -> None:
     test_exact_catalogue_contract()
     test_commands_are_narrow_read_only_cli()
+    test_state_views_do_not_authorize_nearby_mutations()
     test_interface_kinds_are_bounded_and_inventory_exact()
     test_process_snapshot_is_pinned_to_one_iteration()
     test_descriptions_are_present_and_ascii()
