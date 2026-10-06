@@ -51,7 +51,7 @@ def test_version_drift_is_reported(tree):
 
 def test_dependency_drift_is_reported(tree):
     pyproject = tree / "pyproject.toml"
-    pyproject.write_text(pyproject.read_text(encoding="utf-8").replace("netops-auditor==0.2.9", "netops-auditor"),
+    pyproject.write_text(pyproject.read_text(encoding="utf-8").replace("netops-auditor==0.2.10", "netops-auditor"),
                          encoding="utf-8")
     assert gates.metadata_errors(tree) == ["dependencies must be exactly %r" % gates.DEPENDENCIES]
 
@@ -79,7 +79,7 @@ def test_private_material_in_a_released_file_is_reported(component):
 
 def test_sbom_version_drift_is_reported(component):
     sbom = component / "sbom.cdx.json"
-    sbom.write_text(sbom.read_text(encoding="utf-8").replace('"type": "application",\n      "version": "0.2.5"',
+    sbom.write_text(sbom.read_text(encoding="utf-8").replace('"type": "application",\n      "version": "0.2.6"',
                                                            '"type": "application",\n      "version": "0.0.9"', 1),
                     encoding="utf-8")
     assert any("sbom.cdx.json" in error for error in gates.gate_version_metadata(component))
@@ -101,3 +101,69 @@ def test_changelog_heading_drift_is_reported(component, change):
 def test_unpinned_mcp_requirement_is_reported(component):
     (component / "requirements-mcp.txt").write_text("fastmcp>=4\n", encoding="utf-8")
     assert any("does not pin" in error for error in gates.gate_version_metadata(component))
+
+
+def test_installation_and_first_operation_use_the_package_pins():
+    assert gates.gate_installation_versions(ROOT) == []
+
+
+@pytest.mark.parametrize("document", ["installation.md", "operations-020.md"])
+@pytest.mark.parametrize("label", ["Core", "Auditor", "Admin"])
+def test_an_old_pin_in_either_installation_step_is_refused(component, document, label):
+    import re
+    path = component / "docs" / document
+    word = "netops-" + label.lower() if document == "installation.md" else label
+    changed, count = re.subn(r"(\b" + re.escape(word) + r"`?\s+)[0-9]+\.[0-9]+\.[0-9]+",
+                            r"\g<1>0.0.1", path.read_text(encoding="utf-8"), count=1)
+    assert count == 1
+    path.write_text(changed, encoding="utf-8")
+    assert any(document in error and label in error for error in gates.gate_installation_versions(component))
+
+
+def test_installation_stops_on_every_unpack_or_checksum_failure():
+    import hashlib
+    import io
+    import re
+    import subprocess
+    import tarfile
+    import tempfile
+    import textwrap
+    text = (ROOT / "docs" / "installation.md").read_text(encoding="utf-8")
+    blocks = re.findall(r"(?ms)^[ \t]*```sh[ \t]*\n(.*?)^[ \t]*```[ \t]*$", text)
+    block = textwrap.dedent(next(value for value in blocks if "tar -xzf" in value and "sha256sum -c SHA256SUMS" in value))
+    archives = re.findall(r"tar -xzf (netops-[a-z]+-[0-9.]+-source\.tar\.gz)", block)
+    assert archives
+    cases = [(None, None)] + [(kind, index) for kind in ("missing", "checksum") for index in range(len(archives))]
+    for kind, broken in cases:
+        with tempfile.TemporaryDirectory(prefix="netops-installation-") as temporary:
+            directory = Path(temporary)
+            for index, name in enumerate(archives):
+                if kind == "missing" and index == broken:
+                    continue
+                root = name.removesuffix("-source.tar.gz")
+                member = root + ".txt"
+                payload = b"verified source data\n"
+                digest = hashlib.sha256(payload).hexdigest()
+                checksums = (digest + "  " + member + "\n").encode()
+                actual = b"changed source data\n" if kind == "checksum" and index == broken else payload
+                with tarfile.open(directory / name, "w:gz") as archive:
+                    for filename, content in ((member, actual), ("SHA256SUMS", checksums)):
+                        info = tarfile.TarInfo(root + "/" + filename)
+                        info.size = len(content)
+                        info.mode = 0o644
+                        archive.addfile(info, io.BytesIO(content))
+            result = subprocess.run(["sh", "-c", block + "\nprintf INSTALLATION_REACHED_NEXT_PHASE"],
+                                    cwd=directory, capture_output=True, text=True)
+            if kind is None:
+                assert result.returncode == 0, result.stderr
+                assert "INSTALLATION_REACHED_NEXT_PHASE" in result.stdout
+            else:
+                assert result.returncode != 0, (kind, broken, result.stdout, result.stderr)
+                assert "INSTALLATION_REACHED_NEXT_PHASE" not in result.stdout
+
+
+@pytest.mark.parametrize("metadata", [None, "[broken", "", '[project]\nversion="0.2.6"\n', '[project]\ndependencies=42\nversion="0.2.6"\n'])
+def test_installation_version_gate_reports_unusable_metadata(tmp_path, metadata):
+    if metadata is not None:
+        (tmp_path / "pyproject.toml").write_text(metadata)
+    assert gates.gate_installation_versions(tmp_path)

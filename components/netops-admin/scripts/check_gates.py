@@ -64,7 +64,7 @@ FILE_RULES = {
 }
 FORBIDDEN_NAMES = frozenset(("eval", "exec", "compile", "__import__", "breakpoint"))
 FORBIDDEN_ATTRIBUTES = frozenset(("system", "popen", "spawnv", "spawnve", "execv", "execve", "fork"))
-DEPENDENCIES = ["netops-auditor==0.2.9", "netops-core==0.2.6"]
+DEPENDENCIES = ["netops-auditor==0.2.10", "netops-core==0.2.7"]
 COMPONENT = "netops-admin"
 PLATFORMS = frozenset(("fortios", "exos"))
 RELEASE_SELECTOR = ("scripts", "create_release_artifacts.py")
@@ -337,8 +337,36 @@ def _project_metadata(root: Path, errors: list):
     return version
 
 
-def gate_version_metadata(root: Path) -> list:
+def gate_installation_versions(root: Path) -> list:
+    try:
+        project = tomllib.loads((root / "pyproject.toml").read_text(encoding="utf-8"))["project"]
+        dependencies = project["dependencies"]
+        version = project["version"]
+    except (OSError, UnicodeError, ValueError, KeyError, TypeError) as error:
+        return ["pyproject.toml is unusable for the installation version check: %s" % error]
+    if not isinstance(dependencies, list) or not all(isinstance(value, str) for value in dependencies) or not isinstance(version, str):
+        return ["pyproject.toml is unusable for the installation version check"]
+    pins = dict(value.split("==", 1) for value in dependencies if "==" in value)
+    expected = {"Core": pins.get("netops-core"), "Auditor": pins.get("netops-auditor"),
+                "Admin": project["version"]}
     errors = []
+    for name in ("installation.md", "operations-020.md"):
+        path = root / "docs" / name
+        try:
+            text = path.read_text(encoding="utf-8")
+        except (OSError, UnicodeError) as error:
+            errors.append("docs/%s is unreadable: %s" % (name, error))
+            continue
+        for label, version in expected.items():
+            word = "netops-" + label.lower() if name == "installation.md" else label
+            match = re.search(r"\b" + re.escape(word) + r"`?\s+([0-9]+\.[0-9]+\.[0-9]+)", text)
+            if match is None or match.group(1) != version:
+                errors.append("docs/%s does not install %s %s from the package pins" % (name, label, version))
+    return errors
+
+
+def gate_version_metadata(root: Path) -> list:
+    errors = gate_installation_versions(root)
     project_version = _project_metadata(root, errors)
     path = root / "src" / PACKAGE / "__init__.py"
     relative = _relative(root, path)

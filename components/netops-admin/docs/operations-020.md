@@ -1,10 +1,10 @@
-# Operations and enrollment in 0.2.0
+# Operations and enrollment
 
-Version 0.2.0 adds enrollment, an audit of the predicted configuration, and three operation profiles. Version 0.1.0 was an internal milestone and was never published.
+Admin requires enrollment and audits the predicted configuration before each supported operation. Version 0.1.0 was an internal milestone and was never published.
 
 ## From installation to the first confirmed change
 
-1. Install Core 0.2.4, Auditor 0.2.7 and Admin 0.2.2 as described in [installation](installation.md). Create separate write and check credentials and pin the device SSH host key.
+1. Install Core 0.2.7, Auditor 0.2.10 and Admin 0.2.6 as described in [installation](installation.md). Create separate write and check credentials and pin the device SSH host key.
 2. Configure notification and a working audit exporter. Enrollment requires both. Restrict the device accounts and the admin host network access, and configure protected objects.
 3. Put an operator policy in a local file. Set the device's `audit_policy` to its absolute path in `admin.json`. Requests and MCP tools cannot provide or replace this policy.
 4. Run the appropriate enrollment command with an unused test subnet or VLAN tag:
@@ -64,7 +64,7 @@ All requests also require `reason`, `user_request` and a unique `request_id`.
 
 DHCP supports enabled regular IPv4 servers with MAC reservations and action `reserved`. A reservation must be a usable address in the server subnet and satisfy any narrower operator policy. Conflicting IP or MAC reservations are rejected. Unsupported reservation types are not converted. The inverse preserves numeric IDs; row order is not an identity.
 
-Group and DHCP profiles are enabled only for the measured FortiOS 7.6 family. No profile writes firewall policies, routes, accounts or multiple objects in one request. Configuration verification is not a forwarding or DHCP lease test.
+Group and DHCP profiles are enabled for the measured FortiOS 7.6 family and exact 8.0.0 build0167. These named profiles do not write firewall policies, routes or accounts and each request selects one object. The separate schema-transaction path has its own exact library and rollback-calibration requirements. Configuration verification is not a forwarding or DHCP lease test.
 
 ## Snapshot comparison boundary
 

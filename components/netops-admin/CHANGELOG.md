@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.6 - 2026-10-06
+
+- Pin netops-core 0.2.7 and netops-auditor 0.2.10; align first-operation instructions with the exact installation versions and validate these documentation pins.
+- Create /opt/netops-admin with the installing user as its owner. Stop each unpack, checksum and installation step on failure in an ordinary shell.
+- Use local umask 022 during venv and pip creation and verify the installed askpass program before the first operation. Add whole-block positive and negative installation regressions.
+
 ## 0.2.5 - 2026-10-06
 
 - Stop archive installation on download, signature or checksum failure; check internal source manifests after verified extraction.

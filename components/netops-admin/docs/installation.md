@@ -10,10 +10,10 @@ This guide installs the signed GitHub source assets. PyPI publication is a separ
 
 ### From the release archives
 
-1. Download the source archive of each component with the release `SHA256SUMS` and its Sigstore bundle from its release page: `netops-core` 0.2.6, `netops-auditor` 0.2.9 and `netops-admin` 0.2.5. Verify the bundle with [cosign](https://github.com/sigstore/cosign) and the archive against `SHA256SUMS`, and stop if either check fails:
+1. Download the source archive of each component with the release `SHA256SUMS` and its Sigstore bundle from its release page: `netops-core` 0.2.7, `netops-auditor` 0.2.10 and `netops-admin` 0.2.6. Verify the bundle with [cosign](https://github.com/sigstore/cosign) and the archive against `SHA256SUMS`, and stop if either check fails:
 
    ```sh
-   for release in netops-core:0.2.6 netops-auditor:0.2.9 netops-admin:0.2.5; do
+   for release in netops-core:0.2.7 netops-auditor:0.2.10 netops-admin:0.2.6; do
      component=${release%%:*}
      version=${release#*:}
      base="https://github.com/radek-cerny-soukr/netops/releases/download/${component}%2Fv${version}"
@@ -32,42 +32,44 @@ This guide installs the signed GitHub source assets. PyPI publication is a separ
    Each archive must report `Verified OK` from `cosign` and `OK` from `sha256sum`. The certificate identity and issuer are the maintainer's GitHub account, the same for every component; [Verifying a release](https://github.com/radek-cerny-soukr/netops/blob/main/docs/README.md#verifying-a-release) describes the check for any release asset. Then unpack the three archives; each unpacks into a directory of its own name and carries its own `SHA256SUMS` for the files inside it, which `sha256sum` checks in that directory; step 4 runs the gate of the unpacked admin archive, which also holds its file set against `release-manifest.json`:
 
    ```sh
-   tar -xzf netops-core-0.2.6-source.tar.gz
-   (cd netops-core-0.2.6 && sha256sum -c SHA256SUMS)
-   tar -xzf netops-auditor-0.2.9-source.tar.gz
-   (cd netops-auditor-0.2.9 && sha256sum -c SHA256SUMS)
-   tar -xzf netops-admin-0.2.5-source.tar.gz
-   (cd netops-admin-0.2.5 && sha256sum -c SHA256SUMS)
+   tar -xzf netops-core-0.2.7-source.tar.gz || exit 1
+   (cd netops-core-0.2.7 && sha256sum -c SHA256SUMS) || exit 1
+   tar -xzf netops-auditor-0.2.10-source.tar.gz || exit 1
+   (cd netops-auditor-0.2.10 && sha256sum -c SHA256SUMS) || exit 1
+   tar -xzf netops-admin-0.2.6-source.tar.gz || exit 1
+   (cd netops-admin-0.2.6 && sha256sum -c SHA256SUMS) || exit 1
    ```
 
-2. Create a virtual environment with Python 3.13 and install the pinned dependencies with their hashes. The lock also carries the test and SBOM tools; `fastmcp` and its dependencies are the only ones the program uses.
+2. Run the installation as a regular user with sudo permission to create the application directory. Create `/opt/netops-admin` owned by that user before creating the virtual environment; the application directory is public code, while credentials and runtime configuration belong in separate private directories. The code-installation commands below use a local `umask 022`, even if the login shell defaults to `0002`; generated console scripts must not be writable by group or other. This does not change the shell umask used later for private configuration. Create a virtual environment with Python 3.13 and install the pinned dependencies with their hashes. The lock also carries the test and SBOM tools; `fastmcp` and its dependencies are the only ones the program uses.
 
    ```sh
-   python3.13 -m venv /opt/netops-admin/venv
-   /opt/netops-admin/venv/bin/python -m pip install --require-hashes -r netops-admin-0.2.5/requirements-release.lock
+   sudo install -d -m 0755 -o "$(id -un)" -g "$(id -gn)" /opt/netops-admin || exit 1
+   (umask 022; python3.13 -m venv /opt/netops-admin/venv) || exit 1
+   (umask 022; /opt/netops-admin/venv/bin/python -m pip install --require-hashes -r netops-admin-0.2.6/requirements-release.lock) || exit 1
    ```
 
 3. Install the three components without resolving dependencies again. `pip` writes build metadata (`*.egg-info`) into the directory it installs from, so install from copies and keep the unpacked archives unchanged; the gate of an archive refuses any file outside its release selection.
 
    ```sh
-   mkdir build
-   cp -r netops-core-0.2.6 netops-auditor-0.2.9 netops-admin-0.2.5 build/
-   /opt/netops-admin/venv/bin/python -m pip install --no-deps build/netops-core-0.2.6 build/netops-auditor-0.2.9 build/netops-admin-0.2.5
+   mkdir build || exit 1
+   cp -r netops-core-0.2.7 netops-auditor-0.2.10 netops-admin-0.2.6 build/ || exit 1
+   (umask 022; /opt/netops-admin/venv/bin/python -m pip install --no-deps build/netops-core-0.2.7 build/netops-auditor-0.2.10 build/netops-admin-0.2.6) || exit 1
    ```
 
 4. Check the installation and the unpacked archive:
 
    ```sh
-   /opt/netops-admin/venv/bin/netops-admin --version
-   (cd netops-admin-0.2.5 && /opt/netops-admin/venv/bin/python -B scripts/check_gates.py)
-   (cd netops-admin-0.2.5 && /opt/netops-admin/venv/bin/python -B -m pytest -q -p no:cacheprovider)
+   /opt/netops-admin/venv/bin/python -c 'from os import access,stat,X_OK; from stat import S_ISREG; from sys import argv,exit; p=argv[1]; s=stat(p); exit(0 if S_ISREG(s.st_mode) and access(p,X_OK) and not s.st_mode & 0o022 else "Unsafe askpass permissions")' /opt/netops-admin/venv/bin/netops-askpass || exit 1
+   /opt/netops-admin/venv/bin/netops-admin --version || exit 1
+   (cd netops-admin-0.2.6 && /opt/netops-admin/venv/bin/python -B scripts/check_gates.py) || exit 1
+   (cd netops-admin-0.2.6 && /opt/netops-admin/venv/bin/python -B -m pytest -q -p no:cacheprovider) || exit 1
    ```
 
 After configuration, complete [enrollment and the first change](operations-020.md). Enrollment is mandatory and requires notification and audit export.
 
 ### Upgrading
 
-The enrollment binding covers every profile file of the installed package, not only the profiles of the device's platform: `enrollment.binding()` hashes all of them together with the device, accounts, firmware, notification and export settings. An upgrade that changes any profile file therefore invalidates the enrollment of every device, FortiOS and ExtremeXOS alike. 0.2.5 is such an upgrade, because it enables the FortiOS address group and DHCP reservation profiles on 8.0.0 build0167. After it, `doctor` reports the enrollment as missing and `apply` refuses each device until `netops-admin enroll --config ... --device ... --probe ...` passes on it again; the enrollment counts against the device's change budget. At the same time, start `scripts/export_status.py` with `--audit-file` (see [Audit export and notification](#audit-export-and-notification)), so that the status names the audit log the destination reads; a status without it is still accepted, and `doctor` notes that it does not name the audit file.
+The enrollment binding covers every profile file of the installed package, not only the profiles of the device's platform: `enrollment.binding()` hashes all of them together with the device, accounts, firmware, notification and export settings. An upgrade that changes any profile file therefore invalidates the enrollment of every device, FortiOS and ExtremeXOS alike. 0.2.6 is such an upgrade, because it enables the FortiOS address group and DHCP reservation profiles on 8.0.0 build0167. After it, `doctor` reports the enrollment as missing and `apply` refuses each device until `netops-admin enroll --config ... --device ... --probe ...` passes on it again; the enrollment counts against the device's change budget. At the same time, start `scripts/export_status.py` with `--audit-file` (see [Audit export and notification](#audit-export-and-notification)), so that the status names the audit log the destination reads; a status without it is still accepted, and `doctor` notes that it does not name the audit file.
 
 ## Write account on the device
 
@@ -148,7 +150,7 @@ Register the server with an MCP client as a stdio command; it inherits nothing f
 }
 ```
 
-The server answers `initialize` with `serverInfo` `{"name": "netops-admin", "version": "0.2.5"}`, the name and version of the installed package.
+The server answers `initialize` with `serverInfo` `{"name": "netops-admin", "version": "0.2.6"}`, the name and version of the installed package.
 
 If the client disconnects during an operation, the server finishes that operation before it exits; the result stays readable with `admin_status` or `netops-admin status`.
 
