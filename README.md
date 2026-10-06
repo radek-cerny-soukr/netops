@@ -32,7 +32,7 @@ If your configuration backups live in a Git repository, the auditor runs as a Gi
 
 ```yaml
 - id: audit
-  uses: radek-cerny-soukr/netops/components/netops-auditor@c1eff3aed172d3dd865a767de5b290170b6fb1b1 # netops-auditor 0.2.9
+  uses: radek-cerny-soukr/netops/components/netops-auditor@d5a192961578d9588de90a5d963494f6adff51a4 # netops-auditor 0.2.10
   with:
     platform: fortios
     configs: |
@@ -50,16 +50,16 @@ The workflow needs `security-events: write`. Inputs, outputs and the SARIF mappi
 
 ### An agent that can change a little, and undo it
 
-[`netops-admin`](components/netops-admin/) changes one object of a supported table per request. Before writing it arms a rollback on the device itself (a FortiOS automation stitch or an ExtremeXOS Universal Port Manager timer), then compares the result with its prediction through a separate check account, and disarms the rollback only when everything matches. If the check cannot be completed, the timer on the device restores the previous state on its own. Six single-object profiles cover FortiOS addresses, address groups and DHCP reservations and EXOS VLANs, port display strings and membership. Admin 0.2.5 also supports up to 32-operation FortiOS schema transactions, only with exact operator-pinned libraries and rollback calibration. Two read-only commands help before the first change: `netops-admin doctor` reports every condition a device still lacks, and `netops-admin preview` shows the plan of a request and every reason it would be refused, without changing anything. [Start here](components/netops-admin/docs/operations-020.md).
+[`netops-admin`](components/netops-admin/) changes one object of a supported table per request. Before writing it arms a rollback on the device itself (a FortiOS automation stitch or an ExtremeXOS Universal Port Manager timer), then compares the result with its prediction through a separate check account, and disarms the rollback only when everything matches. If the check cannot be completed, the timer on the device restores the previous state on its own. Six single-object profiles cover FortiOS addresses, address groups and DHCP reservations and EXOS VLANs, port display strings and membership. Admin 0.2.6 also supports up to 32-operation FortiOS schema transactions, only with exact operator-pinned libraries and rollback calibration. Two read-only commands help before the first change: `netops-admin doctor` reports every condition a device still lacks, and `netops-admin preview` shows the plan of a request and every reason it would be refused, without changing anything. [Start here](components/netops-admin/docs/operations-020.md).
 
 ## Components
 
 | Component | What it does | Released |
 |---|---|---|
-| [`netops-auditor`](components/netops-auditor/) | Configuration audit; collects the configuration from the device itself or reads a file | [`netops-auditor/v0.2.9`](https://github.com/radek-cerny-soukr/netops/releases/tag/netops-auditor%2Fv0.2.9) (2026-10-06) |
-| [`netops-helper`](components/netops-helper/) | Read-only MCP server for bounded network troubleshooting | [`netops-helper/v0.3.8`](https://github.com/radek-cerny-soukr/netops/releases/tag/netops-helper%2Fv0.3.8) (2026-10-06) |
-| [`netops-admin`](components/netops-admin/) | Bounded device changes, mandatory rollback enrollment and predicted/observed audit | [`netops-admin/v0.2.5`](https://github.com/radek-cerny-soukr/netops/releases/tag/netops-admin%2Fv0.2.5) (2026-10-06) |
-| [`netops-core`](components/netops-core/) | Shared access layer the other components build on: inventory, credential store, host key trust, SSH transport, audit records | [`netops-core/v0.2.6`](https://github.com/radek-cerny-soukr/netops/releases/tag/netops-core%2Fv0.2.6) (2026-10-06) |
+| [`netops-auditor`](components/netops-auditor/) | Configuration audit; collects the configuration from the device itself or reads a file | [`netops-auditor/v0.2.10`](https://github.com/radek-cerny-soukr/netops/releases/tag/netops-auditor%2Fv0.2.10) (2026-10-06) |
+| [`netops-helper`](components/netops-helper/) | Read-only MCP server for bounded network troubleshooting | [`netops-helper/v0.3.9`](https://github.com/radek-cerny-soukr/netops/releases/tag/netops-helper%2Fv0.3.9) (2026-10-06) |
+| [`netops-admin`](components/netops-admin/) | Bounded device changes, mandatory rollback enrollment and predicted/observed audit | [`netops-admin/v0.2.6`](https://github.com/radek-cerny-soukr/netops/releases/tag/netops-admin%2Fv0.2.6) (2026-10-06) |
+| [`netops-core`](components/netops-core/) | Shared access layer the other components build on: inventory, credential store, host key trust, SSH transport, audit records | [`netops-core/v0.2.7`](https://github.com/radek-cerny-soukr/netops/releases/tag/netops-core%2Fv0.2.7) (2026-10-06) |
 
 Every release carries a source archive, an SBOM, a checksum manifest and a Sigstore signature; install from those assets after [verifying them](docs/README.md#verifying-a-release). The release page is authoritative. PyPI is a delayed, secondary channel: publication is a separate workflow after GitHub and does not install the Helper server; check exact-version availability before using the index. On 1 October 2026 PyPI carries `netops-core` 0.2.4, `netops-auditor` 0.2.7 and `netops-admin` 0.2.2; Helper was absent on that date. Earlier versions keep their release pages and tags; the table above links the current one. How releases are cut and signed, and what the repository gate enforces, is in the [documentation map](docs/README.md#releases).
 

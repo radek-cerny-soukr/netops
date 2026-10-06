@@ -13,6 +13,12 @@ For 0.3.8, the release assets identify the exact final image digest and its Gryp
 
 The ignore rule of CVE-2026-60002 names the package version: a build that installs any other `openssh-client` version is no longer covered by it, and an active Critical match then blocks the release until the new package is reviewed. The other active High, Medium and Low matches are distribution packages labelled `wont-fix` or `not-fixed`; they are listed in the Grype report of each image and are not reviewed one by one here.
 
+## Helper 0.3.9 installation-fix release
+
+This release changes installation documentation, archive tests and version pins. It keeps the digest-pinned Python 3.14.8 base and runtime lock of 0.3.8. A fresh build, image SBOM and full Grype scan are required; its release notes bind the exact image digest and counts. Earlier scans remain historical evidence.
+
+At the 6 October 2026 review, the [Debian tracker](https://security-tracker.debian.org/tracker/CVE-2026-60002) still marks trixie openssh-client 1:10.0p1-7+deb13u4 as vulnerable with no-dsa. The existing package-version-specific CVE-2026-60002 exception applies to 0.3.9 only if its actual SBOM has that exact version; no ignore rule is added or widened. The unresolved Python findings below remain explicit, including the still-open [3.14 TemporaryDirectory backport](https://github.com/python/cpython/pull/158430).
+
 ## Helper 0.3.8 candidate scan
 
 Helper 0.3.8 updates the official digest-pinned slim-trixie ARM64 base to Python 3.14.8 and its locked PyJWT dependency to 2.15.0. The image still applies available Debian upgrades before installing openssh-client. No vulnerability ignore rule is added or widened.

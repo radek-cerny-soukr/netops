@@ -22,10 +22,10 @@ The same device credential is used for SSH, SFTP, FTPS, and plain FTP. Plain FTP
 
 ## 2. Install the shared access layer on the proxy host
 
-The proxy and the egress generator import `netops_core` and `netops_helper`. Install them from the release assets: the source archive of this release and the source archive of `netops-core` 0.2.6, which it pins. Download each archive with the release `SHA256SUMS` and its Sigstore bundle from the release page, verify the bundle with [cosign](https://github.com/sigstore/cosign) and the archive against `SHA256SUMS`, and stop if either check fails:
+The proxy and the egress generator import `netops_core` and `netops_helper`. Install them from the release assets: the source archive of this release and the source archive of `netops-core` 0.2.7, which it pins. Download each archive with the release `SHA256SUMS` and its Sigstore bundle from the release page, verify the bundle with [cosign](https://github.com/sigstore/cosign) and the archive against `SHA256SUMS`, and stop if either check fails:
 
 ```sh
-for release in netops-helper:0.3.8 netops-core:0.2.6; do
+for release in netops-helper:0.3.9 netops-core:0.2.7; do
   component=${release%%:*}
   version=${release#*:}
   base="https://github.com/radek-cerny-soukr/netops/releases/download/${component}%2Fv${version}"
@@ -44,17 +44,30 @@ done
 Each archive must report `Verified OK` from `cosign` and `OK` from `sha256sum`. The certificate identity and issuer are the maintainer's GitHub account, the same for every component; [Verifying a release](https://github.com/radek-cerny-soukr/netops/blob/main/docs/README.md#verifying-a-release) describes the check for any release asset. Each archive also carries its own `SHA256SUMS` for the files inside it. Unpack both archives in the same directory and check those files:
 
 ```sh
-tar -xzf netops-helper-0.3.8-source.tar.gz
-tar -xzf netops-core-0.2.6-source.tar.gz
-(cd netops-helper-0.3.8 && sha256sum -c SHA256SUMS)
-(cd netops-core-0.2.6 && sha256sum -c SHA256SUMS)
+tar -xzf netops-helper-0.3.9-source.tar.gz || exit 1
+tar -xzf netops-core-0.2.7-source.tar.gz || exit 1
+(cd netops-helper-0.3.9 && sha256sum -c SHA256SUMS) || exit 1
+(cd netops-core-0.2.7 && sha256sum -c SHA256SUMS) || exit 1
 ```
 
 Every file must report `OK`.
 
 This guide installs the signed GitHub source assets. PyPI publication is separate and carries only the client proxy plus its exact Core dependency; check version availability before selecting that channel. The server image and its hash-locked runtime are still installed from the verified release assets. You can also install `components/netops-core` and `components/netops-helper` from a checkout, or place their `src` directories on `PYTHONPATH`. Checkout scripts add those two source directories themselves.
 
-From a release export the same two ways apply to the unpacked archives: `python -m pip install <netops-core directory> <netops-helper directory>` into the environment that runs the proxy, or their `src` directories on `PYTHONPATH`. **Both archives are needed for that path on a host without an index**, and in that order: the helper archive carries a copy of `netops_core` for the image build, but its metadata pins `netops-core==0.2.6`, so `pip install <netops-helper directory>` on its own looks for that version on the package index, and ends in `No matching distribution found for netops-core` where the index does not carry it or no index is reachable. That is the pin doing its job, not a damaged archive.
+From a release export the same two ways apply to the unpacked archives: `python -m pip install <netops-core directory> <netops-helper directory>` into the environment that runs the proxy, or their `src` directories on `PYTHONPATH`. **Both archives are needed for that path on a host without an index**, and in that order: the helper archive carries a copy of `netops_core` for the image build, but its metadata pins `netops-core==0.2.7`, so `pip install <netops-helper directory>` on its own looks for that version on the package index, and ends in `No matching distribution found for netops-core` where the index does not carry it or no index is reachable. That is the pin doing its job, not a damaged archive.
+
+For the installed-command path, create a private-user-owned environment and install from copies of the verified source trees. The local `umask 022` in each installation command prevents a login default of `0002` from creating group-writable launchers. It applies to public code only; keep operator files private as described in section 3.
+
+```sh
+(umask 022; python3.13 -m venv "$HOME/.local/share/netops-helper/venv") || exit 1
+(umask 022; "$HOME/.local/share/netops-helper/venv/bin/python" -m pip install --require-hashes -r netops-helper-0.3.9/requirements-release.lock) || exit 1
+mkdir build-proxy || exit 1
+cp -r netops-core-0.2.7 netops-helper-0.3.9 build-proxy/ || exit 1
+(umask 022; "$HOME/.local/share/netops-helper/venv/bin/python" -m pip install --no-deps build-proxy/netops-core-0.2.7 build-proxy/netops-helper-0.3.9) || exit 1
+"$HOME/.local/share/netops-helper/venv/bin/python" -c 'from os import access,stat,X_OK; from stat import S_ISREG; from sys import argv,exit; valid=all(S_ISREG(stat(p).st_mode) and access(p,X_OK) and not stat(p).st_mode & 0o022 for p in argv[1:]); exit(0 if valid else "Unsafe launcher permissions")' "$HOME/.local/share/netops-helper/venv/bin/netops-askpass" "$HOME/.local/share/netops-helper/venv/bin/netops-helper-proxy" || exit 1
+```
+
+Launch the installed proxy by its absolute path above, or add that environment's `bin` directory to `PATH`. Do not loosen the Core permission guard to accept a group-writable program. If an earlier installation created unsafe scripts, reinstall with the safe umask or remove only their group/other write bits after checking their owner; do not change credential directories recursively.
 
 Installing has one practical advantage over `PYTHONPATH` on a proxy host: it puts the proxy on the path as the command **`netops-helper-proxy`**, which is what a client is then configured to launch instead of an absolute path into an unpacked archive.
 

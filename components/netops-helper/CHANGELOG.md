@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.9 - 2026-10-06
+
+- Pin netops-core 0.2.7.
+- Stop each unpack and checksum step on failure in an ordinary shell. Document proxy venv installation with local umask 022 and readiness checks for both installed programs.
+- Run supply-chain and export mutation tests from the shipped archive layout, including vendored Core; give each reconstructed source fixture a separate directory.
+
 The latest entry describes the current source version; earlier entries are historical source records. Use the repository release index for current downloads and commit history for superseded source. See the [release procedure](docs/releasing.md).
 
 ## 0.3.8 - 2026-10-06

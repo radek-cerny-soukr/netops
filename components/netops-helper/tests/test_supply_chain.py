@@ -302,7 +302,7 @@ def test_version_invariant_rejects_changed_pyproject(tmp_path: Path) -> None:
     root = _version_fixture(tmp_path)
     _replace_exact(
         root / "pyproject.toml",
-        "version = \"0.3.8\"",
+        "version = \"0.3.9\"",
         "version = \"not-a-release\"",
     )
     errors = _load_release_module("check_public_release")._version_invariant_errors(root)
@@ -315,7 +315,7 @@ def test_version_invariant_rejects_changed_package_version(tmp_path: Path) -> No
     root = _version_fixture(tmp_path)
     _replace_exact(
         root / "src/netops_helper/__init__.py",
-        "__version__ = \"0.3.8\"",
+        "__version__ = \"0.3.9\"",
         "__version__ = \"9.9.9\"",
     )
     errors = _load_release_module("check_public_release")._version_invariant_errors(root)
@@ -330,7 +330,7 @@ def test_version_invariant_rejects_nested_and_function_version_bindings(
         "nested": "\nif True:\n    __version__ = \"9.9.9\"\n",
         "function": (
             "\ndef version_decoy():\n"
-            "    __version__ = \"0.3.8\"\n"
+            "    __version__ = \"0.3.9\"\n"
             "    return __version__\n"
         ),
     }
@@ -368,7 +368,7 @@ def test_version_invariant_rejects_changed_compose_image(tmp_path: Path) -> None
     root = _version_fixture(tmp_path)
     _replace_exact(
         root / "compose.yaml",
-        "image: local/netops-helper:0.3.8",
+        "image: local/netops-helper:0.3.9",
         "image: local/netops-helper:9.9.9",
     )
     errors = _load_release_module("check_public_release")._version_invariant_errors(root)
@@ -521,8 +521,11 @@ def test_public_allowlist_contains_all_0_2_contracts() -> None:
         path.relative_to(ROOT).as_posix()
         for path in exporter.selected_files(ROOT)
     }
-    assert len(selected) == 104
-    assert exporter.VERSION == "0.3.8"
+    assert selected == _expected_public_paths(ROOT)
+    manifest = ROOT / "release-manifest.json"
+    if manifest.is_file():
+        assert selected == set(json.loads(manifest.read_text(encoding="utf-8"))["files"])
+    assert exporter.VERSION == "0.3.9"
     assert required_tests <= exporter.TESTS
     assert required_tests <= gate.REQUIRED_RELEASE_PATHS
     assert dependency_free_required <= dependency_free_tests
@@ -535,32 +538,68 @@ SELECTION_ERROR = "public release source selection is unavailable or invalid"
 SELECTION_MARKER = "SENSITIVE_SELECTION_MARKER"
 
 
+def _expected_public_paths(root: Path) -> set[str]:
+    exporter = _load_release_module("create_release_artifacts")
+    expected = exporter.EXACT | exporter.TESTS | exporter.SCRIPTS | set(exporter.PUBLIC_CONFIG_FILES)
+    expected |= {path.relative_to(root).as_posix() for path in (root / "docs").rglob("*")
+                 if path.is_file() and path.suffix in {".md", ".json"}}
+    expected |= {path.relative_to(root).as_posix() for path in (root / "src").rglob("*.py")
+                 if path.is_file() and "__pycache__" not in path.parts}
+    return expected
+
+
+def _source_fixture_for_export(tmp_path: Path) -> Path:
+    tmp_path.mkdir(parents=True, exist_ok=True)
+    source = Path(tempfile.mkdtemp(prefix="source-fixture-", dir=tmp_path)) / "components" / "netops-helper"
+    ignored = shutil.ignore_patterns("__pycache__", ".pytest_cache", "*.pyc", "*.pyo", "dist")
+    shutil.copytree(ROOT, source, ignore=ignored)
+    exporter = _load_release_module("create_release_artifacts")
+    vendored = source / "src/netops_core"
+    if vendored.is_dir():
+        assert _load_release_module("check_public_release").check(ROOT) == []
+        core = vendored
+        compose = source / "compose.yaml"
+        text = compose.read_text(encoding="utf-8")
+        assert text.count(exporter.COMPOSE_EXPORT_BUILD_BLOCK) == 1
+        text = text.replace(exporter.COMPOSE_EXPORT_BUILD_BLOCK,
+                            exporter.COMPOSE_REPOSITORY_BUILD_BLOCK, 1)
+        compose.write_text(text, encoding="utf-8")
+    else:
+        core = ROOT.parent / "netops-core/src/netops_core"
+    assert core.is_dir()
+    shutil.copytree(core, source.parent / "netops-core/src/netops_core", ignore=ignored)
+    if vendored.is_dir():
+        shutil.rmtree(vendored)
+    return source
+
+
 def _public_source_fixture(tmp_path: Path) -> Path:
     tmp_path.mkdir(parents=True, exist_ok=True)
     output = tmp_path / "baseline-output"
+    source = _source_fixture_for_export(tmp_path)
     subprocess.run(
         [
             sys.executable,
             "-B",
-            str(ROOT / "scripts/create_release_artifacts.py"),
+            str(source / "scripts/create_release_artifacts.py"),
             "--output",
             str(output),
         ],
-        cwd=ROOT,
+        cwd=source,
         stdin=subprocess.DEVNULL,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         check=True,
         text=True,
     )
-    exported = output / "netops-helper-0.3.8"
+    exported = output / "netops-helper-0.3.9"
     manifest = json.loads(
         (exported / "release-manifest.json").read_text(encoding="utf-8")
     )
     core_modules = sorted(
         name for name in manifest["files"] if name.startswith("src/netops_core/")
     )
-    assert len(manifest["files"]) == 104 + len(core_modules)
+    assert set(manifest["files"]) == _expected_public_paths(source) | set(core_modules)
     assert "src/netops_core/audit.py" in core_modules
     (exported / "release-manifest.json").unlink()
     (exported / "SHA256SUMS").unlink()
@@ -715,7 +754,7 @@ def test_release_selection_rejects_unsafe_entries(tmp_path: Path) -> None:
 
 def test_release_export_preserves_existing_destination(tmp_path: Path) -> None:
     output = tmp_path / "existing-output"
-    destination = output / "netops-helper-0.3.8"
+    destination = output / "netops-helper-0.3.9"
     destination.mkdir(parents=True)
     marker = destination / "marker"
     marker_bytes = SELECTION_MARKER.encode("utf-8")
@@ -764,7 +803,7 @@ def test_release_export_rejects_symlinked_output(tmp_path: Path) -> None:
     parent_link.symlink_to(actual, target_is_directory=True)
 
     cases = {
-        "direct": (direct_link, actual / "netops-helper-0.3.8"),
+        "direct": (direct_link, actual / "netops-helper-0.3.9"),
         "parent": (
             parent_link / "nested-output",
             actual / "nested-output",
@@ -798,18 +837,19 @@ def test_release_export_rejects_symlinked_output(tmp_path: Path) -> None:
 
 
 def test_release_gate_rejects_missing_vendor_contract(tmp_path: Path) -> None:
+    source = _source_fixture_for_export(tmp_path)
     output = tmp_path / "missing-vendor-export"
     subprocess.run(
         [
             sys.executable,
             "-B",
-            str(ROOT / "scripts/create_release_artifacts.py"),
+            str(source / "scripts/create_release_artifacts.py"),
             "--output",
             str(output),
         ],
         check=True,
     )
-    exported = output / "netops-helper-0.3.8"
+    exported = output / "netops-helper-0.3.9"
     (exported / "release-manifest.json").unlink()
     gate = _load_release_module("check_public_release")
 
@@ -921,18 +961,19 @@ def test_grype_contract_counts_all_severities_and_fails_closed(
 
 
 def test_release_tree_integrity_fails_closed(tmp_path: Path) -> None:
+    source = _source_fixture_for_export(tmp_path)
     output = tmp_path / "export"
     subprocess.run(
         [
             sys.executable,
             "-B",
-            str(ROOT / "scripts/create_release_artifacts.py"),
+            str(source / "scripts/create_release_artifacts.py"),
             "--output",
             str(output),
         ],
         check=True,
     )
-    exported = output / "netops-helper-0.3.8"
+    exported = output / "netops-helper-0.3.9"
     gate = _load_release_module("check_public_release")
     assert gate._release_tree_integrity_errors(exported) == []
 
@@ -1220,17 +1261,18 @@ def test_public_gate_privacy_scan_has_bounded_runtime(tmp_path: Path) -> None:
     assert completed.returncode == 0, (completed.stdout, completed.stderr)
 
 def test_public_export_contains_no_python_bytecode(tmp_path: Path) -> None:
+    source = _source_fixture_for_export(tmp_path)
     subprocess.run(
         [
             sys.executable,
             "-B",
-            str(ROOT / "scripts/create_release_artifacts.py"),
+            str(source / "scripts/create_release_artifacts.py"),
             "--output",
             str(tmp_path),
         ],
         check=True,
     )
-    exported = tmp_path / "netops-helper-0.3.8"
+    exported = tmp_path / "netops-helper-0.3.9"
     assert not [path for path in exported.rglob("*") if "__pycache__" in path.parts]
     assert not list(exported.rglob("*.pyc"))
     assert not list(exported.rglob("*.pyo"))
@@ -1266,17 +1308,18 @@ def test_gate_flags_credential_shaped_and_private_network_markers() -> None:
 def test_release_export_compose_builds_from_archive_root(tmp_path: Path) -> None:
     tmp_path.mkdir(parents=True, exist_ok=True)
     output = tmp_path / "compose-build-root"
+    source = _source_fixture_for_export(tmp_path)
     subprocess.run(
         [
             sys.executable,
             "-B",
-            str(ROOT / "scripts/create_release_artifacts.py"),
+            str(source / "scripts/create_release_artifacts.py"),
             "--output",
             str(output),
         ],
         check=True,
     )
-    exported = output / "netops-helper-0.3.8"
+    exported = output / "netops-helper-0.3.9"
     compose_text = (exported / "compose.yaml").read_text(encoding="utf-8")
     assert "      context: .\n" in compose_text
     assert "../.." not in compose_text
@@ -1287,17 +1330,18 @@ def test_release_export_compose_builds_from_archive_root(tmp_path: Path) -> None
 def test_release_export_keeps_askpass_executable(tmp_path: Path) -> None:
     tmp_path.mkdir(parents=True, exist_ok=True)
     output = tmp_path / "compose-build-modes"
+    source = _source_fixture_for_export(tmp_path)
     subprocess.run(
         [
             sys.executable,
             "-B",
-            str(ROOT / "scripts/create_release_artifacts.py"),
+            str(source / "scripts/create_release_artifacts.py"),
             "--output",
             str(output),
         ],
         check=True,
     )
-    exported = output / "netops-helper-0.3.8"
+    exported = output / "netops-helper-0.3.9"
     askpass_mode = stat.S_IMODE(
         (exported / "src/netops_core/askpass.py").stat().st_mode
     )
@@ -1308,8 +1352,7 @@ def test_release_export_keeps_askpass_executable(tmp_path: Path) -> None:
 
 def test_release_export_rejects_unknown_compose_build_block(tmp_path: Path) -> None:
     tmp_path.mkdir(parents=True, exist_ok=True)
-    mutated = tmp_path / "netops-helper-mutated"
-    shutil.copytree(ROOT, mutated)
+    mutated = _source_fixture_for_export(tmp_path)
     _replace_exact(
         mutated / "compose.yaml",
         "      context: ../..\n",
@@ -1411,7 +1454,96 @@ def test_schema_snapshot_gate_is_narrow_and_rejects_missing_controls(tmp_path: P
     engine.write_text(original)
 
 
+def test_installation_stops_on_every_unpack_or_checksum_failure():
+    import hashlib
+    import io
+    import re
+    import subprocess
+    import tarfile
+    import tempfile
+    import textwrap
+    text = (ROOT / "docs" / "installation.md").read_text(encoding="utf-8")
+    blocks = re.findall(r"(?ms)^[ \t]*```sh[ \t]*\n(.*?)^[ \t]*```[ \t]*$", text)
+    block = textwrap.dedent(next(value for value in blocks if "tar -xzf" in value and "sha256sum -c SHA256SUMS" in value))
+    archives = re.findall(r"tar -xzf (netops-[a-z]+-[0-9.]+-source\.tar\.gz)", block)
+    assert archives
+    cases = [(None, None)] + [(kind, index) for kind in ("missing", "checksum") for index in range(len(archives))]
+    for kind, broken in cases:
+        with tempfile.TemporaryDirectory(prefix="netops-installation-") as temporary:
+            directory = Path(temporary)
+            for index, name in enumerate(archives):
+                if kind == "missing" and index == broken:
+                    continue
+                root = name.removesuffix("-source.tar.gz")
+                member = root + ".txt"
+                payload = b"verified source data\n"
+                digest = hashlib.sha256(payload).hexdigest()
+                checksums = (digest + "  " + member + "\n").encode()
+                actual = b"changed source data\n" if kind == "checksum" and index == broken else payload
+                with tarfile.open(directory / name, "w:gz") as archive:
+                    for filename, content in ((member, actual), ("SHA256SUMS", checksums)):
+                        info = tarfile.TarInfo(root + "/" + filename)
+                        info.size = len(content)
+                        info.mode = 0o644
+                        archive.addfile(info, io.BytesIO(content))
+            result = subprocess.run(["sh", "-c", block + "\nprintf INSTALLATION_REACHED_NEXT_PHASE"],
+                                    cwd=directory, capture_output=True, text=True)
+            if kind is None:
+                assert result.returncode == 0, result.stderr
+                assert "INSTALLATION_REACHED_NEXT_PHASE" in result.stdout
+            else:
+                assert result.returncode != 0, (kind, broken, result.stdout, result.stderr)
+                assert "INSTALLATION_REACHED_NEXT_PHASE" not in result.stdout
+
+
+def test_the_exporter_marks_exactly_the_programs_the_tree_marks() -> None:
+    exporter = _load_release_module("create_release_artifacts")
+    marked = set()
+    for tree in ("scripts", "src"):
+        for path in sorted((ROOT / tree).rglob("*")):
+            if path.is_file() and path.stat().st_mode & 0o100:
+                marked.add(path.relative_to(ROOT).as_posix())
+    vendored = ROOT / "src/netops_core"
+    expected = set(exporter.SCRIPTS)
+    if vendored.is_dir():
+        expected |= {"src/netops_core/" + name for name in exporter.CORE_EXECUTABLE}
+    assert expected == marked
+    core_package = vendored if vendored.is_dir() else ROOT.parent / "netops-core/src/netops_core"
+    core = {
+        path.name
+        for path in sorted(core_package.iterdir())
+        if path.is_file() and path.stat().st_mode & 0o100
+    }
+    assert set(exporter.CORE_EXECUTABLE) == core
+
+
+def test_export_fixture_retains_the_pinned_core_from_each_input_form(tmp_path: Path) -> None:
+    source = _source_fixture_for_export(tmp_path)
+    core = source.parent / "netops-core/src/netops_core"
+    original = ROOT / "src/netops_core" if (ROOT / "src/netops_core").is_dir() else ROOT.parent / "netops-core/src/netops_core"
+    assert {p.relative_to(core).as_posix(): p.read_bytes() for p in core.rglob("*.py")} == {
+        p.relative_to(original).as_posix(): p.read_bytes() for p in original.rglob("*.py")
+        if "__pycache__" not in p.parts
+    }
+
+
+
+def test_export_fixtures_do_not_share_mutable_files(tmp_path: Path) -> None:
+    first = _source_fixture_for_export(tmp_path)
+    second = _source_fixture_for_export(tmp_path)
+    assert first != second
+    for relative in ("README.md", "../netops-core/src/netops_core/__init__.py"):
+        original = (second / relative).read_bytes()
+        (first / relative).write_bytes(b"changed isolated fixture\n")
+        assert (second / relative).read_bytes() == original
+
+
 def main() -> int:
+    test_the_exporter_marks_exactly_the_programs_the_tree_marks()
+    with tempfile.TemporaryDirectory(prefix="netops-pinned-core-fixture-") as directory:
+        test_export_fixture_retains_the_pinned_core_from_each_input_form(Path(directory))
+        test_export_fixtures_do_not_share_mutable_files(Path(directory))
+    test_installation_stops_on_every_unpack_or_checksum_failure()
     test_runtime_inputs_and_install_metadata_agree()
     test_sbom_contains_all_direct_dependencies()
     test_release_license_is_mit()
@@ -1504,19 +1636,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-
-
-def test_the_exporter_marks_exactly_the_programs_the_tree_marks() -> None:
-    exporter = _load_release_module("create_release_artifacts")
-    marked = set()
-    for tree in ("scripts", "src"):
-        for path in sorted((ROOT / tree).rglob("*")):
-            if path.is_file() and path.stat().st_mode & 0o100:
-                marked.add(path.relative_to(ROOT).as_posix())
-    assert exporter.SCRIPTS == marked
-    core = {
-        path.name
-        for path in sorted((ROOT.parent / "netops-core/src/netops_core").iterdir())
-        if path.is_file() and path.stat().st_mode & 0o100
-    }
-    assert set(exporter.CORE_EXECUTABLE) == core

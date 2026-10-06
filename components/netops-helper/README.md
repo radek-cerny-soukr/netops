@@ -1,6 +1,6 @@
 # NetOps Helper
 
-The current release is `netops-helper/v0.3.8` (2026-10-06), which pins `netops-core==0.2.6` and vendors `src/netops_core` inside its own release archive. The [repository release table](https://github.com/radek-cerny-soukr/netops/blob/main/README.md#components) links the current release of every component.
+The current release is `netops-helper/v0.3.9` (2026-10-06), which pins `netops-core==0.2.7` and vendors `src/netops_core` inside its own release archive. The [repository release table](https://github.com/radek-cerny-soukr/netops/blob/main/README.md#components) links the current release of every component.
 
 **Install from the release assets.** The [installation guide](https://github.com/radek-cerny-soukr/netops/blob/main/components/netops-helper/docs/installation.md) downloads the source archives of this component and of the pinned `netops-core` from their release pages and verifies them against the release `SHA256SUMS` and its Sigstore bundle; the server runs as a container image built from that archive, or loaded from the published OCI archive, on a separate runner host. **`netops-helper` has a separate PyPI publication step after GitHub**; check exact-version index availability before choosing that installation channel. The package is prepared as the client side only: once uploaded, installing the package with pip would put only the stdio proxy `netops-helper-proxy` that an MCP client launches on the host, with the pinned `netops-core`, never the server.
 
@@ -9,6 +9,10 @@ NetOps Helper provides bounded MCP troubleshooting reads, optional measured Fort
 Operators address explicitly enrolled devices by name. A local stdio proxy validates the device's `helper` section of the shared inventory, injects that one device's credential after the MCP client boundary, transports the request over SSH to a host-key-pinned runner, and invokes an isolated container there. Device output keeps identifiers needed for correlation while recognized secrets are removed on a best-effort basis.
 
 This is a self-hosted community project for experienced operators and security reviewers. It is not an enterprise orchestrator, a replacement for device-side authorization, or proof that a diagnostic conclusion is correct.
+
+## Installation fixes in 0.3.9
+
+Installation stops failed shell steps and provides a safe proxy venv; archive tests run with the shipped vendored Core layout and isolated export fixtures. See the [changelog](CHANGELOG.md) and installation/release instructions for the exact procedure.
 
 ## New in 0.3.8
 
