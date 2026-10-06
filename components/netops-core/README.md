@@ -1,22 +1,10 @@
 # netops-core
 
-The current release is `netops-core/v0.2.5` (2026-09-26), also published on PyPI: `pip install netops-core`. `netops-auditor` 0.2.8, `netops-admin` 0.2.4 and `netops-helper` 0.3.7 pin exactly that version. It reads a host key one key type at a time and adds the per-device SSH profile `rsa-sha1-dh14` for devices that offer only SHA-1 key exchange; see the [changelog](https://github.com/radek-cerny-soukr/netops/blob/main/components/netops-core/CHANGELOG.md). `netops-auditor` 0.2.7 and `netops-admin` 0.2.2 pin 0.2.4, the first version on PyPI; earlier releases pin 0.2.3, which is not on PyPI.
+This source tree targets `netops-core/v0.2.6` (2026-10-06); `netops-auditor` 0.2.9, `netops-admin` 0.2.5 and `netops-helper` 0.3.8, released with it, pin exactly that version. Earlier releases keep their pins: `netops-auditor` 0.2.8, `netops-admin` 0.2.3 and 0.2.4 and `netops-helper` 0.3.7 pin `netops-core/v0.2.5` (2026-09-26); `netops-auditor` 0.2.7 and `netops-admin` 0.2.2 pin 0.2.4, and earlier releases pin 0.2.3 or 0.2.2. `netops-core` 0.2.6 has a separate PyPI publication step after GitHub; check exact-version index availability before choosing that installation channel: on 1 October 2026 PyPI carries `netops-core` 0.2.4 only. This version reads the inventory and the vault with a size bound and refuses a key repeated within one JSON object, makes the pinned host key the only one OpenSSH trusts, never opens the audit log through a link and keeps a value that may be a misplaced secret out of its errors; see the [changelog](https://github.com/radek-cerny-soukr/netops/blob/main/components/netops-core/CHANGELOG.md).
 
-The shared access layer of the `netops` family. It holds every piece a component needs to reach a
-device and to record what happened: the inventory of devices, the credential store, host key trust,
-the SSH exec transport, the interactive terminal transport, SFTP metadata, prompt cleaning, and the
-audit record. Every module here is either a fail-closed document reader, a transport that runs exactly
-one command or one call and returns exactly what came back, or a writer of one audit line; none of them
-retries, falls back to a weaker setting, or judges whether a result is good enough to act on. It
-decides nothing, evaluates nothing, and exposes no server or network listener of its own.
+The shared access and configuration primitives of the `netops` family: bounded inventory and credential readers, exclusive SSH host-key trust, SSH exec and terminal transports, SFTP metadata, prompt cleaning and audit records. Version 0.2.6 also provides the shared FortiOS configuration parser and measured schema library runtime. Consumers decide authorization, audit policy and whether a result allows a change. Core exposes no server or network listener.
 
-It is deliberately **not** a device driver: the platform names it knows are a closed list used for
-prompt cleaning and inventory validation, not a per-vendor command set, and no module here reads or
-parses a device's configuration. It is **not** a policy engine: it does not decide whether a read is
-safe, whether an account is genuinely read-only, or whether a finding is a violation - those decisions,
-and the command or query catalogues that embody them, belong to the components built on it. And it
-is **not** a self-contained deployable: no image, no compose file, no MCP surface of its own; a caller
-takes the directory from the tree at build time.
+The FortiOS parser reads saved configuration text into a bounded tree. Schema traversal preserves VDOMs and nested parent keys, validates measured types and values, and represents unmeasured scope and availability explicitly. A library requires an exact hardware model, OS version and build; it does not establish device permissions or semantic correctness. Command catalogues, write calibration and rollback policy belong to the consuming components. Operators supply and pin their own measured libraries; this release does not include a universal FortiOS schema database. Core is installed as a library and ships no image, compose service or MCP surface.
 
 Four properties are enforced by the release gate itself, not just
 asserted here: standard library only, so no import outside it may appear anywhere under `src/` (gate
@@ -40,6 +28,9 @@ it" below for what that means in practice.
 | `session.py` | the interactive terminal session on the same client, for devices without an exec channel |
 | `prompt.py` | the device prompt removed from a one-shot answer, one rule for every component |
 | `audit.py` | the append-only audit record with rotation and a closed field set |
+| `inputs.py` | bounded regular-file reads without blocking on pipes or devices |
+| `fortios.py` | shared configuration lexer and tree parser, escaped/empty values, VDOM and nested context |
+| `schema.py` | format-1 measured libraries, digest and exact model/build binding, instance traversal and measured value validation |
 
 Seven of these have their own page - [`docs/inventory.md`](https://github.com/radek-cerny-soukr/netops/blob/main/components/netops-core/docs/inventory.md),
 [`docs/vault.md`](https://github.com/radek-cerny-soukr/netops/blob/main/components/netops-core/docs/vault.md), [`docs/ssh.md`](https://github.com/radek-cerny-soukr/netops/blob/main/components/netops-core/docs/ssh.md), [`docs/sftp.md`](https://github.com/radek-cerny-soukr/netops/blob/main/components/netops-core/docs/sftp.md),
@@ -50,6 +41,10 @@ contract is folded into the page that uses them instead: platform names and thei
 [`docs/prompt.md`](https://github.com/radek-cerny-soukr/netops/blob/main/components/netops-core/docs/prompt.md) and [`docs/inventory.md`](https://github.com/radek-cerny-soukr/netops/blob/main/components/netops-core/docs/inventory.md), the legacy-algorithm
 exception in [`docs/inventory.md`](https://github.com/radek-cerny-soukr/netops/blob/main/components/netops-core/docs/inventory.md#legacy-ssh-is-an-exception-per-device), and host
 key trust and the askpass program in [`docs/ssh.md`](https://github.com/radek-cerny-soukr/netops/blob/main/components/netops-core/docs/ssh.md).
+
+## New in 0.2.6
+
+Measured FortiOS schemas and the shared parser are described in [Schema and configuration primitives](docs/schema.md). Transport and document hardening cover exclusive host-key pins, bounded input, duplicate JSON keys, link-safe audit persistence and classified errors. The family-wide [issue resolution table](https://github.com/radek-cerny-soukr/netops/blob/main/docs/README.md#github-issue-resolution) maps individual findings to regressions.
 
 ## Guarantees and limits
 
@@ -84,8 +79,11 @@ key trust and the askpass program in [`docs/ssh.md`](https://github.com/radek-ce
 
 ## How the other components use it
 
-`netops-core` is published on PyPI from 0.2.4, and `netops-auditor`, `netops-admin` and, from 0.3.7,
-`netops-helper` depend on it there by an exact pin, so `pip install netops-auditor` installs the matching core with it. Inside this
+`netops-auditor`, `netops-admin` and, from 0.3.7, `netops-helper` depend on `netops-core` by an exact
+pin. From the release archives the operator installs the verified `netops-core` source archive of
+that version beside the component, as the installation guide of that component describes. PyPI is a
+delayed channel: on 1 October 2026 PyPI carries `netops-core` 0.2.4 only, so a component that pins a
+later version cannot be installed from there yet. Inside this
 repository a component takes it from the tree instead: the consuming component installs the directory
 `components/netops-core` into its own environment or image, or puts `components/netops-core/src` on
 `PYTHONPATH`, and the `netops-helper` image carries a copy from the tree. No consumer resolves a
@@ -129,3 +127,9 @@ The release process - including how this repository publishes its release pages,
 and what that means for an older version - is in [`docs/releasing.md`](https://github.com/radek-cerny-soukr/netops/blob/main/components/netops-core/docs/releasing.md).
 
 MIT licensed. Part of the [`netops`](https://github.com/radek-cerny-soukr/netops/blob/main/README.md) family.
+
+## Measured FortiOS schemas
+
+The stdlib modules netops_core.schema and netops_core.fortios load a bounded format-1 FortiOS library and parse saved configurations. Library identity is the exact hardware model, firmware version and build; a caller can also pin the SHA-256 digest. Configuration instances preserve VDOM names and every parent table key.
+
+Read commands are derived from measured configuration paths. Write value validation checks measured types, options, ranges and lengths; it rejects unmeasured availability or scope and types without a validator. Value validation alone does not authorize a write or provide rollback. A caller must enforce its account, policy, reference and recovery controls.

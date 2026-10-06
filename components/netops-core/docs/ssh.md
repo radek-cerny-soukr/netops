@@ -21,8 +21,10 @@ The options are built per authentication kind. A key uses `BatchMode=yes`. A pas
 failure instead of a prompt loop or a silent fallback to a key.
 
 `UserKnownHostsFile` points at a file inside the workspace of this one call, written from the host key
-line the caller passes in. Trust comes from the pin in the inventory, never from a file on the host
-that runs the command. The options of a legacy profile (`legacy_ssh.openssh_options`) are appended
+line the caller passes in, and `GlobalKnownHostsFile=/dev/null` follows it, so the host's own
+`/etc/ssh/ssh_known_hosts` is never read beside the pin. Trust comes from the pin in the inventory,
+never from a file on the host that runs the command. `known_hosts_options()` in this module builds the pair,
+and the `argv()` of the `sftp` and `session` modules takes it from here. The options of a legacy profile (`legacy_ssh.openssh_options`) are appended
 **after** the base options, so an exception widens the algorithm list and cannot replace the hardening.
 
 ## Authentication
@@ -62,6 +64,11 @@ password is handed to. The secret itself stays in the workspace either way.
 Both paths are checked before the client is started, so a deployment where the password could not be
 handed over is refused with a message naming the reason and the variable, instead of failing later
 as an authentication error that looks like a wrong password.
+
+The installed `netops-askpass` prints the file named in `NETOPS_ASKPASS_FILE` only when it is a
+regular file of at most 1 MiB, opened without blocking. Without the variable, or with a file it
+cannot read, it writes one line `netops-askpass: <reason>` to stderr - the reason, never the content
+- and exits with `1`, which the client takes as a refused prompt.
 
 The password is never an argument and never a value in the environment of the `ssh` process: only the
 path of the file that holds it is. The environment is built from nothing and is exactly `PATH`,
@@ -204,7 +211,8 @@ still fails to negotiate gets the plain failure, because the exception it has is
 
 `run_command` takes the runner as an argument (`run=`, by default the subprocess runner), so the tests pass a recorder
 that returns a `subprocess.CompletedProcess` and assert on the exact argument vector and environment:
-`-F /dev/null` first, the hardening options in order, `UserKnownHostsFile` inside the workspace, the
+`-F /dev/null` first, the hardening options in order, `UserKnownHostsFile` inside the workspace
+followed by `GlobalKnownHostsFile=/dev/null` (checked once more by `ssh -G` over the built vector), the
 legacy options after the base ones, the password absent from both the argument vector and the
 environment values, mode 0600 on the identity file, the workspace removed after success and after
 failure, and the remedy text present only without a profile.

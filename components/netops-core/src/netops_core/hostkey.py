@@ -135,6 +135,12 @@ def _key_lines(lines) -> list:
 
 def _match(lines, fingerprint):
     offered = 0
+    try:
+        lines = list(lines)
+    except TypeError:
+        raise HostKeyError(
+            "the host key scan must answer with text lines, got %s" % type(lines).__name__
+        ) from None
     for line in lines:
         if not isinstance(line, str):
             raise HostKeyError(

@@ -216,7 +216,10 @@ def test_login_must_be_a_plain_user_name(tmp_path, login):
     path = _write(tmp_path, _doc(_entry(kind="password", login=login)))
     with pytest.raises(vault.VaultError) as caught:
         vault.load(path)
-    assert "login must be a plain user name" in str(caught.value)
+    message = str(caught.value)
+    assert "login must be a plain user name" in message
+    assert "does not start with - and holds no @, :, / or whitespace anywhere" in message
+    assert "leading -, @" not in message
     for text in _shown(caught.value):
         assert CANARY not in text
 
@@ -421,13 +424,13 @@ def test_not_utf8_hides_the_value(tmp_path):
         assert CANARY not in text
 
 
-def test_unknown_credential_lists_known_names(tmp_path):
+def test_unknown_credential_lists_known_names_without_the_reference(tmp_path):
     loaded = _loaded(tmp_path)
     with pytest.raises(vault.VaultError) as caught:
         loaded.credential("neznamy")
     message = str(caught.value)
-    assert "unknown credential" in message
-    assert "neznamy" in message
+    assert "names no record of the credential store" in message
+    assert "neznamy" not in message
     assert NAME in message
     for text in _shown(caught.value):
         assert CANARY not in text
@@ -502,3 +505,33 @@ def test_selected_load_never_constructs_unrelated_credential_handles(tmp_path, m
 def test_selected_load_rejects_invalid_selection(tmp_path, names):
     with pytest.raises(vault.VaultError):
         vault.load(_write(tmp_path, EXAMPLE), names=names)
+
+
+@pytest.mark.parametrize("operation", ("loads", "dumps"))
+def test_vault_codec_recursion_is_a_controlled_error(tmp_path, monkeypatch, operation):
+    path = _write(tmp_path, _doc())
+
+    def overflow(*args, **kwargs):
+        raise RecursionError(CANARY)
+
+    monkeypatch.setattr(vault.json, operation, overflow)
+    with pytest.raises(vault.VaultError, match="nested too deeply") as caught:
+        vault.load(path)
+    assert caught.value.__suppress_context__
+    for text in _shown(caught.value):
+        assert CANARY not in text
+
+
+@pytest.mark.parametrize("opening,closing", (("[", "]"), ('{"x":', "}")))
+@pytest.mark.parametrize("position", ("root", "version", "credential"))
+def test_deep_json_vault_is_a_controlled_error(tmp_path, opening, closing, position):
+    value = opening * 100000 + "0" + closing * 100000
+    if position == "version":
+        raw = '{"version":' + value + ',"credentials":{}}'
+    elif position == "credential":
+        raw = '{"version":2,"credentials":{"reader":{"kind":"password","login":"reader","value":' + value + '}}}'
+    else:
+        raw = value
+    path = _write(tmp_path, raw)
+    with pytest.raises(vault.VaultError):
+        vault.load(path)

@@ -2,10 +2,17 @@
 
 The inventory is one JSON document listing the devices every component of the family may reach. It is
 read by `netops_core.inventory` and is fail-closed: a document that does not match this page is
-refused as a whole, and no device from it is used.
+refused as a whole, and no device from it is used. A key repeated within one JSON object - a second
+`port` in a device, a second `devices` in the document - is refused too, instead of the last value
+silently winning.
 
 `FILE_VERSION = 2`. A document whose `version` is missing or different is refused, naming what was
 found and what is expected.
+
+The file is opened without blocking and read only when it is a regular file of at most
+`INVENTORY_MAX_BYTES` (4 MiB, 4194304 bytes). A pipe, a device such as `/dev/zero` or a directory is
+refused as `not a regular file`, a longer file as `larger than 4194304 bytes`, and bytes that are not
+UTF-8 as `not valid UTF-8`, all as `InventoryError` and before anything is parsed.
 
 ## Document
 

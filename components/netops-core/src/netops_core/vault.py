@@ -5,10 +5,13 @@ import stat
 from dataclasses import InitVar, dataclass
 from pathlib import Path
 
+from .inputs import InputError, read_regular
+
 FILE_VERSION = 2
 KINDS = ("password", "ssh-key", "api-token", "snmp-community")
 LOGIN_KINDS = ("password", "ssh-key")
 DOCUMENT_FIELDS = ("version", "credentials")
+VAULT_MAX_BYTES = 1024 * 1024
 ENTRY_FIELDS = ("kind", "login", "value")
 REQUIRED_ENTRY_FIELDS = ("kind", "value")
 ALLOWED_MODES = (0o600, 0o400)
@@ -57,8 +60,9 @@ def _checked_login(name, kind: str, value):
     login = value.strip()
     if login.startswith("-") or any(mark in login for mark in LOGIN_MARKS):
         raise VaultError(
-            "credential %r: login must be a plain user name without a leading -, @, :, / or"
-            " whitespace, got %r" % (name, value)
+            "credential %r: login must be a plain user name that does not start with - and holds"
+            " no @, :, / or whitespace anywhere; the value is not repeated, it may hold a misplaced"
+            " secret" % (name,)
         )
     return login
 
@@ -104,7 +108,7 @@ class Vault:
     def names(self) -> tuple:
         return tuple(sorted(self._credentials))
 
-    def credential(self, name) -> Credential:
+    def credential(self, name, *, where: str = "the credential reference") -> Credential:
         if not isinstance(name, str):
             raise VaultError(
                 "vault file %s: credential name must be a string, got %s"
@@ -112,8 +116,9 @@ class Vault:
             )
         if name not in self._credentials:
             raise VaultError(
-                "vault file %s: unknown credential %r, known names: %s"
-                % (self._path, name, ", ".join(self.names()) or "none")
+                "vault file %s: %s names no record of the credential store; the value is not"
+                " repeated, a value that names no record may be a misplaced secret; known names: %s"
+                % (self._path, where, ", ".join(self.names()) or "none")
             )
         return self._credentials[name]
 
@@ -128,6 +133,8 @@ def _checked_file(path: Path) -> None:
         raise VaultError("vault file %s does not exist" % path) from None
     except OSError as error:
         raise VaultError("cannot stat vault file %s: %s" % (path, error.strerror)) from None
+    except ValueError:
+        raise VaultError("vault file path holds a NUL character") from None
     if stat.S_ISLNK(status.st_mode):
         raise VaultError(
             "vault file %s is a symbolic link, the vault must be a regular file whose mode this"
@@ -145,21 +152,46 @@ def _checked_file(path: Path) -> None:
 
 def _raw(path: Path) -> str:
     try:
-        return path.read_text(encoding="utf-8")
+        return read_regular(path, VAULT_MAX_BYTES, follow=False).decode("utf-8")
     except UnicodeDecodeError:
         raise VaultError("vault file %s is not valid UTF-8" % path) from None
+    except InputError as error:
+        raise VaultError("cannot read vault file %s: %s" % (path, error)) from None
     except OSError as error:
         raise VaultError("cannot read vault file %s: %s" % (path, error.strerror)) from None
 
 
+class _DuplicateKey(ValueError):
+    pass
+
+
+def _unique(pairs) -> dict:
+    result = {}
+    for key, value in pairs:
+        if key in result:
+            raise _DuplicateKey()
+        result[key] = value
+    return result
+
+
 def _document(path: Path, raw: str) -> dict:
     try:
-        document = json.loads(raw)
+        document = json.loads(raw, object_pairs_hook=_unique)
     except json.JSONDecodeError as error:
         raise VaultError(
             "vault file %s is not valid JSON: %s at line %d column %d"
             % (path, error.msg, error.lineno, error.colno)
         ) from None
+    except _DuplicateKey:
+        raise VaultError("vault file %s holds a duplicate key within one object" % path) from None
+    except ValueError:
+        raise VaultError("vault file %s holds a number too long to read" % path) from None
+    except RecursionError:
+        raise VaultError("vault file %s is nested too deeply" % path) from None
+    try:
+        json.dumps(document, ensure_ascii=False).encode("utf-8")
+    except UnicodeEncodeError:
+        raise VaultError("vault file %s holds an unpaired surrogate escape" % path) from None
     if not isinstance(document, dict):
         raise VaultError(
             "vault file %s must hold an object, got %s" % (path, type(document).__name__)
@@ -215,16 +247,22 @@ def load(path, *, names=None) -> Vault:
     if names is not None:
         if isinstance(names, (str, bytes)):
             raise VaultError("credential selection must be a collection of names")
-        names = tuple(names)
+        try:
+            names = tuple(names)
+        except TypeError:
+            raise VaultError("credential selection must be a collection of names") from None
         if any(not isinstance(name, str) or not name.strip() for name in names):
             raise VaultError("credential selection must contain non-empty names")
         names = frozenset(names)
     location = Path(path)
-    _checked_file(location)
-    document = _document(location, _raw(location))
-    credentials = [
-        _credential(location, name, document["credentials"][name])
-        for name in sorted(document["credentials"])
-        if names is None or name in names
-    ]
-    return Vault(location, credentials)
+    try:
+        _checked_file(location)
+        document = _document(location, _raw(location))
+        credentials = [
+            _credential(location, name, document["credentials"][name])
+            for name in sorted(document["credentials"])
+            if names is None or name in names
+        ]
+        return Vault(location, credentials)
+    except RecursionError:
+        raise VaultError("vault file %s is nested too deeply" % location) from None

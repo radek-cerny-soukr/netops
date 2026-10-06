@@ -2,7 +2,9 @@
 
 The vault is one JSON document holding the credentials the family uses to reach a device. It is read
 by `netops_core.vault` and is fail-closed: a document that does not match this page is refused as a
-whole, and no credential from it is used.
+whole, and no credential from it is used. A key repeated within one JSON object - a second `value`
+in a record, a record name written twice - is refused too, and the message names neither the key
+nor a value.
 
 `FILE_VERSION = 2`. A document whose `version` is missing or different is refused, naming what was
 found and what is expected.
@@ -15,6 +17,10 @@ Before the document is parsed, the path is checked with `lstat`:
 |---|---|
 | the path is a symbolic link | refused, saying the vault path is a symbolic link; the check happens before the mode is read, so a link to a world-readable file is never opened |
 | the file mode | must be `0600` or `0400`; any other mode is refused, naming the mode that was found and the two that are accepted |
+
+The file is then opened with `O_NOFOLLOW` and without blocking, checked again on the open descriptor
+to be a regular file, and read no further than `VAULT_MAX_BYTES` (1 MiB, 1048576 bytes) plus one
+byte; a longer file is refused as `larger than 1048576 bytes` before anything is parsed.
 
 ## Document
 

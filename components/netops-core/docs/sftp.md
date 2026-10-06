@@ -34,7 +34,7 @@ The argument vector is built by `argv()` and is the one of `ssh.py` with three d
 binary, `-P` instead of `-p` for the port, and no remote command at the end. Everything else is
 shared code, not a copy: the hardening options come from `ssh.OPTIONS` / `ssh.PASSWORD_OPTIONS`, the
 options of a legacy profile are appended **after** them, `UserKnownHostsFile` points inside the
-workspace of this one call, and the workspace, the askpass script and the identity file are prepared
+workspace of this one call with `GlobalKnownHostsFile=/dev/null` beside it (`ssh.known_hosts_options`), and the workspace, the askpass script and the identity file are prepared
 by `ssh._prepared`. There is no `ControlMaster` and no `ControlPath`.
 
 ## The batch goes on standard input, and why
@@ -113,7 +113,7 @@ carries the client's own progress line `Connected to <host>.`, on success as wel
 |---|---|
 | `kind` | from the first character of the permission string: `-` is `file`, `d` is `directory`, `l` is `symlink`, anything else is `other` |
 | `mode` | the permission string translated into permission bits, `setuid`, `setgid` and the sticky bit included |
-| `size` | the size column, an integer |
+| `size` | the size column, an integer; a column that is not 1 to 20 ASCII digits makes the line unreadable |
 | `modified_ls` | **the timestamp as `ls` printed it**, verbatim - see below |
 | `name` | the path the listing line ended with, only for a single entry that is the requested path |
 | `entry_count` | for a directory: how many lines the listing had; never the names |

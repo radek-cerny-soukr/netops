@@ -7,9 +7,11 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from . import hostkey, legacy_ssh, platforms
+from .inputs import InputError, read_regular
 
 FILE_VERSION = 2
 DOCUMENT_FIELDS = ("version", "devices")
+INVENTORY_MAX_BYTES = 4 * 1024 * 1024
 DEVICE_FIELDS = (
     "name",
     "platform",
@@ -65,6 +67,12 @@ class Device:
 
 def _normalized(name) -> str:
     return str(name).lower().replace("-", "_").replace(" ", "_")
+
+
+def _kind(value) -> str:
+    if isinstance(value, str):
+        return "a blank string"
+    return type(value).__name__
 
 
 def _secret_free(where: str, names) -> None:
@@ -166,8 +174,8 @@ def _checked_credential(where: str, value):
         return None
     if not isinstance(value, str) or not value.strip():
         raise InventoryError(
-            "%s: credential must be null or name a record in the credential store, got %r"
-            % (where, value)
+            "%s: credential must be null or name a record in the credential store, got %s"
+            % (where, _kind(value))
         )
     return value
 
@@ -205,8 +213,8 @@ def _checked_section(where: str, name: str, value):
         return None
     if not isinstance(value, dict):
         raise InventoryError(
-            "%s: %s must be null or an object, its content belongs to that component, got %r"
-            % (where, name, value)
+            "%s: %s must be null or an object, its content belongs to that component, got %s"
+            % (where, name, type(value).__name__)
         )
     return value
 
@@ -222,7 +230,7 @@ def _checked_sections(where: str, sections) -> None:
 def _device(index: int, item) -> Device:
     where = "device %d" % index
     if not isinstance(item, dict):
-        raise InventoryError("%s: must be an object, got %r" % (where, item))
+        raise InventoryError("%s: must be an object, got %s" % (where, type(item).__name__))
     _secret_free(where, item)
     missing = [name for name in DEVICE_FIELDS if name not in item]
     if missing:
@@ -250,17 +258,44 @@ def _device(index: int, item) -> Device:
     )
 
 
+def _unique(pairs) -> dict:
+    result = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError("duplicate key %s" % json.dumps(key)[:80])
+        result[key] = value
+    return result
+
+
+def _encodable(document) -> bool:
+    try:
+        json.dumps(document, ensure_ascii=False).encode("utf-8")
+    except UnicodeEncodeError:
+        return False
+    return True
+
+
 def _document(path: Path) -> dict:
     try:
-        raw = path.read_text(encoding="utf-8")
-    except OSError as error:
+        data = read_regular(path, INVENTORY_MAX_BYTES)
+    except (OSError, InputError) as error:
         raise InventoryError("cannot read inventory file %s: %s" % (path, error)) from None
     try:
-        document = json.loads(raw)
+        raw = data.decode("utf-8")
+    except UnicodeDecodeError:
+        raise InventoryError("inventory file %s is not valid UTF-8" % path) from None
+    try:
+        document = json.loads(raw, object_pairs_hook=_unique)
     except ValueError as error:
         raise InventoryError("inventory file %s is not valid JSON: %s" % (path, error)) from None
+    except RecursionError:
+        raise InventoryError("inventory file %s is nested too deeply" % path) from None
+    if not _encodable(document):
+        raise InventoryError("inventory file %s holds an unpaired surrogate escape" % path)
     if not isinstance(document, dict):
-        raise InventoryError("inventory file %s must hold an object, got %r" % (path, document))
+        raise InventoryError(
+            "inventory file %s must hold an object, got %s" % (path, type(document).__name__)
+        )
     _secret_free("inventory file %s" % path, document)
     missing = [name for name in DOCUMENT_FIELDS if name not in document]
     if missing:
@@ -280,25 +315,29 @@ def _document(path: Path) -> dict:
         )
     if not isinstance(document["devices"], list):
         raise InventoryError(
-            "inventory file %s: devices must be a list, got %r" % (path, document["devices"])
+            "inventory file %s: devices must be a list, got %s"
+            % (path, type(document["devices"]).__name__)
         )
     return document
 
 
 def load(path) -> tuple:
     location = Path(path)
-    document = _document(location)
-    devices, seen = [], {}
-    for index, item in enumerate(document["devices"]):
-        entry = _device(index, item)
-        if entry.name in seen:
-            raise InventoryError(
-                "device %d: duplicate name %r, already used by device %d"
-                % (index, entry.name, seen[entry.name])
-            )
-        seen[entry.name] = index
-        devices.append(entry)
-    return tuple(devices)
+    try:
+        document = _document(location)
+        devices, seen = [], {}
+        for index, item in enumerate(document["devices"]):
+            entry = _device(index, item)
+            if entry.name in seen:
+                raise InventoryError(
+                    "device %d: duplicate name %r, already used by device %d"
+                    % (index, entry.name, seen[entry.name])
+                )
+            seen[entry.name] = index
+            devices.append(entry)
+        return tuple(devices)
+    except RecursionError:
+        raise InventoryError("inventory file %s is nested too deeply" % location) from None
 
 
 def device(devices, name) -> Device:

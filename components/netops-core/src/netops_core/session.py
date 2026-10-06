@@ -33,7 +33,8 @@ def argv(host, port, login, known_hosts, *, identity=None, legacy=None) -> list:
     line = [ssh_module.SSH_BINARY, "-F", ssh_module.CONFIG_FILE, TTY_OPTION]
     for option in options + legacy_module.openssh_options(legacy):
         line.extend(["-o", option])
-    line.extend(["-o", "UserKnownHostsFile=%s" % known_hosts])
+    for option in ssh_module.known_hosts_options(known_hosts):
+        line.extend(["-o", option])
     if identity is not None:
         line.extend(["-i", ssh_module._checked_text("identity", identity)])
     line.extend(["-p", str(number), "%s@%s" % (user, name)])
@@ -83,7 +84,10 @@ def _checked_patterns(patterns) -> tuple:
     prepared = []
     for pattern in offered:
         if isinstance(pattern, str):
-            data = pattern.encode("utf-8")
+            try:
+                data = pattern.encode("utf-8")
+            except UnicodeEncodeError:
+                raise SessionError("a text pattern must be valid Unicode") from None
         elif isinstance(pattern, (bytes, bytearray)):
             data = bytes(pattern)
         else:
@@ -265,6 +269,14 @@ class Session:
             raise SessionError(
                 "cannot write to the session to %s (%s)" % (self.host, type(error).__name__)
             ) from None
+
+    def interrupt(self) -> None:
+        self._alive()
+        try:
+            if os.write(self._fd, b"\x03") != 1:
+                raise SessionError("the terminal interrupt was not sent")
+        except OSError:
+            raise SessionError("the terminal interrupt could not be sent") from None
 
     def _reaped(self, pid) -> None:
         group = ssh_module._own_group(pid)

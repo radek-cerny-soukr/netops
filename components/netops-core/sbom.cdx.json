@@ -47,9 +47,9 @@
         }
       ],
       "name": "netops-core",
-      "purl": "pkg:pypi/netops-core@0.2.5",
+      "purl": "pkg:pypi/netops-core@0.2.6",
       "type": "library",
-      "version": "0.2.5"
+      "version": "0.2.6"
     },
     "properties": [
       {

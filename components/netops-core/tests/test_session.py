@@ -89,6 +89,9 @@ class PtySpawn:
         return self.calls[index]["env"]
 
 
+PINNED = ["UserKnownHostsFile=/w/known_hosts", "GlobalKnownHostsFile=/dev/null"]
+
+
 def key_credential():
     return FakeCredential("ssh-key", CANARY_KEY)
 
@@ -110,7 +113,7 @@ def test_argv_asks_for_a_terminal_and_carries_every_hardening_option():
     line = argv(HOST, 2222, LOGIN, "/w/known_hosts", identity="/w/identity")
     assert line[0] == "ssh"
     assert line[1:4] == ["-F", CONFIG_FILE, TTY_OPTION]
-    assert options_of(line) == list(OPTIONS) + ["UserKnownHostsFile=/w/known_hosts"]
+    assert options_of(line) == list(OPTIONS) + PINNED
     assert line[-3:] == ["-p", "2222", "%s@%s" % (LOGIN, HOST)]
     assert line[line.index("-i") + 1] == "/w/identity"
 
@@ -119,14 +122,12 @@ def test_argv_without_an_identity_switches_to_the_password_options():
     line = argv(HOST, PORT, LOGIN, "/w/known_hosts")
     assert TTY_OPTION in line
     assert "-i" not in line
-    assert options_of(line) == list(PASSWORD_OPTIONS) + ["UserKnownHostsFile=/w/known_hosts"]
+    assert options_of(line) == list(PASSWORD_OPTIONS) + PINNED
 
 
 def test_argv_appends_the_legacy_options_behind_the_bound_ones():
     line = argv(HOST, PORT, LOGIN, "/w/known_hosts", identity="/w/identity", legacy=LEGACY_PROFILE)
-    assert options_of(line) == list(OPTIONS) + list(LEGACY_OPTIONS) + [
-        "UserKnownHostsFile=/w/known_hosts"
-    ]
+    assert options_of(line) == list(OPTIONS) + list(LEGACY_OPTIONS) + PINNED
     for option in LEGACY_OPTIONS:
         assert line.index(option) > line.index(OPTIONS[-1])
 
@@ -416,3 +417,29 @@ def test_close_stops_the_whole_terminal_group_not_only_the_client(tmp_path, monk
     with pytest.raises(ChildProcessError):
         os.waitpid(spawn.pid, os.WNOHANG)
     assert _ended_within(grandchild)
+
+
+def test_terminal_interrupt_sends_one_control_byte_without_newline():
+    read_fd,write_fd=os.pipe()
+    terminal=object.__new__(Session)
+    terminal._closed=False
+    terminal._fd=write_fd
+    terminal.host=HOST
+    try:
+        terminal.interrupt()
+        os.set_blocking(read_fd,False)
+        assert os.read(read_fd,10)==b"\x03"
+        with pytest.raises(BlockingIOError):
+            os.read(read_fd,10)
+    finally:
+        os.close(read_fd)
+        os.close(write_fd)
+
+
+def test_terminal_interrupt_rejects_a_closed_session():
+    terminal=object.__new__(Session)
+    terminal._closed=True
+    terminal._fd=None
+    terminal.host=HOST
+    with pytest.raises(SessionError):
+        terminal.interrupt()

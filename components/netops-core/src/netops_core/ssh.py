@@ -66,6 +66,7 @@ OPTIONS = (
     "ControlMaster=no",
     "ControlPath=none",
 )
+GLOBAL_KNOWN_HOSTS_OPTION = "GlobalKnownHostsFile=/dev/null"
 PASSWORD_OPTIONS = ("BatchMode=no",) + OPTIONS[1:] + (
     "NumberOfPasswordPrompts=1",
     "PubkeyAuthentication=no",
@@ -366,6 +367,10 @@ def _capped_runner(max_bytes):
     return runner
 
 
+def known_hosts_options(known_hosts) -> tuple:
+    return ("UserKnownHostsFile=%s" % known_hosts, GLOBAL_KNOWN_HOSTS_OPTION)
+
+
 def argv(host, port, login, known_hosts, command, *, identity=None, legacy=None) -> list:
     name = _checked_host(host)
     number = _checked_port(port)
@@ -376,7 +381,8 @@ def argv(host, port, login, known_hosts, command, *, identity=None, legacy=None)
     result = [SSH_BINARY, "-F", CONFIG_FILE]
     for option in options + legacy_module.openssh_options(legacy):
         result.extend(["-o", option])
-    result.extend(["-o", "UserKnownHostsFile=%s" % known_hosts])
+    for option in known_hosts_options(known_hosts):
+        result.extend(["-o", option])
     if identity is not None:
         result.extend(["-i", _checked_text("identity", identity)])
     result.extend(["-p", str(number), "%s@%s" % (user, name), line])

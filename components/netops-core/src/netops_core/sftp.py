@@ -39,6 +39,7 @@ TIME_FIELDS = 3
 
 
 SftpError = ssh_module.SshError
+SIZE_MAX_DIGITS = 20
 
 
 @dataclass(frozen=True)
@@ -83,7 +84,8 @@ def argv(host, port, login, known_hosts, *, identity=None, legacy=None) -> list:
     result = [SFTP_BINARY, "-F", CONFIG_FILE]
     for option in options + legacy_module.openssh_options(legacy):
         result.extend(["-o", option])
-    result.extend(["-o", "UserKnownHostsFile=%s" % known_hosts])
+    for option in ssh_module.known_hosts_options(known_hosts):
+        result.extend(["-o", option])
     if identity is not None:
         result.extend(["-i", ssh_module._checked_text("identity", identity)])
     result.extend(["-P", str(number), "%s@%s" % (user, name)])
@@ -119,10 +121,9 @@ def _listed(line):
     rest = tail.split(None, TIME_FIELDS)
     if len(rest) != TIME_FIELDS + 1:
         return None
-    try:
-        length = int(size)
-    except ValueError:
+    if not (size.isascii() and size.isdigit()) or len(size) > SIZE_MAX_DIGITS:
         return None
+    length = int(size)
     return (
         TYPE_CHARACTERS.get(permissions[0], KIND_OTHER),
         mode,

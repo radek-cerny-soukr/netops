@@ -41,6 +41,7 @@ A response is recorded by its length and its SHA-256, never by its content: `res
 | Property | Behaviour |
 |---|---|
 | mode | the file is created with mode 0600 |
+| links | the log, its lock and the log reopened after a rotation are opened with `O_NOFOLLOW` and must be regular files owned by the user of the process with exactly one hard link (rotation renames, it never adds a second link); only then is mode 0600 set, on the open descriptor |
 | durability | each record is written and flushed, and the file is fsynced before the call returns |
 | exclusion | an advisory `flock` on a stable lock file beside the log covers the size check, the whole rotation and the write, so writers in different processes cannot interleave a line or rotate the same file at once; a `threading.Lock` does the same inside one process |
 | rotation | a segment larger than `segment_bytes` is rotated; `retained_segments` files are kept in total, the active one and `retained_segments - 1` rotated ones, and the oldest is removed |
@@ -64,3 +65,4 @@ fails rather than continuing unrecorded.
 | `operation_id` of another shape | `AuditFieldError` naming the value and the expected shape |
 | component outside the three names | refused when the recorder is built |
 | the file cannot be written, locked, or rotated | `AuditPersistenceError` |
+| the log or its lock is a symbolic link, a hard link (more than one name), not a regular file, or owned by another user | `AuditPersistenceError`; the target of the link is neither written nor has its mode changed |

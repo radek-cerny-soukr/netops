@@ -113,6 +113,9 @@ class FakeRun:
         return self.calls[index]["env"]
 
 
+PINNED = ["UserKnownHostsFile=/w/known_hosts", "GlobalKnownHostsFile=/dev/null"]
+
+
 def key_credential():
     return FakeCredential("ssh-key", CANARY_KEY)
 
@@ -157,7 +160,7 @@ def test_argv_binds_every_option_in_order_and_ends_with_the_command():
     line = argv(HOST, 2222, LOGIN, "/w/known_hosts", COMMAND, identity="/w/identity")
     assert line[0] == "ssh"
     assert line[1:3] == ["-F", CONFIG_FILE]
-    assert options_of(line) == list(OPTIONS) + ["UserKnownHostsFile=/w/known_hosts"]
+    assert options_of(line) == list(OPTIONS) + PINNED
     assert line[-6:] == [
         "-i",
         "/w/identity",
@@ -174,7 +177,7 @@ def test_argv_binds_every_option_in_order_and_ends_with_the_command():
 def test_argv_without_an_identity_switches_to_the_password_options():
     line = argv(HOST, PORT, LOGIN, "/w/known_hosts", COMMAND)
     assert "-i" not in line
-    assert options_of(line) == list(PASSWORD_OPTIONS) + ["UserKnownHostsFile=/w/known_hosts"]
+    assert options_of(line) == list(PASSWORD_OPTIONS) + PINNED
     assert "BatchMode=no" in line
     assert "BatchMode=yes" not in line
 
@@ -184,9 +187,7 @@ def test_argv_appends_the_legacy_options_behind_the_bound_ones():
         HOST, PORT, LOGIN, "/w/known_hosts", COMMAND, identity="/w/identity",
         legacy=LEGACY_PROFILE,
     )
-    assert options_of(line) == list(OPTIONS) + list(LEGACY_OPTIONS) + [
-        "UserKnownHostsFile=/w/known_hosts"
-    ]
+    assert options_of(line) == list(OPTIONS) + list(LEGACY_OPTIONS) + PINNED
     for option in LEGACY_OPTIONS:
         assert line.index(option) > line.index(OPTIONS[-1])
 

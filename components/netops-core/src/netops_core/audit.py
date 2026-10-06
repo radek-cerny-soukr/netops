@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import errno
 import fcntl
 import json
 import os
 import re
+import stat
 import threading
 from contextlib import contextmanager
 from datetime import datetime, timezone
@@ -32,6 +34,8 @@ FIELDS = frozenset(
         "platform",
         "port",
         "count",
+        "recipe",
+        "timeout",
         "item_count",
         "offset",
         "max_bytes",
@@ -64,6 +68,41 @@ def _checked_count(name, value, smallest) -> int:
     return value
 
 
+def _owned_descriptor(path, flags) -> int:
+    try:
+        descriptor = os.open(
+            path,
+            flags | os.O_CREAT | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC,
+            0o600,
+        )
+    except OSError as error:
+        if error.errno == errno.ELOOP and os.path.islink(path):
+            raise AuditPersistenceError(
+                "%s is a symbolic link; the audit log and its lock are never opened through"
+                " a link" % (path,)
+            ) from None
+        raise
+    try:
+        status = os.fstat(descriptor)
+        if not stat.S_ISREG(status.st_mode):
+            raise AuditPersistenceError("%s is not a regular file" % (path,))
+        if status.st_uid != os.geteuid():
+            raise AuditPersistenceError(
+                "%s belongs to user %d, not to the user %d of this process"
+                % (path, status.st_uid, os.geteuid())
+            )
+        if status.st_nlink != 1:
+            raise AuditPersistenceError(
+                "%s has %d hard links; the audit log and its lock must be the only name of"
+                " their file" % (path, status.st_nlink)
+            )
+        os.fchmod(descriptor, 0o600)
+    except BaseException:
+        os.close(descriptor)
+        raise
+    return descriptor
+
+
 class Recorder:
     def __init__(
         self, path, component, segment_bytes=SEGMENT_BYTES, retained_segments=RETAINED_SEGMENTS
@@ -89,9 +128,8 @@ class Recorder:
 
     @contextmanager
     def _exclusive(self):
-        descriptor = os.open(self._lock_path, os.O_RDWR | os.O_CREAT | os.O_CLOEXEC, 0o600)
+        descriptor = _owned_descriptor(self._lock_path, os.O_RDWR)
         try:
-            os.fchmod(descriptor, 0o600)
             fcntl.flock(descriptor, fcntl.LOCK_EX)
             yield
         finally:
@@ -105,13 +143,20 @@ class Recorder:
             "%s.%d" % (self._path.name, index)
         )
 
-    def _rotate(self, incoming_bytes) -> None:
+    def _open_log(self, incoming_bytes) -> int:
+        descriptor = _owned_descriptor(self._path, os.O_WRONLY | os.O_APPEND)
         try:
-            current = self._path.stat().st_size
-        except FileNotFoundError:
-            return
+            current = os.fstat(descriptor).st_size
+        except BaseException:
+            os.close(descriptor)
+            raise
         if current + incoming_bytes <= self._segment_bytes:
-            return
+            return descriptor
+        os.close(descriptor)
+        self._rotate()
+        return _owned_descriptor(self._path, os.O_WRONLY | os.O_APPEND)
+
+    def _rotate(self) -> None:
         self._segment(self._retained_segments - 1).unlink(missing_ok=True)
         for index in range(self._retained_segments - 2, 0, -1):
             source = self._segment(index)
@@ -119,7 +164,6 @@ class Recorder:
                 os.replace(source, self._segment(index + 1))
         if self._retained_segments > 1:
             os.replace(self._path, self._segment(1))
-            os.chmod(self._segment(1), 0o600)
         else:
             self._path.unlink(missing_ok=True)
 
@@ -160,7 +204,7 @@ class Recorder:
             encoded = (
                 json.dumps(payload, separators=(",", ":"), sort_keys=True) + "\n"
             ).encode("utf-8")
-        except (TypeError, ValueError) as error:
+        except (TypeError, ValueError, RecursionError) as error:
             raise AuditFieldError(
                 "audit record of %r is not serializable as json: %s" % (event, error)
             ) from None
@@ -173,14 +217,12 @@ class Recorder:
             with self._lock:
                 self._path.parent.mkdir(parents=True, exist_ok=True)
                 with self._exclusive():
-                    self._rotate(len(encoded))
-                    self._path.touch(mode=0o600, exist_ok=True)
-                    os.chmod(self._path, 0o600)
-                    with self._path.open("ab") as handle:
+                    descriptor = self._open_log(len(encoded))
+                    with os.fdopen(descriptor, "ab") as handle:
                         handle.write(encoded)
                         handle.flush()
                         os.fsync(handle.fileno())
-        except OSError as error:
+        except (OSError, ValueError) as error:
             raise AuditPersistenceError(
                 "cannot write the audit record of %r to %s: %s" % (event, self._path, error)
             ) from None

@@ -4,6 +4,8 @@ import json
 
 import pytest
 
+import netops_core.inventory as inventory_module
+
 from netops_core.inventory import (
     CONSUMERS,
     DEVICE_FIELDS,
@@ -593,7 +595,7 @@ def test_section_must_be_null_or_an_object(tmp_path, consumer, section):
         load(path)
     message = str(caught.value)
     assert "%s must be null or an object" % consumer in message
-    assert repr(section) in message
+    assert message.endswith("got %s" % type(section).__name__)
 
 
 def test_duplicate_name_is_an_error(tmp_path):
@@ -743,3 +745,51 @@ def test_for_consumer_rejects_an_unknown_consumer(tmp_path, consumer):
     loaded = fleet(tmp_path)
     with pytest.raises(InventoryError, match="consumer must be one of auditor, helper"):
         for_consumer(loaded, consumer)
+
+@pytest.mark.parametrize("operation", ("loads", "dumps"))
+def test_inventory_codec_recursion_is_a_controlled_error(tmp_path, monkeypatch, operation):
+    path = write(tmp_path, [item()])
+
+    def overflow(*args, **kwargs):
+        raise RecursionError("synthetic-sensitive-payload")
+
+    monkeypatch.setattr(inventory_module.json, operation, overflow)
+    with pytest.raises(InventoryError, match="nested too deeply") as caught:
+        load(path)
+    assert "synthetic-sensitive-payload" not in str(caught.value)
+    assert caught.value.__suppress_context__
+
+
+@pytest.mark.parametrize("position", ("version", "port"))
+def test_inventory_validation_repr_recursion_is_a_controlled_error(tmp_path, monkeypatch, position):
+    path = write(tmp_path, [item()])
+
+    class RecursiveValue(list):
+        def __repr__(self):
+            raise RecursionError("synthetic-sensitive-payload")
+
+    document = {"version": 2, "devices": [item()]}
+    if position == "version":
+        document["version"] = RecursiveValue([2])
+    else:
+        document["devices"][0]["port"] = RecursiveValue([22])
+    monkeypatch.setattr(inventory_module.json, "loads", lambda *args, **kwargs: document)
+    with pytest.raises(InventoryError, match="nested too deeply") as caught:
+        load(path)
+    assert "synthetic-sensitive-payload" not in str(caught.value)
+    assert caught.value.__suppress_context__
+
+
+@pytest.mark.parametrize("opening,closing", (("[", "]"), ('{"x":', "}")))
+@pytest.mark.parametrize("position", ("root", "version", "device"))
+def test_deep_json_inventory_is_a_controlled_error(tmp_path, opening, closing, position):
+    value = opening * 100000 + "0" + closing * 100000
+    if position == "version":
+        raw = '{"version":' + value + ',"devices":[]}'
+    elif position == "device":
+        raw = '{"version":2,"devices":[' + value + "]}"
+    else:
+        raw = value
+    path = write_raw(tmp_path, raw)
+    with pytest.raises(InventoryError):
+        load(path)
