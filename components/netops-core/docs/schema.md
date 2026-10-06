@@ -2,7 +2,7 @@
 
 ## Scope
 
-Core 0.2.6 supplies the standard-library-only `netops_core.fortios` parser and `netops_core.schema` runtime. Auditor keeps its existing `l1_fortios` import interface through the shared parser. Helper and Admin use the same schema identities and configuration instance traversal.
+Core 0.2.7 supplies the standard-library-only `netops_core.fortios` parser and `netops_core.schema` runtime. Auditor keeps its existing `l1_fortios` import interface through the shared parser. Helper and Admin use the same schema identities and configuration instance traversal.
 
 Operators provide measured libraries separately and pin their bytes. This archive does not contain a complete vendor schema catalogue or the lab measurement/calibration tools.
 

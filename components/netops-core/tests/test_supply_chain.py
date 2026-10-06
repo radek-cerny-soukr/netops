@@ -1,3 +1,4 @@
+import os
 import json
 import re
 import shutil
@@ -119,5 +120,14 @@ def test_the_askpass_program_a_deployment_names_is_reachable_without_the_source_
 
     program = shutil.which("netops-askpass")
     if program is None:
+        if os.environ.get("NETOPS_REQUIRE_INSTALLED_PACKAGE_TESTS") == "1":
+            pytest.fail("installation acceptance requires netops-askpass on PATH")
         pytest.skip("netops-askpass is not installed in this environment")
     assert ssh._named_askpass(program) == program
+
+
+def test_installation_acceptance_does_not_skip_a_missing_askpass(monkeypatch):
+    monkeypatch.setenv("NETOPS_REQUIRE_INSTALLED_PACKAGE_TESTS", "1")
+    monkeypatch.setattr(shutil, "which", lambda name: None)
+    with pytest.raises(pytest.fail.Exception, match="requires netops-askpass"):
+        test_the_askpass_program_a_deployment_names_is_reachable_without_the_source_tree()

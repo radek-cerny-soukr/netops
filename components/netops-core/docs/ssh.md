@@ -52,9 +52,11 @@ execution, not reading.
 
 A deployment that mounts its temporary directory `noexec` therefore ships the program elsewhere and
 names it in `NETOPS_ASKPASS_PROGRAM`. There are two ways to have it. Installing the distribution
-puts the program on the path as the command **`netops-askpass`**, executable and owned by the
-installing environment, so `NETOPS_ASKPASS_PROGRAM="$(command -v netops-askpass)"` is enough on a
-host that installed the package; the module file `netops_core/askpass.py` inside `site-packages` is
+puts the program in the installing environment as **`netops-askpass`**. Install public code with
+a local `umask 022`, for example `(umask 022; python -m pip install <verified Core source directory>)`,
+so a host login default of `0002` cannot create a group-writable launcher. Activate that environment
+or put its `bin` directory on `PATH`, check the launcher owner and permissions, then set
+`NETOPS_ASKPASS_PROGRAM="$(command -v netops-askpass)"`; the module file `netops_core/askpass.py` inside `site-packages` is
 **not** a substitute, because an installer writes package files without the execute bit and the
 check below refuses it. The helper image takes the other way and installs `netops_core/askpass.py`
 as `/usr/local/bin/netops-askpass` itself, with mode 0755, and sets the variable. The named program must be a regular file,

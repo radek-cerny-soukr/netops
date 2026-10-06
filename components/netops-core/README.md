@@ -1,8 +1,8 @@
 # netops-core
 
-This source tree targets `netops-core/v0.2.6` (2026-10-06); `netops-auditor` 0.2.9, `netops-admin` 0.2.5 and `netops-helper` 0.3.8, released with it, pin exactly that version. Earlier releases keep their pins: `netops-auditor` 0.2.8, `netops-admin` 0.2.3 and 0.2.4 and `netops-helper` 0.3.7 pin `netops-core/v0.2.5` (2026-09-26); `netops-auditor` 0.2.7 and `netops-admin` 0.2.2 pin 0.2.4, and earlier releases pin 0.2.3 or 0.2.2. `netops-core` 0.2.6 has a separate PyPI publication step after GitHub; check exact-version index availability before choosing that installation channel: on 1 October 2026 PyPI carries `netops-core` 0.2.4 only. This version reads the inventory and the vault with a size bound and refuses a key repeated within one JSON object, makes the pinned host key the only one OpenSSH trusts, never opens the audit log through a link and keeps a value that may be a misplaced secret out of its errors; see the [changelog](https://github.com/radek-cerny-soukr/netops/blob/main/components/netops-core/CHANGELOG.md).
+This source tree targets `netops-core/v0.2.7` (2026-10-06); `netops-auditor` 0.2.10, `netops-admin` 0.2.6 and `netops-helper` 0.3.9, released with it, pin exactly that version. Earlier releases keep their pins: `netops-auditor` 0.2.8, `netops-admin` 0.2.3 and 0.2.4 and `netops-helper` 0.3.7 pin `netops-core/v0.2.5` (2026-09-26); `netops-auditor` 0.2.7 and `netops-admin` 0.2.2 pin 0.2.4, and earlier releases pin 0.2.3 or 0.2.2. `netops-core` 0.2.7 has a separate PyPI publication step after GitHub; check exact-version index availability before choosing that installation channel: on 1 October 2026 PyPI carries `netops-core` 0.2.4 only. This version reads the inventory and the vault with a size bound and refuses a key repeated within one JSON object, makes the pinned host key the only one OpenSSH trusts, never opens the audit log through a link and keeps a value that may be a misplaced secret out of its errors; see the [changelog](https://github.com/radek-cerny-soukr/netops/blob/main/components/netops-core/CHANGELOG.md).
 
-The shared access and configuration primitives of the `netops` family: bounded inventory and credential readers, exclusive SSH host-key trust, SSH exec and terminal transports, SFTP metadata, prompt cleaning and audit records. Version 0.2.6 also provides the shared FortiOS configuration parser and measured schema library runtime. Consumers decide authorization, audit policy and whether a result allows a change. Core exposes no server or network listener.
+The shared access and configuration primitives of the `netops` family: bounded inventory and credential readers, exclusive SSH host-key trust, SSH exec and terminal transports, SFTP metadata, prompt cleaning and audit records. Since version 0.2.6, Core also provides the shared FortiOS configuration parser and measured schema library runtime. Consumers decide authorization, audit policy and whether a result allows a change. Core exposes no server or network listener.
 
 The FortiOS parser reads saved configuration text into a bounded tree. Schema traversal preserves VDOMs and nested parent keys, validates measured types and values, and represents unmeasured scope and availability explicitly. A library requires an exact hardware model, OS version and build; it does not establish device permissions or semantic correctness. Command catalogues, write calibration and rollback policy belong to the consuming components. Operators supply and pin their own measured libraries; this release does not include a universal FortiOS schema database. Core is installed as a library and ships no image, compose service or MCP surface.
 
@@ -12,6 +12,10 @@ asserted here: standard library only, so no import outside it may appear anywher
 3.13 or newer (`requires-python = ">=3.13"`); and no container image of its own, because it is a
 library that a runtime takes from the tree, not a runtime itself - see "How the other components use
 it" below for what that means in practice.
+
+## Installation fixes in 0.2.7
+
+Installation uses a local umask 022 for pip-generated programs, and acceptance can require a real installed askpass rather than skip it. See the [changelog](CHANGELOG.md) and installation/release instructions for the exact procedure.
 
 ## Modules
 

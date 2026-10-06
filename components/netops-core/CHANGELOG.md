@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.2.7 - 2026-10-06
+
+- Document environment creation and package installation with a local umask 022 so pip-generated askpass programs pass the existing ownership and mode guard on systems with umask 0002.
+- Add a required installed-package test mode: an absent netops-askpass fails acceptance instead of being skipped.
+
 ## 0.2.6 - 2026-10-06
 
 - Refuse excessive vault nesting as VaultError throughout loading, including JSON re-encoding after decoding succeeds. Suppress the original recursion diagnostic so credential contents cannot enter a traceback. Regression tests cover independent decoder/encoder faults and deeply nested vault documents.
