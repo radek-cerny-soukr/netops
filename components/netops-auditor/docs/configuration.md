@@ -15,7 +15,7 @@ document of `netops-core`, file version 2**, and its schema is
 [`../../netops-core/docs/vault.md`](../../netops-core/docs/vault.md). This document ships in the
 `netops-core` archive, not in the auditor archive: that relative path resolves in a repository
 checkout; from a standalone auditor archive the same file is published at
-[`netops-core/v0.2.5`](https://github.com/radek-cerny-soukr/netops/blob/netops-core/v0.2.5/components/netops-core/docs/vault.md).
+[`netops-core/v0.2.6`](https://github.com/radek-cerny-soukr/netops/blob/netops-core/v0.2.6/components/netops-core/docs/vault.md).
 What follows is what the auditor adds to it.
 
 ```json
@@ -35,7 +35,7 @@ What follows is what the auditor adds to it.
 | `credentials` | an object; the key is the record name an inventory entry refers to in `credential` |
 | `credentials.<name>.kind` | one of `password`, `ssh-key`, `api-token`, `snmp-community` |
 | `credentials.<name>.login` | the account name, **required** for `password` and `ssh-key`, **forbidden** for the other two |
-| `credentials.<name>.value` | the secret itself; for `ssh-key` the whole private key text, header line and all, newlines written as `\n` - the example above is a placeholder, and the real shape is in [`../../netops-core/docs/vault.md`](../../netops-core/docs/vault.md) (from a standalone archive, published at [`netops-core/v0.2.5`](https://github.com/radek-cerny-soukr/netops/blob/netops-core/v0.2.5/components/netops-core/docs/vault.md)) |
+| `credentials.<name>.value` | the secret itself; for `ssh-key` the whole private key text, header line and all, newlines written as `\n` - the example above is a placeholder, and the real shape is in [`../../netops-core/docs/vault.md`](../../netops-core/docs/vault.md) (from a standalone archive, published at [`netops-core/v0.2.6`](https://github.com/radek-cerny-soukr/netops/blob/netops-core/v0.2.6/components/netops-core/docs/vault.md)) |
 
 The file is read at mode `0600` or `0400` and at no other mode, and a vault path that is a symbolic
 link is refused before the mode is read.
@@ -52,8 +52,8 @@ the run when the credential is resolved, before anything is sent anywhere.
 | `file` | none | the entry takes no credential at all, and `--vault` is refused for it |
 
 ```
-error: device fw-a.example.invalid reads channel ssh under credential fw-a-audit-ro of kind
-api-token, channel ssh takes a credential of kind password or ssh-key
+error: device fw-a.example.invalid reads channel ssh with a credential of kind api-token,
+channel ssh takes a credential of kind password or ssh-key
 ```
 
 **The login comes from the credential.** `collect` has no `--profile` option any more: on the `ssh`
@@ -148,7 +148,12 @@ quietly binding to nothing:
 error: suppressions: suppression 0: fingerprint '0000000000000000000000000000000000000000000000000000000000000000' does not match components, expected 2aa12a59e584e7c28ed33cf55508fa350f8415652984bdaa18dc7ddc072a80d6
 ```
 
-Two items with the same fingerprint are an error as well.
+Two items with the same fingerprint are an error as well, and so is a key repeated within one JSON
+object - the file is refused instead of the last `expires` silently winning.
+
+A run reads only the items whose `device` is the audited device. An item for another device of the
+same tenant is not reported as orphaned or expired by that run; the CLI and the MCP surface filter
+the same way.
 
 ### Tenant binding
 
@@ -232,7 +237,7 @@ device, and the `legacy_ssh` exception are in [`inventory.md`](inventory.md); th
 document is in [`../../netops-core/docs/inventory.md`](../../netops-core/docs/inventory.md), which
 ships in the `netops-core` archive, not the auditor archive: from a standalone auditor archive the
 same file is published at
-[`netops-core/v0.2.5`](https://github.com/radek-cerny-soukr/netops/blob/netops-core/v0.2.5/components/netops-core/docs/inventory.md).
+[`netops-core/v0.2.6`](https://github.com/radek-cerny-soukr/netops/blob/netops-core/v0.2.6/components/netops-core/docs/inventory.md).
 
 ## The platform picks the parser and the catalogue
 
@@ -278,13 +283,69 @@ alone, so an error page cannot grow large and cannot reach a log. The `ssh` chan
 the bounded receive of `netops_core.ssh`, described in the core's own documentation - and the `file`
 channel reads a local file the operator already has.
 
+## Input files and their limits
+
+Every input file named on the command line, in the environment of the MCP surface or as the source
+of the `file` channel is opened without blocking and read only when it is a regular file, and never
+further than its limit plus one byte. A pipe, a device such as `/dev/zero` or a directory is refused as `not a regular file`, and a longer file as `larger than <limit> bytes`,
+before anything in it is parsed; both end the command with exit code `2`:
+
+```
+error: cannot read configuration /dev/zero: not a regular file
+error: suppressions: cannot read suppression file /run/netops/waivers: not a regular file
+```
+
+| file | limit | constant |
+|---|---|---|
+| `run --config`, the source of the `file` channel | 64 MiB (67108864 bytes) | `collect.MAX_SNAPSHOT_BYTES` |
+| `--suppressions`, `NETOPS_AUDITOR_SUPPRESSIONS` | 4 MiB (4194304 bytes) | `suppressions.MAX_SUPPRESSIONS_BYTES` |
+| `--policy` | 256 KiB (262144 bytes) | `management.MAX_POLICY_BYTES` |
+| each `merge-sarif` input | 64 MiB (67108864 bytes) | `sarif.MAX_SARIF_BYTES` |
+| `--inventory` | 4 MiB (4194304 bytes) | `netops_core.inventory.INVENTORY_MAX_BYTES` (from netops-core 0.2.6) |
+| `--vault` | 1 MiB (1048576 bytes) | `netops_core.vault.VAULT_MAX_BYTES` (from netops-core 0.2.6) |
+
+The inventory and the vault are read by netops-core; the auditor pins `netops-core==0.2.6`, the first
+release that carries the limits (0.2.5 read them whole).
+
+The output of `merge-sarif` is opened the same way, without blocking, and must be a regular file or
+not exist yet; a pipe nobody reads is refused instead of blocking the command. Every argument must be
+valid UTF-8: an argument whose bytes do not decode (`--tenant $'\xff'`) is refused with
+`error: argument tenant is not valid UTF-8` before any file is read, because the report would carry
+it into output a UTF-8 terminal cannot write. A FortiOS dump whose `config` and `edit` blocks nest
+deeper than 64 levels (`l1_fortios.MAX_DEPTH`) is refused as `cannot parse configuration`; real
+dumps nest a handful of levels, and the parser's memory grows with the square of the depth. A JSON
+string with an unpaired surrogate escape (`"\ud800"`) makes a suppression file or a SARIF input
+invalid JSON. All of these end the command with exit code `2`.
+
+## The store under concurrent use
+
+Several `run` or `collect` processes may open one `--store` at the same moment, also a file that does
+not exist yet. The schema is created and stamped with its version in one write transaction
+(`BEGIN IMMEDIATE`), so a second process waits for the first and then finds the whole schema; it
+never sees the tables without the version, which it would refuse as schema version 1. Opening a store
+that already holds the whole current schema writes nothing.
+
+An SQLite error after the store was opened - another writer that keeps the lock longer than the five
+seconds SQLite waits (`database is locked`), a damaged page (`database disk image is malformed`) -
+ends `run`, `collect` and `status` with one line naming the store and exit code `2`, never with a
+traceback:
+
+```
+error: store audit.sqlite3: database disk image is malformed
+```
+
+On the MCP surface the same error, an unreadable suppression file and a store that cannot be opened
+are a tool error whose text names the store or the file; the server keeps serving. A tool error
+repeats at most 500 characters of its message, so an oversized argument is not echoed back whole.
+
 ## Exit codes
 
 | code | when |
 |---|---|
-| `0` | `run` and `collect` finished; `status` found the last audit fresh |
+| `0` | `run` and `collect` finished and every mandatory rule was evaluated; `status` found the last audit fresh |
 | `1` | `status` only: the last audit is older than `--stale-after-hours` (26 by default), or there is none, or the latest audit is incomplete |
-| `2` | the run was refused - a bad argument, an unreadable file, a fail-closed schema, a failed channel |
+| `2` | the run was refused - a bad argument, an unreadable file, a fail-closed schema, a failed channel, a rule named in `required_rules` that was not evaluated |
+| `3` | `run` and `collect` only: the report was printed (and recorded with `--store`), but at least one mandatory rule was not evaluated - `evaluation_complete` is `false`, see [Rule status](#rule-status) |
 
 **`run` and `collect` return `0` with findings of severity high.** The code says whether the audit
 ran, not whether the device is in order. A pipeline that reads a zero as "clean" reports a device
@@ -302,7 +363,57 @@ $ echo $?
 
 To gate a pipeline on findings, read the report - `--json` prints `summary` and `states` as fields -
 and decide there. `status` is the one command whose code carries a verdict, and that verdict is about
-freshness and evaluation: `fresh` is `0`; `stale`, `never` and `incomplete` are `1`.
+freshness and evaluation: `fresh` is `0`; `stale`, `never` and `incomplete` are `1`. The one verdict
+`run` and `collect` carry in their code is about evaluation, not about findings: `3` says the audit
+did not read everything it is required to read, so an empty finding list is not a clean result.
+
+## Rule status
+
+Every report of `run` and `collect` names the state of every rule of the catalogue in `rule_status`,
+next to the findings, so that "the rule found nothing" and "the rule could not read its input" are
+two different answers:
+
+```json
+"evaluation_complete": false,
+"rule_status": {
+  "exos.management.port-policy": {"status": "not-evaluated", "reason": "unresolved-port-list", "required": false},
+  "exos.mgmt.telnet-enabled": {"status": "evaluated", "reason": "", "required": true}
+}
+```
+
+| `status` | meaning |
+|---|---|
+| `evaluated` | the rule read the input it needs; no finding of it means it found nothing |
+| `not-evaluated` | the rule could not read this input; it reports no finding, and its absence of findings means nothing |
+| `unsupported` | the input is in a scope the catalogue does not read (the reason names the scope gate, `fortios.scope.vdom-unsupported`); it reports no finding |
+
+The `reason` is a short code: `snapshot-incomplete` (the `collect` completeness gate),
+`fortios.scope.vdom-unsupported` (a `config vdom` or a top-level `config global` block),
+`unterminated-upm-profile` (an EXOS UPM profile body without its closing `.`), `section-missing`
+and `no-vlan-content` (a management rule whose tables are not in the snapshot), `unresolved-port-list`
+and `unsupported-membership-form` (EXOS VLAN membership the model cannot expand),
+`policy-not-configured` (a management rule whose operator-policy field is absent) and
+`value-not-numeric` (a FortiOS `admintimeout` or `admin-lockout-threshold` under
+`config system global` that is not written in the ASCII digits `0`-`9`, such as `thirty`, `-1`, `1.5`
+or `²`; the rule cannot compare it with its limit, so `fortios.mgmt.idle-timeout` or
+`fortios.mgmt.lockout-threshold` is `not-evaluated` and the run exits with `3`; an absent value is the
+device default and stays `evaluated`).
+
+`required` says whether the rule is mandatory. Every rule of the original catalogues is; a
+management rule is mandatory only when the operator policy names it in `required_rules` - otherwise
+it is advisory, and its `not-evaluated` state is reported without failing the run.
+`evaluation_complete` is `false` as soon as one mandatory rule is not `evaluated`; the report then
+also carries the older marker `evaluation: "not-evaluated"`, and the run exits with `3`. A mandatory
+management rule that cannot be evaluated refuses the run before the catalogue (`2`), as before.
+
+The earlier findings of a rule that is not evaluated in the latest run are listed in `not_evaluated`,
+never in `gone`, and a suppression of such a rule is not reported as orphaned. The same states are
+recorded in the store (table `rule_status`, written with each run; runs recorded before 0.2.9 carry
+none and are judged by their marker findings alone), and they reach the SARIF run as the device
+properties `rule_status` and `evaluation_complete`, and the read-only MCP surface as `rule_status` of
+each device in `audit_status` and `not_evaluated_rules` of `compare`. `compare` leaves out of
+`added`, `removed` and `kept` the findings of rules that one of the two runs did not evaluate.
+`rule_coverage` stays as it was (`evaluated`, `not-evaluated`, `not-configured` per management rule).
 
 ## Two refusals that end the audit
 
@@ -330,6 +441,20 @@ does not exist. The evidence carries the names and the count, never a line of co
 section is recognized per platform, and why this is a presence check in which an empty section counts
 as present, is in [`channels.md`](channels.md).
 
+A FortiOS dump that stops inside a block or inside a quoted value - a `config` or `edit` without its
+`end` or `next`, a quote that is never closed - was cut off on the way, and `collect` reports it the
+same way: one `<platform>.snapshot.incomplete` finding, the catalogue not evaluated, exit code `3`.
+Its evidence adds `unterminated_line`, the number of the line where the open block or quote starts
+(`missing_count` is then `0` unless a section is missing as well); it still carries no configuration
+text. Before 0.2.9 such a dump ended the run with `error: policy cannot be evaluated (ParseError)`.
+A mandatory management rule of the operator policy still refuses the run (`2`), because a cut-off dump
+evaluates none of them. `run` reads a file it was handed and has no completeness gate; it refuses a
+cut-off file and names the file and the line:
+
+```
+error: cannot parse configuration fw-a.conf: unterminated block opened at line 62
+```
+
 A section written the way the dump opens it is refused rather than reported as missing, and that
 refusal lands **after** the snapshot has been taken, not when the inventory is loaded - so a typo in
 `required_sections` fails on the run against the device, not on the file. The message and the rule
@@ -341,7 +466,9 @@ One rule of the FortiOS catalogue, `fortios.scope.vdom-unsupported`, is marked `
 fires, its finding is the **only** finding the run returns and every other rule is skipped. Its own
 title says why: the configuration is organized into VDOMs, a scope this catalogue does not read, so
 no other rule was evaluated over it. It fires on any dump that carries a `vdom` section, a
-single-VDOM one included.
+single-VDOM one included, and on a dump wrapped in a top-level `config global` block without a
+`vdom` block (object `global`, `vdoms=0`): the settings inside such a wrapper are not read, so the
+run is not evaluated rather than clean. Every other rule then has the state `unsupported`.
 
 The same dump with and without that section shows the whole effect. `fw-c.conf` is `fw-a.conf` with
 a `config vdom` block in front of it. The ordinary finding is absent from this evaluation; that
@@ -377,18 +504,22 @@ Absence during an incomplete audit also does not mark a suppression as orphaned.
 
 CLI and MCP status report `incomplete` for the latest such run. MCP `list_findings` and
 `finding_detail` expose the carried findings with state `not-evaluated`; these are historical evidence,
-not findings observed in the latest snapshot. Baseline acceptance refuses an unevaluated run without
+not findings observed in the latest snapshot. Every finding the two tools return carries
+`rule_status`, the `status` and `reason` of its rule in the latest run - `not-evaluated` and
+`snapshot-incomplete` for a finding carried across an incomplete snapshot; for a run recorded before
+0.2.9 the state is derived from its marker finding. Baseline acceptance refuses an unevaluated run without
 changing the existing baseline. MCP comparison refuses either unevaluated endpoint. This also
 applies to existing stored runs identified by their incomplete-snapshot or unsupported-scope finding;
 no database migration is needed.
 
-`run` and `collect` retain exit code 0 when they successfully record a gate finding. Consumers must
-inspect the evaluation marker, findings and status; exit code 0 alone does not establish a completed
-catalogue evaluation.
+`run` and `collect` exit with `3` when they record such a run (before 0.2.9 they exited with `0`).
+The report is printed and recorded in full; the code only says that it is not a completed
+evaluation of the catalogue.
 
 ## What is not a configuration file
 
-The store behind `--store` is a SQLite database the auditor writes and nobody edits by hand. The rule
+The store behind `--store` is a SQLite database the auditor writes and nobody edits by hand. A file
+that is not such a database is refused with `error: store: ...` (exit code `2`). The rule
 catalogue is data but not configuration: it ships inside the package, it is not read from a path you
 choose, and a rule without a positive and a negative fixture does not enter it - the gate rejects it.
 

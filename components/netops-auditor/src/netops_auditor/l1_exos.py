@@ -7,6 +7,10 @@ MODULE_HEADER = re.compile(r"^#\s*Module\s+(\S+)\s+configuration\.$")
 
 NO_MODULE = ""
 
+UPM_PROFILE = ("create", "upm", "profile")
+UPM_END = "."
+UPM_UNNAMED = "-"
+
 
 class ParseError(Exception):
     pass
@@ -18,6 +22,7 @@ class Command:
     module: str
     tokens: tuple
     text: str
+    upm_profile: str = ""
 
     def starts_with(self, *words) -> bool:
         return self.tokens[: len(words)] == tuple(words)
@@ -33,18 +38,29 @@ class Configuration:
     raw: tuple
     commands: tuple
     modules: tuple
+    active: tuple = ()
+    upm_bodies: tuple = ()
+    unterminated_upm: bool = False
 
     def serialize(self) -> str:
         return "".join(self.raw)
 
     def matching(self, *words) -> tuple:
-        return tuple(command for command in self.commands if command.starts_with(*words))
+        return tuple(command for command in self.active if command.starts_with(*words))
 
     def first(self, *words):
-        for command in self.commands:
+        for command in self.active:
             if command.starts_with(*words):
                 return command
         return None
+
+
+def split_lines(text: str) -> list:
+    parts = text.split("\n")
+    lines = [part + "\n" for part in parts[:-1]]
+    if parts[-1]:
+        lines.append(parts[-1])
+    return lines
 
 
 def tokenize(text: str, line: int = 0) -> list:
@@ -69,14 +85,20 @@ def tokenize(text: str, line: int = 0) -> list:
 def parse(text: str) -> Configuration:
     if not isinstance(text, str):
         raise ParseError("configuration must be a string, got %r" % (text,))
-    raw = text.splitlines(keepends=True)
+    raw = split_lines(text)
     commands, modules, module = [], [], NO_MODULE
+    bodies, profile, opened = [], "", 0
     for number, line in enumerate(raw, 1):
         content = line.strip()
         if not content:
             continue
+        if profile and content == UPM_END:
+            commands.append(Command(line=number, module=module, tokens=(UPM_END,), text=content, upm_profile=profile))
+            bodies.append((opened, number))
+            profile = ""
+            continue
         if content.startswith("#"):
-            header = MODULE_HEADER.match(content)
+            header = None if profile else MODULE_HEADER.match(content)
             if header is not None:
                 module = header.group(1)
                 if module not in modules:
@@ -86,6 +108,18 @@ def parse(text: str) -> Configuration:
         if not tokens:
             continue
         commands.append(
-            Command(line=number, module=module, tokens=tuple(tokens), text=content)
+            Command(line=number, module=module, tokens=tuple(tokens), text=content, upm_profile=profile)
         )
-    return Configuration(raw=tuple(raw), commands=tuple(commands), modules=tuple(modules))
+        if not profile and tuple(tokens[:3]) == UPM_PROFILE:
+            profile = tokens[3] if len(tokens) > 3 and tokens[3] else UPM_UNNAMED
+            opened = number + 1
+    if profile:
+        bodies.append((opened, len(raw)))
+    return Configuration(
+        raw=tuple(raw),
+        commands=tuple(commands),
+        modules=tuple(modules),
+        active=tuple(command for command in commands if not command.upm_profile),
+        upm_bodies=tuple(bodies),
+        unterminated_upm=bool(profile),
+    )

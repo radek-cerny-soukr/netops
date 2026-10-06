@@ -28,10 +28,16 @@ class AuditorSection:
     tls_fingerprint: str | None
 
 
+def _shape(value) -> str:
+    if isinstance(value, str):
+        return "a string of %d characters" % len(value)
+    return type(value).__name__
+
+
 def _checked_choice(where: str, name: str, value, allowed) -> str:
     if not isinstance(value, str) or value not in allowed:
         raise InventoryError(
-            "%s: %s must be one of %s, got %r" % (where, name, ", ".join(allowed), value)
+            "%s: %s must be one of %s, got %s" % (where, name, ", ".join(allowed), _shape(value))
         )
     return value
 
@@ -41,18 +47,18 @@ def _checked_source(where: str, channel: str, value):
         if value is not None:
             raise InventoryError(
                 "%s: source must be null for channel %s, the session is opened against the"
-                " address and port of the device, got %r" % (where, CHANNEL_SSH, value)
+                " address and port of the device, got %s" % (where, CHANNEL_SSH, _shape(value))
             )
         return None
     if not isinstance(value, str) or not value.strip():
         raise InventoryError(
-            "%s: source must be a non-empty string for channel %s, got %r"
-            % (where, channel, value)
+            "%s: source must be a non-empty string for channel %s, got %s"
+            % (where, channel, _shape(value))
         )
     if channel == CHANNEL_REST and not value.startswith(REST_SCHEME):
         raise InventoryError(
-            "%s: source must name the device as %shost[:port] for channel %s, got %r"
-            % (where, REST_SCHEME, CHANNEL_REST, value)
+            "%s: source must name the device as %shost[:port] for channel %s, got %s"
+            % (where, REST_SCHEME, CHANNEL_REST, _shape(value))
         )
     return value
 
@@ -60,13 +66,13 @@ def _checked_source(where: str, channel: str, value):
 def _checked_sections(where: str, value) -> tuple:
     if not isinstance(value, list) or not value:
         raise InventoryError(
-            "%s: required_sections must be a non-empty list, got %r" % (where, value)
+            "%s: required_sections must be a non-empty list, got %s" % (where, _shape(value))
         )
     for index, section in enumerate(value):
         if not isinstance(section, str) or not section.strip():
             raise InventoryError(
-                "%s: required_sections[%d] must be a non-empty string, got %r"
-                % (where, index, section)
+                "%s: required_sections[%d] must be a non-empty string, got %s"
+                % (where, index, _shape(section))
             )
     return tuple(value)
 
@@ -75,7 +81,8 @@ def _checked_tls_fingerprint(where: str, channel: str, value):
     if channel != CHANNEL_REST:
         if value is not None:
             raise InventoryError(
-                "%s: tls_fingerprint must be null for channel %s, got %r" % (where, channel, value)
+                "%s: tls_fingerprint must be null for channel %s, got %s"
+                % (where, channel, _shape(value))
             )
         return None
     if (
@@ -85,8 +92,8 @@ def _checked_tls_fingerprint(where: str, channel: str, value):
     ):
         raise InventoryError(
             "%s: tls_fingerprint must hold the sha256 certificate fingerprint of the device"
-            " for channel %s, %d hexadecimal characters, no first contact trust, got %r"
-            % (where, CHANNEL_REST, TLS_FINGERPRINT_LENGTH, value)
+            " for channel %s, %d hexadecimal characters, no first contact trust, got %s"
+            % (where, CHANNEL_REST, TLS_FINGERPRINT_LENGTH, _shape(value))
         )
     return value.lower()
 
@@ -96,7 +103,7 @@ def _checked_common(where: str, channel: str, entry) -> None:
         if entry.credential is not None:
             raise InventoryError(
                 "%s: credential must be null for channel %s, a dump on disk is opened without"
-                " logging in anywhere, got %r" % (where, CHANNEL_FILE, entry.credential)
+                " logging in anywhere; the reference is not repeated" % (where, CHANNEL_FILE)
             )
         return
     if entry.credential is None:
@@ -128,7 +135,7 @@ def section(entry) -> AuditorSection:
     item = entry.auditor
     if not isinstance(item, dict):
         raise InventoryError(
-            "%s: must be an object, got %r" % (where, item)
+            "%s: must be an object, got %s" % (where, _shape(item))
         )
     missing = [name for name in SECTION_FIELDS if name not in item]
     if missing:

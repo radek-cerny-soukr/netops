@@ -10,6 +10,12 @@ CATALOG_DIR = Path(__file__).parent / "catalog"
 
 _CHECKS = {}
 _CONTEXTUAL = set()
+_STATUS = {}
+
+EVALUATED = "evaluated"
+NOT_EVALUATED = "not-evaluated"
+UNSUPPORTED = "unsupported"
+RULE_STATES = (EVALUATED, NOT_EVALUATED, UNSUPPORTED)
 
 
 class CatalogError(Exception):
@@ -35,13 +41,15 @@ class Rule:
     scope_gate: bool = False
 
 
-def check(name, contextual=False):
+def check(name, contextual=False, status=None):
     def register(function):
         if name in _CHECKS:
             raise CheckError("duplicate check %s" % name)
         _CHECKS[name] = function
         if contextual:
             _CONTEXTUAL.add(name)
+        if status is not None:
+            _STATUS[name] = status
         return function
 
     return register
@@ -125,3 +133,31 @@ def run(tree, tenant: str, device: str, rules, policy=None) -> tuple:
     if gated:
         return _ordered(gated)
     return _ordered(_collect(tree, tenant, device, [rule for rule in rules if not rule.scope_gate], policy))
+
+
+def _status(rule, tree, policy) -> tuple:
+    probe = _STATUS.get(rule.check)
+    if probe is None:
+        return EVALUATED, ""
+    state, reason = probe(tree, policy)
+    if state not in RULE_STATES:
+        raise CheckError("%s: unknown rule state %s" % (rule.id, state))
+    return state, reason
+
+
+def evaluate(tree, tenant: str, device: str, rules, policy=None) -> tuple:
+    gates = [rule for rule in rules if rule.scope_gate]
+    gated = _ordered(_collect(tree, tenant, device, gates, policy))
+    states = {rule.id: (EVALUATED, "") for rule in gates}
+    if gated:
+        for rule in rules:
+            states.setdefault(rule.id, (UNSUPPORTED, gated[0].rule_id))
+        return gated, states
+    findings = []
+    for rule in rules:
+        if rule.scope_gate:
+            continue
+        states[rule.id] = _status(rule, tree, policy)
+        if states[rule.id][0] == EVALUATED:
+            findings.extend(_collect(tree, tenant, device, [rule], policy))
+    return _ordered(findings), states

@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from .engine import EVALUATED
+
 STATE_NEW = "new"
 STATE_OPEN_KNOWN = "open-known"
 STATE_SUPPRESSED = "suppressed"
@@ -34,18 +36,31 @@ UNEVALUATED_RULES = frozenset((
 ))
 
 
-def evaluation_complete(findings) -> bool:
+def suppressions_for_device(suppressions, device) -> tuple:
+    return tuple(item for item in suppressions if getattr(item, "device", device) == device)
+
+
+def evaluation_complete(findings, statuses=None) -> bool:
     for item in findings:
         rule_id = item["rule_id"] if hasattr(item, "keys") else getattr(item, "rule_id", None)
         if rule_id in UNEVALUATED_RULES:
             return False
-    return True
+    return not any(item["required"] and item["status"] != EVALUATED for item in (statuses or {}).values())
+
+
+def unevaluated_rules(statuses) -> frozenset:
+    return frozenset(rule for rule, item in (statuses or {}).items() if item["status"] != EVALUATED)
+
+
+def stored_statuses(store, tenant, run_id) -> dict:
+    reader = getattr(store, "rule_status_for_run", None)
+    return {} if reader is None else reader(tenant, run_id)
 
 
 def last_evaluated(store, tenant, runs) -> tuple:
     for run in runs:
         findings = store.findings_for_run(tenant, run["id"])
-        if evaluation_complete(findings):
+        if evaluation_complete(findings, stored_statuses(store, tenant, run["id"])):
             return run, findings
     return None, ()
 
@@ -78,9 +93,10 @@ def _suppression_key(suppression) -> tuple:
     )
 
 
-def classify(findings, baseline_fingerprints, suppressions, previous, now) -> Classification:
+def classify(findings, baseline_fingerprints, suppressions, previous, now, statuses=None) -> Classification:
     findings = tuple(findings)
-    evaluated = evaluation_complete(findings)
+    evaluated = evaluation_complete(findings, statuses)
+    skipped = unevaluated_rules(statuses)
     today = _today(findings)
     baseline = frozenset(baseline_fingerprints)
     active = set()
@@ -91,7 +107,7 @@ def classify(findings, baseline_fingerprints, suppressions, previous, now) -> Cl
             active.add(suppression.fingerprint)
         else:
             expired.append(suppression)
-        if evaluated and suppression.fingerprint not in today:
+        if evaluated and suppression.fingerprint not in today and getattr(suppression, "rule_id", None) not in skipped:
             orphaned.append(suppression)
     counts = {STATE_NEW: 0, STATE_OPEN_KNOWN: 0, STATE_SUPPRESSED: 0, STATE_GONE: 0}
     states = []
@@ -105,7 +121,7 @@ def classify(findings, baseline_fingerprints, suppressions, previous, now) -> Cl
         states.append((fingerprint, state))
         counts[state] += 1
     absent = _gone(previous, today)
-    gone = absent if evaluated else ()
+    gone = tuple(item for item in absent if item.rule_id not in skipped) if evaluated else ()
     counts[STATE_GONE] = len(gone)
     return Classification(
         states=tuple(states),
@@ -113,5 +129,5 @@ def classify(findings, baseline_fingerprints, suppressions, previous, now) -> Cl
         orphaned_suppressions=tuple(sorted(orphaned, key=_suppression_key)),
         expired_suppressions=tuple(sorted(expired, key=_suppression_key)),
         counts=counts,
-        not_evaluated=() if evaluated else absent,
+        not_evaluated=tuple(item for item in absent if item.rule_id in skipped) if evaluated else absent,
     )

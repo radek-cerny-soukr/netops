@@ -3,6 +3,9 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
+import sqlite3
+import stat
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -14,13 +17,16 @@ from . import checks_exos
 from . import checks_fortios
 from . import collect
 from . import inventory
+from . import jsontext
 from . import l1_exos
 from . import l1_fortios
 from . import sarif
-from .engine import CATALOG_DIR, CatalogError, CheckError, load_catalog, run
+from .engine import CATALOG_DIR, NOT_EVALUATED, CatalogError, CheckError, evaluate, load_catalog
 from .findings import Finding
+from .inputs import InputError, read_regular
 from .state import STATE_GONE, STATE_NEW, STATE_OPEN_KNOWN, STATE_SUPPRESSED, classify
-from .state import STATE_NOT_EVALUATED, evaluation_complete, last_evaluated
+from .state import STATE_NOT_EVALUATED, evaluation_complete, last_evaluated, stored_statuses
+from .state import suppressions_for_device
 from .store import Store, StoreError
 from .store import migrate as migrate_store
 from .suppressions import MOMENT_FORMAT, SuppressionError, load_for_tenant
@@ -66,6 +72,7 @@ DEFAULT_STALE_AFTER_HOURS = 26.0
 EXIT_OK = 0
 EXIT_STALE = 1
 EXIT_ERROR = 2
+EXIT_INCOMPLETE = 3
 
 COLLECTION_KEY = "collection"
 
@@ -94,6 +101,8 @@ COMPLETENESS_RULE_VERSION = 1
 COMPLETENESS_SEVERITY = "high"
 
 COMPLETENESS_CLASS = "fakt"
+
+COMPLETENESS_REASON = "snapshot-incomplete"
 
 DEFAULT_PROFILE = "unknown"
 
@@ -162,14 +171,31 @@ def _parser() -> argparse.ArgumentParser:
     combined.add_argument("--output", required=True)
     combined.add_argument("inputs", nargs="+")
     combined.set_defaults(handler=_command_merge_sarif)
+    schema = commands.add_parser("schema-check")
+    schema.add_argument("--library", required=True)
+    schema.add_argument("--schema-sha256")
+    schema.add_argument("--hardware", required=True)
+    schema.add_argument("--os-version", required=True)
+    schema.add_argument("--build", required=True)
+    schema.add_argument("--config", required=True)
+    schema.add_argument("--full-snapshot", action="store_true")
+    schema.add_argument("--catalog-vdoms", action="store_true")
+    schema.add_argument("--policy")
+    schema.add_argument("--upgrade-library")
+    schema.add_argument("--upgrade-sha256")
+    schema.add_argument("--tenant", required=True)
+    schema.add_argument("--device", required=True)
+    schema.set_defaults(handler=_command_schema_check)
     return parser
 
 
 def _read_config(path: Path) -> tuple:
     try:
-        data = path.read_bytes()
+        data = read_regular(path, collect.MAX_SNAPSHOT_BYTES)
     except OSError as error:
         raise Failure("cannot read configuration: %s" % error)
+    except InputError as error:
+        raise Failure("cannot read configuration %s: %s" % (path, error))
     try:
         text = data.decode("utf-8")
     except UnicodeDecodeError:
@@ -203,9 +229,20 @@ def _audit(platform: str, text: str, tenant: str, device: str, rules, policy=Non
     except PARSE_ERRORS as error:
         raise Failure("cannot parse configuration: %s" % error)
     try:
-        return run(tree, tenant, device, rules, policy)
+        return evaluate(tree, tenant, device, rules, policy)
     except CheckError as error:
         raise Failure("catalog does not match the checks: %s" % error)
+
+
+def _rule_status(platform, rules, states, policy) -> dict:
+    required = set((policy or {}).get("required_rules", []))
+    prefix = "%s.management." % platform
+    result = {}
+    for rule in rules:
+        state, reason = states[rule.id]
+        name = rule.id[len(prefix):] if rule.id.startswith(prefix) else None
+        result[rule.id] = {"status": state, "reason": reason, "required": name is None or name in required}
+    return result
 
 
 def _checked_options(args):
@@ -234,38 +271,46 @@ def _load_suppressions(path, tenant):
 
 def _store_path(value, must_exist: bool) -> Path:
     path = Path(value)
-    if path.is_dir():
-        raise Failure("store path is a directory: %s" % path)
-    if must_exist:
-        if not path.is_file():
-            raise Failure("store does not exist: %s" % path)
-    elif not path.parent.is_dir():
-        raise Failure("store directory does not exist: %s" % path.parent)
+    try:
+        if path.is_dir():
+            raise Failure("store path is a directory: %s" % path)
+        if must_exist:
+            if not path.is_file():
+                raise Failure("store does not exist: %s" % path)
+        elif not path.parent.is_dir():
+            raise Failure("store directory does not exist: %s" % path.parent)
+    except OSError as error:
+        raise Failure("store path %s cannot be used: %s" % (path, error.strerror or error)) from None
     return path
+
+
+def _database_failure(path, error) -> Failure:
+    return Failure("store %s: %s" % (path, error))
 
 
 def _previous(store, tenant: str, device: str) -> tuple:
     return last_evaluated(store, tenant, store.runs_for_device(tenant, device))[1]
 
 
-
-def _checked_policy_scope(store, tenant, device, rules_version):
-    runs = store.runs_for_device(tenant, device)
-    if not runs:
-        return
-    previous = str(runs[0]["rules_version"]).split(":")[3:]
-    current = str(rules_version).split(":")[3:]
-    if previous != current:
-        raise Failure("operator policy differs from this device history; use a separate store for the new policy")
+def _policy_scope(rules_version):
+    def admit(previous):
+        if previous is not None and str(previous).split(":")[3:] != str(rules_version).split(":")[3:]:
+            raise Failure("operator policy differs from this device history; use a separate store for the new policy")
+    return admit
 
 
-def _record(args, digest: str, rules_version: str, findings) -> tuple:
+def _history(store, tenant: str, device: str, seen: dict):
+    def observe():
+        seen["baseline"] = store.baseline_fingerprints(tenant, device)
+        seen["previous"] = _previous(store, tenant, device)
+    return observe
+
+
+def _record(args, digest: str, rules_version: str, findings, rule_status) -> tuple:
     path = _store_path(args.store, False)
+    seen = {}
     try:
         with Store(path) as store:
-            _checked_policy_scope(store, args.tenant, args.device, rules_version)
-            baseline = store.baseline_fingerprints(args.tenant, args.device)
-            previous = _previous(store, args.tenant, args.device)
             run_id = store.record_run(
                 args.tenant,
                 args.device,
@@ -273,6 +318,9 @@ def _record(args, digest: str, rules_version: str, findings) -> tuple:
                 args.config,
                 rules_version,
                 findings,
+                rule_status=rule_status,
+                admit=_policy_scope(rules_version),
+                observe=_history(store, args.tenant, args.device, seen),
             )
             accepted = None
             if args.baseline_accept:
@@ -285,7 +333,9 @@ def _record(args, digest: str, rules_version: str, findings) -> tuple:
                 )
     except StoreError as error:
         raise Failure("store: %s" % error)
-    return previous, baseline, accepted
+    except sqlite3.Error as error:
+        raise _database_failure(path, error)
+    return seen["previous"], seen["baseline"], accepted
 
 
 def _finding_entry(finding, states) -> dict:
@@ -322,7 +372,7 @@ def _summary(findings) -> dict:
     return counts
 
 
-def _report(tenant, device, platform, digest: str, rules_version: str, findings, result) -> dict:
+def _report(tenant, device, platform, digest: str, rules_version: str, findings, result, rule_status) -> dict:
     states = dict(result.states)
     report = {
         "tool": "netops-auditor",
@@ -340,13 +390,21 @@ def _report(tenant, device, platform, digest: str, rules_version: str, findings,
             "expired": [_suppression_entry(item) for item in result.expired_suppressions],
         },
     }
-    if not evaluation_complete(findings):
+    complete = evaluation_complete(findings, rule_status)
+    report["rule_status"] = rule_status
+    report["evaluation_complete"] = complete
+    if not complete:
         report["evaluation"] = STATE_NOT_EVALUATED
+    if not complete or result.not_evaluated:
         report["not_evaluated"] = [
             {**_gone_entry(item), "state": STATE_NOT_EVALUATED}
             for item in result.not_evaluated
         ]
     return report
+
+
+def _exit_code(report) -> int:
+    return EXIT_OK if report["evaluation_complete"] else EXIT_INCOMPLETE
 
 
 def _scalar(value) -> str:
@@ -430,8 +488,13 @@ def _text_report(report: dict) -> str:
             lines.extend(_suppression_lines(name, item))
     if "rule_coverage" in report:
         lines.extend("rule %s: %s" % item for item in sorted(report["rule_coverage"].items()))
+    for rule_id, item in sorted(report["rule_status"].items()):
+        if item["status"] != "evaluated":
+            lines.append("rule-status %s: %s (%s%s)" % (
+                rule_id, item["status"], item["reason"], ", required" if item["required"] else ""))
     if "evaluation" in report:
         lines.append("evaluation: not-evaluated")
+    if "not_evaluated" in report:
         lines.append("state not-evaluated: %d" % len(report["not_evaluated"]))
         for item in report["not_evaluated"]:
             lines.extend(_gone_lines(item))
@@ -458,6 +521,58 @@ def _render(report: dict, as_json: bool, renderer) -> str:
     return renderer(report)
 
 
+def _command_schema_check(args) -> int:
+    from netops_core import schema
+    from . import schema_checks, scoped_fortios
+    catalog_coverage = None
+    try:
+        library = schema.load(args.library, args.schema_sha256)
+        library.require_identity(args.hardware, args.os_version, args.build)
+        text, digest = _read_config(Path(args.config))
+        tree = l1_fortios.parse(text)
+        findings, reference_coverage = schema_checks.references(library, tree, args.full_snapshot)
+        upgrade_coverage = None
+        target = None
+        if args.upgrade_library:
+            target = schema.load(args.upgrade_library, args.upgrade_sha256)
+            upgrade_findings, upgrade_coverage = schema_checks.upgrade(library, target, tree)
+            findings += upgrade_findings
+        if args.catalog_vdoms:
+            if not args.full_snapshot:
+                raise Failure("--catalog-vdoms requires --full-snapshot")
+            try:
+                policy = management.load_policy(args.policy, "fortios") if args.policy else None
+            except (OSError, ValueError):
+                raise Failure("scoped catalog policy cannot be loaded") from None
+            catalog_findings, catalog_states = scoped_fortios.run(library, tree, args.tenant, args.device, policy)
+            findings += [finding.as_dict() for finding in catalog_findings]
+            required = set((policy or {}).get("required_rules", []))
+            catalog_coverage = {}
+            for key, (status, reason) in catalog_states.items():
+                _scope, rule = json.loads(key)
+                name = rule[len("fortios.management."):] if rule.startswith("fortios.management.") else None
+                catalog_coverage[key] = {"status": status, "reason": reason, "required": name is None or name in required}
+    except CheckError as error:
+        raise Failure("scoped catalog cannot be evaluated: %s" % error) from None
+    except schema.SchemaError as error:
+        raise Failure("schema audit cannot be evaluated: %s" % error) from None
+    except PARSE_ERRORS:
+        raise Failure("schema audit snapshot is incomplete or malformed") from None
+    incomplete = any(v["status"] == "not-evaluated" for v in reference_coverage["fields"].values())
+    incomplete = incomplete or bool(upgrade_coverage and upgrade_coverage["not_evaluated"])
+    incomplete = incomplete or bool(catalog_coverage and any(value["required"] and value["status"] != "evaluated" for value in catalog_coverage.values()))
+    report = {"tenant":args.tenant,"device":args.device,"platform":"fortios","snapshot_sha256":digest,
+              "schema_sha256":library.sha256,"target_schema_sha256":target.sha256 if target else None,"identity":library.identity,
+              "identity_assurance":"operator-declared","findings":findings,
+              "reference_coverage":reference_coverage,"upgrade_coverage":upgrade_coverage}
+    if catalog_coverage is not None:
+        report["catalog_coverage"] = catalog_coverage
+    if catalog_coverage is not None:
+        report["catalog_coverage"] = catalog_coverage
+    sys.stdout.write(json.dumps(report,ensure_ascii=False,indent=2)+"\n")
+    return EXIT_INCOMPLETE if incomplete else EXIT_STALE if findings else EXIT_OK
+
+
 def _command_run(args) -> int:
     _checked_options(args)
     if args.as_json and args.sarif:
@@ -465,17 +580,18 @@ def _command_run(args) -> int:
     text, digest = _read_config(Path(args.config))
     rules = _load_rules(args.platform)
     rules_version = _rules_version(args.platform, rules)
-    suppression_items = _load_suppressions(args.suppressions, args.tenant)
-    policy, coverage = _policy(args, args.platform, text)
+    suppression_items = suppressions_for_device(_load_suppressions(args.suppressions, args.tenant), args.device)
+    policy, coverage = _policy(args, args.platform, text, args.config)
     if policy:
         rules_version += ":" + management.policy_digest(policy)
-    findings = _audit(args.platform, text, args.tenant, args.device, rules, policy)
+    findings, states = _audit(args.platform, text, args.tenant, args.device, rules, policy)
+    rule_status = _rule_status(args.platform, rules, states, policy)
     previous, baseline, accepted = (), frozenset(), None
     if args.store:
-        previous, baseline, accepted = _record(args, digest, rules_version, findings)
-    result = classify(findings, baseline, suppression_items, previous, datetime.now(timezone.utc))
+        previous, baseline, accepted = _record(args, digest, rules_version, findings, rule_status)
+    result = classify(findings, baseline, suppression_items, previous, datetime.now(timezone.utc), rule_status)
     report = _report(
-        args.tenant, args.device, args.platform, digest, rules_version, findings, result
+        args.tenant, args.device, args.platform, digest, rules_version, findings, result, rule_status
     )
     report["rule_coverage"] = coverage
     if args.sarif:
@@ -484,7 +600,7 @@ def _command_run(args) -> int:
         sys.stdout.write(_render(report, args.as_json, _text_report))
     if accepted is not None:
         sys.stderr.write("baseline: accepted %d of %d findings\n" % (accepted, len(findings)))
-    return EXIT_OK
+    return _exit_code(report)
 
 
 def _moment(value) -> datetime:
@@ -520,9 +636,13 @@ def _command_status(args) -> int:
     try:
         with Store(path) as store:
             last = store.last_run(args.tenant, args.device)
-            evaluated = last is None or evaluation_complete(store.findings_for_run(args.tenant, last["id"]))
+            evaluated = last is None or evaluation_complete(
+                store.findings_for_run(args.tenant, last["id"]), stored_statuses(store, args.tenant, last["id"])
+            )
     except StoreError as error:
         raise Failure("store: %s" % error)
+    except sqlite3.Error as error:
+        raise _database_failure(path, error)
     report = _status_report(args, last, datetime.now(timezone.utc))
     if not evaluated:
         report["state"] = "incomplete"
@@ -562,22 +682,23 @@ def _credential(record, section, path):
         return None
     if path is None:
         raise Failure(
-            "device %s reads channel %s under credential %s, name the store with --vault"
-            % (record.name, section.channel, record.credential)
+            "device %s reads channel %s with a credential, name the store with --vault"
+            % (record.name, section.channel)
         )
     try:
-        credential = vault.load(path).credential(record.credential)
+        credential = vault.load(path).credential(
+            record.credential, where="the credential of device %s" % record.name
+        )
     except vault.VaultError as error:
         raise Failure("vault: %s" % error)
     kinds = CHANNEL_KINDS[section.channel]
     if credential.kind not in kinds:
         raise Failure(
-            "device %s reads channel %s under credential %s of kind %s, channel %s takes a"
+            "device %s reads channel %s with a credential of kind %s, channel %s takes a"
             " credential of kind %s"
             % (
                 record.name,
                 section.channel,
-                record.credential,
                 credential.kind,
                 section.channel,
                 " or ".join(kinds),
@@ -622,6 +743,8 @@ def _traced(args, record, events) -> str:
             store.record_channel_events(args.tenant, record.name, events, run_id=None)
     except (Failure, StoreError) as error:
         return "; the channel events stayed unrecorded: %s" % error
+    except sqlite3.Error as error:
+        return "; the channel events stayed unrecorded: %s" % _database_failure(args.store, error)
     return ""
 
 
@@ -638,7 +761,8 @@ def _completeness(tenant, record, section, snapshot):
         missing = collect.missing_sections(
             snapshot.text, section.required_sections, snapshot.platform
         )
-        item = collect.completeness_finding(record.name, missing)
+        unterminated = collect.unterminated_line(snapshot.text, snapshot.platform)
+        item = collect.completeness_finding(record.name, missing, unterminated)
     except collect.CollectError as error:
         raise Failure("completeness: %s" % error)
     if item is None:
@@ -657,13 +781,11 @@ def _completeness(tenant, record, section, snapshot):
     )
 
 
-def _recorded(args, record, snapshot, rules_version, findings, events) -> tuple:
+def _recorded(args, record, snapshot, rules_version, findings, events, rule_status) -> tuple:
     path = _store_path(args.store, False)
+    seen = {}
     try:
         with Store(path) as store:
-            _checked_policy_scope(store, args.tenant, record.name, rules_version)
-            baseline = store.baseline_fingerprints(args.tenant, record.name)
-            previous = _previous(store, args.tenant, record.name)
             run_id = store.record_run(
                 args.tenant,
                 record.name,
@@ -671,6 +793,9 @@ def _recorded(args, record, snapshot, rules_version, findings, events) -> tuple:
                 snapshot.source,
                 rules_version,
                 findings,
+                rule_status=rule_status,
+                admit=_policy_scope(rules_version),
+                observe=_history(store, args.tenant, record.name, seen),
             )
             store.record_channel_events(args.tenant, record.name, events, run_id=run_id)
             accepted = None
@@ -680,7 +805,9 @@ def _recorded(args, record, snapshot, rules_version, findings, events) -> tuple:
                 )
     except StoreError as error:
         raise Failure("store: %s" % error)
-    return previous, baseline, accepted
+    except sqlite3.Error as error:
+        raise _database_failure(path, error)
+    return seen["previous"], seen["baseline"], accepted
 
 
 def _collection(snapshot, record, credential) -> dict:
@@ -701,33 +828,33 @@ def _command_collect(args) -> int:
     platform = _catalog_platform(record)
     rules = _load_rules(platform)
     rules_version = _rules_version(platform, rules)
-    suppression_items = _load_suppressions(args.suppressions, args.tenant)
+    suppression_items = suppressions_for_device(_load_suppressions(args.suppressions, args.tenant), record.name)
     credential = _credential(record, section, args.vault)
     snapshot, events = _collected(args, record, section, credential)
-    policy, coverage = _policy(args, platform, snapshot.text)
+    gate = _completeness(args.tenant, record, section, snapshot)
+    policy, coverage = _policy(args, platform, snapshot.text, snapshot.source, gate is not None)
     if policy:
         rules_version += ":" + management.policy_digest(policy)
-    gate = _completeness(args.tenant, record, section, snapshot)
-    findings = (
-        (gate,)
-        if gate is not None
-        else _audit(platform, snapshot.text, args.tenant, record.name, rules, policy)
-    )
+    if gate is not None:
+        findings, states = (gate,), {rule.id: (NOT_EVALUATED, COMPLETENESS_REASON) for rule in rules}
+    else:
+        findings, states = _audit(platform, snapshot.text, args.tenant, record.name, rules, policy)
+    rule_status = _rule_status(platform, rules, states, policy)
     previous, baseline, accepted = (), frozenset(), None
     if args.store:
         previous, baseline, accepted = _recorded(
-            args, record, snapshot, rules_version, findings, events
+            args, record, snapshot, rules_version, findings, events, rule_status
         )
-    result = classify(findings, baseline, suppression_items, previous, datetime.now(timezone.utc))
+    result = classify(findings, baseline, suppression_items, previous, datetime.now(timezone.utc), rule_status)
     report = _report(
-        args.tenant, record.name, platform, snapshot.sha256, rules_version, findings, result
+        args.tenant, record.name, platform, snapshot.sha256, rules_version, findings, result, rule_status
     )
     report[COLLECTION_KEY] = _collection(snapshot, record, credential)
     report["rule_coverage"] = coverage
     sys.stdout.write(_render(report, args.as_json, _text_report))
     if accepted is not None:
         sys.stderr.write("baseline: accepted %d of %d findings\n" % (accepted, len(findings)))
-    return EXIT_OK
+    return _exit_code(report)
 
 
 def _command_migrate_suppressions(args) -> int:
@@ -742,21 +869,36 @@ def _command_migrate_suppressions(args) -> int:
     return EXIT_OK
 
 
+def _write_regular(path, data: bytes) -> None:
+    descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_NONBLOCK | os.O_CLOEXEC, 0o644)
+    try:
+        if not stat.S_ISREG(os.fstat(descriptor).st_mode):
+            raise InputError("not a regular file")
+        os.ftruncate(descriptor, 0)
+        view = memoryview(data)
+        while view:
+            view = view[os.write(descriptor, view):]
+    finally:
+        os.close(descriptor)
+
+
 def _command_merge_sarif(args) -> int:
     documents = []
     for source in args.inputs:
         try:
-            documents.append((source, json.loads(Path(source).read_text(encoding="utf-8"))))
-        except (OSError, UnicodeError, ValueError) as error:
+            documents.append((source, jsontext.loads(read_regular(source, sarif.MAX_SARIF_BYTES).decode("utf-8"))))
+        except (OSError, UnicodeError, ValueError, InputError) as error:
             raise Failure("cannot read SARIF %s: %s" % (source, error))
     try:
         merged = sarif.merge(documents)
     except sarif.SarifError as error:
         raise Failure("merge-sarif: %s" % error)
     try:
-        Path(args.output).write_text(sarif.render(merged), encoding="utf-8")
+        _write_regular(args.output, sarif.render(merged).encode("utf-8"))
     except OSError as error:
         raise Failure("cannot write SARIF: %s" % error)
+    except InputError as error:
+        raise Failure("cannot write SARIF %s: %s" % (args.output, error))
     results = len(merged["runs"][0]["results"])
     sys.stdout.write("merged %d results from %d files into %s\n" % (results, len(documents), args.output))
     return EXIT_OK
@@ -775,9 +917,20 @@ def _command_migrate_store(args) -> int:
     return EXIT_OK
 
 
+def _checked_arguments(args) -> None:
+    for name, value in sorted(vars(args).items()):
+        for item in value if isinstance(value, list) else (value,):
+            if isinstance(item, str):
+                try:
+                    item.encode("utf-8")
+                except UnicodeEncodeError:
+                    raise Failure("argument %s is not valid UTF-8" % name) from None
+
+
 def main(argv=None) -> int:
     args = _parser().parse_args(argv)
     try:
+        _checked_arguments(args)
         return args.handler(args)
     except Failure as error:
         sys.stderr.write("error: %s\n" % error)
@@ -785,17 +938,29 @@ def main(argv=None) -> int:
 
 
 
-def _policy(args, platform, text):
+def _policy(args, platform, text, source, incomplete=False):
+    path = getattr(args, "policy", None)
     try:
-        policy = management.load_policy(args.policy, platform) if getattr(args, "policy", None) else None
+        policy = management.load_policy(path, platform) if path else None
+    except (OSError, ValueError, UnicodeError) as exc:
+        raise Failure("policy %s cannot be loaded: %s" % (path, exc)) from None
+    try:
         tree = PLATFORMS[platform][1].parse(text)
-        coverage = management.coverage(platform, tree, policy)
-        missing = [name for name in (policy or {}).get("required_rules", []) if coverage[name] != "evaluated"]
-        if missing:
-            raise Failure("mandatory policy rules not evaluated: " + ", ".join(missing))
-        return policy, coverage
-    except (OSError, ValueError, UnicodeError, l1_fortios.ParseError, l1_exos.ParseError) as exc:
-        raise Failure("policy cannot be evaluated (%s)" % type(exc).__name__) from None
+    except l1_fortios.TruncatedError as exc:
+        if not incomplete:
+            raise Failure("cannot parse configuration %s: %s" % (source, exc)) from None
+        tree = None
+    except PARSE_ERRORS as exc:
+        raise Failure("cannot parse configuration %s: %s" % (source, exc)) from None
+    try:
+        coverage = (management.coverage(platform, tree, policy) if tree is not None
+                    else dict.fromkeys(management.RULES[platform], "not-evaluated"))
+    except ValueError as exc:
+        raise Failure("policy cannot be evaluated over configuration %s: %s" % (source, exc)) from None
+    missing = [name for name in (policy or {}).get("required_rules", []) if coverage[name] != "evaluated"]
+    if missing:
+        raise Failure("mandatory policy rules not evaluated: " + ", ".join(missing))
+    return policy, coverage
 
 if __name__ == "__main__":
     sys.exit(main())

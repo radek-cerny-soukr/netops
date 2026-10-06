@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from .engine import check
+from .engine import EVALUATED, NOT_EVALUATED, check
 
 _BUILTIN_OBJECTS = frozenset(("all", "none", "any", "always"))
 
@@ -40,6 +40,7 @@ _BUILTIN_SERVICES = frozenset(
 )
 
 _VDOM_SECTION = "vdom"
+_GLOBAL_SCOPE = "global"
 _POLICY_SECTION = "firewall policy"
 _INTERFACE_SECTION = "system interface"
 _SYSLOG_SECTION = "log syslogd setting"
@@ -74,7 +75,11 @@ _ADMIN_SERVICES = ("http", "https", "ssh", "telnet")
 
 
 def _vdom_scope(tree):
-    return tree.section(_VDOM_SECTION)
+    for name in (_VDOM_SECTION, _GLOBAL_SCOPE):
+        section = tree.section(name)
+        if section is not None:
+            return name, section
+    return None, None
 
 
 def _node(tree, path):
@@ -104,14 +109,14 @@ def _object_key(node):
 
 @check("vdom_unsupported")
 def vdom_unsupported(tree):
-    section = _vdom_scope(tree)
+    name, section = _vdom_scope(tree)
     if section is None:
         return
     yield {
-        "object_key": _VDOM_SECTION,
-        "section": _VDOM_SECTION,
+        "object_key": name,
+        "section": name,
         "line": section.line,
-        "evidence": {"vdoms": len(section.entries)},
+        "evidence": {"vdoms": len(section.entries) if name == _VDOM_SECTION else 0},
     }
 
 
@@ -253,6 +258,7 @@ _LEGACY_TLS = ("tlsv1-0", "tlsv1-1")
 _DEFAULT_ADMIN = "admin"
 _MAX_IDLE_MINUTES = 5
 _MAX_LOCKOUT_THRESHOLD = 3
+_NOT_NUMERIC = "value-not-numeric"
 
 
 def _global_hit(section, attribute, evidence):
@@ -264,11 +270,28 @@ def _global_hit(section, attribute, evidence):
     }
 
 
+def _numeric(value) -> bool:
+    return value.isascii() and value.isdigit() and len(value) <= _MAX_DIGITS
+
+
+_MAX_DIGITS = 10
+
+
 def _global_number(section, attribute):
     value = section.value(attribute)
-    if value is None or not value.isdigit():
+    if value is None or not _numeric(value):
         return None
     return int(value)
+
+
+def _global_number_status(attribute):
+    def status(tree, policy=None):
+        section = tree.section(_GLOBAL_SECTION)
+        value = None if section is None else section.value(attribute)
+        if value is None or _numeric(value):
+            return EVALUATED, ""
+        return NOT_EVALUATED, _NOT_NUMERIC
+    return status
 
 
 @check("usb_auto_install")
@@ -317,7 +340,7 @@ def admin_gui_legacy_tls(tree):
     yield _global_hit(section, "admin-https-ssl-versions", {"versions": " ".join(legacy)})
 
 
-@check("admin_idle_timeout")
+@check("admin_idle_timeout", status=_global_number_status("admintimeout"))
 def admin_idle_timeout(tree):
     section = tree.section(_GLOBAL_SECTION)
     if section is None:
@@ -328,7 +351,7 @@ def admin_idle_timeout(tree):
     yield _global_hit(section, "admintimeout", {"minutes": minutes})
 
 
-@check("admin_lockout_threshold")
+@check("admin_lockout_threshold", status=_global_number_status("admin-lockout-threshold"))
 def admin_lockout_threshold(tree):
     section = tree.section(_GLOBAL_SECTION)
     if section is None:

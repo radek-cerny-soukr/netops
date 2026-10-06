@@ -109,7 +109,7 @@ the hardening options, the workspace and the two kinds of authentication are des
 [`../../netops-core/docs/ssh.md`](../../netops-core/docs/ssh.md) and measured there against real
 devices. These documents ship in the `netops-core` archive, not in the auditor archive: that relative
 path resolves in a repository checkout; from a standalone auditor archive the same file is published
-at [`netops-core/v0.2.5`](https://github.com/radek-cerny-soukr/netops/blob/netops-core/v0.2.5/components/netops-core/docs/ssh.md).
+at [`netops-core/v0.2.6`](https://github.com/radek-cerny-soukr/netops/blob/netops-core/v0.2.6/components/netops-core/docs/ssh.md).
 What the auditor adds is the step table of the platform, the preflight and the `ChannelEvent` of
 every command; the prompt cleaning is `netops_core.prompt`. It adds **nothing** to the options of
 the client.
@@ -307,7 +307,7 @@ read-only account the prompt stayed in the snapshot - and in its hash.
 
 So the answer is cleaned by [`netops_core.prompt`](../../netops-core/docs/prompt.md) (published, for
 a standalone archive, at
-[`netops-core/v0.2.5`](https://github.com/radek-cerny-soukr/netops/blob/netops-core/v0.2.5/components/netops-core/docs/prompt.md)),
+[`netops-core/v0.2.6`](https://github.com/radek-cerny-soukr/netops/blob/netops-core/v0.2.6/components/netops-core/docs/prompt.md)),
 which the helper uses as well, by a rule that is deliberately narrow:
 
 - **only the first line** can lose a prefix, and only when that line starts with a prompt shape: at
@@ -417,9 +417,9 @@ auditor sends nothing before `show configuration` on EXOS. The prompt cleaning m
 [`../../netops-core/docs/prompt.md`](../../netops-core/docs/prompt.md) unchanged except for the `$`
 marker. Both relative paths resolve in a repository checkout; from a standalone auditor archive the
 same two files are published at
-[`netops-core/v0.2.5`](https://github.com/radek-cerny-soukr/netops/blob/netops-core/v0.2.5/components/netops-core/docs/ssh.md)
+[`netops-core/v0.2.6`](https://github.com/radek-cerny-soukr/netops/blob/netops-core/v0.2.6/components/netops-core/docs/ssh.md)
 and
-[`netops-core/v0.2.5`](https://github.com/radek-cerny-soukr/netops/blob/netops-core/v0.2.5/components/netops-core/docs/prompt.md).
+[`netops-core/v0.2.6`](https://github.com/radek-cerny-soukr/netops/blob/netops-core/v0.2.6/components/netops-core/docs/prompt.md).
 
 ## Channel `file`
 
@@ -450,6 +450,18 @@ A missing section is one finding, `<platform>.snapshot.incomplete`, class `fakt`
 carries the names and the count, and nothing else - never a line of configuration. It is a presence
 check: an empty section counts as present, because the question is whether the dump reaches that far,
 not what stands inside.
+
+**A truncated EXOS dump is detected only as far as `required_sections` reaches.** A FortiOS dump
+closes every block with `end`, so a dump that stops inside a block is reported with
+`unterminated_line`. An EXOS `show configuration` has no such structure: it is a flat list of
+commands under module headers, and the measured output (ExtremeXOS 33.7.1, 19 September 2026) simply
+ends with the last module - no closing line or marker was recorded that a cut-off dump would lack, and
+the auditor does not invent one. A dump cut off before the header of a required module is reported as
+incomplete; a dump cut off after the last required header, inside the last module or between two
+commands, looks complete and is evaluated as it stands. The one exception is a cut inside a UPM
+profile body, which leaves the catalogue `not-evaluated` (`unterminated-upm-profile`). Listing every
+module header of the platform in `required_sections` narrows the gap to the last module; it does not
+close it.
 
 ## What the EXOS catalogue reads
 

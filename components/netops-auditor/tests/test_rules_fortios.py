@@ -214,6 +214,16 @@ def test_vdom_configuration_yields_only_the_scope_finding():
     assert dict(findings[0].evidence) == {"vdoms": 1}
 
 
+def test_vdom_blocks_closed_by_end_as_fortios_prints_them_yield_only_the_scope_finding():
+    text = ("config vdom\nedit root\nnext\nedit lab\nnext\nend\n"
+            "config global\nconfig system global\n    set hostname \"fw\"\nend\nend\n"
+            "config vdom\nedit root\n" + clean_text() + "end\n"
+            "config vdom\nedit lab\nconfig system settings\n    set opmode nat\nend\nend\n")
+    findings = audit(text)
+    assert [finding.rule_id for finding in findings] == [VDOM_RULE]
+    assert dict(findings[0].evidence) == {"vdoms": 2}
+
+
 def test_scope_finding_counts_the_vdoms_of_every_block():
     text = "config vdom\nedit root\nnext\nedit lab\nnext\nend\n" + wrapped_in_vdom(clean_text())
     findings = audit(text)

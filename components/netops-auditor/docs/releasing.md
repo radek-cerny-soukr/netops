@@ -2,7 +2,7 @@
 
 Release tags follow the component scheme `<name>/v<version>`, where `<name>` is the project name
 declared in this component's `pyproject.toml`: this component tags
-`netops-auditor/v0.2.8`, and the release title is `netops-auditor 0.2.8`. Tags of another component
+`netops-auditor/v0.2.9`, and the release title is `netops-auditor 0.2.9`. Tags of another component
 are never touched by this procedure. Publishing a newer version leaves the release page and the tag
 of earlier versions in place. The canonical origin is
 `https://github.com/radek-cerny-soukr/netops`.
@@ -26,7 +26,7 @@ credentials, host keys, or inventory and vault files. The release export is a po
 the component gate also reads the content of every released file and, outside a
 repository, holds the exported tree to exactly the released selection.
 
-## What 0.2.8 releases
+## What 0.2.9 releases
 
 This component releases **from source; it ships no container image**. The release carries four assets:
 
@@ -38,30 +38,32 @@ This component releases **from source; it ships no container image**. The releas
 | `netops-auditor-<version>-release-SHA256SUMS.sigstore.json` | the Sigstore bundle over those checksums |
 
 An image, and the three assets that come with one, are planned for a later version. Until then the
-component runs on any Python 3.13 host, installed from PyPI or from the unpacked archive.
+component runs on any Python 3.13 host, installed from the unpacked, verified release archives.
 
-### Also on PyPI
+### PyPI, a delayed channel
 
-From 0.2.7 the component is also published on PyPI as `netops-auditor`: a source distribution
-and a wheel built from the release tag. The workflow `.github/workflows/publish-pypi.yml` at the
+The component is prepared for PyPI as `netops-auditor`: a source distribution
+and a wheel built from the release tag. Of its releases only 0.2.7 has been uploaded (1 October 2026);
+the uploads of later versions are postponed, and the release page stays authoritative. The workflow `.github/workflows/publish-pypi.yml` at the
 repository root is started by hand on that tag. It accepts only a tag of this family, checks that the
 tag names the version in `pyproject.toml`, builds both files with hash-pinned build tools and
 `SOURCE_DATE_EPOCH` set to the time of the tagged commit, and uploads them through PyPI trusted
-publishing, so no upload token is stored anywhere: first to TestPyPI and, once that installation has
-been checked, to PyPI. The two files are not assets of the release page and are not covered by its
+publishing, so no upload token is stored anywhere: optionally to TestPyPI, or directly to PyPI after the GitHub release and required approval. The two files are not assets of the release page and are not covered by its
 Sigstore bundle; the upload carries its own provenance attestation. A version already on PyPI is never
 uploaded again.
 
 ### It needs `netops-core` beside it
 
 The auditor reads the inventory, the credential store, the host key trust and the SSH
-transport from `netops-core`, and `pyproject.toml` pins it as `netops-core==0.2.5`.
-`pip install netops-auditor` resolves that pin on PyPI and installs the core with it. From the release
-archives instead, **the operator installs the `netops-core` source archive of exactly that version next
-to the auditor**: download it from the
-[`netops-core/v0.2.5`](https://github.com/radek-cerny-soukr/netops/releases/tag/netops-core%2Fv0.2.5)
-release, unpack `netops-core-0.2.5-source.tar.gz`, verify its checksums, and
-either install the unpacked directory into the same environment or put its `src` on `PYTHONPATH`. In
+transport from `netops-core`, and `pyproject.toml` pins it as `netops-core==0.2.6`.
+Once both are uploaded, `pip install netops-auditor` would resolve that pin on PyPI and install the
+core with it. Until then **the operator installs the `netops-core` source archive of exactly that
+version next to the auditor**: download `netops-core-0.2.6-source.tar.gz` with the release
+`SHA256SUMS` and its Sigstore bundle from the `netops-core` 0.2.6 page of the
+[releases](https://github.com/radek-cerny-soukr/netops/releases), verify the bundle with `cosign` and
+the archive against `SHA256SUMS` as
+[Verifying a release](https://github.com/radek-cerny-soukr/netops/blob/main/docs/README.md#verifying-a-release)
+describes, verify the auditor archive the same way, unpack both, and either install the unpacked directory into the same environment or put its `src` on `PYTHONPATH`. In
 this repository the archive is the tree, so the tests and the CI job take the component from
 `../netops-core/src`: `pyproject.toml` carries it in `[tool.pytest.ini_options] pythonpath` and
 `tests/conftest.py` inserts it. Nothing else is required: `netops-core` is standard library only, and

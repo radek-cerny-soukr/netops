@@ -31,3 +31,21 @@ Every rule reads a saved configuration (`show` output) only. A setting that `sho
 - **A judgement about the organisation**: 1.2 (intra-zone traffic), 2.1.1 and 2.1.2 (banners), 2.1.3 (timezone), 2.1.5 (hostname), 2.3.2 (SNMP trusted hosts), 2.4.2 (trusted hosts on every login), 2.4.3 (profiles per administrator), 3.1 (unused policies), 4.5.1 (high-risk application categories).
 - **Readable from the configuration, but reporting the default of almost every device**: 2.4.7 (default admin ports) and 7.3.2 and 7.3.3 (encrypted syslog). Not implemented; such a rule would need a way to state an accepted default first.
 - **Readable from the configuration, not implemented yet**: 2.1.11 to 2.1.13, 2.2.1 (password policy), 2.3.3 and 2.3.4, 2.4.6 and 2.4.8 (local-in policies and virtual patching), the high-availability items of 2.5, 3.3, the security profile items of section 4, 5.1.1, 6.1.2, 7.1.1 and 7.3.1.
+
+## Measured schema rules
+
+The schema-check command is a separate integrity and upgrade audit. Its rules for references, removed paths and attributes, changed values, scope and target availability have no assigned CIS recommendation number. They do not check a benchmark control or simulate firmware migration. Their coverage report distinguishes observed checks from missing metadata.
+
+VDOM and nested table scopes are supported by schema-check. The existing benchmark catalogue still requires individual VDOM exports and refuses a global/VDOM wrapper. The references and limitations in the mapping above continue to apply to that catalogue.
+
+
+| Schema rule | Fixtures | Benchmark mapping |
+|---|---|---|
+| fortios.schema.reference | missing target, empty table, builtin/special value, nested owner and VDOM in tests/test_schema_checks.py | configuration integrity; no CIS control number |
+| fortios.schema.upgrade-path | configured removed path | upgrade comparison; no CIS control number |
+| fortios.schema.upgrade-attribute | configured removed attribute and inline table | upgrade comparison; no CIS control number |
+| fortios.schema.upgrade-value | option, integer bound, text length and type differences | upgrade comparison; no CIS control number |
+| fortios.schema.upgrade-scope | VDOM object becoming global | upgrade comparison; no CIS control number |
+| fortios.schema.upgrade-availability | measured unavailable target path | upgrade comparison; no CIS control number |
+
+Missing types, option choices and integer bounds are reported as unknown. No finding for a missing reference means only that the configured values with measured reference metadata were checked. Hardware, licence, empty-context and unmeasured builtin gaps remain visible in coverage; they cannot establish complete reference coverage or benchmark compliance. The hardening catalogue above supplies the separate CIS and FortiOS 8.0.0 Best Practices mapping.

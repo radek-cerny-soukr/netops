@@ -67,10 +67,18 @@ runs:
         fi
         parts="$(mktemp -d)"
         index=0
+        incomplete=0
         for file in "${files[@]}"; do
           index=$((index + 1))
+          code=0
           "${auditor[@]}" run --platform "$NETOPS_PLATFORM" --tenant "$NETOPS_TENANT" --device "$file" \
-            --config "$file" "${policy[@]}" --sarif > "$parts/$(printf '%06d' "$index").sarif"
+            --config "$file" "${policy[@]}" --sarif > "$parts/$(printf '%06d' "$index").sarif" || code=$?
+          if [ "$code" -eq 3 ]; then
+            incomplete=$((incomplete + 1))
+            echo "::error::$file was not fully evaluated; see rule_status in the SARIF run properties"
+          elif [ "$code" -ne 0 ]; then
+            exit "$code"
+          fi
         done
         summary="$("${auditor[@]}" merge-sarif --output "$NETOPS_OUTPUT" "$parts"/*.sarif)"
         echo "$summary"
@@ -78,3 +86,7 @@ runs:
         results="${results%% *}"
         echo "sarif-file=$NETOPS_OUTPUT" >> "$GITHUB_OUTPUT"
         echo "results=$results" >> "$GITHUB_OUTPUT"
+        if [ "$incomplete" -gt 0 ]; then
+          echo "::error::$incomplete configuration(s) were not fully evaluated"
+          exit 1
+        fi

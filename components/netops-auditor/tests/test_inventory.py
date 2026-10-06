@@ -117,6 +117,32 @@ def refusal(tmp_path, entry, fragment, name="inventory.json"):
         load(path)
 
 
+SECTION_CANARY = "kanarek-sekce-4711"
+
+
+@pytest.mark.parametrize("entry, fragment", [
+    (file_item(auditor_section=auditor(channel=SECTION_CANARY)), "channel must be one of"),
+    (file_item(auditor_section=auditor(source=[SECTION_CANARY])), "source must be a non-empty string"),
+    (rest_item(auditor_section=auditor(channel="fortios-rest", source=SECTION_CANARY,
+                                       tls_fingerprint=TLS_FINGERPRINT)), "source must name the device"),
+    (ssh_item(auditor_section=auditor(channel="ssh", source=SECTION_CANARY)), "source must be null"),
+    (file_item(auditor_section=auditor(required_sections=SECTION_CANARY)), "required_sections must be a non-empty"),
+    (file_item(auditor_section=auditor(required_sections=["system global", [SECTION_CANARY]])),
+     r"required_sections\[1\] must be a non-empty string"),
+    (file_item(auditor_section=auditor(tls_fingerprint=SECTION_CANARY)), "tls_fingerprint must be null"),
+    (rest_item(auditor_section=auditor(channel="fortios-rest", source=REST_SOURCE, tls_fingerprint=SECTION_CANARY)),
+     "tls_fingerprint must hold"),
+    (file_item(credential=SECTION_CANARY), "credential must be null for channel file"),
+])
+def test_a_refused_auditor_section_names_the_position_and_never_the_value(tmp_path, entry, fragment):
+    path = write(tmp_path, [entry])
+    with pytest.raises(InventoryError, match=fragment) as caught:
+        load(path)
+    message = str(caught.value)
+    assert "device %s: auditor section" % entry["name"] in message
+    assert SECTION_CANARY not in message
+
+
 def test_file_device_carries_its_whole_section(tmp_path):
     one = loaded_section(tmp_path, file_item())
     assert isinstance(one, AuditorSection)

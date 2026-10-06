@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from netops_auditor.l1_fortios import ParseError, parse, tokenize
+from netops_auditor.l1_fortios import ParseError, TruncatedError, parse, tokenize
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
@@ -164,3 +164,96 @@ def test_repeated_edit_merges_attributes_and_keeps_the_first_line():
     assert entry.value("color") == "6"
     assert entry.line == 2
     assert entry.line_of("comment") == REPEATED_EDIT.splitlines().index('        set comment "second"') + 1
+
+
+DEVICE_VDOM = """#config-version=FGVMK6-8.0.0-FW-build0167-260420:opmode=0:vdom=1:user=x
+#conf_file_ver=1
+#buildno=0167
+#global_vdom=1
+config vdom
+edit root
+next
+edit VD1
+next
+end
+config global
+config system global
+    set hostname "fw-example"
+end
+end
+config vdom
+edit root
+config system settings
+    set opmode nat
+end
+config firewall address
+    edit "a1"
+        set subnet 192.0.2.0 255.255.255.0
+    next
+end
+end
+config vdom
+edit VD1
+config system settings
+    set opmode nat
+end
+end
+"""
+
+
+def test_vdom_block_closed_by_end_as_fortios_prints_it():
+    root = parse(DEVICE_VDOM)
+    vdom = root.section("vdom")
+    assert sorted(vdom.entries) == ["VD1", "root"]
+    assert vdom.entries["root"].section("firewall address").entries["a1"].value("subnet") == "192.0.2.0 255.255.255.0"
+    assert vdom.entries["VD1"].section("system settings").value("opmode") == "nat"
+    assert root.section("global").section("system global").value("hostname") == "fw-example"
+    assert root.section("system settings") is None
+
+
+def test_vdom_block_closed_by_end_equals_the_form_with_next():
+    with_next = """config vdom
+edit root
+next
+edit VD1
+next
+end
+config global
+config system global
+    set hostname "fw-example"
+end
+end
+config vdom
+edit root
+config system settings
+    set opmode nat
+end
+config firewall address
+    edit "a1"
+        set subnet 192.0.2.0 255.255.255.0
+    next
+end
+next
+end
+config vdom
+edit VD1
+config system settings
+    set opmode nat
+end
+next
+end
+"""
+    first, second = parse(DEVICE_VDOM), parse(with_next)
+    assert sorted(first.section("vdom").entries) == sorted(second.section("vdom").entries)
+    for name in ("root", "VD1"):
+        assert sorted(first.section("vdom").entries[name].sub) == sorted(second.section("vdom").entries[name].sub)
+
+
+def test_end_still_closes_one_level_for_an_entry_outside_the_vdom_block():
+    with pytest.raises(TruncatedError):
+        parse('config firewall address\n    edit "a1"\n        set subnet 192.0.2.0 255.255.255.0\nend\n')
+
+
+def test_an_open_vdom_entry_at_the_end_of_the_text_is_still_truncated():
+    with pytest.raises(TruncatedError):
+        parse("config vdom\nedit root\nconfig system settings\n    set opmode nat\nend\n")

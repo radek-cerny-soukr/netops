@@ -3,7 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 
-from .engine import check
+from .engine import EVALUATED, NOT_EVALUATED, check
 
 SECTION_SNTP = "sntp-client"
 SECTION_SYSLOG = "syslog"
@@ -62,11 +62,17 @@ def _trivial(candidates) -> tuple:
     return tuple(where for where, value in candidates if value.lower() in TRIVIAL_COMMUNITIES)
 
 
+def _status(configuration, policy=None) -> tuple:
+    if configuration.unterminated_upm:
+        return NOT_EVALUATED, "unterminated-upm-profile"
+    return EVALUATED, ""
+
+
 def _configured(configuration, *words) -> bool:
     return any(len(command.tokens) > len(words) for command in configuration.matching(*words))
 
 
-@check("exos_no_sntp_client")
+@check("exos_no_sntp_client", status=_status)
 def exos_no_sntp_client(configuration):
     if configuration.first("enable", "sntp-client") is not None:
         return
@@ -84,7 +90,7 @@ def exos_no_sntp_client(configuration):
     }
 
 
-@check("exos_no_syslog_target")
+@check("exos_no_syslog_target", status=_status)
 def exos_no_syslog_target(configuration):
     if _configured(configuration, "configure", "syslog", "add"):
         return
@@ -108,9 +114,9 @@ def _community_key(command):
     return "%s/community/%s" % (SECTION_SNMP, hashlib.sha256(encoded).hexdigest())
 
 
-@check("exos_default_snmp_community")
+@check("exos_default_snmp_community", status=_status)
 def exos_default_snmp_community(configuration):
-    for command in configuration.commands:
+    for command in configuration.active:
         candidates = _community_candidates(command)
         if candidates is None:
             continue
@@ -129,10 +135,10 @@ def exos_default_snmp_community(configuration):
         }
 
 
-@check("exos_telnet_enabled")
+@check("exos_telnet_enabled", status=_status)
 def exos_telnet_enabled(configuration):
     state = None
-    for command in configuration.commands:
+    for command in configuration.active:
         if command.starts_with("disable", "telnet"):
             state = (False, command)
         elif command.starts_with("enable", "telnet"):

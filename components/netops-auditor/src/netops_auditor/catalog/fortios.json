@@ -11,13 +11,13 @@
       "evidence_fields": [
         "vdoms"
       ],
-      "title": "The configuration is organized into VDOMs, a scope this catalog does not read, so no other rule of the catalog was evaluated over it.",
+      "title": "The configuration is organized into VDOMs or wrapped in a config global block, a scope this catalog does not read, so no other rule of the catalog was evaluated over it.",
       "remediation": "Export and audit the configuration of each VDOM separately until the catalog learns to descend into VDOM scopes.",
       "refs": [
         "FortiOS 8.0.0 CLI Reference: config system global (vdom-mode)",
         "FortiOS 8.0.0 CLI Reference: config system vdom"
       ],
-      "known_false_positives": "The rule fires on any configuration carrying a vdom section, a single-VDOM one included, and the count is the number of edit entries the parser gathered from every vdom block of the text; whether an export taken from a device names each VDOM in such a block has not been checked."
+      "known_false_positives": "The rule fires on any configuration carrying a vdom section, a single-VDOM one included, and the count is the number of edit entries the parser gathered from every vdom block of the text; whether an export taken from a device names each VDOM in such a block has not been checked. A top-level config global block without a vdom block fires the rule as well, with the object global and a count of 0: the settings inside it are not read, so the run is reported as not evaluated instead of clean."
     },
     {
       "id": "fortios.ref.dangling",

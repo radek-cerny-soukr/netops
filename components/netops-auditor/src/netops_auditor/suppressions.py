@@ -7,9 +7,12 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
+from . import jsontext
 from .findings import fingerprint_of, fingerprint_v1
+from .inputs import InputError, read_regular
 
 FILE_VERSION = 2
+MAX_SUPPRESSIONS_BYTES = 4 * 1024 * 1024
 PREVIOUS_FILE_VERSION = 1
 MOMENT_FORMAT = "%Y-%m-%dT%H:%M:%SZ"
 MIGRATE_COMMAND = (
@@ -136,11 +139,15 @@ def _suppression(index: int, item, tenant: str) -> Suppression:
 
 def _read(path: Path) -> dict:
     try:
-        raw = path.read_text(encoding="utf-8")
-    except OSError as error:
+        data = read_regular(path, MAX_SUPPRESSIONS_BYTES)
+    except (OSError, InputError) as error:
         raise SuppressionError("cannot read suppression file %s: %s" % (path, error)) from None
     try:
-        document = json.loads(raw)
+        raw = data.decode("utf-8")
+    except UnicodeDecodeError:
+        raise SuppressionError("suppression file %s is not valid UTF-8" % path) from None
+    try:
+        document = jsontext.loads(raw)
     except ValueError as error:
         raise SuppressionError("suppression file %s is not valid JSON: %s" % (path, error)) from None
     if not isinstance(document, dict):
@@ -271,17 +278,20 @@ def _published(target: Path, text: str) -> None:
 def migrate_file(source, destination, tenant) -> int:
     origin, target = Path(source), Path(destination)
     _checked_tenant(tenant)
-    if origin.resolve() == target.resolve():
-        raise SuppressionError("the migration never writes back into %s" % origin)
-    if target.is_symlink():
-        raise SuppressionError(
-            "suppression file %s is a symbolic link, the migration writes only a plain file"
-            % target
-        )
-    if target.exists():
-        raise SuppressionError(
-            "suppression file %s exists, the migration never writes over a file" % target
-        )
+    try:
+        if origin.resolve() == target.resolve():
+            raise SuppressionError("the migration never writes back into %s" % origin)
+        if target.is_symlink():
+            raise SuppressionError(
+                "suppression file %s is a symbolic link, the migration writes only a plain file"
+                % target
+            )
+        if target.exists():
+            raise SuppressionError(
+                "suppression file %s exists, the migration never writes over a file" % target
+            )
+    except (OSError, RuntimeError, ValueError) as error:
+        raise SuppressionError("suppression file %s cannot be used: %s" % (target, error)) from None
     document = _read(origin)
     version = document["version"]
     if isinstance(version, bool) or version != PREVIOUS_FILE_VERSION:

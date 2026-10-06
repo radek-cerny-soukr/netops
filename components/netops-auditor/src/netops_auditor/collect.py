@@ -7,10 +7,12 @@ import ssl
 import time
 from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
-from pathlib import Path
 
 from netops_core import hostkey, prompt, ssh
 from netops_core import legacy_ssh as legacy
+
+from . import l1_exos, l1_fortios
+from .inputs import InputError, read_regular
 
 MOMENT_FORMAT = "%Y-%m-%dT%H:%M:%SZ"
 CHANNEL_FILE = "file"
@@ -30,6 +32,7 @@ REST_TIMEOUT_SECONDS = 30.0
 REST_ACCEPT = "text/plain"
 READ_CHUNK_BYTES = 65536
 REST_MAX_BODY_BYTES = 8 * 1024 * 1024
+MAX_SNAPSHOT_BYTES = 64 * 1024 * 1024
 REST_ERROR_HEAD_BYTES = 4096
 REST_TIMEOUT_REASON = "the device did not finish the answer within the timeout"
 TLS_FINGERPRINT_LENGTH = 64
@@ -129,10 +132,15 @@ def collect_file(device, platform, source, profile, now=None) -> tuple:
     clock = _clock(now)
     started_at = _moment(clock)
     try:
-        data = Path(source).read_bytes()
+        data = read_regular(source, MAX_SNAPSHOT_BYTES)
     except OSError as error:
         raise CollectError(
             "cannot read snapshot: %s" % error,
+            _finished(device, source, started_at, clock, EMPTY_SHA256, 0, OUTCOME_FAILED),
+        )
+    except InputError as error:
+        raise CollectError(
+            "cannot read snapshot %s: %s" % (source, error),
             _finished(device, source, started_at, clock, EMPTY_SHA256, 0, OUTCOME_FAILED),
         )
     digest = hashlib.sha256(data).hexdigest()
@@ -213,7 +221,7 @@ def _rest_target(host) -> tuple:
     name, port = text, REST_PORT
     if ":" in text:
         name, _, digits = text.partition(":")
-        if not digits.isdigit() or not 0 < int(digits) < 65536:
+        if not (digits.isascii() and digits.isdigit()) or not 0 < int(digits) < 65536:
             raise CollectError("host port must be a number between 1 and 65535, got %r" % (host,))
         port = int(digits)
     if not name:
@@ -708,12 +716,45 @@ def _section_name(line, prefix, suffix) -> str:
     return name.strip()
 
 
+def _fortios_statements(text) -> list:
+    statements = []
+    try:
+        for _start, statement in l1_fortios.logical_lines(text):
+            statements.append(statement)
+    except l1_fortios.TruncatedError:
+        pass
+    return statements
+
+
+def _statements(text, platform) -> list:
+    if platform == PLATFORM_FORTIOS:
+        return _fortios_statements(text)
+    try:
+        configuration = l1_exos.parse(text)
+    except l1_exos.ParseError as error:
+        raise CollectError("the snapshot cannot be split into statements: %s" % error) from None
+    inside = {number for first, last in configuration.upm_bodies for number in range(first, last + 1)}
+    return [line for number, line in enumerate(l1_exos.split_lines(text), 1) if number not in inside]
+
+
+def unterminated_line(text, platform):
+    if platform != PLATFORM_FORTIOS:
+        return None
+    try:
+        l1_fortios.parse(text)
+    except l1_fortios.TruncatedError as error:
+        return error.line
+    except l1_fortios.ParseError:
+        return None
+    return None
+
+
 def missing_sections(text, required_sections, platform) -> tuple:
     if not isinstance(text, str):
         raise CollectError("text must be a string, got %r" % (text,))
     prefix, suffix = _checked_header(platform)
     present = set()
-    for line in text.splitlines():
+    for line in _statements(text, platform):
         normalized = _normalized(line)
         if not normalized.endswith(suffix):
             continue
@@ -737,14 +778,17 @@ def missing_sections(text, required_sections, platform) -> tuple:
     return tuple(missing)
 
 
-def completeness_finding(device, missing):
+def completeness_finding(device, missing, unterminated=None):
     _checked_text("device", device)
     names = tuple(missing)
-    if not names:
+    if not names and unterminated is None:
         return None
+    evidence = {"missing_count": len(names), "missing_sections": ", ".join(names)}
+    if unterminated is not None:
+        evidence["unterminated_line"] = unterminated
     return {
         "object_key": "%s/%s" % (COMPLETENESS_SECTION, device),
         "section": COMPLETENESS_SECTION,
         "line": 0,
-        "evidence": {"missing_count": len(names), "missing_sections": ", ".join(names)},
+        "evidence": evidence,
     }

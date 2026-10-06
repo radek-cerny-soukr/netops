@@ -116,3 +116,52 @@ def test_changing_or_removing_policy_cannot_resolve_historical_findings(tmp_path
 def test_cycles_only_report_edges_inside_a_strongly_connected_component():
     graph = {"a": {"b"}, "b": {"c", "leaf"}, "c": {"a"}, "leaf": set(), "start": {"a"}, "self": {"self"}}
     assert management._cyclic_edges(graph) == {("a", "b"), ("b", "c"), ("c", "a"), ("self", "self")}
+
+
+GUESS = "guess-of-a-secret"
+UNUSED_ADDRESS = 'config firewall address\n    edit "%s"\n        set subnet 192.0.2.30 255.255.255.255\n    next\nend\n' % GUESS
+
+
+def _setting(section, key, attribute, value=GUESS):
+    line = '        set %s "%s"\n' % (attribute, value)
+    if key is None:
+        return "config %s\n%send\n" % (section, line.replace("        ", "    ", 1))
+    return 'config %s\n    edit "%s"\n%s    next\nend\n' % (section, key, line)
+
+
+def _unused(text):
+    return [hit["object_key"] for hit in management.hits("fortios", "address-unused", l1_fortios.parse(text))]
+
+
+@pytest.mark.parametrize("section,key,attribute", [
+    ("system snmp community", "1", "name"),
+    ("system snmp user", "u", "auth-pwd"),
+    ("vpn ipsec phase1-interface", "p1", "psksecret"),
+    ("user local", "u", "passwd"),
+    ("system admin", "a", "password"),
+    ("wireless-controller vap", "v", "passphrase"),
+    ("user radius", "r", "secret"),
+    ("system api-user", "x", "api-key"),
+    ("system automation-action", "a", "access-token"),
+    ("system sms-server", "s", "community-string"),
+    ("firewall policy", "1", "comments"),
+    ("system interface", "port1", "description"),
+    ("system global", None, "admin-password-hash"),
+])
+def test_a_secret_equal_to_an_unused_address_name_does_not_change_the_finding(section, key, attribute):
+    assert _unused(UNUSED_ADDRESS) == ["firewall address/" + GUESS]
+    assert _unused(UNUSED_ADDRESS + _setting(section, key, attribute)) == ["firewall address/" + GUESS]
+
+
+@pytest.mark.parametrize("section,key,attribute", [
+    ("firewall policy", "1", "srcaddr"),
+    ("firewall policy", "1", "dstaddr"),
+    ("firewall addrgrp", "g", "member"),
+    ("firewall vip", "v", "src-filter"),
+    ("router policy", "1", "srcaddr"),
+    ("system snmp community", "1", "hosts"),
+])
+def test_a_real_reference_still_marks_the_address_used(section, key, attribute):
+    assert _unused(UNUSED_ADDRESS + _setting(section, key, attribute)) == []
+    secret = _setting("vpn ipsec phase1-interface", "p1", "psksecret")
+    assert _unused(UNUSED_ADDRESS + secret + _setting(section, key, attribute)) == []

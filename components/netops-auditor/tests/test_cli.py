@@ -995,7 +995,7 @@ def test_incomplete_view_is_the_only_finding(tmp_path, capsys):
         tmp_path, path, sections=SECTIONS + (MISSING_SECTION,), name="narrow.json"
     )
     code, out, err = gather(capsys, narrow, as_json=True)
-    assert code == 0
+    assert code == cli.EXIT_INCOMPLETE
     assert err == ""
     report = json.loads(out)
     assert [item["rule_id"] for item in report["findings"]] == [INCOMPLETE_RULE]
@@ -1007,11 +1007,12 @@ def test_incomplete_view_is_the_only_finding(tmp_path, capsys):
         "missing_count": 1,
         "missing_sections": MISSING_SECTION,
     }
-    assert WAN_RULE not in out
-    assert UTM_RULE not in out
+    assert report["rule_status"][WAN_RULE]["status"] == "not-evaluated"
+    assert report["rule_status"][UTM_RULE]["reason"] == "snapshot-incomplete"
     _, text_out, _ = gather(capsys, narrow)
-    assert WAN_RULE not in text_out
-    assert UTM_RULE not in text_out
+    assert "] %s (" % WAN_RULE not in text_out
+    assert "] %s (" % UTM_RULE not in text_out
+    assert "rule-status %s: not-evaluated (snapshot-incomplete, required)" % WAN_RULE in text_out
 
 
 def test_a_section_written_with_its_header_is_an_error_not_a_finding(tmp_path, capsys):
@@ -1056,7 +1057,7 @@ def test_incomplete_view_is_recorded_alone(tmp_path, capsys):
     )
     database = tmp_path / "audit.sqlite"
     code, _, err = gather(capsys, narrow, as_json=True, store=database)
-    assert code == 0
+    assert code == cli.EXIT_INCOMPLETE
     assert err == ""
     with Store(database) as store:
         recorded = store.last_run(TENANT, DEVICE)
@@ -1225,14 +1226,35 @@ def test_a_vault_the_file_channel_does_not_need_is_an_error(tmp_path, capsys):
     assert "--vault" in err
 
 
-def test_an_unknown_credential_name_is_an_error(tmp_path, capsys):
+def test_an_unknown_credential_name_is_an_error_that_does_not_repeat_the_name(tmp_path, capsys):
     inventory_path = write_inventory(tmp_path, [rest_item()])
     vault_path = write_vault(tmp_path, credential="other")
     code, out, err = gather(capsys, inventory_path, vault_path=vault_path)
     assert code == 2
     assert out == ""
     assert err.startswith("error: ")
-    assert CREDENTIAL_NAME in err
+    assert "names no record of the credential store" in err
+    assert CREDENTIAL_NAME not in err
+
+
+REFERENCE_CANARY = "kanarek-odkazu-4711"
+
+
+@pytest.mark.parametrize("case", ["without the vault", "unknown in the vault", "of another kind"])
+def test_a_credential_refusal_names_the_device_and_never_the_reference(tmp_path, capsys, case):
+    item = device_item(channel="fortios-rest", source="https://%s" % REST_HOST, credential=REFERENCE_CANARY,
+                       tls_fingerprint=TLS_FINGERPRINT)
+    inventory_path = write_inventory(tmp_path, [item])
+    vault_path = None
+    if case == "unknown in the vault":
+        vault_path = write_vault(tmp_path, credential="other")
+    elif case == "of another kind":
+        vault_path = write_vault(tmp_path, credential=REFERENCE_CANARY, kind="password", login=LOGIN)
+    code, out, err = gather(capsys, inventory_path, vault_path=vault_path)
+    assert code == 2
+    assert out == ""
+    assert "device %s" % DEVICE in err
+    assert REFERENCE_CANARY not in err
 
 
 def test_a_version_1_vault_is_refused(tmp_path, capsys):
@@ -1747,7 +1769,7 @@ def test_an_incomplete_exos_view_still_stops_the_catalog(tmp_path, capsys):
         tmp_path, path, sections=EXOS_SECTIONS + ("poe",), name="narrow-exos.json"
     )
     code, out, err = gather(capsys, inventory_path, device=EXOS_DEVICE, as_json=True)
-    assert code == 0
+    assert code == cli.EXIT_INCOMPLETE
     assert err == ""
     findings = json.loads(out)["findings"]
     assert [item["rule_id"] for item in findings] == ["exos.snapshot.incomplete"]
@@ -1898,7 +1920,7 @@ def test_reciprocal_incomplete_history_preserves_last_evaluated(tmp_path, capsys
     narrow = file_inventory(tmp_path, path, sections=SECTIONS + (MISSING_SECTION,), name="narrow.json")
     for _ in range(2):
         code, out, err = gather(capsys, narrow, store=database, as_json=True)
-        assert code == 0
+        assert code == cli.EXIT_INCOMPLETE
         partial = json.loads(out)
         assert partial["gone"] == []
         assert partial["evaluation"] == "not-evaluated"

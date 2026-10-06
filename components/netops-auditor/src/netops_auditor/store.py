@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import json
+import re
 import sqlite3
 from datetime import datetime, timezone
 
+from .engine import RULE_STATES
 from .findings import fingerprint_of
 from .state import evaluation_complete
 
@@ -67,7 +69,19 @@ SCHEMA = (
     )""",
     "CREATE INDEX IF NOT EXISTS channel_events_tenant_device ON channel_events(tenant, device)",
     "CREATE INDEX IF NOT EXISTS channel_events_run_id ON channel_events(run_id)",
+    """CREATE TABLE IF NOT EXISTS rule_status (
+        run_id INTEGER NOT NULL REFERENCES runs(id),
+        rule_id TEXT NOT NULL,
+        status TEXT NOT NULL,
+        reason TEXT NOT NULL,
+        required INTEGER NOT NULL,
+        PRIMARY KEY (run_id, rule_id)
+    )""",
 )
+
+SCHEMA_OBJECTS = tuple(re.search(r"IF NOT EXISTS (\w+)", statement).group(1) for statement in SCHEMA)
+
+_SELECT_SCHEMA_OBJECTS = "SELECT name FROM sqlite_master"
 
 RUN_COLUMNS = "id, tenant, device, started_at, snapshot_sha256, snapshot_source, rules_version"
 
@@ -96,6 +110,20 @@ _SELECT_FINDINGS = (
 ) % FINDING_COLUMNS
 
 _SELECT_RUN = "SELECT tenant, device FROM runs WHERE id = ?"
+
+_SELECT_LAST_RULES_VERSION = (
+    "SELECT rules_version FROM runs WHERE tenant = ? AND device = ? ORDER BY started_at DESC, id DESC LIMIT 1"
+)
+
+_INSERT_RULE_STATUS = "INSERT INTO rule_status (run_id, rule_id, status, reason, required) VALUES (?, ?, ?, ?, ?)"
+
+_SELECT_RULE_STATUS = (
+    "SELECT rule_status.rule_id, rule_status.status, rule_status.reason, rule_status.required"
+    " FROM rule_status JOIN runs ON runs.id = rule_status.run_id"
+    " WHERE rule_status.run_id = ? AND runs.tenant = ? ORDER BY rule_status.rule_id"
+)
+
+_HAS_RULE_STATUS = "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'rule_status'"
 
 _SELECT_RUN_IDENTITIES = (
     "SELECT fingerprint, rule_id, object_key FROM findings WHERE run_id = ?"
@@ -181,6 +209,33 @@ def checked_schema(connection) -> int:
     )
 
 
+def _rollback(connection) -> None:
+    if connection.in_transaction:
+        connection.execute("ROLLBACK")
+
+
+def _schema_current(connection) -> bool:
+    if checked_schema(connection) != SCHEMA_VERSION:
+        return False
+    present = {row[0] for row in connection.execute(_SELECT_SCHEMA_OBJECTS).fetchall()}
+    return present.issuperset(SCHEMA_OBJECTS)
+
+
+def _initialize(connection) -> None:
+    if _schema_current(connection):
+        return
+    connection.execute("BEGIN IMMEDIATE")
+    try:
+        checked_schema(connection)
+        for statement in SCHEMA:
+            connection.execute(statement)
+        connection.execute("PRAGMA user_version = %d" % SCHEMA_VERSION)
+        connection.execute("COMMIT")
+    except BaseException:
+        _rollback(connection)
+        raise
+
+
 _SELECT_MIGRATED_FINDINGS = (
     "SELECT findings.id, findings.fingerprint, findings.rule_id, findings.rule_version,"
     " findings.device, findings.object_key, runs.tenant FROM findings"
@@ -223,6 +278,13 @@ def _migrated_baseline(connection, mapping) -> int:
 
 
 def migrate(path) -> dict:
+    try:
+        return _migrate(path)
+    except sqlite3.Error as error:
+        raise StoreError("store %s cannot be migrated: %s" % (path, error)) from None
+
+
+def _migrate(path) -> dict:
     connection = sqlite3.connect(str(path), isolation_level=None)
     connection.row_factory = sqlite3.Row
     try:
@@ -243,7 +305,7 @@ def migrate(path) -> dict:
             connection.execute("PRAGMA user_version = %d" % SCHEMA_VERSION)
             connection.execute("COMMIT")
         except BaseException:
-            connection.execute("ROLLBACK")
+            _rollback(connection)
             raise
     finally:
         connection.close()
@@ -299,6 +361,23 @@ def _checked_event(event, device: str) -> dict:
     return values
 
 
+def _checked_rule_status(rule_status) -> tuple:
+    if rule_status is None:
+        return ()
+    if not isinstance(rule_status, dict):
+        raise StoreError("rule status must map rule IDs to their status")
+    rows = []
+    for rule_id, item in sorted(rule_status.items()):
+        _checked_text("rule status rule_id", rule_id)
+        if not isinstance(item, dict) or set(item) != {"status", "reason", "required"}:
+            raise StoreError("rule status of %s must carry status, reason and required" % rule_id)
+        if item["status"] not in RULE_STATES or not isinstance(item["reason"], str) \
+                or not isinstance(item["required"], bool):
+            raise StoreError("rule status of %s is malformed" % rule_id)
+        rows.append((rule_id, item["status"], item["reason"], 1 if item["required"] else 0))
+    return tuple(rows)
+
+
 def _row_to_finding(row) -> dict:
     item = dict(row)
     item["evidence"] = json.loads(item["evidence"])
@@ -307,17 +386,20 @@ def _row_to_finding(row) -> dict:
 
 class Store:
     def __init__(self, path):
-        self._connection = sqlite3.connect(str(path), isolation_level=None)
-        self._connection.row_factory = sqlite3.Row
-        self._connection.execute("PRAGMA foreign_keys = ON")
         try:
-            checked_schema(self._connection)
+            self._connection = sqlite3.connect(str(path), isolation_level=None)
+        except sqlite3.Error as error:
+            raise StoreError("cannot open store %s: %s" % (path, error)) from None
+        try:
+            self._connection.row_factory = sqlite3.Row
+            self._connection.execute("PRAGMA foreign_keys = ON")
+            _initialize(self._connection)
         except StoreError:
             self._connection.close()
             raise
-        for statement in SCHEMA:
-            self._connection.execute(statement)
-        self._connection.execute("PRAGMA user_version = %d" % SCHEMA_VERSION)
+        except sqlite3.Error as error:
+            self._connection.close()
+            raise StoreError("store %s is not a readable audit database: %s" % (path, error)) from None
 
     def close(self):
         self._connection.close()
@@ -338,16 +420,25 @@ class Store:
         rules_version,
         findings,
         started_at=None,
+        rule_status=None,
+        admit=None,
+        observe=None,
     ) -> int:
         _checked_text("tenant", tenant)
         _checked_text("device", device)
         _checked_text("snapshot_sha256", snapshot_sha256)
         _checked_text("snapshot_source", snapshot_source)
         _checked_text("rules_version", rules_version)
+        statuses = _checked_rule_status(rule_status)
         moment = _now_utc() if started_at is None else _checked_moment(started_at)
         connection = self._connection
         connection.execute("BEGIN IMMEDIATE")
         try:
+            if admit is not None:
+                previous = connection.execute(_SELECT_LAST_RULES_VERSION, (tenant, device)).fetchone()
+                admit(None if previous is None else previous[0])
+            if observe is not None:
+                observe()
             run_id = connection.execute(
                 _INSERT_RUN,
                 (tenant, device, moment, snapshot_sha256, snapshot_source, rules_version),
@@ -378,15 +469,26 @@ class Store:
                         json.dumps(item["evidence"], ensure_ascii=False, sort_keys=True),
                     ),
                 )
+            for row in statuses:
+                connection.execute(_INSERT_RULE_STATUS, (run_id,) + row)
             connection.execute("COMMIT")
         except BaseException:
-            connection.execute("ROLLBACK")
+            _rollback(connection)
             raise
         return run_id
 
     def findings_for_run(self, tenant, run_id) -> tuple:
         rows = self._connection.execute(_SELECT_FINDINGS, (run_id, tenant)).fetchall()
         return tuple(_row_to_finding(row) for row in rows)
+
+    def rule_status_for_run(self, tenant, run_id) -> dict:
+        if self._connection.execute(_HAS_RULE_STATUS).fetchone() is None:
+            return {}
+        rows = self._connection.execute(_SELECT_RULE_STATUS, (run_id, tenant)).fetchall()
+        return {
+            row["rule_id"]: {"status": row["status"], "reason": row["reason"], "required": bool(row["required"])}
+            for row in rows
+        }
 
     def last_run(self, tenant, device):
         row = self._connection.execute(
@@ -419,7 +521,7 @@ class Store:
             if run["device"] != device:
                 raise StoreError("run %r covers device %r, not %r" % (run_id, run["device"], device))
             identities = connection.execute(_SELECT_RUN_IDENTITIES, (run_id,)).fetchall()
-            if not evaluation_complete(identities):
+            if not evaluation_complete(identities, self.rule_status_for_run(tenant, run_id)):
                 raise StoreError("cannot accept a baseline from an unevaluated audit")
             before = connection.total_changes
             for item in identities:
@@ -440,7 +542,7 @@ class Store:
             accepted = connection.total_changes - before
             connection.execute("COMMIT")
         except BaseException:
-            connection.execute("ROLLBACK")
+            _rollback(connection)
             raise
         return accepted
 
@@ -496,7 +598,7 @@ class Store:
                 written += 1
             connection.execute("COMMIT")
         except BaseException:
-            connection.execute("ROLLBACK")
+            _rollback(connection)
             raise
         return written
 

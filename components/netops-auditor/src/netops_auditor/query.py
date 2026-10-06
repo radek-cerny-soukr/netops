@@ -2,9 +2,10 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
+from .engine import EVALUATED, NOT_EVALUATED, UNSUPPORTED
 from .findings import SEVERITIES
-from .state import STATE_GONE, STATES, classify
-from .state import STATE_NOT_EVALUATED, evaluation_complete, last_evaluated
+from .state import STATE_GONE, STATES, UNEVALUATED_RULES, classify, suppressions_for_device
+from .state import STATE_NOT_EVALUATED, evaluation_complete, last_evaluated, stored_statuses, unevaluated_rules
 from .suppressions import MOMENT_FORMAT
 
 STATUS_FRESH = "fresh"
@@ -34,6 +35,7 @@ DEVICE_STATUS_KEYS = (
     "findings_total",
     "severity_counts",
     "state_counts",
+    "rule_status",
 )
 
 TOTALS_KEYS = ("devices", STATUS_FRESH, STATUS_STALE, STATUS_NEVER)
@@ -53,7 +55,14 @@ FINDING_KEYS = (
     "fingerprint",
     "evidence",
     "state",
+    "rule_status",
 )
+
+MARKER_STATES = {
+    "fortios.snapshot.incomplete": (NOT_EVALUATED, "snapshot-incomplete"),
+    "exos.snapshot.incomplete": (NOT_EVALUATED, "snapshot-incomplete"),
+    "fortios.scope.vdom-unsupported": (UNSUPPORTED, "fortios.scope.vdom-unsupported"),
+}
 
 GONE_KEYS = ("rule_id", "severity", "object_key", "fingerprint", "state")
 
@@ -84,7 +93,7 @@ COMPARE_ITEM_KEYS = ("rule_id", "severity", "object_key", "fingerprint")
 
 COMPARE_COUNT_KEYS = ("added", "removed", "kept")
 
-COMPARE_KEYS = ("tenant", "device", "first", "second", "added", "removed", "kept", "counts")
+COMPARE_KEYS = ("tenant", "device", "first", "second", "added", "removed", "kept", "counts", "not_evaluated_rules")
 
 _SELECT_TENANT_DEVICES = (
     "SELECT device FROM runs WHERE tenant = ?"
@@ -183,19 +192,29 @@ def _runs(store, tenant, device) -> tuple:
     return tuple(store.runs_for_device(tenant, device))
 
 
-def _for_device(suppressions, device) -> tuple:
-    return tuple(item for item in suppressions if getattr(item, "device", device) == device)
-
-
 def _classified(store, tenant, device, runs, stored, suppressions, now):
     previous = last_evaluated(store, tenant, runs[1:])[1]
     return classify(
         tuple(_Stored(item["fingerprint"], item["rule_id"]) for item in stored),
         store.baseline_fingerprints(tenant, device),
-        _for_device(suppressions, device),
+        suppressions_for_device(suppressions, device),
         previous,
         now,
+        stored_statuses(store, tenant, runs[0]["id"]),
     )
+
+
+def _unevaluated_history(store, tenant, runs, stored) -> tuple:
+    statuses = stored_statuses(store, tenant, runs[0]["id"])
+    complete = evaluation_complete(stored, statuses)
+    skipped = unevaluated_rules(statuses)
+    if complete and not skipped:
+        return None, ()
+    run, previous = last_evaluated(store, tenant, runs[1:])
+    if complete:
+        present = {item["fingerprint"] for item in stored}
+        previous = tuple(item for item in previous if item["rule_id"] in skipped and item["fingerprint"] not in present)
+    return run, previous
 
 
 def _severity_counts(findings) -> dict:
@@ -209,7 +228,18 @@ def _state_counts(result) -> dict:
     return {name: result.counts[name] for name in STATES}
 
 
-def _present_entry(item, state: str) -> dict:
+def _rule_state(statuses, stored, rule_id) -> dict:
+    item = statuses.get(rule_id)
+    if item is not None:
+        return {"status": item["status"], "reason": item["reason"]}
+    marker = next((entry["rule_id"] for entry in stored if entry["rule_id"] in UNEVALUATED_RULES), None)
+    if marker is None or marker == rule_id:
+        return {"status": EVALUATED, "reason": ""}
+    status, reason = MARKER_STATES[marker]
+    return {"status": status, "reason": reason}
+
+
+def _present_entry(item, state: str, rule_state: dict) -> dict:
     return {
         "rule_id": item["rule_id"],
         "rule_version": item["rule_version"],
@@ -221,6 +251,7 @@ def _present_entry(item, state: str) -> dict:
         "fingerprint": item["fingerprint"],
         "evidence": dict(sorted(item["evidence"].items())),
         "state": state,
+        "rule_status": rule_state,
     }
 
 
@@ -284,14 +315,18 @@ def _device_status(store, tenant, device, now, stale_after_hours) -> dict:
             "findings_total": 0,
             "severity_counts": dict.fromkeys(SEVERITIES, 0),
             "state_counts": dict.fromkeys(STATES, 0),
+            "rule_status": {},
         }
     last = runs[0]
     stored = store.findings_for_run(tenant, last["id"])
+    statuses = stored_statuses(store, tenant, last["id"])
     result = _classified(store, tenant, device, runs, stored, (), now)
     age = (now - _moment(last["started_at"])).total_seconds() / 3600.0
+    complete = evaluation_complete(stored, statuses)
     return {
         "device": device,
-        "state": (STATUS_STALE if age > stale_after_hours else STATUS_FRESH) if evaluation_complete(stored) else STATUS_INCOMPLETE,
+        "state": (STATUS_STALE if age > stale_after_hours else STATUS_FRESH) if complete else STATUS_INCOMPLETE,
+        "rule_status": statuses,
         "last_audit": last["started_at"],
         "age_hours": round(age, 2),
         "run_id": last["id"],
@@ -391,12 +426,18 @@ def list_findings(
     if boundary is not None and _moment(last["started_at"]) < boundary:
         return _empty_listing(tenant, device, RUN_BEFORE_SINCE)
     stored = store.findings_for_run(tenant, last["id"])
+    statuses = stored_statuses(store, tenant, last["id"])
     result = _classified(store, tenant, device, runs, stored, suppressions, moment)
     states = dict(result.states)
-    findings = tuple(_present_entry(item, states[item["fingerprint"]]) for item in stored)
-    if not evaluation_complete(stored):
-        historical = last_evaluated(store, tenant, runs[1:])[1]
-        findings += tuple(_present_entry(item, STATE_NOT_EVALUATED) for item in historical)
+    findings = tuple(
+        _present_entry(item, states[item["fingerprint"]], _rule_state(statuses, stored, item["rule_id"]))
+        for item in stored
+    )
+    historical = _unevaluated_history(store, tenant, runs, stored)[1]
+    findings += tuple(
+        _present_entry(item, STATE_NOT_EVALUATED, _rule_state(statuses, stored, item["rule_id"]))
+        for item in historical
+    )
     gone = tuple(_gone_entry(item) for item in result.gone)
     if wanted_severity is not None:
         findings = tuple(item for item in findings if item["severity"] == wanted_severity)
@@ -456,7 +497,7 @@ def finding_detail(store, tenant, device, fingerprint, suppressions=(), now=None
         return None
     last = runs[0]
     stored = store.findings_for_run(tenant, last["id"])
-    historical_run, historical = (None, ()) if evaluation_complete(stored) else last_evaluated(store, tenant, runs[1:])
+    historical_run, historical = _unevaluated_history(store, tenant, runs, stored)
     historical_match = False
     match = None
     for item in stored:
@@ -469,7 +510,10 @@ def finding_detail(store, tenant, device, fingerprint, suppressions=(), now=None
     if match is None:
         return None
     result = _classified(store, tenant, device, runs, stored, suppressions, moment)
-    entry = _present_entry(match, STATE_NOT_EVALUATED if historical_match else dict(result.states)[fingerprint])
+    rule_state = _rule_state(stored_statuses(store, tenant, last["id"]), stored, match["rule_id"])
+    entry = _present_entry(
+        match, STATE_NOT_EVALUATED if historical_match else dict(result.states)[fingerprint], rule_state
+    )
     if historical_match:
         last = historical_run
     entry["tenant"] = tenant
@@ -477,7 +521,7 @@ def finding_detail(store, tenant, device, fingerprint, suppressions=(), now=None
     entry["run_id"] = last["id"]
     entry["started_at"] = last["started_at"]
     entry["baseline"] = _baseline_entry(store, tenant, device, fingerprint)
-    entry["suppression"] = _suppression_entry(_for_device(suppressions, device), fingerprint, moment)
+    entry["suppression"] = _suppression_entry(suppressions_for_device(suppressions, device), fingerprint, moment)
     return entry
 
 
@@ -522,8 +566,13 @@ def compare(store, tenant, device, first_run_id, second_run_id) -> dict:
     second = _checked_run(runs, tenant, device, second_run_id)
     first_findings = store.findings_for_run(tenant, first["id"])
     second_findings = store.findings_for_run(tenant, second["id"])
-    if not evaluation_complete(first_findings) or not evaluation_complete(second_findings):
+    first_statuses = stored_statuses(store, tenant, first["id"])
+    second_statuses = stored_statuses(store, tenant, second["id"])
+    if not evaluation_complete(first_findings, first_statuses) or not evaluation_complete(second_findings, second_statuses):
         raise QueryError("cannot compare an unevaluated audit; select two evaluated runs")
+    skipped = unevaluated_rules(first_statuses) | unevaluated_rules(second_statuses)
+    first_findings = tuple(item for item in first_findings if item["rule_id"] not in skipped)
+    second_findings = tuple(item for item in second_findings if item["rule_id"] not in skipped)
     before = _by_fingerprint(first_findings)
     after = _by_fingerprint(second_findings)
     added = _compare_items(after, frozenset(after) - frozenset(before))
@@ -538,4 +587,5 @@ def compare(store, tenant, device, first_run_id, second_run_id) -> dict:
         "removed": removed,
         "kept": kept,
         "counts": {"added": len(added), "removed": len(removed), "kept": len(kept)},
+        "not_evaluated_rules": tuple(sorted(skipped)),
     }

@@ -9,11 +9,15 @@ from . import __version__
 SCHEMA = "https://json.schemastore.org/sarif-2.1.0.json"
 VERSION = "2.1.0"
 TOOL = "netops-auditor"
+MAX_SARIF_BYTES = 64 * 1024 * 1024
 INFORMATION_URI = "https://github.com/radek-cerny-soukr/netops"
 FINGERPRINT_KEY = "netopsFingerprint/v2"
 LEVELS = {"high": "error", "medium": "warning", "low": "note", "info": "note"}
 SECURITY_SEVERITY = {"high": "8.0", "medium": "5.0", "low": "3.0"}
-DEVICE_KEYS = ("tenant", "device", "platform", "snapshot_sha256", "rules_version", "rule_coverage", "evaluation")
+DEVICE_KEYS = (
+    "tenant", "device", "platform", "snapshot_sha256", "rules_version", "rule_coverage", "evaluation",
+    "evaluation_complete", "rule_status",
+)
 
 
 class SarifError(Exception):
@@ -104,18 +108,39 @@ def document(report: dict, rules, config_path: str) -> dict:
     return _document(described, results, [device])
 
 
+def _mapping(value, source: str, what: str) -> dict:
+    if not isinstance(value, dict):
+        raise SarifError("%s: %s must be an object" % (source, what))
+    return value
+
+
+def _sequence(value, source: str, what: str) -> list:
+    if not isinstance(value, list):
+        raise SarifError("%s: %s must be a list" % (source, what))
+    return value
+
+
 def _single_run(item, source: str) -> dict:
     if not isinstance(item, dict) or item.get("version") != VERSION:
         raise SarifError("%s is not a SARIF %s document" % (source, VERSION))
     runs = item.get("runs")
     if not isinstance(runs, list) or len(runs) != 1:
         raise SarifError("%s must hold exactly one run" % source)
-    run = runs[0]
-    driver = run.get("tool", {}).get("driver", {})
+    run = _mapping(runs[0], source, "the run")
+    driver = _mapping(_mapping(run.get("tool"), source, "tool").get("driver"), source, "tool.driver")
     if driver.get("name") != TOOL:
         raise SarifError("%s was not produced by %s" % (source, TOOL))
     if driver.get("version") != __version__:
         raise SarifError("%s comes from %s %s, not %s" % (source, TOOL, driver.get("version"), __version__))
+    for rule in _sequence(driver.get("rules", []), source, "tool.driver.rules"):
+        if not isinstance(_mapping(rule, source, "every rule").get("id"), str):
+            raise SarifError("%s: every rule must carry a string id" % source)
+    for result in _sequence(run.get("results", []), source, "results"):
+        if not isinstance(_mapping(result, source, "every result").get("ruleId"), str):
+            raise SarifError("%s: every result must carry a string ruleId" % source)
+    properties = _mapping(run.get("properties", {}), source, "properties")
+    for device in _sequence(properties.get("devices", []), source, "properties.devices"):
+        _mapping(device, source, "every device")
     return run
 
 

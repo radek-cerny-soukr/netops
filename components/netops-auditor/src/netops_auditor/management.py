@@ -5,9 +5,9 @@ import hashlib
 import ipaddress
 import json
 import re
-from pathlib import Path
 
-from .engine import check
+from .engine import EVALUATED, NOT_EVALUATED, UNSUPPORTED, check
+from .inputs import InputError, read_regular
 
 RULES = {
     "fortios": {
@@ -32,6 +32,25 @@ POLICY_FIELDS = {
     "exos": {"vlan_tags", "port_vlans", "protected_ports", "management_vlans", "description_glob"},
 }
 MAX_POLICY_BYTES = 262144
+POLICY_FIELD = {"address-policy": "address_networks", "vlan-policy": "vlan_tags",
+                "port-policy": "port_vlans", "port-description": "description_glob"}
+POLICY_NOT_CONFIGURED = "policy-not-configured"
+SCOPE_REASON = "fortios.scope.vdom-unsupported"
+PORT = r"[1-9][0-9]{0,3}(?::[1-9][0-9]{0,3})?"
+ALL_PORTS = "all"
+MEMBERSHIP_LIST = "membership-list"
+MEMBERSHIP_FORM = "membership-form"
+DESCRIPTION_LIST = "description-list"
+UNRESOLVED = {
+    MEMBERSHIP_LIST: ("unresolved-port-list", "unsupported port list"),
+    MEMBERSHIP_FORM: ("unsupported-membership-form", "unsupported VLAN membership form"),
+    DESCRIPTION_LIST: ("unresolved-port-list", "unsupported port list"),
+}
+EXOS_NEEDS = {
+    "port-policy": (MEMBERSHIP_LIST, MEMBERSHIP_FORM),
+    "port-native": (MEMBERSHIP_LIST, MEMBERSHIP_FORM),
+    "port-description": (DESCRIPTION_LIST,),
+}
 
 
 class PolicyError(ValueError):
@@ -102,20 +121,38 @@ def validate_policy(data, platform):
 
 
 def load_policy(path, platform):
-    p = Path(path)
-    if p.stat().st_size > MAX_POLICY_BYTES:
-        raise PolicyError("policy is too large")
+    try:
+        data = read_regular(path, MAX_POLICY_BYTES)
+    except InputError as error:
+        raise PolicyError("policy is %s" % error) from None
     def unique(pairs):
         result = {}
         for key, value in pairs:
             _require(key not in result, "duplicate policy field")
             result[key] = value
         return result
-    return validate_policy(json.loads(p.read_text(encoding="utf-8"), object_pairs_hook=unique), platform)
+    try:
+        document = json.loads(data.decode("utf-8"), object_pairs_hook=unique)
+    except RecursionError:
+        raise PolicyError("policy nesting is too deep") from None
+    return validate_policy(document, platform)
 
 
 def policy_digest(policy):
     return hashlib.sha256(json.dumps(policy, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+
+
+UNNAMED_PARTS = ("password", "passwd", "passphrase", "pwd", "secret", "psk", "key", "community", "token",
+                 "comment", "description")
+UNNAMED_ATTRIBUTES = {("system snmp community",): ("name",)}
+
+
+def named_values(node):
+    for name, attr in node.attrs.items():
+        folded = name.casefold()
+        if any(part in folded for part in UNNAMED_PARTS) or name in UNNAMED_ATTRIBUTES.get(node.path[:1], ()):
+            continue
+        yield from attr.values
 
 
 def entries(tree, name):
@@ -132,15 +169,35 @@ def walk(tree):
         stack.extend(node.entries.values())
 
 
-def ports(value):
+def _port_order(port):
+    slot, _, number = port.rpartition(":")
+    return int(slot) if slot else 0, int(number)
+
+
+def _slot_range(match, inventory):
+    if not inventory or match[1] is None or match[3] is None:
+        raise PolicyError("unsupported port list")
+    first, last = "%s:%s" % (match[1], match[2]), "%s:%s" % (match[3], match[4])
+    if first not in inventory or last not in inventory or _port_order(first) > _port_order(last):
+        raise PolicyError("port range outside the port inventory")
+    return {port for port in inventory if _port_order(first) <= _port_order(port) <= _port_order(last)}
+
+
+def ports(value, inventory=None):
     result = set()
     for item in value.split(","):
-        if re.fullmatch(r"[1-9][0-9]{0,3}(?::[1-9][0-9]{0,3})?", item):
+        if re.fullmatch(PORT, item):
             result.add(item)
             continue
-        match = re.fullmatch(r"(?:(\d+):)?(\d+)-(?:([0-9]+):)?(\d+)", item)
-        if not match or match[3] not in (None, match[1]):
+        if item == ALL_PORTS and inventory:
+            result.update(inventory)
+            continue
+        match = re.fullmatch(r"(?:([0-9]+):)?([0-9]+)-(?:([0-9]+):)?([0-9]+)", item)
+        if not match:
             raise PolicyError("unsupported port list")
+        if match[3] not in (None, match[1]):
+            result.update(_slot_range(match, inventory))
+            continue
         start, end = int(match[2]), int(match[4])
         if not 1 <= start <= end <= 4096:
             raise PolicyError("invalid port range")
@@ -150,18 +207,33 @@ def ports(value):
     return result
 
 
-def exos_model(tree):
-    vlans, descriptions, members = {}, {}, {}
-    inside = False
-    for command in tree.commands:
+def port_inventory(tree):
+    found = set()
+    for command in tree.active:
         t = command.tokens
-        if inside:
-            if t == (".",):
-                inside = False
-            continue
-        if t[:3] == ("create", "upm", "profile"):
-            inside = True
-            continue
+        if len(t) == 6 and t[0] == "configure" and t[1].casefold() == "vr" and t[3] in ("add", "delete") \
+                and t[4] == "ports":
+            try:
+                found |= ports(t[5])
+            except PolicyError:
+                return None
+    return frozenset(found) or None
+
+
+def _exos_view(tree, inventory=None, strict=False):
+    vlans, descriptions, members, populated, unresolved = {}, {}, {}, set(), set()
+
+    def expand(value, kind):
+        try:
+            return ports(value, inventory)
+        except PolicyError:
+            if strict:
+                raise
+            unresolved.add(kind)
+            return set()
+
+    for command in tree.active:
+        t = command.tokens
         if t[:2] == ("create", "vlan") and len(t) >= 3:
             vlans.setdefault(t[2], {})
             if len(t) == 5 and t[3] == "tag":
@@ -171,17 +243,34 @@ def exos_model(tree):
             vlans.setdefault(name, {})
             if t[3] == "tag" and len(t) == 5:
                 vlans[name]["tag"] = t[4]
-            elif t[3:5] == ("add", "ports") and len(t) == 7 and t[6] in ("tagged", "untagged"):
-                for port in ports(t[5]):
-                    members.setdefault(port, {"tagged": set(), "untagged": set()})[t[6]].add(name)
             elif t[3:5] == ("add", "ports"):
-                raise PolicyError("unsupported VLAN membership form")
+                populated.add(name)
+                if len(t) == 7 and t[6] in ("tagged", "untagged"):
+                    for port in expand(t[5], MEMBERSHIP_LIST):
+                        members.setdefault(port, {"tagged": set(), "untagged": set()})[t[6]].add(name)
+                elif strict:
+                    raise PolicyError(UNRESOLVED[MEMBERSHIP_FORM][1])
+                else:
+                    unresolved.add(MEMBERSHIP_FORM)
         elif t[:2] == ("configure", "ports") and len(t) == 5 and t[3] == "display-string":
-            for port in ports(t[2]):
+            for port in expand(t[2], DESCRIPTION_LIST):
                 descriptions[port] = t[4]
-    if inside:
+    if strict and tree.unterminated_upm:
         raise PolicyError("unterminated UPM profile")
+    return vlans, members, descriptions, populated, unresolved
+
+
+def exos_model(tree, inventory=None):
+    vlans, members, descriptions, _populated, _unresolved = _exos_view(tree, inventory, strict=True)
     return vlans, members, descriptions
+
+
+def _exos_content(tree) -> bool:
+    return any(
+        command.tokens[:2] in (("create", "vlan"), ("configure", "vlan"))
+        or (command.tokens[:2] == ("configure", "ports") and "display-string" in command.tokens)
+        for command in tree.active
+    )
 
 
 def _hit(key, section, line, code, count=1):
@@ -233,12 +322,16 @@ def _fortios(name, tree, policy):
     addresses = entries(tree, "firewall address")
     groups = entries(tree, "firewall addrgrp")
     if name == "address-unused":
+        owners = {}
+        for other in walk(tree):
+            for value in named_values(other):
+                seen = owners.setdefault(value, set())
+                if len(seen) < 2:
+                    seen.add(other.path[:2])
         for key, node in addresses.items():
             if key in ("all", "none"):
                 continue
-            referenced = any(key in attr.values for other in walk(tree)
-                             if other.path[:2] != ("firewall address", key) for attr in other.attrs.values())
-            if not referenced:
+            if not owners.get(key, set()) - {("firewall address", key)}:
                 yield _hit("firewall address/" + key, "firewall address", node.line, "no-visible-reference")
     elif name == "address-policy":
         allowed = [ipaddress.ip_network(n) for n in policy.get("address_networks", [])]
@@ -308,16 +401,21 @@ def _fortios(name, tree, policy):
 
 
 def _exos(name, tree, policy):
-    vlans, members, descriptions = exos_model(tree)
+    if tree.unterminated_upm:
+        raise PolicyError("unterminated UPM profile")
+    vlans, members, descriptions, populated, unresolved = _exos_view(tree, port_inventory(tree))
+    for kind in EXOS_NEEDS.get(name, ()):
+        if kind in unresolved:
+            raise PolicyError(UNRESOLVED[kind][1])
     if name == "vlan-empty":
-        used = {v for modes in members.values() for values in modes.values() for v in values}
-        for vlan in sorted(set(vlans) - used - {"Default", "Mgmt"}):
+        for vlan in sorted(set(vlans) - populated - {"Default", "Mgmt"}):
             yield _hit("vlan/" + vlan, "vlan", 0, "no-visible-ports")
     elif name == "vlan-policy":
         ranges = policy.get("vlan_tags", [])
         for vlan, attrs in vlans.items():
-            if ranges and (not attrs.get("tag", "").isdigit() or
-                           not any(lo <= int(attrs["tag"]) <= hi for lo, hi in ranges)):
+            tag = attrs.get("tag", "")
+            if ranges and (not (tag.isascii() and tag.isdigit()) or
+                           not any(lo <= int(tag) <= hi for lo, hi in ranges)):
                 yield _hit("vlan/" + vlan, "vlan", 0, "tag-outside-policy")
     elif name == "port-policy":
         for port, modes in members.items():
@@ -346,31 +444,57 @@ def hits(platform, name, tree, policy=None):
     yield from (_fortios if platform == "fortios" else _exos)(name, tree, policy)
 
 
+def _fortios_status(name, tree, policy) -> tuple:
+    if "vdom" in tree.sub or "global" in tree.sub:
+        return UNSUPPORTED, SCOPE_REASON
+    if POLICY_FIELD.get(name) and POLICY_FIELD[name] not in policy:
+        return NOT_EVALUATED, POLICY_NOT_CONFIGURED
+    if RULES["fortios"][name][1] not in tree.sub:
+        return NOT_EVALUATED, "section-missing"
+    if name == "group-dangling" and "firewall address" not in tree.sub:
+        return NOT_EVALUATED, "section-missing"
+    return EVALUATED, ""
+
+
+def _exos_status(name, tree, policy) -> tuple:
+    if tree.unterminated_upm:
+        return NOT_EVALUATED, "unterminated-upm-profile"
+    if POLICY_FIELD.get(name) and POLICY_FIELD[name] not in policy:
+        return NOT_EVALUATED, POLICY_NOT_CONFIGURED
+    if not _exos_content(tree):
+        return NOT_EVALUATED, "no-vlan-content"
+    unresolved = _exos_view(tree, port_inventory(tree))[4]
+    for kind in EXOS_NEEDS.get(name, ()):
+        if kind in unresolved:
+            return NOT_EVALUATED, UNRESOLVED[kind][0]
+    return EVALUATED, ""
+
+
+def rule_status(platform, name, tree, policy=None) -> tuple:
+    return (_fortios_status if platform == "fortios" else _exos_status)(name, tree, policy or {})
+
+
 def coverage(platform, tree, policy=None):
-    policy = policy or {}
     result = {}
-    for name, (_, section) in RULES[platform].items():
-        ready = section in tree.sub if platform == "fortios" else "vlan" in tree.modules
-        field = {"address-policy": "address_networks", "vlan-policy": "vlan_tags",
-                 "port-policy": "port_vlans", "port-description": "description_glob"}.get(name)
-        if platform == "fortios" and ("vdom" in tree.sub or "global" in tree.sub):
-            result[name] = "not-evaluated"
-        elif field and field not in policy:
-            result[name] = "not-configured"
-        elif not ready:
-            result[name] = "not-evaluated"
-        elif name == "group-dangling" and "firewall address" not in tree.sub:
-            result[name] = "not-evaluated"
-        else:
+    for name in RULES[platform]:
+        state, reason = rule_status(platform, name, tree, policy)
+        if state == EVALUATED:
             result[name] = "evaluated"
+        elif reason == POLICY_NOT_CONFIGURED:
+            result[name] = "not-configured"
+        else:
+            result[name] = "not-evaluated"
     return result
 
 
 def _register(platform, name):
     def evaluate(tree, policy=None):
         yield from hits(platform, name, tree, policy)
+
+    def status(tree, policy=None):
+        return rule_status(platform, name, tree, policy)
     evaluate.__name__ = "management_" + platform + "_" + name.replace("-", "_")
-    check(evaluate.__name__, contextual=True)(evaluate)
+    check(evaluate.__name__, contextual=True, status=status)(evaluate)
     globals()[evaluate.__name__] = evaluate
 
 

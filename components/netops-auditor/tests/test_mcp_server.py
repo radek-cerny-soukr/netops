@@ -12,6 +12,8 @@ import pytest
 
 pytest.importorskip("fastmcp")
 
+from fastmcp.exceptions import ToolError
+
 from netops_auditor import mcp_server, query
 from netops_auditor.engine import load_catalog
 from netops_auditor.findings import Finding
@@ -208,13 +210,13 @@ def _import_closure(module_name):
     return frozenset(seen)
 
 
-def test_the_surface_holds_exactly_six_tools_with_the_agreed_names():
+def test_the_surface_holds_exactly_seven_tools_with_the_agreed_names():
     tools = asyncio.run(mcp_server.mcp.list_tools())
     names = sorted(tool.name for tool in tools)
-    assert len(mcp_server.TOOL_NAMES) == 6
+    assert len(mcp_server.TOOL_NAMES) == 7
     assert names == sorted(mcp_server.TOOL_NAMES)
     assert names == sorted(
-        ("audit_status", "list_rules", "rule_detail", "list_findings", "finding_detail", "compare")
+        ("audit_status", "list_rules", "rule_detail", "list_findings", "finding_detail", "compare", "schema_report")
     )
     for banned in BANNED_TOOL_NAMES:
         assert banned not in names
@@ -350,7 +352,7 @@ def test_rule_tools_read_the_configured_catalog(configured):
     detail = mcp_server.rule_detail(rule_id)
     assert detail == query.rule_detail(rules, rule_id)
     assert set(detail) == set(query.RULE_DETAIL_KEYS)
-    with pytest.raises(query.QueryError):
+    with pytest.raises(ToolError, match="the catalog holds no rule"):
         mcp_server.rule_detail("no.such.rule")
 
 
@@ -388,7 +390,7 @@ def test_list_findings_passes_every_filter(configured):
     other = mcp_server.list_findings(OTHER_DEVICE)
     assert other["device"] == OTHER_DEVICE
     assert other["run_id"] == configured.other_run
-    with pytest.raises(query.QueryError):
+    with pytest.raises(ToolError, match="severity must be one of"):
         mcp_server.list_findings(DEVICE, severity="critical")
 
 
@@ -440,7 +442,7 @@ def test_compare_passes_both_runs_and_returns_what_query_returns(configured):
     swapped = mcp_server.compare(DEVICE, configured.second_run, configured.first_run)
     assert tuple(item["rule_id"] for item in swapped["added"]) == ("L1-002",)
     assert tuple(item["rule_id"] for item in swapped["removed"]) == ("L1-003",)
-    with pytest.raises(query.QueryError):
+    with pytest.raises(ToolError, match="does not belong to tenant"):
         mcp_server.compare(DEVICE, configured.first_run, configured.other_run)
 
 
@@ -614,3 +616,26 @@ def test_configure_accepts_the_exos_catalog(audited):
         "exos.logging.no-syslog-target",
         "exos.time.no-sntp-client",
     ]
+
+
+def test_schema_report_without_operator_manifest_is_refused(configured, monkeypatch):
+    monkeypatch.delenv("NETOPS_AUDITOR_SCHEMA_REPORTS", raising=False)
+    with pytest.raises(ToolError, match="no operator schema report manifest"):
+        mcp_server.schema_report(DEVICE)
+
+
+def test_schema_report_binds_configured_tenant_and_explicit_page(configured, monkeypatch):
+    from netops_auditor import schema_reports
+    monkeypatch.setenv("NETOPS_AUDITOR_SCHEMA_REPORTS", "/operator/manifest.json")
+    seen = []
+    def read(*args):
+        seen.append(args)
+        return {"untrusted_configuration_data": True}
+    monkeypatch.setattr(schema_reports, "read", read)
+    assert mcp_server.schema_report(DEVICE, "reference", 20, 10)["untrusted_configuration_data"]
+    assert seen == [("/operator/manifest.json", TENANT, DEVICE, "reference", 20, 10)]
+    def rejected(*args):
+        raise ValueError("schema binding refused")
+    monkeypatch.setattr(schema_reports, "read", rejected)
+    with pytest.raises(ToolError, match="schema binding refused"):
+        mcp_server.schema_report(DEVICE)
