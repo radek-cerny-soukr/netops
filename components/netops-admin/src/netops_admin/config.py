@@ -1,20 +1,23 @@
 from __future__ import annotations
 
-import json
 import os
 import re
 from dataclasses import dataclass
 from pathlib import Path
 
-from netops_admin.errors import Rejected
+from netops_admin.errors import Rejected, shown
+from netops_admin.jsontext import loads
 from netops_auditor.management import load_policy
+from netops_core.inputs import InputError, read_regular
 
 CONFIG_VERSION = 1
+CONFIG_MAX_BYTES = 1024 * 1024
+SAFEGUARD_MAX_SECONDS = 900
 CONFIG_FIELDS = frozenset(("version", "state_dir", "audit_file", "export_status_file", "notify", "limits", "devices"))
 DEVICE_FIELDS = frozenset((
     "platform", "address", "port", "host_key_fingerprint", "vault", "credential", "firmware",
     "safeguard_seconds", "confirm_margin_seconds", "protected", "legacy_ssh", "accounts", "check_credential",
-    "check_address", "audit_policy",
+    "check_address", "audit_policy", "schema",
 ))
 NOTIFY_FIELDS = frozenset(("server", "topic_file", "timeout_seconds", "x509_strict"))
 DEFAULT_LIMITS = {
@@ -23,6 +26,7 @@ DEFAULT_LIMITS = {
     "plan_commands": 32, "journal_records": 20000,
 }
 LIMIT_FIELDS = frozenset(DEFAULT_LIMITS)
+NOTIFY_TIMEOUT_SECONDS = (1, 60)
 DEVICE_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
 PIN = re.compile(r"^SHA256:[A-Za-z0-9+/]{43}$")
 
@@ -45,6 +49,7 @@ class Device:
     check_credential: str = ""
     check_address: str | None = None
     audit_policy: dict | None = None
+    schema: dict | None = None
 
 
 @dataclass(frozen=True)
@@ -71,7 +76,8 @@ def _require(condition, message):
 
 
 def _absolute(value, label):
-    _require(isinstance(value, str) and os.path.isabs(value), "%s must be an absolute path" % label)
+    _require(isinstance(value, str) and os.path.isabs(value) and "\x00" not in value,
+             "%s must be an absolute path" % label)
     return value
 
 
@@ -82,7 +88,7 @@ def _integer(value, label, low, high):
 
 
 def _device(name, data) -> Device:
-    _require(DEVICE_NAME.fullmatch(name) is not None, "device name %r is not an inventory alias" % name)
+    _require(DEVICE_NAME.fullmatch(name) is not None, "device name %s is not an inventory alias" % shown(name))
     _require(isinstance(data, dict) and not set(data) - DEVICE_FIELDS,
              "device %s has unknown fields" % name)
     for field in ("platform", "address", "host_key_fingerprint", "vault", "credential", "check_credential"):
@@ -110,7 +116,7 @@ def _device(name, data) -> Device:
              "device %s check_address must be another address than address" % name)
     _require(data["check_credential"] != data["credential"],
              "device %s: the check credential must be another account than the write credential" % name)
-    safeguard = _integer(data.get("safeguard_seconds", 180), "safeguard_seconds", 60, 900)
+    safeguard = _integer(data.get("safeguard_seconds", 180), "safeguard_seconds", 60, SAFEGUARD_MAX_SECONDS)
     margin = _integer(data.get("confirm_margin_seconds", 45), "confirm_margin_seconds", 15, safeguard - 15)
     policy = None
     if "audit_policy" in data:
@@ -118,6 +124,20 @@ def _device(name, data) -> Device:
             policy = load_policy(_absolute(data["audit_policy"], "audit_policy"), data["platform"])
         except (OSError, ValueError, UnicodeError):
             raise Rejected(["configuration: audit policy cannot be loaded or is invalid"]) from None
+    schema_binding = data.get("schema")
+    if schema_binding is not None:
+        fields = {"library","schema_sha256","calibration","calibration_sha256","vdoms"}
+        _require(data["platform"] == "fortios" and isinstance(schema_binding,dict)
+                 and set(schema_binding) == fields, "schema binding fields are invalid")
+        for field in ("library","calibration"):
+            _absolute(schema_binding[field], "schema "+field)
+        for field in ("schema_sha256","calibration_sha256"):
+            _require(isinstance(schema_binding[field],str) and re.fullmatch(r"[a-f0-9]{64}",schema_binding[field]),
+                     "schema binding digest is invalid")
+        domains = schema_binding["vdoms"]
+        _require(isinstance(domains,list) and 1 <= len(domains) <= 64
+                 and all(isinstance(x,str) and x and x.isprintable() and len(x.encode()) <= 128 and "%%" not in x for x in domains)
+                 and len(set(domains)) == len(domains), "schema VDOM inventory is invalid")
     return Device(
         name=name, platform=data["platform"], address=str(data["address"]),
         port=_integer(data.get("port", 22), "port", 1, 65535),
@@ -125,15 +145,17 @@ def _device(name, data) -> Device:
         credential=str(data["credential"]), firmware=firmware, safeguard_seconds=safeguard,
         confirm_margin_seconds=margin, protected={table: list(names) for table, names in protected.items()},
         legacy_ssh=legacy, accounts=tuple(accounts), check_credential=str(data["check_credential"]),
-        check_address=check_address, audit_policy=policy,
+        check_address=check_address, audit_policy=policy, schema=schema_binding,
     )
 
 
 def load_config(path) -> Config:
+    name = shown(Path(path).name)
     try:
-        data = json.loads(Path(path).read_text(encoding="utf-8"))
-    except (OSError, ValueError, UnicodeDecodeError):
-        raise Rejected(["configuration %s cannot be read as JSON" % Path(path).name]) from None
+        raw = read_regular(path, CONFIG_MAX_BYTES)
+    except (OSError, InputError) as error:
+        raise Rejected(["configuration %s cannot be read: %s" % (name, getattr(error, "strerror", None) or error)]) from None
+    data = loads(raw, "configuration %s" % name)
     _require(isinstance(data, dict), "must be a JSON object")
     _require(not set(data) - CONFIG_FIELDS, "unknown fields %s" % sorted(set(data) - CONFIG_FIELDS))
     _require(data.get("version") == CONFIG_VERSION, "version must be %d" % CONFIG_VERSION)
@@ -145,8 +167,12 @@ def load_config(path) -> Config:
                  and "topic_file" in notify, "notify needs server and topic_file only")
         _require(str(notify["server"]).startswith("https://"), "notify server must use https")
         _require(isinstance(notify.get("x509_strict", True), bool), "notify x509_strict must be true or false")
+        timeout = notify.get("timeout_seconds", 10)
+        low, high = NOTIFY_TIMEOUT_SECONDS
+        _require(isinstance(timeout, (int, float)) and not isinstance(timeout, bool) and low <= timeout <= high,
+                 "notify timeout_seconds must be a number in %d..%d" % (low, high))
         notify = Notify(server=notify["server"], topic_file=_absolute(notify["topic_file"], "notify topic_file"),
-                        timeout_seconds=float(notify.get("timeout_seconds", 10)),
+                        timeout_seconds=float(timeout),
                         x509_strict=notify.get("x509_strict", True))
     limits = dict(DEFAULT_LIMITS)
     given = data.get("limits", {})

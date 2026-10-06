@@ -67,6 +67,8 @@ def test_shipped_profiles_load():
                            ("exos", "vlan-membership")}
     assert loaded[("exos", "ports")].implicit_keys and loaded[("exos", "ports")].ops == ("update",)
     assert loaded[("fortios", "firewall address")].versions == ("8.0.0 build0167", "7.6.7 build3704")
+    assert loaded[("fortios", "firewall addrgrp")].versions == ("8.0.0 build0167", "7.6.7 build3704")
+    assert loaded[("fortios", "system dhcp server/reserved-address")].versions == ("8.0.0 build0167", "7.6.7 build3704")
     assert loaded[("exos", "vlan")].versions == ("33.7.1.6", "33.6.1.14")
 
 

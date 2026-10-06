@@ -7,7 +7,10 @@ from pathlib import Path
 
 from netops_admin import __version__
 from netops_admin.engine import build_plan, verify
-from netops_admin.errors import Rejected
+from netops_admin.errors import Rejected, shown
+from netops_admin.jsontext import loads
+from netops_admin.membership import ports as port_list
+from netops_core.inputs import InputError, read_regular
 from netops_admin.request import parse_request
 
 MAX_FILE_BYTES = 16 * 1024 * 1024 + 1
@@ -18,17 +21,15 @@ EXIT_REJECTED = 3
 
 def _read(path: Path) -> bytes:
     try:
-        with path.open("rb") as handle:
-            return handle.read(MAX_FILE_BYTES)
+        return read_regular(path, MAX_FILE_BYTES)
     except OSError as exc:
-        raise Rejected(["%s cannot be read: %s" % (path.name, exc.strerror)]) from None
+        raise Rejected(["%s cannot be read: %s" % (shown(path.name), exc.strerror or type(exc).__name__)]) from None
+    except InputError as exc:
+        raise Rejected(["%s cannot be read: %s" % (shown(path.name), exc)]) from None
 
 
 def _json(path: Path, label: str):
-    try:
-        return json.loads(_read(path).decode("utf-8"))
-    except (UnicodeDecodeError, ValueError):
-        raise Rejected(["%s is not UTF-8 JSON" % label]) from None
+    return loads(_read(path), label)
 
 
 def _policy(path):
@@ -46,12 +47,22 @@ def _policy(path):
     return protected
 
 
+def _ports(value):
+    if value is None:
+        return None
+    try:
+        return port_list(value)
+    except ValueError:
+        raise Rejected(["--ports is not a port list"]) from None
+
+
 def _emit(document) -> None:
     sys.stdout.write(json.dumps(document, indent=2, sort_keys=True, ensure_ascii=True) + "\n")
 
 
 EXIT_NOT_CONFIRMED = 4
 EXIT_NOT_READY = 5
+EXIT_CONFIRMED_BLOCKED = 6
 
 
 def build_runtime(config):
@@ -110,14 +121,17 @@ def _operate(args) -> int:
         _emit(execute.notify_retry(runtime, args.change_id))
         return 0
     if args.command == "recover":
-        _emit({"device": args.device, "settled": execute.recover(runtime, args.device)})
-        return 0
+        settled = execute.recover(runtime, args.device)
+        _emit({"device": args.device, "settled": settled})
+        return EXIT_CONFIRMED_BLOCKED if any(execute.blocks(r.get("result"), r.get("reason")) for r in settled) else 0
     if args.command == "undo":
         record = execute.undo(runtime, args.change_id, args.reason)
     else:
         record = execute.apply(runtime, args.device, parse_request(_read(args.request)))
     _emit(record)
-    return 0 if record.get("result") == "confirmed" else EXIT_NOT_CONFIRMED
+    if record.get("result") != "confirmed":
+        return EXIT_NOT_CONFIRMED
+    return EXIT_CONFIRMED_BLOCKED if record.get("reason") in execute.BLOCKING_REASONS else 0
 
 
 def main(argv=None) -> int:
@@ -134,6 +148,21 @@ def main(argv=None) -> int:
     plan.add_argument("--request", required=True, type=Path)
     plan.add_argument("--firmware")
     plan.add_argument("--policy", type=Path)
+    plan.add_argument("--ports", help="ExtremeXOS: the ports the switch lists in show ports no-refresh, e.g. 1-12")
+    schema_plan = commands.add_parser("schema-plan", help="plan a bounded transaction against a pinned schema and rollback calibration")
+    schema_plan.add_argument("--library", required=True, type=Path)
+    schema_plan.add_argument("--schema-sha256", required=True)
+    schema_plan.add_argument("--calibration", required=True, type=Path)
+    schema_plan.add_argument("--calibration-sha256", required=True)
+    schema_plan.add_argument("--snapshot", required=True, type=Path)
+    schema_plan.add_argument("--operations", required=True, type=Path)
+    schema_plan.add_argument("--policy", type=Path)
+    schema_verify = commands.add_parser("schema-verify", help="compare a snapshot with a schema transaction prediction")
+    schema_verify.add_argument("--library", required=True, type=Path)
+    schema_verify.add_argument("--schema-sha256", required=True)
+    schema_verify.add_argument("--plan", required=True, type=Path)
+    schema_verify.add_argument("--snapshot", required=True, type=Path)
+    schema_verify.add_argument("--expect", choices=("after", "before"), default="after")
     check = commands.add_parser("verify", help="compare a snapshot with the prediction of a plan")
     check.add_argument("--plan", required=True, type=Path)
     check.add_argument("--snapshot", required=True, type=Path)
@@ -176,10 +205,27 @@ def main(argv=None) -> int:
         if args.command in ("apply", "status", "recover", "unblock", "notify-retry", "undo", "enroll",
                             "preview", "doctor"):
             return _operate(args)
+        if args.command in ("schema-plan", "schema-verify"):
+            from netops_core import schema
+            from netops_admin import schema_plan, schema_policy
+            try:
+                library = schema.load(args.library, args.schema_sha256)
+                text = _read(args.snapshot).decode("utf-8")
+            except (ValueError, UnicodeError):
+                raise Rejected(["the pinned schema or UTF-8 snapshot cannot be read"]) from None
+            if args.command == "schema-plan":
+                calibration = schema_policy.load(library, args.calibration, args.calibration_sha256)
+                document = schema_plan.build(library, calibration, text, _json(args.operations, "schema operations"),
+                                             _policy(args.policy))
+                _emit(document)
+                return 0
+            result = schema_plan.verify(library, _json(args.plan, "schema plan"), text, args.expect)
+            _emit(result)
+            return 0 if result["result"] == "match" else EXIT_MISMATCH
         if args.command == "plan":
             request = parse_request(_read(args.request))
             document = build_plan(args.platform, _read(args.snapshot), request,
-                                  firmware=args.firmware, protected=_policy(args.policy))
+                                  firmware=args.firmware, protected=_policy(args.policy), ports=_ports(args.ports))
             _emit(document)
             return 0
         result = verify(_json(args.plan, "plan"), _read(args.snapshot), expect=args.expect)

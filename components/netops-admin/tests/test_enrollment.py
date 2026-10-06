@@ -50,6 +50,16 @@ def test_successful_enrollment_allows_a_normal_change(tmp_path):
     assert execute.apply(runtime, name, request())["result"] == "confirmed"
 
 
+def test_enrollment_is_refused_when_the_export_status_covers_another_audit_file(tmp_path):
+    runtime, target, name = ready(tmp_path)
+    with open(runtime.config.export_status_file, "w") as handle:
+        json.dump({"updated_at": time.time(), "pending": 0, "audit_file": "/var/lib/netops-admin-audit/audit.jsonl"}, handle)
+    with pytest.raises(Rejected, match="another audit file"):
+        enrollment.run(runtime, name, "192.0.2.254/32")
+    assert target.applied_blocks == []
+    assert runtime.store.enrollment(name) is None
+
+
 def test_failed_notification_prevents_probe_write_and_invalidates_previous_result(tmp_path):
     runtime, target, name = ready(tmp_path)
     runtime.notifier = lambda record: "failed"

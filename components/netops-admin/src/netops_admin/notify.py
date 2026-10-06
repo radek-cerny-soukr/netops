@@ -4,16 +4,19 @@ import re
 import ssl
 import urllib.error
 import urllib.request
-from pathlib import Path
+
+from netops_admin.blocking import blocks
+from netops_core.inputs import InputError, read_regular
 
 TOPIC = re.compile(r"^[A-Za-z0-9_-]{8,64}$")
+TOPIC_FILE_MAX_BYTES = 64 * 1024
 PRIORITIES = {"confirmed": "3", "rejected": "3", "reverted": "4", "unknown": "5", "revert-failed": "5"}
 
 
 def _topic(topic_file: str) -> str | None:
     try:
-        lines = Path(topic_file).read_text(encoding="utf-8").splitlines()
-    except OSError:
+        lines = read_regular(topic_file, TOPIC_FILE_MAX_BYTES).decode("utf-8").splitlines()
+    except (OSError, InputError, ValueError):
         return None
     for line in lines:
         name, separator, value = line.strip().partition("=")
@@ -38,7 +41,7 @@ def message(record: dict) -> tuple:
         lines.append("other administrator sessions were active: %d" % record["foreign_sessions"])
     if record.get("differences"):
         lines.append("differences: %d" % len(record["differences"]))
-    if record.get("result") in ("unknown", "revert-failed") or record.get("reason") in ("administrator table", "foreign change", "not persisted"):
+    if blocks(record.get("result"), record.get("reason")):
         lines.append("the device is blocked until a person investigates it")
     return title.encode("ascii", "replace").decode("ascii"), "\n".join(lines)
 

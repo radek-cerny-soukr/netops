@@ -7,12 +7,35 @@ import re
 
 from netops_auditor import l1_fortios
 
-from netops_admin.errors import Rejected
+from netops_admin.errors import (SNAPSHOT_FIRMWARE_MISMATCH, SNAPSHOT_INCOMPLETE, SNAPSHOT_SCOPE_UNSUPPORTED,
+                                 SNAPSHOT_UNREADABLE, Rejected, SnapshotRejected)
 
 HEADER = re.compile(
     r"^#config-version=[A-Z0-9]+-([0-9]+\.[0-9]+\.[0-9]+)-FW-build([0-9]+)-[0-9]+:opmode=[0-9]+:vdom=([0-9]+)"
 )
 MULTI_VDOM_SECTIONS = ("vdom", "global")
+CONTROL = re.compile(r"[\x00-\x1f\x7f]")
+NOT_FOUND = "entry is not found in table"
+UNNAMED_PARTS = ("password", "passwd", "passphrase", "pwd", "secret", "psk", "key", "community", "token",
+                 "comment", "description")
+UNNAMED_ATTRIBUTES = {("system snmp community",): ("name",)}
+
+
+def _named_values(node):
+    for name, attr in node.attrs.items():
+        folded = name.casefold()
+        if any(part in folded for part in UNNAMED_PARTS) or name in UNNAMED_ATTRIBUTES.get(node.path[:1], ()):
+            continue
+        yield name, attr.values
+
+
+def parse_snapshot(text: str):
+    try:
+        return l1_fortios.parse(text)
+    except l1_fortios.TruncatedError as exc:
+        raise SnapshotRejected(["snapshot is cut off: %s" % exc], SNAPSHOT_INCOMPLETE) from None
+    except l1_fortios.ParseError as exc:
+        raise SnapshotRejected(["snapshot does not parse: %s" % exc], SNAPSHOT_UNREADABLE) from None
 
 
 class Snapshot:
@@ -20,19 +43,20 @@ class Snapshot:
         first = text.lstrip("﻿").split("\n", 1)[0].strip()
         match = HEADER.match(first)
         if match is None:
-            raise Rejected(["snapshot does not identify its firmware: the #config-version header is missing"])
+            raise SnapshotRejected(["snapshot does not identify its firmware: the #config-version header is missing"],
+                                   SNAPSHOT_INCOMPLETE)
         self.firmware = "%s build%s" % (match.group(1), match.group(2))
         if firmware is not None and firmware != self.firmware:
-            raise Rejected(["snapshot firmware %r differs from the expected %r" % (self.firmware, firmware)])
+            raise SnapshotRejected(["snapshot firmware %r differs from the expected %r" % (self.firmware, firmware)],
+                                   SNAPSHOT_FIRMWARE_MISMATCH)
         if match.group(3) != "0":
-            raise Rejected(["snapshot has VDOMs enabled; only single-VDOM configurations are evaluated"])
-        try:
-            self.root = l1_fortios.parse(text)
-        except l1_fortios.ParseError as exc:
-            raise Rejected(["snapshot does not parse: %s" % exc]) from None
+            raise SnapshotRejected(["snapshot has VDOMs enabled; only single-VDOM configurations are evaluated"],
+                                   SNAPSHOT_SCOPE_UNSUPPORTED)
+        self.root = parse_snapshot(text)
         present = [name for name in MULTI_VDOM_SECTIONS if name in self.root.sub]
         if present:
-            raise Rejected(["snapshot holds %s sections that this profile does not evaluate" % ", ".join(present)])
+            raise SnapshotRejected(["snapshot holds %s sections that this profile does not evaluate" % ", ".join(present)],
+                                   SNAPSHOT_SCOPE_UNSUPPORTED)
 
     def _walk(self):
         stack = [self.root]
@@ -58,9 +82,10 @@ class Snapshot:
             return None
         return dict(section.entries)
 
-    def entry_state(self, entry):
+    def entry_state(self, entry, lists=()):
         attributes = {name: attr.value() for name, attr in entry.attrs.items() if not attr.unset}
-        unsupported = []
+        unsupported = ["%s: a list item holds whitespace" % name for name in lists
+                       if name in entry.attrs and any(any(c.isspace() for c in item) for item in entry.attrs[name].values)]
         if entry.sub or entry.entries:
             unsupported.append("nested configuration")
         unsupported.extend("unset %s" % name for name, attr in entry.attrs.items() if attr.unset)
@@ -74,8 +99,8 @@ class Snapshot:
         for node in self._walk():
             if node.path[:2] == (table, key):
                 continue
-            for name, attr in node.attrs.items():
-                if any(token.casefold() == folded for token in attr.values):
+            for name, values in _named_values(node):
+                if any(token.casefold() == folded for token in values):
                     found.append("%s: %s" % (" / ".join(node.path) or "(top)", name))
         return sorted(found)
 
@@ -84,8 +109,8 @@ class Snapshot:
         for node in self._walk():
             if any(entry.casefold() == folded for entry in node.entries):
                 return True
-            for attr in node.attrs.values():
-                if any(token.casefold() == folded for token in attr.values):
+            for _name, values in _named_values(node):
+                if any(token.casefold() == folded for token in values):
                     return True
         return False
 
@@ -129,8 +154,14 @@ def load(text: str, firmware: str | None) -> Snapshot:
     return Snapshot(text, firmware)
 
 
+def absent(snapshot, table: str, key: str) -> list:
+    return ["object %r does not exist" % key]
+
+
 def _quoted(value: str) -> str:
-    return '"%s"' % value
+    if CONTROL.search(value):
+        raise Rejected(["a value holds a control character and cannot be written safely"])
+    return '"%s"' % value.replace("\\", "\\\\").replace('"', '\\"')
 
 
 def _value(profile, name: str, value: str) -> str:
@@ -217,6 +248,8 @@ def safeguard_names(change_id: str) -> dict:
 
 
 def _script_lines(inverse: list) -> list:
+    if any("%%" in line for line in inverse):
+        raise Rejected(["automation placeholders cannot be restored as literal values by the timed safeguard"])
     return [line.strip() for line in inverse]
 
 
@@ -292,10 +325,21 @@ def safeguard_state(change_id: str, answers: dict, inverse: list, fire_at: str) 
     return problems
 
 
+def _entry_absent(text: str, section: str, name: str) -> bool:
+    if any(line.strip() == NOT_FOUND for line in text.splitlines()):
+        return True
+    try:
+        root = l1_fortios.parse(text)
+    except l1_fortios.ParseError:
+        return False
+    node = root.sub.get(section)
+    return node is not None and name not in node.entries
+
+
 def safeguard_absent(change_id: str, answers: dict) -> bool:
     names = safeguard_names(change_id)
     return all(
-        _single_entry(answers.get(kind, ""), section, names[kind]) is None
+        _entry_absent(answers.get(kind, ""), section, names[kind])
         for kind, section in (("action", "system automation-action"), ("trigger", "system automation-trigger"),
                               ("stitch", "system automation-stitch"))
     )
@@ -334,21 +378,26 @@ def visible_admins(text: str) -> list:
     return sorted(_admin_table(text).entries)
 
 
-def admin_fingerprint(text: str, snapshot_text=None) -> str:
+def admin_fingerprint(text: str, snapshot_text=None, immutable_profiles=()) -> str:
+    if immutable_profiles not in ((), ("super_admin",)):
+        raise Rejected(["only the documented immutable super_admin role may be omitted from a schema profile export"])
     table = _admin_table(text)
     body = {name: {attr: [list(value.values), value.unset] for attr, value in sorted(entry.attrs.items())}
             for name, entry in sorted(table.entries.items())}
     if snapshot_text is not None:
-        tree = l1_fortios.parse(snapshot_text)
+        tree = parse_snapshot(snapshot_text)
         section = tree.section("system accprofile")
         names = {entry.value("accprofile") for entry in table.entries.values() if entry.value("accprofile")}
         def profile_state(node):
             return {"attrs": {k: [list(v.values), v.unset] for k, v in node.attrs.items()},
                     "sub": {k: profile_state(v) for k, v in node.sub.items()},
                     "entries": {k: profile_state(v) for k, v in node.entries.items()}}
-        if names and (section is None or names - set(section.entries)):
+        mutable = names - set(immutable_profiles)
+        if mutable and (section is None or mutable - set(section.entries)):
             raise Rejected(["an administrator access profile is not visible in the snapshot"])
-        body = {"accounts": body, "profiles": {name: profile_state(section.entries[name]) for name in names}}
+        body = {"accounts": body, "profiles": {name: profile_state(section.entries[name]) for name in mutable}}
+        if names & set(immutable_profiles):
+            body["immutable_profiles"] = sorted(names & set(immutable_profiles))
     return hashlib.sha256(json.dumps(body, sort_keys=True).encode("utf-8")).hexdigest()
 
 

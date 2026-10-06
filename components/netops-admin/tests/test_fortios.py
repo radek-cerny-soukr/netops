@@ -150,9 +150,7 @@ def test_delete_inverse_verifies_despite_a_new_uuid(fortios_snapshot):
     ({"changes": {"subnet": "192.0.2.300/32"}}, "without host bits"),
     ({"changes": {"subnet": "192.0.2.30/32", "color": 3}}, "not in the profile"),
     ({"changes": {"subnet": "192.0.2.30/32", "comment": "x" * 256}}, "longer than 255"),
-    ({"changes": {"subnet": "192.0.2.30/32", "comment": 'say "hi"'}}, "printable ASCII only"),
     ({"changes": {"subnet": "192.0.2.30/32", "comment": "line\nbreak"}}, "printable ASCII only"),
-    ({"changes": {"subnet": "192.0.2.30/32", "comment": "back\\slash"}}, "printable ASCII only"),
     ({"changes": {"subnet": "192.0.2.30/32", "comment": "café"}}, "printable ASCII only"),
     ({"changes": {"subnet": "192.0.2.30/32", "comment": ""}}, "use null"),
     ({"key": "bad name"}, "does not match"),
@@ -176,7 +174,8 @@ def test_policy_protects_additional_objects(fortios_snapshot):
     ("#config-version=", "#config-versio=", "header is missing"),
     (":vdom=0:", ":vdom=1:", "VDOMs enabled"),
     ("config firewall address\n", "config firewall address6\n", "no firewall address section"),
-    ("    next\nend\nconfig firewall policy", "    next\nconfig firewall policy", "does not parse"),
+    ("    next\nend\nconfig firewall policy", "    next\nconfig firewall policy", "snapshot is cut off"),
+    ("    next\nend\nconfig firewall policy", "    next\nend\nend\nconfig firewall policy", "does not parse"),
 ])
 def test_snapshot_rejections(fortios_snapshot, old, new, fragment):
     rejected(replace(fortios_snapshot, old, new), fragment)

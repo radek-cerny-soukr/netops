@@ -38,6 +38,22 @@ def run(runtime, device_name, probe):
     device = runtime.config.devices.get(device_name)
     if device is None:
         raise Rejected(["device is not configured"])
+    if device.schema is not None:
+        from netops_admin import schema_runtime
+        from netops_admin.schema_request import Transaction
+        _lib, calibration = schema_runtime.policy(device)
+        grant = calibration.objects.get("firewall address", {}).get("vdom", {})
+        domains = grant.get("vdom_names", device.schema["vdoms"])
+        allowed = grant.get("operations", {}).get("create", [])
+        if "subnet" not in allowed or not domains:
+            raise Rejected(["schema enrollment requires a calibrated address create probe"])
+        changes = {"subnet": probe}
+        if "comment" in allowed:
+            changes["comment"] = "operator enrollment self-test"
+        request = Transaction(device_name, [{"path":"firewall address","scope":domains[0],"owners":[PROBE_PREFIX+secrets.token_hex(6)],
+                                           "op":"create","changes":changes}],
+                              "operator enrollment self-test","operator enrollment self-test","enroll-"+secrets.token_hex(12))
+        return execute._apply(runtime, device_name, request, execute.ANY_STATE, enrolling=True)
     key = PROBE_PREFIX + secrets.token_hex(6)
     table = "firewall address" if device.platform == "fortios" else "vlan"
     changes = {"subnet": probe} if device.platform == "fortios" else {"tag": probe}
@@ -56,12 +72,15 @@ def complete(runtime, device, access, record):
     if record.get("notification") != "sent":
         return record
     plan = record["plan"]
-    adapter = execute._adapter(device.platform)
+    from netops_admin import schema_runtime
+    adapter = execute._adapter(device.platform, schema_runtime.is_plan(plan))
     try:
         text = access.snapshot()
         if engine.verify(plan, text.encode(), expect="before")["result"] != "match":
             raise Rejected(["enrollment cleanup did not restore the initial configuration"])
-        if engine.observed_state(plan, adapter.observe(access, plan)) is not None:
+        observed = engine.observed_state(plan, adapter.observe(access, plan))
+        expected = plan["predicted"]["before"] if schema_runtime.is_plan(plan) else None
+        if observed != expected:
             raise Rejected(["the check account still sees the enrollment probe"])
         accounts = adapter.accounts_check(access, device, text)
         if accounts != record["accounts"] or not adapter.safeguard_absent(access, record):

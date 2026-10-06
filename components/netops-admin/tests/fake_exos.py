@@ -23,6 +23,7 @@ class FakeExos:
         self.accounts = ["admin", "netops-rw"]
         self.account_hashes = {}
         self.port_strings = {"11": "Zyxel-5p", "12": "Uplink-SW3"}
+        self.port_numbers = [str(number) for number in range(1, 17)]
         self.foreign_session_users = []
         self.profiles, self.timers = {}, {}
         self.unsaved = False
@@ -176,6 +177,12 @@ class FakeExos:
                      for index, name in enumerate(self.foreign_session_users)]
             return "    #       Login Time               User     Type    Auth          Auth Location\n====\n" + \
                 "\n".join(rows) + "\n"
+        if command == "show ports no-refresh":
+            rows = "".join("%-8s %-20s Default             E     R\n" % (port, self.port_strings.get(port, ""))
+                           for port in self.port_numbers)
+            return ("Port Summary\nPort     Display              VLAN Name           Port  Link  Speed  Duplex\n"
+                    "#        String               (or # VLANs)        State State Actual Actual\n"
+                    "=====\n%s=====\n   Port State: D-Disabled, E-Enabled\n" % rows)
         if command == "show version":
             return "Image   : ExtremeXOS version %s by release-manager\n" % self.firmware
         if command == "show upm timers":
@@ -183,11 +190,11 @@ class FakeExos:
                                                                timer["next"].strftime(TIME_FORMAT) if timer["next"] else "")
                            for name, timer in self.timers.items())
             clock = "Current Time: %s\n" % self.clock.strftime(TIME_FORMAT) if self.timers else ""
-            return "%s----\nUPM               Profile       Flags              Next Execution\n----\n%s----\n" % (
-                clock, rows)
+            return "%s----\nUPM               Profile       Flags              Next Execution\n----\n%s----\n\nNumber of UPM Timers: %d\n" % (
+                clock, rows, len(self.timers))
         if command == "show upm profile":
             return "====\nUPM Profile          Events                 Flags Ports\n====\n" + "".join(
-                "%-20s UPM-Timer(%s e \n" % (name, name[:13]) for name in self.profiles) + "====\n"
+                "%-20s UPM-Timer(%s e \n" % (name, name[:13]) for name in self.profiles) + "====\nNumber of UPM Profiles: %d\n" % len(self.profiles)
         if command.startswith("show upm profile "):
             name = command.split()[3]
             if name not in self.profiles:

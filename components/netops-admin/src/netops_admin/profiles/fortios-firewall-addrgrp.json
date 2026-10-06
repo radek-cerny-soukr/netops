@@ -2,6 +2,7 @@
   "platform": "fortios",
   "table": "firewall addrgrp",
   "versions": [
+    "8.0.0 build0167",
     "7.6.7 build3704"
   ],
   "ops": [
@@ -35,5 +36,5 @@
   ],
   "reserved_values": {},
   "inverse_identity_changes": {},
-  "rollback_evidence": "FortiOS 7.6.7 build3704, 2026-09-24: membership additions and removals restored by a one-shot automation stitch. An empty static group is rejected by the planner."
+  "rollback_evidence": "FortiOS 8.0.0 build0167, 2026-09-29: a one-shot automation stitch with a cli-script action restored member additions and removals by setting the full member list, in one transaction per table; deleting the stitch before its time kept the change. FortiOS 7.6.7 build3704, 2026-09-24: membership additions and removals restored by the same mechanism. An empty static group is rejected by the planner."
 }

@@ -17,7 +17,7 @@ Version 0.2.0 adds enrollment, an audit of the predicted configuration, and thre
    Enrollment creates an unreferenced temporary object, verifies it through the check account, deliberately lets the on-device timer restore the original state, and verifies cleanup and notification. It takes at least the configured safeguard interval. An interrupted or failed run never grants permission to write; investigate, recover if needed, and enroll again.
 5. Before the first change, `netops-admin doctor --config … --device …` lists every condition that is still missing or refused; `netops-admin preview --config … --device … --request …` shows the plan and the reasons `apply` would refuse a request, without changing anything. Submit one request using `apply` or MCP `admin_apply`. Read `result`, `reason`, notification and audit delivery separately. A configuration change marked `confirmed` with `reason: not persisted` requires investigation and blocks further changes. Use `undo` for a confirmed change that should be returned.
 
-Enrollment binds the actual build, pinned device identity, access configuration, account and access-profile fingerprint, operator policy and profile files. Changing these requires another successful test. The enrollment probe namespace `netops-enroll-` is reserved. Enrollment is an operator CLI command, not an MCP tool. FortiOS 7.6.x and EXOS 33.7.x builds still need enrollment individually; FortiOS 8.0.0 remains limited to the measured address profile and build. FortiOS 7.4 and 8.0.1 or later are not supported.
+Enrollment binds the actual build, pinned device identity, access configuration, account and access-profile fingerprint, operator policy and profile files. Changing these requires another successful test. The enrollment probe namespace `netops-enroll-` is reserved. Enrollment is an operator CLI command, not an MCP tool. FortiOS 7.6.x and EXOS 33.7.x builds still need enrollment individually; FortiOS 8.0.0 is limited to build0167, where the address, address group and DHCP reservation profiles were measured. FortiOS 7.4 and 8.0.1 or later are not supported.
 
 ## FortiOS command compatibility
 
@@ -28,8 +28,8 @@ The snapshot header selects the actual firmware. A configured `firmware` is an a
 | Address `edit`, `set subnet`, `set comment`, `unset comment`, `delete` | Supported; measured on 7.6.7 build3704 | Supported; exact build only |
 | Automation action, one-time scheduled trigger, stitch, readback and removal | Measured timer mechanism | Same measured timer mechanism |
 | Snapshot and object `show`, system status/clock, administrator visibility and session list | Measured check commands | Measured check commands |
-| Static address-group membership | Supported after enrollment | Rejected before device writes |
-| DHCP MAC reservation create/update/delete | Supported after enrollment | Rejected before device writes |
+| Static address-group membership | Supported after enrollment | Supported after enrollment; exact build only |
+| DHCP MAC reservation create/update/delete | Supported after enrollment | Supported after enrollment; exact build only |
 | Other 8.0 builds or later firmware | Not applicable | Rejected; no fallback to 7.6 commands |
 
 Shared commands are retained only within the tested profiles; one working command does not establish compatibility for the rest of the CLI. Enrollment remains mandatory for every actual device/build. Operator account provisioning has additional interactive confirmations on 8.0.0, described in [installation](installation.md); it is not an Admin operation.
@@ -48,7 +48,7 @@ EXOS example:
 {"version":1,"platform":"exos","protected_ports":["23","24"],"management_vlans":["Mgmt"],"port_vlans":{"10":{"tagged":["guest","voice"],"untagged":["users","staging"]}}}
 ```
 
-The EXOS membership operation requires an explicit VLAN allowlist for the selected port and exactly one known native VLAN. Protect every management and uplink port, including all aggregation members; protect management VLANs too. Link aggregation membership changes are refused. A native VLAN move accounts for EXOS automatic movement and renders a move back as its inverse.
+The EXOS membership operation requires an explicit VLAN allowlist for the selected port and exactly one known native VLAN; a port that was never configured has the implicit `Default` as its native VLAN when the switch lists it ([execution](execution.md#extremexos)). Protect every management and uplink port, including all aggregation members; protect management VLANs too. Link aggregation membership changes are refused. A native VLAN move accounts for EXOS automatic movement and renders a move back as its inverse.
 
 Policy-dependent rules report when their policy is absent. Mandatory rules that cannot evaluate the snapshot refuse the operation. The predicted configuration is audited before installing a safeguard; the observed configuration is audited again before confirmation. New or changed high/medium findings refuse confirmation. A policy violation on the selected object is refused even if it already existed. The policy format is documented in Auditor's `docs/management-policy.md`.
 

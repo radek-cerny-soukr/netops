@@ -50,6 +50,10 @@ def prechecks(access, device, snapshot_text, spec) -> list:
     return []
 
 
+def ports(access, table: str):
+    return None
+
+
 def leftovers(access) -> list:
     return fortios.leftover_safeguards(access.query(fortios.QUERY_STITCHES))
 

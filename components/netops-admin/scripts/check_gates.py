@@ -22,32 +22,49 @@ PLANNING_MODULES = frozenset((
     "__future__", "argparse", "dataclasses", "hashlib", "ipaddress", "json", "pathlib", "re", "sys",
 ))
 PLANNING_FROM = {"netops_auditor": frozenset(("l1_fortios", "l1_exos")), "importlib": frozenset(("resources",))}
-EXECUTION_MODULES = PLANNING_MODULES | frozenset(("datetime", "fcntl", "os", "secrets", "time"))
+EXECUTION_MODULES = PLANNING_MODULES | frozenset(("datetime", "fcntl", "os", "secrets", "stat", "time"))
+INPUTS = {"netops_core.inputs": frozenset(("InputError", "read_regular"))}
 FILE_RULES = {
     "access.py": (
         EXECUTION_MODULES,
         {
-            "netops_core": frozenset(("hostkey", "prompt", "session", "ssh", "vault")),
+            "netops_core": frozenset(("hostkey", "prompt", "session", "ssh", "vault", "schema", "fortios")),
             "netops_auditor": frozenset(("collect",)),
         },
     ),
-    "notify.py": (EXECUTION_MODULES | frozenset(("ssl", "urllib.error", "urllib.request")), {}),
+    "notify.py": (EXECUTION_MODULES | frozenset(("ssl", "urllib.error", "urllib.request")), INPUTS),
     "execute.py": (EXECUTION_MODULES, {}),
     "enrollment.py": (EXECUTION_MODULES, {}),
     "exec_fortios.py": (EXECUTION_MODULES, {}),
     "exec_exos.py": (EXECUTION_MODULES, {}),
-    "membership.py": (PLANNING_MODULES, {"netops_auditor.management": frozenset(("exos_model", "ports"))}),
+    "membership.py": (PLANNING_MODULES, {"netops_auditor.management": frozenset(("exos_model", "port_inventory", "ports"))}),
     "audit_gate.py": (PLANNING_MODULES, {"netops_auditor": frozenset(("checks_exos", "checks_fortios", "management")),
-                                         "netops_auditor.engine": frozenset(("load_catalog", "run"))}),
-    "mcp_server.py": (EXECUTION_MODULES | frozenset(("threading", "typing")), {"fastmcp": frozenset(("FastMCP",))}),
-    "state.py": (EXECUTION_MODULES, {}),
-    "audit.py": (EXECUTION_MODULES | {"math"}, {}),
-    "config.py": (EXECUTION_MODULES, {"netops_auditor.management": frozenset(("load_policy",))}),
-    "cli.py": (EXECUTION_MODULES, {}),
+                                         "netops_auditor.engine": frozenset(("EVALUATED", "evaluate", "load_catalog")),
+                                         "netops_auditor.state": frozenset(("evaluation_complete",))}),
+    "mcp_server.py": (EXECUTION_MODULES | frozenset(("functools", "threading", "typing")),
+                      {"fastmcp": frozenset(("FastMCP",)), "fastmcp.exceptions": frozenset(("ToolError",))}),
+    "state.py": (EXECUTION_MODULES | {"math"}, INPUTS),
+    "audit.py": (EXECUTION_MODULES | {"math"}, INPUTS),
+    "config.py": (EXECUTION_MODULES, dict(INPUTS, **{"netops_auditor.management": frozenset(("load_policy",))})),
+    "cli.py": (EXECUTION_MODULES, dict(INPUTS, **{"netops_core": frozenset(("schema",))})),
+    "schema_request.py": (PLANNING_MODULES | {"copy"}, {}),
+    "exec_schema_fortios.py": (EXECUTION_MODULES, {"netops_core": frozenset(("fortios",))}),
+    "schema_runtime.py": (PLANNING_MODULES | {"copy"}, {
+        "netops_core": frozenset(("fortios", "schema")),
+        "netops_auditor": frozenset(("schema_checks", "scoped_fortios", "checks_fortios")),
+        "netops_auditor.engine": frozenset(("EVALUATED",)),
+        "netops_auditor.state": frozenset(("evaluation_complete",)),
+    }),
+    "schema_policy.py": (PLANNING_MODULES | {"copy"},
+                         dict(INPUTS, **{"netops_auditor.schema_checks": frozenset(("SECRET_ATTRIBUTE",))})),
+    "schema_plan.py": (PLANNING_MODULES | {"copy"}, {
+        "netops_core": frozenset(("fortios", "schema")),
+        "netops_auditor": frozenset(("schema_checks",)),
+    }),
 }
 FORBIDDEN_NAMES = frozenset(("eval", "exec", "compile", "__import__", "breakpoint"))
 FORBIDDEN_ATTRIBUTES = frozenset(("system", "popen", "spawnv", "spawnve", "execv", "execve", "fork"))
-DEPENDENCIES = ["netops-auditor==0.2.8", "netops-core==0.2.5"]
+DEPENDENCIES = ["netops-auditor==0.2.9", "netops-core==0.2.6"]
 COMPONENT = "netops-admin"
 PLATFORMS = frozenset(("fortios", "exos"))
 RELEASE_SELECTOR = ("scripts", "create_release_artifacts.py")
@@ -168,6 +185,7 @@ FILE_SUFFIXES = frozenset(
 )
 
 VERSION_PATTERN = re.compile(r"^[0-9]+\.[0-9]+(?:[.+-][0-9A-Za-z.+-]+)?$")
+CHANGELOG_HEADING = re.compile(r"([0-9]+\.[0-9]+(?:[.+-][0-9A-Za-z.+-]+)?)(?:[ \t]+-[ \t]+.+)?")
 REQUIREMENT_PATTERN = re.compile(
     r"^[A-Za-z0-9][A-Za-z0-9._-]*(?:\[[A-Za-z0-9,._-]+\])?==[0-9A-Za-z][0-9A-Za-z.*+!-]*$"
 )
@@ -374,6 +392,26 @@ def gate_version_metadata(root: Path) -> list:
                     " regenerate it with scripts/generate_sbom.py"
                     % (relative, named, project_version)
                 )
+
+    changelog = root / "CHANGELOG.md"
+    relative = _relative(root, changelog)
+    try:
+        headings = [line[3:].strip() for line in changelog.read_text(encoding="utf-8").splitlines() if line.startswith("## ")]
+    except (OSError, UnicodeError) as error:
+        errors.append("%s is unreadable: %s" % (relative, error))
+    else:
+        matches = [CHANGELOG_HEADING.fullmatch(heading) for heading in headings]
+        versions = [match.group(1) for match in matches if match is not None]
+        if project_version is not None and (
+            not matches
+            or matches[0] is None
+            or matches[0].group(1) != project_version
+            or versions.count(project_version) != 1
+            or len(versions) != len(set(versions))
+        ):
+            errors.append(
+                "%s does not open with the only heading of version %r" % (relative, project_version)
+            )
 
     requirements = root / "requirements-mcp.txt"
     relative = _relative(root, requirements)

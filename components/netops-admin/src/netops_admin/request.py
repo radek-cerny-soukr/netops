@@ -7,6 +7,7 @@ import re
 from dataclasses import dataclass
 
 from netops_admin.errors import Rejected
+from netops_admin.jsontext import loads
 from netops_admin.profiles import OPS
 
 MAX_REQUEST_BYTES = 16384
@@ -20,6 +21,8 @@ REQUEST_ID = re.compile(r"^[A-Za-z0-9._:-]{8,64}$")
 DEVICE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
 ATTRIBUTE_NAME = re.compile(r"^[a-z][a-z0-9-]{0,63}$")
 TEXT_VALUE = re.compile(r'^[\x20-\x21\x23-\x5b\x5d-\x7e]*$')
+QUOTED_TEXT_VALUE = re.compile(r'^[\x20-\x7e]*$')
+QUOTED_TEXT_PLATFORMS = ("fortios",)
 
 
 @dataclass(frozen=True)
@@ -52,11 +55,20 @@ def _text(value, label, limit):
 
 def parse_request(raw: bytes) -> Request:
     if len(raw) > MAX_REQUEST_BYTES:
+        document = None
+        if len(raw) <= 131072:
+            try:
+                document = loads(raw, "request")
+            except Rejected:
+                pass
+        if isinstance(document, dict) and "operations" in document:
+            from netops_admin.schema_request import parse
+            return parse(raw)
         raise Rejected(["request is larger than %d bytes" % MAX_REQUEST_BYTES])
-    try:
-        data = json.loads(raw.decode("utf-8"))
-    except (UnicodeDecodeError, ValueError):
-        raise Rejected(["request is not UTF-8 JSON"]) from None
+    data = loads(raw, "request")
+    if isinstance(data, dict) and "operations" in data:
+        from netops_admin.schema_request import parse
+        return parse(raw)
     if not isinstance(data, dict):
         raise Rejected(["request must be a JSON object"])
     unknown = set(data) - REQUEST_FIELDS
@@ -91,7 +103,7 @@ def parse_request(raw: bytes) -> Request:
     )
 
 
-def canonical_value(attribute, value) -> str:
+def canonical_value(attribute, value, platform: str) -> str:
     name = attribute.name
     if attribute.type == "name-list":
         if not isinstance(value, list) or len(value) > 128 or not all(
@@ -140,7 +152,10 @@ def canonical_value(attribute, value) -> str:
         raise Rejected(["attribute %s: use null to remove the value, not an empty string" % name])
     if len(value) > attribute.max_length:
         raise Rejected(["attribute %s is longer than %d characters" % (name, attribute.max_length)])
-    if not TEXT_VALUE.fullmatch(value):
+    if attribute.type == "text" and platform in QUOTED_TEXT_PLATFORMS:
+        if not QUOTED_TEXT_VALUE.fullmatch(value):
+            raise Rejected(["attribute %s may hold printable ASCII only" % name])
+    elif not TEXT_VALUE.fullmatch(value):
         raise Rejected(["attribute %s may hold printable ASCII only, without quotes or backslashes" % name])
     if attribute.pattern is not None and not attribute.pattern.fullmatch(value):
         raise Rejected(["attribute %s must match %s" % (name, attribute.pattern.pattern)])

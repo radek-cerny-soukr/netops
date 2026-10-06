@@ -4,13 +4,14 @@ import hashlib
 import json
 
 from netops_admin import __version__, exos, fortios, membership
-from netops_admin.errors import Rejected
+from netops_admin.errors import SNAPSHOT_INCOMPLETE, SNAPSHOT_UNREADABLE, Rejected, SnapshotRejected
 from netops_admin.profiles import find_profile
 from netops_admin.request import canonical_value
 
 PLAN_FORMAT = "netops-admin-plan/1"
 ADAPTERS = {"fortios": fortios, "exos": exos}
 MAX_SNAPSHOT_BYTES = 16 * 1024 * 1024
+REFERENCE_TEXT_ATTRIBUTES = {"vlan-membership": ("untagged",)}
 
 
 def adapter_for(platform: str):
@@ -22,11 +23,11 @@ def adapter_for(platform: str):
 
 def decode_snapshot(raw: bytes) -> str:
     if len(raw) > MAX_SNAPSHOT_BYTES:
-        raise Rejected(["snapshot is larger than %d bytes" % MAX_SNAPSHOT_BYTES])
+        raise SnapshotRejected(["snapshot is larger than %d bytes" % MAX_SNAPSHOT_BYTES], SNAPSHOT_UNREADABLE)
     try:
         return raw.decode("utf-8")
     except UnicodeDecodeError:
-        raise Rejected(["snapshot is not UTF-8"]) from None
+        raise SnapshotRejected(["snapshot is not UTF-8"], SNAPSHOT_UNREADABLE) from None
 
 
 def normalize(profile, attributes: dict):
@@ -53,6 +54,9 @@ def normalize(profile, attributes: dict):
 
 
 def observed_state(plan, attributes):
+    from netops_admin import schema_runtime
+    if schema_runtime.is_plan(plan):
+        return attributes
     if attributes is None:
         return None
     profile = find_profile(plan["platform"], plan["table"], plan["firmware"])
@@ -71,7 +75,8 @@ def _find_entry(entries: dict, key: str):
 
 
 def _entry_state(snapshot, profile, entry):
-    attributes, unsupported = snapshot.entry_state(entry)
+    lists = [name for name, attribute in profile.attributes.items() if attribute.type == "name-list"]
+    attributes, unsupported = snapshot.entry_state(entry, lists)
     state, unknown = normalize(profile, attributes)
     return state, unsupported + unknown
 
@@ -90,7 +95,7 @@ def canonical_changes(profile, request):
                 canonical[name] = None
             continue
         try:
-            canonical[name] = canonical_value(attribute, value)
+            canonical[name] = canonical_value(attribute, value, profile.platform)
         except Rejected as exc:
             reasons.extend(exc.reasons)
             continue
@@ -108,15 +113,56 @@ def _without_defaults(profile, values: dict) -> dict:
     }
 
 
+def _referenced(profile, state) -> set:
+    names = set()
+    for name, value in (state or {}).items():
+        attribute = profile.attributes.get(name)
+        if attribute is not None and (attribute.type == "name-list"
+                                      or name in REFERENCE_TEXT_ATTRIBUTES.get(profile.table, ())):
+            names.update(str(value).split())
+    return names
+
+
+def _linked(snapshot, profile, key) -> set:
+    if profile.platform != "exos" or profile.table not in ("ports", "vlan"):
+        return set()
+    _vlans, members, _descriptions = membership.model(snapshot)
+    if profile.table == "ports":
+        modes = members.get(key, {})
+        return set(modes.get("tagged", ())) | set(modes.get("untagged", ()))
+    folded = key.casefold()
+    return {port for port, modes in members.items()
+            if any(name.casefold() == folded for names in modes.values() for name in names)}
+
+
+def _protected_references(snapshot, profile, protected, key, before, after) -> list:
+    guarded = {name.casefold() for names in (protected or {}).values() for name in names}
+    if not guarded:
+        return []
+    try:
+        names = _referenced(profile, before) | _referenced(profile, after) | _linked(snapshot, profile, key)
+    except Rejected as exc:
+        raise Rejected(["the references of the object to protected names cannot be evaluated: %s"
+                        % "; ".join(exc.reasons)]) from None
+    return sorted(name for name in names if name.casefold() in guarded)
+
+
 def _digest(value) -> str:
     text = json.dumps(value, sort_keys=True, ensure_ascii=True, separators=(",", ":"))
     return hashlib.sha256(text.encode("ascii")).hexdigest()
 
 
 def build_plan(platform: str, snapshot_raw: bytes, request, firmware: str | None = None,
-               protected: dict | None = None, enrollment_probe=False) -> dict:
+               protected: dict | None = None, enrollment_probe=False, ports=None) -> dict:
+    from netops_admin.schema_request import Transaction
+    if isinstance(request, Transaction):
+        raise Rejected(["schema transaction planning requires schema-plan with a pinned library and calibration"])
     adapter = adapter_for(platform)
     snapshot = adapter.load(decode_snapshot(snapshot_raw), firmware)
+    if ports is not None:
+        if platform != "exos":
+            raise Rejected(["a port list applies only to ExtremeXOS"])
+        snapshot.inventory = frozenset(ports)
     profile = find_profile(platform, request.table, snapshot.firmware)
     key, op = request.key, request.op
     if key.startswith("netops-enroll-") and not enrollment_probe:
@@ -141,7 +187,7 @@ def build_plan(platform: str, snapshot_raw: bytes, request, firmware: str | None
     if op == "create":
         if entry is not None or snapshot.in_use(key):
             raise Rejected(["name %r is already used in the configuration" % key])
-        checks.append("name is unused in the whole snapshot")
+        checks.append("name is unused among the object names and references of the snapshot")
         missing = [name for name, attribute in sorted(profile.attributes.items())
                    if attribute.required_on_create and changes.get(name) is None]
         if missing:
@@ -153,7 +199,7 @@ def build_plan(platform: str, snapshot_raw: bytes, request, firmware: str | None
         inverse = adapter.render_delete(profile, key)
     else:
         if entry is None and not profile.implicit_keys:
-            raise Rejected(["object %r does not exist" % key])
+            raise Rejected(adapter.absent(snapshot, profile.table, key))
         before, unsupported = ({}, []) if entry is None else _entry_state(snapshot, profile, entry)
         if unsupported:
             raise Rejected(["object %r holds configuration outside the profile: %s"
@@ -191,7 +237,7 @@ def build_plan(platform: str, snapshot_raw: bytes, request, firmware: str | None
             if changes:
                 raise Rejected(["delete takes no attribute changes"])
             if references:
-                raise Rejected(["object %r is referenced: %s" % (key, "; ".join(references[:8]))])
+                raise Rejected(["object %r is referenced in the configuration" % key])
             missing = [name for name, attribute in sorted(profile.attributes.items())
                        if attribute.required_on_create and name not in before]
             if missing:
@@ -202,15 +248,21 @@ def build_plan(platform: str, snapshot_raw: bytes, request, firmware: str | None
             commands = adapter.render_delete(profile, key)
             inverse = adapter.render_create(profile, key, before)
 
+    touched = _protected_references(snapshot, profile, protected, key, before, after)
+    if touched:
+        raise Rejected(["the object holds a reference to protected object %s before or after the change"
+                        % ", ".join(repr(name) for name in touched)])
     if profile.table == "vlan-membership":
         if key in (protected or {}).get("ports", []):
             raise Rejected(["the port is protected"])
         commands = membership.render(key, before, after)
         inverse = membership.render(key, after, before)
+    if platform == "fortios" and any("%%" in line for line in commands + inverse):
+        raise Rejected(["automation placeholders cannot be restored as literal values by the timed safeguard"])
     reasons.extend(adapter.prechecks(snapshot, profile, op, key, after))
     if reasons:
         raise Rejected(reasons)
-    return {
+    document = {
         "format": PLAN_FORMAT,
         "safeguard_id": None,
         "admin_version": __version__,
@@ -235,6 +287,9 @@ def build_plan(platform: str, snapshot_raw: bytes, request, firmware: str | None
         "rollback_evidence": profile.rollback_evidence,
         "plan_sha256": _digest({"commands": commands, "inverse": inverse, "before": before, "after": after}),
     }
+    if ports is not None:
+        document["ports"] = sorted(snapshot.inventory, key=exos.port_order)
+    return document
 
 
 PLAN_FIELDS = frozenset((
@@ -243,14 +298,42 @@ PLAN_FIELDS = frozenset((
     "prechecks", "commands", "inverse", "predicted", "ignored_attributes", "inverse_identity_changes",
     "rollback_evidence", "plan_sha256", "safeguard_id",
 ))
+PLAN_OPS = ("create", "update", "delete")
+PLAN_TEXTS = ("format", "admin_version", "table", "key", "request_sha256", "snapshot_sha256", "rest_sha256",
+              "plan_sha256", "rollback_evidence")
+PLAN_OPTIONAL_TEXTS = ("firmware", "device", "request_id", "safeguard_id")
+PLAN_COUNTS = ("reason_characters", "user_request_characters")
+PLAN_TEXT_LISTS = ("prechecks", "commands", "inverse", "ignored_attributes", "inverse_identity_changes")
+
+
+def _texts(value) -> bool:
+    return isinstance(value, list) and all(isinstance(item, str) for item in value)
+
+
+def _typed(plan) -> bool:
+    return (plan["platform"] in tuple(ADAPTERS) and plan["op"] in PLAN_OPS
+            and all(isinstance(plan[name], str) for name in PLAN_TEXTS)
+            and all(plan[name] is None or isinstance(plan[name], str) for name in PLAN_OPTIONAL_TEXTS)
+            and all(isinstance(plan[name], int) and not isinstance(plan[name], bool) and plan[name] >= 0
+                    for name in PLAN_COUNTS)
+            and all(_texts(plan[name]) for name in PLAN_TEXT_LISTS)
+            and all(side is None or isinstance(side, dict) for side in plan["predicted"].values()))
 
 
 def _read_plan(plan) -> dict:
-    if not isinstance(plan, dict) or set(plan) != PLAN_FIELDS or plan.get("format") != PLAN_FORMAT:
+    from netops_admin import schema_runtime
+    if schema_runtime.is_plan(plan):
+        return schema_runtime.read_plan(plan)
+    if not isinstance(plan, dict) or set(plan) - {"ports"} != PLAN_FIELDS or plan.get("format") != PLAN_FORMAT:
         raise Rejected(["plan is not a %s document" % PLAN_FORMAT])
     predicted = plan["predicted"]
     if not isinstance(predicted, dict) or set(predicted) != {"before", "after"}:
         raise Rejected(["plan has no prediction"])
+    if not _typed(plan):
+        raise Rejected(["plan holds a value of the wrong type"])
+    if "ports" in plan and (plan["platform"] != "exos" or not isinstance(plan["ports"], list)
+                            or not all(isinstance(port, str) for port in plan["ports"])):
+        raise Rejected(["plan holds an invalid port list"])
     expected = _digest({"commands": plan["commands"], "inverse": plan["inverse"],
                         "before": predicted["before"], "after": predicted["after"]})
     if expected != plan["plan_sha256"]:
@@ -259,15 +342,20 @@ def _read_plan(plan) -> dict:
 
 
 def verify(plan, snapshot_raw: bytes, expect: str = "after") -> dict:
+    from netops_admin import schema_runtime
+    if schema_runtime.is_plan(plan):
+        return schema_runtime.verify(plan, snapshot_raw, expect)
     plan = _read_plan(plan)
     if expect not in ("before", "after"):
         raise Rejected(["expect must be before or after"])
     adapter = adapter_for(plan["platform"])
     snapshot = adapter.load(decode_snapshot(snapshot_raw), plan["firmware"])
+    if "ports" in plan:
+        snapshot.inventory = frozenset(plan["ports"])
     profile = find_profile(plan["platform"], plan["table"], snapshot.firmware)
     entries = snapshot.entries(profile.table)
     if entries is None:
-        raise Rejected(["snapshot holds no %s section" % profile.table])
+        raise SnapshotRejected(["snapshot holds no %s section" % profile.table], SNAPSHOT_INCOMPLETE)
     differences = []
     entry = _find_entry(entries, plan["key"])
     actual = {} if profile.implicit_keys else None

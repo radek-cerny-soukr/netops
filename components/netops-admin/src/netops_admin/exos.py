@@ -5,10 +5,16 @@ import re
 
 from netops_auditor import l1_exos
 
-from netops_admin.errors import Rejected
+from netops_admin.errors import SNAPSHOT_INCOMPLETE, SNAPSHOT_UNREADABLE, Rejected, SnapshotRejected
 from netops_admin import membership
 
 OWN_ATTRIBUTES = ("tag", "description")
+DEFAULT_RECOVERY = ("configure", "sys-recovery-level", "switch", "reset")
+CONTROL = re.compile(r"[\x00-\x1f\x7f]")
+SECRET_SUBJECTS = ("snmp", "snmpv3")
+SECRET_WORDS = ("community", "encrypted", "password", "shared-secret")
+FREE_TEXT = ("description", "description-string", "display-string", "syscontact", "syslocation", "sysname")
+KEYWORDS = SECRET_SUBJECTS + SECRET_WORDS + FREE_TEXT
 
 
 class Entry:
@@ -23,12 +29,14 @@ class Snapshot:
         if not firmware:
             raise Rejected(["an ExtremeXOS configuration does not name its firmware; the caller must state it"])
         self.firmware = firmware
+        self.inventory = None
         try:
             self.configuration = l1_exos.parse(text)
         except l1_exos.ParseError as exc:
-            raise Rejected(["snapshot does not parse: %s" % exc]) from None
+            raise SnapshotRejected(["snapshot does not parse: %s" % exc], SNAPSHOT_UNREADABLE) from None
         if "vlan" not in self.configuration.modules:
-            raise Rejected(["snapshot holds no vlan module; it is not a complete configuration"])
+            raise SnapshotRejected(["snapshot holds no vlan module; it is not a complete configuration"],
+                                   SNAPSHOT_INCOMPLETE)
         self.commands = _without_safeguards(self.configuration.commands)
         self.vlans = {}
         for command in self.commands:
@@ -80,7 +88,8 @@ class Snapshot:
 
     def _mentions(self, command, key: str) -> bool:
         folded = key.casefold()
-        return any(token.casefold() == folded for token in command.tokens)
+        tokens = command.tokens if folded in KEYWORDS else _named_tokens(command)
+        return any(token.casefold() == folded for token in tokens)
 
     def entries(self, table: str):
         if table == "vlan-membership":
@@ -99,7 +108,7 @@ class Snapshot:
             return None
         return dict(self.vlans)
 
-    def entry_state(self, entry):
+    def entry_state(self, entry, lists=()):
         return dict(entry.attributes), list(entry.unsupported)
 
     def references(self, table: str, key: str) -> list:
@@ -118,15 +127,32 @@ class Snapshot:
         return {entry.attributes["tag"] for entry in self.vlans.values() if "tag" in entry.attributes}
 
     def rest_digest(self, table: str, key: str, safeguard_id=None) -> str:
-        commands = _without_safeguards(self.configuration.commands, safeguard_id=safeguard_id)
+        commands = tuple(command for command in _without_safeguards(self.configuration.commands, safeguard_id=safeguard_id)
+                         if not _default_recovery(command))
         if table == "vlan-membership":
             return membership.rest_digest(self, key, commands)
         if table == "ports":
-            lines = [command.text for command in commands
-                     if not (_is_display_string(command) and command.tokens[2] == key)]
+            kept = tuple(command for command in commands
+                         if not (_is_display_string(command) and command.tokens[2] == key))
+            if self.inventory is not None:
+                return membership.rest_digest(self, None, kept)
+            lines = [command.text for command in kept]
         else:
             lines = [command.text for command in commands if not self._is_own(command, key)]
         return hashlib.sha256("\n".join(lines).encode("utf-8")).hexdigest()
+
+
+def _named_tokens(command) -> tuple:
+    folded = tuple(token.casefold() for token in command.tokens)
+    if folded[1:2] and folded[1] in SECRET_SUBJECTS:
+        return ()
+    kept = []
+    for index, token in enumerate(command.tokens):
+        if folded[index] in FREE_TEXT:
+            break
+        if index == 0 or folded[index - 1] not in SECRET_WORDS:
+            kept.append(token)
+    return tuple(kept)
 
 
 def _without_safeguards(commands, safeguard_id=True) -> tuple:
@@ -150,6 +176,10 @@ def _without_safeguards(commands, safeguard_id=True) -> tuple:
     return tuple(kept)
 
 
+def _default_recovery(command) -> bool:
+    return tuple(token.casefold() for token in command.tokens) == DEFAULT_RECOVERY
+
+
 def _is_display_string(command) -> bool:
     tokens = command.tokens
     return len(tokens) >= 5 and tokens[:2] == ("configure", "ports") and tokens[3] == "display-string"
@@ -159,10 +189,32 @@ def load(text: str, firmware: str | None) -> Snapshot:
     return Snapshot(text, firmware)
 
 
+def port_order(port: str) -> tuple:
+    return tuple(int(part) for part in port.split(":"))
+
+
+def absent(snapshot, table: str, key: str) -> list:
+    if table == "vlan-membership":
+        if key in membership.lag_ports(snapshot):
+            return [membership.LAG_REFUSAL]
+        if snapshot.inventory is not None:
+            if key not in snapshot.inventory:
+                return ["port %s is not reported by the switch" % key]
+            return [membership.NATIVE_REFUSAL]
+    return ["object %r does not exist" % key]
+
+
+def _text(value: str, spaces=True) -> str:
+    if '"' in value or "\\" in value or CONTROL.search(value) or (not spaces and any(c.isspace() for c in value)):
+        raise Rejected(["the value %r cannot be written safely: quotes, backslashes and control characters"
+                        " are not supported" % value])
+    return value
+
+
 def render_create(profile, key: str, attributes: dict) -> list:
     lines = ["create vlan %s tag %s" % (key, attributes["tag"])]
     if "description" in attributes:
-        lines.append('configure vlan %s description "%s"' % (key, attributes["description"]))
+        lines.append('configure vlan %s description "%s"' % (key, _text(attributes["description"])))
     return lines
 
 
@@ -170,11 +222,11 @@ def render_update(profile, key: str, assign: dict, remove: list) -> list:
     if profile.table == "vlan-membership":
         return []
     if profile.table == "ports":
-        lines = ["configure ports %s display-string %s" % (key, value) for value in assign.values()]
+        lines = ["configure ports %s display-string %s" % (key, _text(value, spaces=False)) for value in assign.values()]
         return lines + ["unconfigure ports %s display-string" % key for _name in remove]
     lines = []
     if "description" in assign:
-        lines.append('configure vlan %s description "%s"' % (key, assign["description"]))
+        lines.append('configure vlan %s description "%s"' % (key, _text(assign["description"])))
     if "description" in remove:
         lines.append("unconfigure vlan %s description" % key)
     return lines
@@ -185,6 +237,8 @@ def render_delete(profile, key: str) -> list:
 
 
 def prechecks(snapshot, profile, op: str, key: str, after) -> list:
+    if profile.table == "ports" and snapshot.inventory is not None and key not in snapshot.inventory:
+        return ["port %s is not reported by the switch" % key]
     if profile.table == "vlan-membership":
         return membership.prechecks(snapshot, key, membership.states(snapshot).get(key, {}), after)
     if op == "create" and after is not None and after.get("tag") in snapshot.tags():
@@ -199,6 +253,8 @@ QUERY_SWITCH = "show switch"
 QUERY_VERSION = "show version"
 QUERY_PROFILES = "show upm profile"
 QUERY_TIMERS = "show upm timers"
+QUERY_PORTS = "show ports no-refresh"
+PORT_ROW = re.compile(r"^([1-9][0-9]*(?::[1-9][0-9]*)?)\s", re.MULTILINE)
 TIME_FORMAT = "%Y-%m-%d %H:%M:%S"
 SWITCH_CLOCK_FORMAT = "%a %b %d %H:%M:%S %Y"
 SWITCH_TIME = re.compile(r"^Current Time:\s+(\w{3} \w{3} +\d{1,2} \d{2}:\d{2}:\d{2} \d{4})\s*$", re.MULTILINE)
@@ -256,6 +312,10 @@ def timer_row(text: str, timer: str):
         if match.group(1) == timer:
             return {"profile": match.group(2), "flags": match.group(3), "next": match.group(4)}
     return None
+
+
+def upm_listing_complete(text: str, kind: str) -> bool:
+    return re.search(r"^\s*Number of UPM %s:\s*\d+\s*$" % kind, text, re.MULTILINE) is not None
 
 
 def listed_names(text: str) -> list:
@@ -342,6 +402,13 @@ def shown_port(text: str, key: str):
     if header.group(1) != key:
         raise Rejected(["the check account answer names another port"])
     return {"display-string": header.group(2)} if header.group(2) else {}
+
+
+def switch_ports(text: str) -> list:
+    found = set(PORT_ROW.findall(text)) if "Port Summary" in text else set()
+    if not found:
+        raise Rejected(["the port list of the switch is not recognised"])
+    return sorted(found, key=port_order)
 
 def vlan_absent_from_list(text, key):
     if not all(word in text for word in ("Name", "VID", "Protocol", "Ports", "Flags")):

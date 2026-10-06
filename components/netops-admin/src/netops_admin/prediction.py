@@ -23,7 +23,20 @@ def fortios_text(node, indent=""):
     return lines
 
 
+def audited(text, plan):
+    if plan["table"] not in ("vlan-membership", "ports") or "ports" not in plan:
+        return text
+    snapshot = exos.load(text, plan["firmware"])
+    snapshot.inventory = frozenset(plan["ports"])
+    implied = sorted(membership.implicit_default(snapshot), key=exos.port_order)
+    lines = "".join("configure vlan %s add ports %s untagged\n" % (membership.DEFAULT_VLAN, port) for port in implied)
+    return (text if text.endswith("\n") else text + "\n") + lines
+
+
 def snapshot_after(text, plan):
+    from netops_admin import schema_runtime
+    if schema_runtime.is_plan(plan):
+        return schema_runtime.snapshot_after(text, plan)
     state = plan["predicted"]["after"]
     key, table = plan["key"], plan["table"]
     if plan["platform"] == "fortios":
@@ -48,6 +61,8 @@ def snapshot_after(text, plan):
                 entry.attrs[name] = l1_fortios.Attr(tokens, 0)
         return text.splitlines()[0] + "\n" + "\n".join(fortios_text(tree)) + "\n"
     snapshot = exos.load(text, plan["firmware"])
+    if "ports" in plan:
+        snapshot.inventory = frozenset(plan["ports"])
     if table == "vlan-membership":
         return membership.prediction(snapshot, key, state)
     kept = []

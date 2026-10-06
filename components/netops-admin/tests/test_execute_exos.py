@@ -209,3 +209,139 @@ def test_foreign_change_in_the_window_is_reverted_not_saved_and_blocks(tmp_path)
     assert device.vlans["spare"]["description"] == "unused"
     assert device.saves == 0 and device.unsaved
     assert runtime.store.blocked("sw")["reason"] == "foreign change"
+
+
+def foreign_description(fake):
+    fake.vlans["DATA"]["description"] = "someone else"
+
+
+def after_check_identity(device, action):
+    reads, check_query = [], device.check_query
+
+    def reading(command):
+        answer = check_query(command)
+        reads.append(command)
+        if len(reads) == 2:
+            action(device)
+        return answer
+
+    device.check_query = reading
+
+
+def after_removal(device, action):
+    apply_steps = device.apply
+
+    def applying(steps, spec):
+        accepted = apply_steps(steps, spec)
+        if any(isinstance(step, str) and step.startswith("delete upm timer") for step in steps):
+            action(device)
+        return accepted
+
+    device.apply = applying
+
+
+def before_save(device, action):
+    def saving(fake, steps):
+        if steps and steps[0] == ("ask", "save configuration", b"(y/N)"):
+            action(fake)
+
+    device.on_apply = saving
+
+
+def test_foreign_change_before_the_safeguard_is_removed_is_returned_by_the_safeguard(tmp_path):
+    device = FakeExos()
+    runtime = make_runtime(tmp_path, device)
+    after_check_identity(device, foreign_description)
+    record = execute.apply(runtime, "sw", request())
+    assert record["result"] == "reverted" and record["reason"] == "foreign change"
+    assert "configuration outside the planned object changed" in record["differences"]
+    assert "configuration outside the planned object changed" in record["final_check_differences"]
+    assert "final_check_failed" in steps(record) and "confirm_start" not in steps(record)
+    assert "guest" not in device.vlans and device.vlans["DATA"]["description"] == "someone else"
+    assert clean(device) and device.saves == 0 and device.unsaved
+    assert runtime.store.blocked("sw")["reason"] == "foreign change"
+
+
+def test_unreadable_final_check_is_settled_by_the_safeguard(tmp_path):
+    device = FakeExos()
+    runtime = make_runtime(tmp_path, device)
+    snapshot = device.snapshot
+    failing = []
+
+    def once(fake):
+        failing.append(True)
+
+    def reading():
+        if failing:
+            failing.pop()
+            raise RuntimeError("snapshot unavailable")
+        return snapshot()
+
+    device.snapshot = reading
+    after_check_identity(device, once)
+    record = execute.apply(runtime, "sw", request())
+    assert record["result"] == "reverted" and record["reason"] == "final check unavailable"
+    assert "final_check_failed" in steps(record) and "confirm_start" not in steps(record)
+    assert "guest" not in device.vlans and clean(device) and device.saves == 1
+
+
+def test_foreign_change_after_the_safeguard_is_removed_is_not_saved_and_blocks(tmp_path):
+    device = FakeExos()
+    runtime = make_runtime(tmp_path, device)
+    after_removal(device, foreign_description)
+    record = execute.apply(runtime, "sw", request())
+    assert record["result"] == "unknown" and record["reason"] == "foreign change after the safeguard was removed"
+    assert record["differences"] == ["configuration outside the planned object changed"]
+    assert steps(record)[-2:] == ["confirm_start", "removal_check_failed"]
+    assert device.vlans["guest"] == {"tag": "3999", "description": "guest wifi"} and clean(device)
+    assert device.saves == 0 and device.unsaved
+    assert runtime.store.blocked("sw")["reason"] == "foreign change after the safeguard was removed"
+
+
+def test_safeguard_that_fires_during_the_removal_is_reported_as_reverted(tmp_path):
+    device = FakeExos()
+    runtime = make_runtime(tmp_path, device)
+
+    def late(fake, steps):
+        if any(isinstance(step, str) and step.startswith("delete upm timer") for step in steps):
+            fake.advance(300)
+
+    device.on_apply = late
+    record = execute.apply(runtime, "sw", request())
+    assert record["result"] == "reverted" and record["reason"] == "safeguard fired during confirmation"
+    assert "guest" not in device.vlans and clean(device) and device.saves == 0
+
+
+def test_foreign_change_during_the_save_is_recorded_and_blocks(tmp_path):
+    device = FakeExos()
+    runtime = make_runtime(tmp_path, device)
+    before_save(device, foreign_description)
+    record = execute.apply(runtime, "sw", request())
+    assert record["result"] == "confirmed" and record["reason"] == "foreign change during save"
+    assert record["differences"] == ["configuration outside the planned object changed"]
+    assert steps(record)[-2:] == ["configuration_saved", "saved_check_failed"]
+    assert device.saves == 1 and device.vlans["DATA"]["description"] == "someone else"
+    assert runtime.store.blocked("sw")["reason"] == "foreign change during save"
+
+
+def test_unreadable_check_after_the_save_blocks(tmp_path):
+    device = FakeExos()
+    runtime = make_runtime(tmp_path, device)
+
+    def unreadable(fake):
+        fake.unreadable = True
+
+    before_save(device, unreadable)
+    record = execute.apply(runtime, "sw", request())
+    assert record["result"] == "confirmed" and record["reason"] == "saved configuration unverified"
+    assert steps(record)[-2:] == ["configuration_saved", "saved_check_failed"]
+    assert runtime.store.blocked("sw")["reason"] == "saved configuration unverified"
+
+
+def test_clean_confirmation_checks_the_saved_configuration(tmp_path):
+    device = FakeExos()
+    runtime = make_runtime(tmp_path, device)
+    record = execute.apply(runtime, "sw", request())
+    assert record["result"] == "confirmed" and record["reason"] is None
+    assert steps(record)[-3:] == ["check_identity_passed", "confirm_start", "configuration_saved"]
+    assert runtime.store.blocked("sw") is None

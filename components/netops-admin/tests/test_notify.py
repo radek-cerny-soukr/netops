@@ -4,10 +4,12 @@ import json
 import time
 import urllib.error
 
+import pytest
 from fake_fortios import FakeFortiOS
 from test_execute import SECRET, make_runtime, request
 
 from netops_admin import execute, notify
+from netops_admin.errors import Rejected
 
 
 def test_message_is_ascii_and_carries_no_free_text(tmp_path):
@@ -68,3 +70,52 @@ def test_audit_delivery_is_acknowledged_once_the_queue_is_empty_after_the_operat
     assert record["audit_delivery"] == "pending"
     status.write_text(json.dumps({"updated_at": time.time() + 1, "pending": 0}))
     assert execute.refresh_delivery(runtime, record)["audit_delivery"] == "acknowledged"
+
+
+def test_audit_delivery_is_acknowledged_when_the_status_names_this_audit_file(tmp_path):
+    device = FakeFortiOS()
+    status = tmp_path / "export-status.json"
+    named = str(tmp_path / "audit" / "." / "audit.jsonl")
+    status.write_text(json.dumps({"updated_at": time.time(), "pending": 1, "audit_file": named}))
+    runtime = make_runtime(tmp_path, device, export_status=str(status))
+    record = execute.apply(runtime, "lab", request())
+    assert record["audit_delivery"] == "pending"
+    status.write_text(json.dumps({"updated_at": time.time() + 1, "pending": 0, "audit_file": named}))
+    assert execute.refresh_delivery(runtime, record)["audit_delivery"] == "acknowledged"
+
+
+def test_status_of_another_audit_file_acknowledges_nothing_and_refuses_changes(tmp_path):
+    device = FakeFortiOS()
+    status = tmp_path / "export-status.json"
+    own = str(tmp_path / "audit" / "audit.jsonl")
+    status.write_text(json.dumps({"updated_at": time.time(), "pending": 1, "audit_file": own}))
+    runtime = make_runtime(tmp_path, device, export_status=str(status))
+    record = execute.apply(runtime, "lab", request())
+    assert record["audit_delivery"] == "pending"
+    blocks = len(device.applied_blocks)
+    other = "/var/lib/netops-admin-audit/audit.jsonl"
+    status.write_text(json.dumps({"updated_at": time.time() + 1, "pending": 0, "audit_file": other}))
+    assert execute.refresh_delivery(runtime, record)["audit_delivery"] == "pending"
+    assert runtime.store.operation(record["change_id"])["audit_delivery"] == "pending"
+    events = [json.loads(line) for line in (tmp_path / "audit" / "audit.jsonl").read_text().splitlines()]
+    assert "acknowledged" not in [event.get("audit_delivery") for event in events]
+    with pytest.raises(Rejected) as caught:
+        execute.apply(runtime, "lab", request(key="other-host", request_id="req-0002-example"))
+    assert "another audit file" in caught.value.reasons[0]
+    assert len(device.applied_blocks) == blocks
+
+
+def test_message_names_the_block_for_every_blocking_result():
+    from netops_admin import blocking
+
+    for result in blocking.BLOCKING_RESULTS:
+        _title, body = notify.message({"result": result, "reason": "interrupted", "plan": {}})
+        assert "the device is blocked until a person investigates it" in body
+    _title, body = notify.message({"result": "reverted", "reason": "interrupted", "plan": {}})
+    assert "the device is blocked" not in body
+
+
+def test_message_names_the_block_for_every_blocking_reason():
+    for reason in execute.BLOCKING_REASONS:
+        _title, body = notify.message({"result": "confirmed", "reason": reason, "plan": {}})
+        assert "the device is blocked until a person investigates it" in body

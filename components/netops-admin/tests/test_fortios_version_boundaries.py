@@ -2,21 +2,40 @@ from dataclasses import replace
 
 import pytest
 
+from fake_020 import FortiOS800
 from fake_fortios import FakeFortiOS
 from netops_admin import execute
 from netops_admin.errors import Rejected
 from test_execute import make_runtime, request
 
 
-@pytest.mark.parametrize(("table", "op", "key", "changes"), [
+GROUP_AND_DHCP = [
     ("firewall addrgrp", "update", "group-example", {"member": ["spare-host"]}),
     ("system dhcp server/reserved-address", "create", "1:2",
      {"ip": "192.0.2.102", "mac": "00:00:5e:00:53:02"}),
     ("system dhcp server/reserved-address", "update", "1:1", {"description": "changed"}),
     ("system dhcp server/reserved-address", "delete", "1:1", {}),
-])
-def test_800_refuses_76_only_operations_before_any_device_write(tmp_path, table, op, key, changes):
-    device = FakeFortiOS()
+]
+
+
+@pytest.mark.parametrize(("table", "op", "key", "changes"), GROUP_AND_DHCP)
+def test_800_build0167_runs_the_measured_group_and_dhcp_operations(tmp_path, table, op, key, changes):
+    device = FortiOS800()
+    runtime = make_runtime(tmp_path, device)
+    record = execute.apply(runtime, "lab", request(table=table, op=op, key=key, changes=changes))
+    assert record["result"] == "confirmed"
+    assert record["plan"]["firmware"] == "8.0.0 build0167"
+    assert not device.actions and not device.triggers and not device.stitches
+
+
+@pytest.mark.parametrize(("release", "build"), [("8.0.0", "0168"), ("8.0.1", "0245")])
+@pytest.mark.parametrize(("table", "op", "key", "changes"), GROUP_AND_DHCP)
+def test_other_800_builds_refuse_group_and_dhcp_before_any_device_write(tmp_path, release, build, table, op, key, changes):
+    class OtherFirmware(FortiOS800):
+        def snapshot(self):
+            return super().snapshot().replace("8.0.0-FW-build0167", release + "-FW-build" + build)
+
+    device = OtherFirmware()
     runtime = make_runtime(tmp_path, device)
     with pytest.raises(Rejected) as caught:
         execute.apply(runtime, "lab", request(table=table, op=op, key=key, changes=changes))

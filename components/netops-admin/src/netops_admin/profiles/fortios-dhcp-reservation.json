@@ -2,6 +2,7 @@
   "platform": "fortios",
   "table": "system dhcp server/reserved-address",
   "versions": [
+    "8.0.0 build0167",
     "7.6.7 build3704"
   ],
   "ops": [
@@ -42,5 +43,5 @@
   "volatile": [],
   "reserved_values": {},
   "inverse_identity_changes": {},
-  "rollback_evidence": "FortiOS 7.6.7 build3704, 2026-09-24: DHCP create, update and delete restored by a one-shot stitch. Reservations are compared by numeric server and reservation IDs; order is not significant."
+  "rollback_evidence": "FortiOS 8.0.0 build0167, 2026-09-29: a one-shot automation stitch with a cli-script action restored DHCP reservation create, update and delete; the reservation recreated by the delete inverse keeps its ID; deleting the stitch before its time kept the change. FortiOS 7.6.7 build3704, 2026-09-24: DHCP create, update and delete restored by the same mechanism. Reservations are compared by numeric server and reservation IDs; order is not significant."
 }

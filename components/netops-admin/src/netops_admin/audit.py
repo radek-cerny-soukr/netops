@@ -5,12 +5,17 @@ import json
 import math
 import os
 import re
+import stat
 import time
 from pathlib import Path
 
 from netops_admin.errors import Rejected
+from netops_admin.jsontext import parse
+from netops_core.inputs import InputError, read_regular
 
 MAX_EVENT_BYTES = 8192
+EXPORT_STATUS_MAX_BYTES = 64 * 1024
+AUDIT_FLAGS = os.O_WRONLY | os.O_APPEND | os.O_CREAT | os.O_NONBLOCK | os.O_CLOEXEC
 AUDIT_FILE_MODE = 0o640
 SAFE_TEXT = re.compile(r"^[\x20-\x7e]{0,200}$")
 EVENT_FIELDS = {
@@ -68,17 +73,24 @@ class AuditLog:
     def __init__(self, path):
         self.path = Path(path)
 
+    def _open(self) -> int:
+        descriptor = os.open(self.path, AUDIT_FLAGS, AUDIT_FILE_MODE)
+        if not stat.S_ISREG(os.fstat(descriptor).st_mode):
+            os.close(descriptor)
+            raise OSError("the audit log is not a regular file")
+        return descriptor
+
     def check_writable(self) -> None:
         try:
             self.path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
-            descriptor = os.open(self.path, os.O_WRONLY | os.O_APPEND | os.O_CREAT, AUDIT_FILE_MODE)
+            descriptor = self._open()
             try:
                 os.fchmod(descriptor, AUDIT_FILE_MODE)
                 os.fsync(descriptor)
             finally:
                 os.close(descriptor)
         except OSError as exc:
-            raise Rejected(["the audit log cannot be written durably: %s" % exc.strerror]) from None
+            raise Rejected(["the audit log cannot be written durably: %s" % (exc.strerror or exc)]) from None
 
     def event(self, kind: str, **fields) -> dict:
         allowed = EVENT_FIELDS[kind]
@@ -90,7 +102,7 @@ class AuditLog:
         line = (json.dumps(document, sort_keys=True, ensure_ascii=True, separators=(",", ":")) + "\n").encode("ascii")
         if len(line) > MAX_EVENT_BYTES:
             raise ValueError("audit event is larger than %d bytes" % MAX_EVENT_BYTES)
-        descriptor = os.open(self.path, os.O_WRONLY | os.O_APPEND | os.O_CREAT, AUDIT_FILE_MODE)
+        descriptor = self._open()
         try:
             os.fchmod(descriptor, AUDIT_FILE_MODE)
             written = os.write(descriptor, line)
@@ -102,35 +114,45 @@ class AuditLog:
         return document
 
 
+def _export_status(status_file):
+    return parse(read_regular(status_file, EXPORT_STATUS_MAX_BYTES))
+
+
 def export_updated_at(status_file):
     if status_file is None:
         return None
     try:
-        return float(json.loads(Path(status_file).read_text(encoding="utf-8"))["updated_at"])
-    except (OSError, ValueError, KeyError, TypeError):
+        updated = float(_export_status(status_file)["updated_at"])
+    except (OSError, InputError, ValueError, KeyError, TypeError, OverflowError):
         return None
+    return updated if math.isfinite(updated) else None
 
 
-def export_state(status_file, limits: dict, clock=time.time) -> tuple:
+def export_state(status_file, limits: dict, clock=time.time, audit_file=None) -> tuple:
     if status_file is None:
         return "not-configured", None
     try:
-        status = json.loads(Path(status_file).read_text(encoding="utf-8"))
+        status = _export_status(status_file)
         updated = float(status["updated_at"])
         pending = status["pending"]
         oldest = float(status.get("oldest_pending_age_seconds", 0))
+        covered = status.get("audit_file")
         if (not isinstance(pending, int) or isinstance(pending, bool) or pending < 0
                 or not math.isfinite(updated) or not math.isfinite(oldest) or oldest < 0
-                or updated > clock() + 5):
+                or updated > clock() + 5
+                or (covered is not None and not (isinstance(covered, str) and os.path.isabs(covered)))):
             raise ValueError("invalid export status")
-    except (OSError, ValueError, KeyError, TypeError, OverflowError, AttributeError):
+    except (OSError, InputError, ValueError, KeyError, TypeError, OverflowError, AttributeError):
         return "blocked", "export status cannot be read"
+    if audit_file is not None and covered is not None and os.path.normpath(covered) != os.path.normpath(audit_file):
+        return "blocked", "the export status covers another audit file"
     if clock() - updated > limits["export_status_max_age_seconds"]:
         return "blocked", "export status is stale"
     if pending > limits["export_max_pending"]:
         return "blocked", "export queue holds %d events, over the limit" % pending
     if pending and oldest > limits["export_max_age_seconds"]:
         return "blocked", "the oldest unsent audit event is older than the limit"
+    unnamed = None if covered is not None else "the export status does not name the audit file"
     if pending:
-        return "pending", None
-    return "acknowledged", None
+        return "pending", unnamed
+    return "acknowledged", unnamed

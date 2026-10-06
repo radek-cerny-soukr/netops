@@ -5,23 +5,26 @@ import json
 import secrets
 import time
 
-from netops_admin import audit, audit_gate, engine, exec_exos, exec_fortios, prediction, enrollment
-from netops_admin.errors import BudgetExhausted, Rejected
+from netops_admin import audit, audit_gate, engine, exec_exos, exec_fortios, prediction, enrollment, schema_runtime, exec_schema_fortios
+from netops_admin.schema_request import Transaction
+from netops_admin.blocking import BLOCKING_REASONS, BLOCKING_RESULTS, blocks
+from netops_admin.config import SAFEGUARD_MAX_SECONDS
+from netops_admin.errors import BudgetExhausted, Rejected, SnapshotRejected, shown
 from netops_admin.profiles import find_profile
 from netops_admin.request import parse_request
 from netops_admin.state import Store
 
 EXPIRY_GRACE_SECONDS = 20
 EXPIRY_POLL_SECONDS = 10
-EXPIRY_WAIT_LIMIT_SECONDS = 600
-BLOCKING_RESULTS = ("unknown", "revert-failed")
+EXPIRY_WAIT_SLACK_SECONDS = 60
+EXPIRY_WAIT_LIMIT_SECONDS = SAFEGUARD_MAX_SECONDS + EXPIRY_GRACE_SECONDS + EXPIRY_WAIT_SLACK_SECONDS
 UNDELIVERED = ("pending", "failed")
-BLOCKING_REASONS = ("administrator table", "foreign change", "not persisted")
 ADAPTERS = {"fortios": exec_fortios, "exos": exec_exos}
 FIRE_AT_FORMAT = "%Y-%m-%d %H:%M:%S"
 HOUR = 3600
 ANY_STATE = object()
 DAY = 86400
+REUSED_REQUEST = "request_id was already used for a different request"
 
 
 class Runtime:
@@ -34,12 +37,12 @@ class Runtime:
         self.audit = audit.AuditLog(config.audit_file)
 
 
-def _adapter(platform: str):
-    return ADAPTERS[platform]
+def _adapter(platform: str, schema=False):
+    return exec_schema_fortios if schema and platform == "fortios" else ADAPTERS[platform]
 
 
 def _spec(record):
-    return _adapter(record["plan"]["platform"]).prompt_spec(record["hostname"])
+    return _adapter(record["plan"]["platform"], schema_runtime.is_plan(record["plan"])).prompt_spec(record["hostname"])
 
 
 def _fire_at(record) -> datetime.datetime:
@@ -58,10 +61,11 @@ def _finish(runtime, record, result, reason=None, differences=None):
     record["result"] = result
     record["reason"] = reason
     record["differences"] = differences or []
-    state, _why = audit.export_state(runtime.config.export_status_file, runtime.config.limits)
+    state, _why = audit.export_state(runtime.config.export_status_file, runtime.config.limits,
+                                     audit_file=runtime.config.audit_file)
     record["audit_delivery"] = "pending" if state in ("acknowledged", "pending") else state
     record["notification"] = "pending" if runtime.notifier is not None else "not-configured"
-    if result in BLOCKING_RESULTS or reason in BLOCKING_REASONS:
+    if blocks(result, reason):
         runtime.store.block(record["device"], record["change_id"], reason or result)
     runtime.store.save(record)
     runtime.audit.event(
@@ -87,6 +91,7 @@ def _deliver_notification(runtime, record) -> None:
 
 
 def notify_retry(runtime, change_id: str) -> dict:
+    runtime.audit.check_writable()
     record = runtime.store.operation(change_id)
     if record is None or record.get("status") != "finished":
         raise Rejected(["no finished operation matches"])
@@ -100,7 +105,8 @@ def notify_retry(runtime, change_id: str) -> dict:
 def refresh_delivery(runtime, record) -> dict:
     if record.get("status") != "finished" or record.get("audit_delivery") != "pending":
         return record
-    state, _why = audit.export_state(runtime.config.export_status_file, runtime.config.limits)
+    state, _why = audit.export_state(runtime.config.export_status_file, runtime.config.limits,
+                                     audit_file=runtime.config.audit_file)
     status_time = audit.export_updated_at(runtime.config.export_status_file)
     finished_at = record.get("finished_at_epoch")
     if state == "acknowledged" and status_time is not None and finished_at is not None and status_time > finished_at:
@@ -136,7 +142,7 @@ def _persist(runtime, adapter, access, record) -> bool:
 
 
 def _settle_after_expiry(runtime, access, record, plan, reason):
-    adapter = _adapter(plan["platform"])
+    adapter = _adapter(plan["platform"], schema_runtime.is_plan(plan))
     try:
         _wait_for_expiry(runtime, adapter, access, _fire_at(record))
         after_expiry = access.snapshot()
@@ -170,20 +176,29 @@ def _block_accounts(runtime, device) -> None:
                         reason_characters=0, change_id=None)
 
 
-def _budgets(runtime, device) -> None:
+def _budgets(runtime, device, changes=1) -> None:
+    if type(changes) is not int or not 1 <= changes <= 32:
+        raise Rejected(["the transaction change count must be in 1..32"])
     limits, now = runtime.config.limits, time.time()
     if runtime.store.rejections_since(now - HOUR) >= limits["rejections_per_hour"]:
         raise BudgetExhausted(["the budget of rejected requests for this hour is exhausted"])
     records = runtime.store.records()
     if len(records) >= limits["journal_records"]:
         raise BudgetExhausted(["the journal holds its maximum number of operations; archive it before new changes"])
-    started = [record.get("created_at_epoch") or 0 for record in records if "safeguard" in record]
-    mine = [record.get("created_at_epoch") or 0 for record in records
+    started = [(record.get("created_at_epoch") or 0, record.get("budget_changes", 1)) for record in records if "safeguard" in record]
+    mine = [(record.get("created_at_epoch") or 0, record.get("budget_changes", 1)) for record in records
             if "safeguard" in record and record.get("device") == device.name]
-    if sum(1 for moment in mine if moment >= now - HOUR) >= limits["changes_per_device_per_hour"]:
+    if sum(weight for moment, weight in mine if moment >= now - HOUR) + changes > limits["changes_per_device_per_hour"]:
         raise BudgetExhausted(["the budget of changes on this device for this hour is exhausted"])
-    if sum(1 for moment in started if moment >= now - DAY) >= limits["changes_per_day"]:
+    if sum(weight for moment, weight in started if moment >= now - DAY) + changes > limits["changes_per_day"]:
         raise BudgetExhausted(["the budget of changes for this day is exhausted"])
+
+
+def _count_rejection(runtime) -> None:
+    try:
+        runtime.store.note_rejection(time.time())
+    except (OSError, Rejected):
+        pass
 
 
 def apply(runtime, device_name: str, request, expected_before=ANY_STATE) -> dict:
@@ -192,28 +207,58 @@ def apply(runtime, device_name: str, request, expected_before=ANY_STATE) -> dict
     except BudgetExhausted:
         raise
     except Rejected:
-        try:
-            runtime.store.note_rejection(time.time())
-        except OSError:
-            pass
+        _count_rejection(runtime)
         raise
 
 
-def preview(runtime, device_name: str, request) -> dict:
+def _target(runtime, device_name: str, request):
     device = runtime.config.devices.get(device_name)
     if device is None:
-        raise Rejected(["device %r is not configured" % device_name])
-    adapter = _adapter(device.platform)
+        raise Rejected(["device %s is not configured" % shown(device_name)])
+    if request.device is not None and request.device != device.name:
+        raise Rejected(["the request names device %r, but it was sent to device %r" % (request.device, device.name)])
+    return device
+
+
+def _known(runtime, device, request):
+    known = runtime.store.request(request.request_id)
+    if known is None:
+        return None
+    if known["request_sha256"] != request.fingerprint() or known["device"] != device.name:
+        raise Rejected([REUSED_REQUEST])
+    record = runtime.store.operation(known["change_id"])
+    if record is None:
+        raise runtime.store.unreadable(runtime.store.operations / ("%s.json" % known["change_id"]))
+    return record
+
+
+def preview(runtime, device_name: str, request) -> dict:
+    try:
+        result, refused = _preview(runtime, device_name, request)
+    except BudgetExhausted:
+        raise
+    except Rejected:
+        _count_rejection(runtime)
+        raise
+    if refused:
+        _count_rejection(runtime)
+    return result
+
+
+def _preview(runtime, device_name: str, request):
+    device = _target(runtime, device_name, request)
+    adapter = _adapter(device.platform, isinstance(request, Transaction))
     with runtime.store.lock(device.name):
-        known = runtime.store.request(request.request_id)
-        if known is not None:
-            return {"result": "known-request", "device": device.name, "change_id": known["change_id"],
-                    "reasons": ["request_id already started an operation; apply returns it without running again"]}
         missing = []
         try:
+            known = _known(runtime, device, request)
+            if known is not None:
+                return {"result": "known-request", "device": device.name, "change_id": known["change_id"],
+                        "reasons": ["request_id already started an operation; apply returns it without running again"]}, False
             prepared = _prepared(runtime, device, adapter, request, ANY_STATE, False, missing)
         except Rejected as exc:
-            return {"result": "rejected", "device": device.name, "reasons": list(exc.reasons)}
+            return ({"result": "rejected", "device": device.name, "reasons": list(exc.reasons)},
+                    not isinstance(exc, BudgetExhausted))
     plan, audit_before, coverage = prepared[4], prepared[5], prepared[7]
     return {
         "result": "rejected" if missing else "ready",
@@ -233,12 +278,13 @@ def preview(runtime, device_name: str, request) -> dict:
         "audit_findings_before": len(audit_before),
         "audit_coverage": coverage,
         "safeguard_seconds": device.safeguard_seconds,
-    }
+    }, bool(missing)
 
 
 def _prepared(runtime, device, adapter, request, expected_before, enrolling, missing=None):
     config = runtime.config
-    _budgets(runtime, device)
+    transaction = isinstance(request, Transaction)
+    _budgets(runtime, device, len(request.operations) if transaction else 1)
     blocked = runtime.store.blocked(device.name)
     if blocked is not None:
         raise Rejected(["the device is blocked (%s, operation %s); a person must investigate and unblock it"
@@ -251,19 +297,21 @@ def _prepared(runtime, device, adapter, request, expected_before, enrolling, mis
         raise Rejected(["an unfinished operation exists on this device; run recover first"])
     runtime.store.check_writable()
     runtime.audit.check_writable()
-    export, why = audit.export_state(config.export_status_file, config.limits)
+    export, why = audit.export_state(config.export_status_file, config.limits, audit_file=config.audit_file)
     if export == "blocked":
         raise Rejected(["audit export is blocked: %s" % why])
+    known = runtime.store.baseline(device.name)
     try:
         access = runtime.access_factory(device)
+        if transaction:
+            access = schema_runtime.Access(access, device)
         before_text = access.snapshot()
         try:
             accounts = adapter.accounts_check(access, device, before_text)
-            known = runtime.store.baseline(device.name)
             if known is not None and known != accounts:
                 raise Rejected(["the administrator accounts changed since the last operation"])
-        except Rejected:
-            if missing is None:
+        except Rejected as exc:
+            if missing is None and not isinstance(exc, SnapshotRejected):
                 _block_accounts(runtime, device)
             raise
         leftovers = adapter.leftovers(access)
@@ -273,12 +321,17 @@ def _prepared(runtime, device, adapter, request, expected_before, enrolling, mis
         reasons = adapter.prechecks(access, device, before_text, adapter.prompt_spec(hostname))
         if reasons:
             raise Rejected(reasons)
+        ports = adapter.ports(access, request.table)
     except Rejected:
         raise
     except Exception as exc:
         raise Rejected(["the device could not be read before any change: %s" % exc]) from None
-    plan = engine.build_plan(device.platform, before_text.encode("utf-8"), request,
-                             firmware=device.firmware, protected=device.protected, enrollment_probe=enrolling)
+    if transaction:
+        plan = schema_runtime.build(device, request, before_text, enrolling=enrolling)
+    else:
+        plan = engine.build_plan(device.platform, before_text.encode("utf-8"), request,
+                                 firmware=device.firmware, protected=device.protected, enrollment_probe=enrolling,
+                                 ports=ports)
     if missing is not None:
         try:
             enrollment.require(runtime, device, accounts, plan["firmware"])
@@ -294,12 +347,16 @@ def _prepared(runtime, device, adapter, request, expected_before, enrolling, mis
         raise Rejected(["the object differs from the state the undo was planned against"])
     try:
         policy = device.audit_policy
-        audit_before = audit_gate.findings(device.platform, before_text, device.name, policy)
         plan["device"] = device.name
-        predicted_text = prediction.snapshot_after(before_text, plan)
-        coverage = audit_gate.evaluate(device.platform, predicted_text, policy, plan["table"])
-        audit_gate.check_policy(plan, policy, predicted_text)
-        predicted_findings = audit_gate.new_blocking(device.platform, audit_before, predicted_text, device.name, policy)
+        predicted_text = prediction.audited(prediction.snapshot_after(before_text, plan), plan)
+        if transaction:
+            audit_before, _before_coverage = schema_runtime.audit_snapshot(plan, before_text, policy)
+            predicted_findings, coverage = schema_runtime.after_audit(plan, audit_before, predicted_text, policy)
+        else:
+            audit_before = audit_gate.findings(device.platform, prediction.audited(before_text, plan), device.name, policy)
+            coverage = audit_gate.evaluate(device.platform, predicted_text, policy, plan["table"])
+            audit_gate.check_policy(plan, policy, predicted_text)
+            predicted_findings = audit_gate.new_blocking(device.platform, audit_before, predicted_text, device.name, policy)
         if predicted_findings:
             raise Rejected(["predicted audit findings: " + ", ".join(predicted_findings)])
     except Rejected:
@@ -318,23 +375,16 @@ def _prepared(runtime, device, adapter, request, expected_before, enrolling, mis
 
 
 def _apply(runtime, device_name: str, request, expected_before, enrolling=False) -> dict:
-    config = runtime.config
-    device = config.devices.get(device_name)
-    if device is None:
-        raise Rejected(["device %r is not configured" % device_name])
-    adapter = _adapter(device.platform)
+    device = _target(runtime, device_name, request)
+    adapter = _adapter(device.platform, isinstance(request, Transaction))
     fingerprint = request.fingerprint()
     with runtime.store.lock(device.name):
-        known = runtime.store.request(request.request_id)
+        known = _known(runtime, device, request)
         if known is not None:
-            if known["request_sha256"] != fingerprint or known["device"] != device.name:
-                raise Rejected(["request_id was already used for a different request"])
-            return runtime.store.operation(known["change_id"])
-        if enrolling:
-            runtime.store.clear_enrollment(device.name)
+            return known
         access, before_text, accounts, hostname, plan, audit_before, policy, coverage = _prepared(
             runtime, device, adapter, request, expected_before, enrolling)
-        profile = find_profile(plan["platform"], plan["table"], plan["firmware"])
+        profile = None if isinstance(request, Transaction) else find_profile(plan["platform"], plan["table"], plan["firmware"])
         change_id = secrets.token_hex(16)
         plan["safeguard_id"] = change_id
         record = {
@@ -342,6 +392,7 @@ def _apply(runtime, device_name: str, request, expected_before, enrolling=False)
             "device": device.name, "status": "running", "result": None, "hostname": hostname,
             "plan": plan, "steps": [], "created_at": audit.now_utc(), "created_at_epoch": time.time(),
             "kind": "enrollment" if enrolling else "change",
+            "budget_changes": len(request.operations) if isinstance(request, Transaction) else 1,
             "audit_before": audit_before, "audit_policy": policy, "audit_coverage": coverage, "accounts": accounts,
         }
         runtime.store.save(record)
@@ -353,7 +404,8 @@ def _apply(runtime, device_name: str, request, expected_before, enrolling=False)
             key=plan["key"], request_sha256=fingerprint, plan_sha256=plan["plan_sha256"],
             snapshot_sha256=plan["snapshot_sha256"], reason_characters=plan["reason_characters"],
             user_request_characters=plan["user_request_characters"],
-            changes=audit.summarized_changes(profile, engine.canonical_changes(profile, request)),
+            changes=({"operation_count": len(request.operations), "attribute_count": sum(len(x["changes"]) for x in request.operations)}
+                     if isinstance(request, Transaction) else audit.summarized_changes(profile, engine.canonical_changes(profile, request))),
             commands=len(plan["commands"]), inverse_commands=len(plan["inverse"]),
             safeguard=adapter.safeguard_label(change_id),
         )
@@ -372,6 +424,7 @@ def _apply(runtime, device_name: str, request, expected_before, enrolling=False)
             if delivered != "sent":
                 return _finish(runtime, record, "rejected", "enrollment notification unavailable")
             _step(runtime, record, "enrollment_notification_verified")
+            runtime.store.clear_enrollment(device.name)
         result = _execute(runtime, adapter, access, record, plan, device)
         return enrollment.complete(runtime, device, access, result) if enrolling else result
 
@@ -404,14 +457,17 @@ def _execute(runtime, adapter, access, record, plan, device) -> dict:
     except Exception as exc:
         _step(runtime, record, "change_failed", "%s after %d lines" % (type(exc).__name__, getattr(exc, "accepted_lines", 0)))
         return _settle_after_expiry(runtime, access, record, plan, "change failed")
+    cause = "administrator table"
     try:
         after_text = access.snapshot()
         if adapter.accounts_check(access, device, after_text) != record["accounts"]:
             raise Rejected(["the administrator accounts changed during the operation"])
+        cause = "postcheck rejected"
         verdict = engine.verify(plan, after_text.encode("utf-8"), expect="after")
-    except Rejected:
-        _step(runtime, record, "postcheck_failed", "administrator table")
-        return _settle_after_expiry(runtime, access, record, plan, "administrator table")
+    except Rejected as exc:
+        cause = getattr(exc, "category", cause)
+        _step(runtime, record, "postcheck_failed", cause)
+        return _settle_after_expiry(runtime, access, record, plan, cause)
     except Exception as exc:
         _step(runtime, record, "postcheck_failed", type(exc).__name__)
         return _settle_after_expiry(runtime, access, record, plan, "postcheck unavailable")
@@ -419,12 +475,21 @@ def _execute(runtime, adapter, access, record, plan, device) -> dict:
         _step(runtime, record, "postcheck_failed", "%d differences" % len(verdict["differences"]))
         record["postcheck_differences"] = verdict["differences"]
         return _settle_after_expiry(runtime, access, record, plan, "prediction mismatch")
+    if schema_runtime.is_plan(plan):
+        schema_runtime.bind_generated(plan, verdict["generated_bindings"])
     _step(runtime, record, "postcheck_passed")
     try:
         policy = record.get("audit_policy")
-        record["audit_coverage"] = audit_gate.evaluate(device.platform, after_text, policy, plan["table"])
-        audit_gate.check_policy(plan, policy, after_text)
-        found = audit_gate.new_blocking(device.platform, record["audit_before"], after_text, device.name, policy)
+        audited = prediction.audited(after_text, plan)
+        if schema_runtime.is_plan(plan):
+            found, record["audit_coverage"] = schema_runtime.after_audit(plan, record["audit_before"], audited, policy)
+        else:
+            record["audit_coverage"] = audit_gate.evaluate(device.platform, audited, policy, plan["table"])
+            audit_gate.check_policy(plan, policy, audited)
+            found = audit_gate.new_blocking(device.platform, record["audit_before"], audited, device.name, policy)
+    except audit_gate.Incomplete as exc:
+        _step(runtime, record, "audit_incomplete", exc.summary)
+        return _settle_after_expiry(runtime, access, record, plan, "audit incomplete")
     except Exception as exc:
         _step(runtime, record, "audit_failed", type(exc).__name__)
         return _settle_after_expiry(runtime, access, record, plan, "audit unavailable")
@@ -452,30 +517,64 @@ def _execute(runtime, adapter, access, record, plan, device) -> dict:
     if remaining < device.confirm_margin_seconds:
         _step(runtime, record, "confirm_skipped", "too close to the safeguard")
         return _settle_after_expiry(runtime, access, record, plan, "no time left to confirm")
+    try:
+        final = engine.verify(plan, access.snapshot().encode("utf-8"), expect="after")
+    except Exception as exc:
+        _step(runtime, record, "final_check_failed", type(exc).__name__)
+        return _settle_after_expiry(runtime, access, record, plan, "final check unavailable")
+    if final["result"] != "match":
+        _step(runtime, record, "final_check_failed", "%d differences" % len(final["differences"]))
+        record["final_check_differences"] = final["differences"]
+        return _settle_after_expiry(runtime, access, record, plan, "foreign change")
     _step(runtime, record, "confirm_start")
     if not adapter.remove_safeguard(access, record, spec):
         _step(runtime, record, "confirm_unverified")
         return _settle_after_expiry(runtime, access, record, plan, "confirmation unverified")
     try:
-        final = engine.verify(plan, access.snapshot().encode("utf-8"), expect="after")
+        text = access.snapshot().encode("utf-8")
+        removed = engine.verify(plan, text, expect="after")
     except Exception as exc:
-        _step(runtime, record, "final_check_failed", type(exc).__name__)
+        _step(runtime, record, "removal_check_failed", type(exc).__name__)
         return _finish(runtime, record, "unknown", "final check unavailable")
-    if final["result"] == "match":
-        if not _persist(runtime, adapter, access, record):
-            return _finish(runtime, record, "confirmed", "not persisted")
-        return _finish(runtime, record, "confirmed")
+    if removed["result"] != "match":
+        _step(runtime, record, "removal_check_failed", "%d differences" % len(removed["differences"]))
+        try:
+            returned = engine.verify(plan, text, expect="before")["result"] == "match"
+        except Exception:
+            returned = False
+        if returned:
+            return _finish(runtime, record, "reverted", "safeguard fired during confirmation")
+        return _finish(runtime, record, "unknown", "foreign change after the safeguard was removed",
+                       removed["differences"])
+    if not _persist(runtime, adapter, access, record):
+        return _finish(runtime, record, "confirmed", "not persisted")
+    if record["steps"][-1]["step"] == "configuration_saved":
+        try:
+            saved = engine.verify(plan, access.snapshot().encode("utf-8"), expect="after")
+        except Exception as exc:
+            _step(runtime, record, "saved_check_failed", type(exc).__name__)
+            return _finish(runtime, record, "confirmed", "saved configuration unverified")
+        if saved["result"] != "match":
+            _step(runtime, record, "saved_check_failed", "%d differences" % len(saved["differences"]))
+            return _finish(runtime, record, "confirmed", "foreign change during save", saved["differences"])
+    return _finish(runtime, record, "confirmed")
+
+
+def _stored_plan(runtime, record) -> dict:
     try:
-        reverted = engine.verify(plan, access.snapshot().encode("utf-8"), expect="before")["result"] == "match"
-    except Exception:
-        reverted = False
-    return _finish(runtime, record, "reverted" if reverted else "unknown", "safeguard fired during confirmation")
+        return engine._read_plan(record.get("plan"))
+    except Rejected:
+        raise runtime.store.unreadable(runtime.store.operations / ("%s.json" % record["change_id"])) from None
 
 
 def undo_request(record, reason: str):
     if record is None or record.get("status") != "finished" or record.get("result") != "confirmed":
         raise Rejected(["only a confirmed operation can be undone"])
-    plan = record["plan"]
+    plan = engine._read_plan(record.get("plan"))
+    if schema_runtime.is_plan(plan):
+        return schema_runtime.undo_request(record, reason)
+    if plan["firmware"] is None:
+        raise Rejected(["the plan of the operation names no firmware"])
     before, after = plan["predicted"]["before"], plan["predicted"]["after"]
     if plan["op"] == "create":
         op, changes = "delete", {}
@@ -487,7 +586,10 @@ def undo_request(record, reason: str):
                    if before.get(name) != after.get(name)}
     profile = find_profile(plan["platform"], plan["table"], plan["firmware"])
     for name in changes:
-        if profile.attributes[name].type == "name-list":
+        attribute = profile.attributes.get(name)
+        if attribute is None or not (changes[name] is None or isinstance(changes[name], str)):
+            raise Rejected(["the plan of the operation holds attribute %s outside the profile" % shown(name)])
+        if attribute.type == "name-list":
             changes[name] = (changes[name] or "").split()
     body = {
         "device": record["device"], "table": plan["table"], "op": op, "key": plan["key"], "changes": changes,
@@ -499,6 +601,8 @@ def undo_request(record, reason: str):
 
 def undo(runtime, change_id: str, reason: str) -> dict:
     original = runtime.store.operation(change_id)
+    if original is not None and original.get("status") == "finished" and original.get("result") == "confirmed":
+        _stored_plan(runtime, original)
     request, expected = undo_request(original, reason)
     return apply(runtime, original["device"], request, expected_before=expected)
 
@@ -506,16 +610,24 @@ def undo(runtime, change_id: str, reason: str) -> dict:
 def recover(runtime, device_name: str) -> list:
     device = runtime.config.devices.get(device_name)
     if device is None:
-        raise Rejected(["device %r is not configured" % device_name])
+        raise Rejected(["device %s is not configured" % shown(device_name)])
     settled = []
     with runtime.store.lock(device.name):
         for record in runtime.store.running(device.name):
-            access = runtime.access_factory(device)
-            plan = record["plan"]
-            adapter = _adapter(plan["platform"])
-            _step(runtime, record, "recovery_start")
             if "safeguard" not in record:
+                _step(runtime, record, "recovery_start")
                 settled.append(_finish(runtime, record, "rejected", "interrupted before any mutation"))
+                continue
+            plan = _stored_plan(runtime, record)
+            adapter = _adapter(plan["platform"], schema_runtime.is_plan(plan))
+            _step(runtime, record, "recovery_start")
+            try:
+                access = runtime.access_factory(device)
+                if schema_runtime.is_plan(plan):
+                    access = schema_runtime.Access(access, device)
+            except Exception as exc:
+                _step(runtime, record, "recovery_access_failed", type(exc).__name__)
+                settled.append(_finish(runtime, record, "unknown", "interrupted; device unreachable"))
                 continue
             try:
                 present = not adapter.safeguard_absent(access, record)
@@ -547,11 +659,12 @@ def recover(runtime, device_name: str) -> list:
 
 def unblock(runtime, device_name: str, reason: str) -> bool:
     if device_name not in runtime.config.devices:
-        raise Rejected(["device %r is not configured" % device_name])
+        raise Rejected(["device %s is not configured" % shown(device_name)])
+    runtime.audit.check_writable()
     blocked = runtime.store.blocked(device_name)
     removed = runtime.store.unblock(device_name)
-    runtime.store.clear_baseline(device_name)
     if removed:
+        runtime.store.clear_baseline(device_name)
         runtime.audit.event("administrative", device=device_name, action="unblock",
                             reason_characters=len(reason), change_id=(blocked or {}).get("change_id"))
     waived = 0

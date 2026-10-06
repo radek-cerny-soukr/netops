@@ -91,7 +91,7 @@ def test_verify_detects_a_change_elsewhere(exos_snapshot):
     ({"key": "Default", "changes": {"tag": 3000}}, "is protected"),
     ({"key": "mgmt", "op": "delete", "changes": {}}, "is protected"),
     ({"key": "data", "changes": {"tag": 3000}}, "letter case"),
-    ({"key": "uplink", "changes": {"tag": 3000}}, "already used"),
+    ({"key": "VR-Default", "changes": {"tag": 3000}}, "already used"),
     ({"key": "1guest"}, "does not match"),
     ({"key": "g" * 33}, "does not match"),
     ({"op": "delete", "key": "DATA", "changes": {}}, "is referenced"),

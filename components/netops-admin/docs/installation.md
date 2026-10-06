@@ -4,46 +4,70 @@
 
 ## Install
 
-### From PyPI
+Install from the release assets of the three components. Every file is verified against the signed checksums of its release page before it is installed.
 
-1. Create a virtual environment with Python 3.13 and install the admin. `pip` installs the pinned `netops-core` 0.2.5 and `netops-auditor` 0.2.8 with it; none of the three needs anything outside the standard library.
-
-   ```sh
-   python3.13 -m venv /opt/netops-admin/venv
-   /opt/netops-admin/venv/bin/python -m pip install netops-admin==0.2.4
-   /opt/netops-admin/venv/bin/netops-admin --version
-   ```
-
-2. For the MCP surface, install `fastmcp` and its dependencies with their hashes from `requirements-release.lock` of the `netops-admin` 0.2.4 source archive, as in step 2 below. The CLI does not need it.
+This guide installs the signed GitHub source assets. PyPI publication is a separate workflow after GitHub; verify that all exact pinned versions are available before selecting that channel. The GitHub installation and its signed source checks remain usable independently of the index.
 
 ### From the release archives
 
-Use this path when every file should be verified against the signed checksums of a release page before it is installed.
+1. Download the source archive of each component with the release `SHA256SUMS` and its Sigstore bundle from its release page: `netops-core` 0.2.6, `netops-auditor` 0.2.9 and `netops-admin` 0.2.5. Verify the bundle with [cosign](https://github.com/sigstore/cosign) and the archive against `SHA256SUMS`, and stop if either check fails:
 
-1. Download the source archives of the three components from their releases in the repository: `netops-core` 0.2.5, `netops-auditor` 0.2.8 and `netops-admin` 0.2.4. Verify each archive against its `release-SHA256SUMS` and the Sigstore bundle, then unpack them.
+   ```sh
+   for release in netops-core:0.2.6 netops-auditor:0.2.9 netops-admin:0.2.5; do
+     component=${release%%:*}
+     version=${release#*:}
+     base="https://github.com/radek-cerny-soukr/netops/releases/download/${component}%2Fv${version}"
+     for name in source.tar.gz release-SHA256SUMS release-SHA256SUMS.sigstore.json; do
+       curl -fsSLO "${base}/${component}-${version}-${name}" || exit 1
+     done
+     cosign verify-blob \
+       --bundle "${component}-${version}-release-SHA256SUMS.sigstore.json" \
+       --certificate-identity 325383355+radek-cerny-soukr@users.noreply.github.com \
+       --certificate-oidc-issuer https://github.com/login/oauth \
+       "${component}-${version}-release-SHA256SUMS" || exit 1
+     sha256sum --check --ignore-missing "${component}-${version}-release-SHA256SUMS" || exit 1
+   done
+   ```
+
+   Each archive must report `Verified OK` from `cosign` and `OK` from `sha256sum`. The certificate identity and issuer are the maintainer's GitHub account, the same for every component; [Verifying a release](https://github.com/radek-cerny-soukr/netops/blob/main/docs/README.md#verifying-a-release) describes the check for any release asset. Then unpack the three archives; each unpacks into a directory of its own name and carries its own `SHA256SUMS` for the files inside it, which `sha256sum` checks in that directory; step 4 runs the gate of the unpacked admin archive, which also holds its file set against `release-manifest.json`:
+
+   ```sh
+   tar -xzf netops-core-0.2.6-source.tar.gz
+   (cd netops-core-0.2.6 && sha256sum -c SHA256SUMS)
+   tar -xzf netops-auditor-0.2.9-source.tar.gz
+   (cd netops-auditor-0.2.9 && sha256sum -c SHA256SUMS)
+   tar -xzf netops-admin-0.2.5-source.tar.gz
+   (cd netops-admin-0.2.5 && sha256sum -c SHA256SUMS)
+   ```
+
 2. Create a virtual environment with Python 3.13 and install the pinned dependencies with their hashes. The lock also carries the test and SBOM tools; `fastmcp` and its dependencies are the only ones the program uses.
 
    ```sh
    python3.13 -m venv /opt/netops-admin/venv
-   /opt/netops-admin/venv/bin/python -m pip install --require-hashes -r netops-admin-0.2.4/requirements-release.lock
+   /opt/netops-admin/venv/bin/python -m pip install --require-hashes -r netops-admin-0.2.5/requirements-release.lock
    ```
 
 3. Install the three components without resolving dependencies again. `pip` writes build metadata (`*.egg-info`) into the directory it installs from, so install from copies and keep the unpacked archives unchanged; the gate of an archive refuses any file outside its release selection.
 
    ```sh
-   cp -r netops-core-0.2.5 netops-auditor-0.2.8 netops-admin-0.2.4 build/
-   /opt/netops-admin/venv/bin/python -m pip install --no-deps build/netops-core-0.2.5 build/netops-auditor-0.2.8 build/netops-admin-0.2.4
+   mkdir build
+   cp -r netops-core-0.2.6 netops-auditor-0.2.9 netops-admin-0.2.5 build/
+   /opt/netops-admin/venv/bin/python -m pip install --no-deps build/netops-core-0.2.6 build/netops-auditor-0.2.9 build/netops-admin-0.2.5
    ```
 
 4. Check the installation and the unpacked archive:
 
    ```sh
    /opt/netops-admin/venv/bin/netops-admin --version
-   (cd netops-admin-0.2.4 && /opt/netops-admin/venv/bin/python -B scripts/check_gates.py)
-   (cd netops-admin-0.2.4 && /opt/netops-admin/venv/bin/python -B -m pytest -q -p no:cacheprovider)
+   (cd netops-admin-0.2.5 && /opt/netops-admin/venv/bin/python -B scripts/check_gates.py)
+   (cd netops-admin-0.2.5 && /opt/netops-admin/venv/bin/python -B -m pytest -q -p no:cacheprovider)
    ```
 
 After configuration, complete [enrollment and the first change](operations-020.md). Enrollment is mandatory and requires notification and audit export.
+
+### Upgrading
+
+The enrollment binding covers every profile file of the installed package, not only the profiles of the device's platform: `enrollment.binding()` hashes all of them together with the device, accounts, firmware, notification and export settings. An upgrade that changes any profile file therefore invalidates the enrollment of every device, FortiOS and ExtremeXOS alike. 0.2.5 is such an upgrade, because it enables the FortiOS address group and DHCP reservation profiles on 8.0.0 build0167. After it, `doctor` reports the enrollment as missing and `apply` refuses each device until `netops-admin enroll --config ... --device ... --probe ...` passes on it again; the enrollment counts against the device's change budget. At the same time, start `scripts/export_status.py` with `--audit-file` (see [Audit export and notification](#audit-export-and-notification)), so that the status names the audit log the destination reads; a status without it is still accepted, and `doctor` notes that it does not name the audit file.
 
 ## Write account on the device
 
@@ -96,7 +120,7 @@ One JSON file, mode 0600, names everything the tool may touch. The MCP server re
 | `state_dir` | journal of operations, request evidence, device locks and blocks |
 | `audit_file` | local audit log (JSON Lines, created mode 0640); it is the record, the exported copy is a supplement |
 | `export_status_file` | status of the log shipper queue written by `scripts/export_status.py`; without it `audit_delivery` is `not-configured` and the export limits are not enforced |
-| `notify` | ntfy server and a file holding `NTFY_TOPIC=<topic>`; `x509_strict: false` relaxes only the additional RFC 5280 checks of Python |
+| `notify` | ntfy server and a file holding `NTFY_TOPIC=<topic>`; `timeout_seconds` is a number from 1 to 60 (default 10); `x509_strict: false` relaxes only the additional RFC 5280 checks of Python |
 | `limits` | overrides of the defaults in [execution.md](execution.md#limits) |
 | `devices.<alias>.host_key_fingerprint` | OpenSSH `SHA256:` pin; every connection checks the device key against it |
 | `devices.<alias>.firmware` | required for ExtremeXOS and compared with `show version` before each change |
@@ -106,11 +130,11 @@ One JSON file, mode 0600, names everything the tool may touch. The MCP server re
 | `devices.<alias>.legacy_ssh` | `rsa-sha1` for a device that offers only an `ssh-rsa` host key; `rsa-sha1-dh14` for one that also offers only SHA-1 key exchange. The profile applies to the host key scan as well as to `ssh`, see [SSH transport](../../netops-core/docs/ssh.md). No profile of this component lists such a device yet |
 | `devices.<alias>.safeguard_seconds` | 60 to 900, default 180; `confirm_margin_seconds` 15 to that value minus 15, default 45 |
 | `devices.<alias>.audit_policy` | absolute path to the operator-owned Auditor policy; see [examples](operations-020.md) |
-| `devices.<alias>.protected` | table → names the tool refuses to touch, including objects that refer to them |
+| `devices.<alias>.protected` | table → names the tool refuses to touch, including objects that refer to them: an address group with such a member, a port tagged or untagged in such a VLAN (its VLAN membership and its display string) and a VLAN that holds such a port are not changed either. A name counts under any table, compared without letter case; see [planning](planning.md#refusal-rules) |
 
 ## Audit export and notification
 
-The audit log is shipped by a standard log shipper; the tool only reads the status file of its queue. For syslog-ng, `scripts/export_status.py --destination <destination> --output <status file>` reads the queue counter of the destination and is meant to run as root every 20 seconds from a timer. A stale, unreadable or over-limit status refuses new changes before any mutation.
+The audit log is shipped by a standard log shipper; the tool only reads the status file of its queue. For syslog-ng, `scripts/export_status.py --destination <destination> --output <status file>` reads the queue counter of the destination and is meant to run as root every 20 seconds from a timer. A stale, unreadable or over-limit status refuses new changes before any mutation. Start it with `--audit-file <audit file>`, the absolute path of the file the destination reads, equal to `audit_file` of the configuration: the status then names that file, and a configuration whose `audit_file` differs refuses the status (`the export status covers another audit file`). Every instance with its own audit log therefore needs its own destination, exporter and status file. Without `--audit-file` the status is accepted as before and `doctor` warns that it does not name the audit file.
 
 ## MCP client
 
@@ -123,6 +147,8 @@ Register the server with an MCP client as a stdio command; it inherits nothing f
   "env": {"NETOPS_ADMIN_CONFIG": "/etc/netops-admin/admin.json"}
 }
 ```
+
+The server answers `initialize` with `serverInfo` `{"name": "netops-admin", "version": "0.2.5"}`, the name and version of the installed package.
 
 If the client disconnects during an operation, the server finishes that operation before it exits; the result stays readable with `admin_status` or `netops-admin status`.
 

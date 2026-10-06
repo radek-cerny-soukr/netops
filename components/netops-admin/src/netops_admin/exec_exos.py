@@ -47,6 +47,12 @@ def prechecks(access, device, snapshot_text, spec) -> list:
     return reasons
 
 
+def ports(access, table: str):
+    if table not in ("vlan-membership", "ports"):
+        return None
+    return exos.switch_ports(access.query(exos.QUERY_PORTS))
+
+
 def leftovers(access) -> list:
     return sorted(set(exos.listed_names(access.query(exos.QUERY_PROFILES)))
                   | set(exos.listed_names(access.query(exos.QUERY_TIMERS))))
@@ -82,10 +88,13 @@ def remove_safeguard(access, record, spec) -> bool:
 def safeguard_absent(access, record) -> bool:
     names = exos.safeguard_names(record["change_id"])
     try:
-        listed = set(exos.listed_names(access.query(exos.QUERY_PROFILES))) | set(
-            exos.listed_names(access.query(exos.QUERY_TIMERS)))
+        profiles = access.query(exos.QUERY_PROFILES)
+        timers = access.query(exos.QUERY_TIMERS)
     except Exception:
         return False
+    if not (exos.upm_listing_complete(profiles, "Profiles") and exos.upm_listing_complete(timers, "Timers")):
+        return False
+    listed = set(exos.listed_names(profiles)) | set(exos.listed_names(timers))
     return not ({names["profile"], names["timer"]} & listed)
 
 

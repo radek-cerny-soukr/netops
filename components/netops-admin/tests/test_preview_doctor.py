@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import json
+import time
+
 from fake_exos import FakeExos
 from fake_fortios import FakeFortiOS
 from test_execute import make_runtime, request
@@ -47,7 +50,7 @@ def test_preview_reports_a_foreign_administrator_without_blocking(tmp_path):
     assert result["result"] == "rejected"
     assert "other administrators than the configured" in result["reasons"][0]
     assert runtime.store.blocked("lab") is None
-    assert runtime.store.rejections_since(0) == 0
+    assert runtime.store.rejections_since(0) == 1
     assert device.applied_blocks == []
 
 
@@ -92,7 +95,8 @@ def test_doctor_reports_every_check_without_touching_the_device(tmp_path):
     assert found["audit export"] == readiness.MISSING
     assert report["ready"] is False
     assert report["operations"]["firewall address"] == "create update delete"
-    assert report["operations"]["firewall addrgrp"] == "not measured on this firmware"
+    assert report["operations"]["firewall addrgrp"] == "update"
+    assert report["operations"]["system dhcp server/reserved-address"] == "create update delete"
     assert device.applied_blocks == []
     assert journal_is_empty(runtime, tmp_path)
 
@@ -110,6 +114,23 @@ def test_doctor_names_what_refuses(tmp_path):
     assert found["device state"] == readiness.REFUSED
     assert found["enrollment"] == readiness.MISSING
     assert found["administrator accounts"] == readiness.OK
+
+
+def test_doctor_names_the_audit_file_of_the_export_status(tmp_path):
+    device = FakeFortiOS()
+    status = tmp_path / "export-status.json"
+    runtime = make_runtime(tmp_path, device, export_status=str(status))
+
+    def export_check(**fields):
+        status.write_text(json.dumps(dict({"updated_at": time.time(), "pending": 0}, **fields)))
+        report = readiness.doctor(runtime, "lab")
+        return [(item["status"], item["detail"]) for item in report["checks"] if item["check"] == "audit export"][0]
+
+    status_, detail = export_check(audit_file="/var/lib/netops-admin-audit/audit.jsonl")
+    assert status_ == readiness.REFUSED and detail == "the export status covers another audit file"
+    assert export_check(audit_file=runtime.config.audit_file) == (readiness.OK, "acknowledged")
+    assert export_check() == (readiness.OK, "acknowledged; the export status does not name the audit file")
+    assert device.applied_blocks == []
 
 
 def test_doctor_skips_what_it_cannot_reach(tmp_path):

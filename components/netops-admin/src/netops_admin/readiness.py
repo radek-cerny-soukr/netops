@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from netops_admin import audit, audit_gate, engine, enrollment, execute
-from netops_admin.errors import Rejected
+from netops_admin import audit, audit_gate, engine, enrollment, execute, prediction
+from netops_admin.errors import Rejected, StateUnreadable, shown
 from netops_admin.profiles import find_profile, load_profiles
 
 OK = "ok"
@@ -46,28 +46,37 @@ def _local(report, runtime, device):
     config = runtime.config
     report.attempt("journal and audit log writable", lambda: (runtime.store.check_writable(),
                                                               runtime.audit.check_writable()))
-    state, why = audit.export_state(config.export_status_file, config.limits)
+    state, why = audit.export_state(config.export_status_file, config.limits, audit_file=config.audit_file)
     if state == "not-configured":
         report.add("audit export", MISSING, "no export status file is configured")
     elif state == "blocked":
         report.add("audit export", REFUSED, why)
     else:
-        report.add("audit export", OK, state)
+        report.add("audit export", OK, state if why is None else "%s; %s" % (state, why))
     if config.notify is None:
         report.add("notification", MISSING, "enroll and every change need a configured notification")
     else:
         report.add("notification", OK, "configured; doctor sends nothing")
-    blocked = runtime.store.blocked(device.name)
-    undelivered = execute._undelivered(runtime, device.name)
+    try:
+        blocked = runtime.store.blocked(device.name)
+        undelivered = execute._undelivered(runtime, device.name)
+        running = runtime.store.running(device.name)
+    except Rejected as exc:
+        report.add("device state", REFUSED, "; ".join(exc.reasons))
+    else:
+        _device_state(report, blocked, undelivered, running)
+    report.attempt("budgets", lambda: execute._budgets(runtime, device))
+
+
+def _device_state(report, blocked, undelivered, running):
     if blocked is not None:
         report.add("device state", REFUSED, "blocked (%s); a person must investigate and unblock it" % blocked.get("reason"))
     elif undelivered:
         report.add("device state", REFUSED, "the notification of operation %s was not delivered" % undelivered[0])
-    elif runtime.store.running(device.name):
+    elif running:
         report.add("device state", REFUSED, "an unfinished operation exists; run recover first")
     else:
         report.add("device state", OK)
-    report.attempt("budgets", lambda: execute._budgets(runtime, device))
 
 
 def _operations(platform, firmware) -> dict:
@@ -87,10 +96,16 @@ def _operations(platform, firmware) -> dict:
 def doctor(runtime, device_name: str) -> dict:
     device = runtime.config.devices.get(device_name)
     if device is None:
-        raise Rejected(["device %r is not configured" % device_name])
+        raise Rejected(["device %s is not configured" % shown(device_name)])
     adapter = execute._adapter(device.platform)
     report = _Report()
     _local(report, runtime, device)
+    if device.schema is not None:
+        from netops_admin import schema_runtime
+        firmware,operations=schema_runtime.doctor(runtime,device,report)
+        result=_result(report,device,firmware)
+        result["operations"]=operations
+        return result
     remote = ("write account and host key", "firmware", "administrator accounts", "check account",
               "leftover safeguards", "device prechecks", "audit policy", "enrollment")
     reached, access = report.attempt("credentials", lambda: runtime.access_factory(device))
@@ -119,18 +134,28 @@ def doctor(runtime, device_name: str) -> dict:
                    lambda _value: "reads %s %s" % (table, key))
     report.attempt("leftover safeguards", lambda: _no_leftovers(adapter, access))
     report.attempt("device prechecks", lambda: _prechecks(adapter, access, device, text))
-    report.attempt("audit policy", lambda: audit_gate.findings(device.platform, text, device.name, device.audit_policy),
+    report.attempt("audit policy", lambda: audit_gate.findings(device.platform, _audited(adapter, access, device, text),
+                                                               device.name, device.audit_policy),
                    lambda found: "%d findings on the current configuration" % len(found))
     if not (counted and firmware):
         report.skip("enrollment")
     else:
         try:
             enrollment.require(runtime, device, fingerprint, firmware)
+        except StateUnreadable as exc:
+            report.add("enrollment", REFUSED, "; ".join(exc.reasons))
         except Rejected as exc:
             report.add("enrollment", MISSING, "; ".join(exc.reasons))
         else:
             report.add("enrollment", OK)
     return _result(report, device, firmware)
+
+
+def _audited(adapter, access, device, text):
+    ports = adapter.ports(access, "vlan-membership")
+    if ports is None:
+        return text
+    return prediction.audited(text, {"table": "vlan-membership", "ports": ports, "firmware": device.firmware})
 
 
 def _identity(adapter, access, table, key):

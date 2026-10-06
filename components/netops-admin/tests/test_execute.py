@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import dataclasses
 import json
 import time
 
@@ -15,15 +16,15 @@ from netops_admin.request import parse_request
 SECRET = "SECRET-MARKER-4711"
 
 
-def make_runtime(tmp_path, device, export_status=None, limits=None):
+def make_runtime(tmp_path, device, export_status=None, limits=None, **device_fields):
     config = Config(
         state_dir=str(tmp_path / "state"), audit_file=str(tmp_path / "audit" / "audit.jsonl"),
         export_status_file=export_status, notify=None, limits=dict(limits or DEFAULT_LIMITS),
-        devices={"lab": Device(
+        devices={"lab": dataclasses.replace(Device(
             name="lab", platform="fortios", address="192.0.2.1", port=22,
             host_key_fingerprint="SHA256:" + "A" * 43, vault="/nonexistent/vault.json", credential="rw", check_credential="ro",
             firmware=None, safeguard_seconds=180, confirm_margin_seconds=45, protected={},
-        )},
+        ), **device_fields)},
     )
     from enrollment_helpers import certify
     runtime = execute.Runtime(config, lambda _device: device, sleep=device.advance)
@@ -288,6 +289,8 @@ def test_unwritable_audit_log_is_rejected_before_any_mutation(tmp_path):
     ({"updated_at": 0, "pending": 0}, "stale"),
     ({"updated_at": "now", "pending": 1001}, "over the limit"),
     ({"updated_at": "now", "pending": 5, "oldest_pending_age_seconds": 901}, "older than the limit"),
+    ({"updated_at": "now", "pending": 0, "audit_file": "/var/lib/netops-admin-audit/audit.jsonl"}, "another audit file"),
+    ({"updated_at": "now", "pending": 0, "audit_file": "audit.jsonl"}, "cannot be read"),
 ])
 def test_blocked_export_is_rejected_before_any_mutation(tmp_path, status, fragment):
     device = FakeFortiOS()
@@ -364,3 +367,82 @@ def test_journal_writes_are_synced_to_disk(tmp_path, monkeypatch):
     monkeypatch.setattr(state.os, "fsync", counting)
     state.write_atomic(tmp_path / "record.json", {"a": 1})
     assert len(synced) == 2
+
+
+def foreign_comment(fake):
+    fake.addresses["srv-web"]["comment"] = "changed by someone else"
+
+
+def test_foreign_change_before_the_safeguard_is_removed_is_returned_by_the_safeguard(tmp_path):
+    device = FakeFortiOS()
+    runtime = make_runtime(tmp_path, device)
+    reads, check_query = [], device.check_query
+
+    def reading(command):
+        answer = check_query(command)
+        reads.append(command)
+        if len(reads) == 2:
+            foreign_comment(device)
+        return answer
+
+    device.check_query = reading
+    record = execute.apply(runtime, "lab", request())
+    assert record["result"] == "reverted" and record["reason"] == "foreign change"
+    assert "confirm_start" not in steps(record)
+    assert "new-host" not in device.addresses and device.addresses["srv-web"]["comment"] == "changed by someone else"
+    assert not device.stitches and not device.triggers and not device.actions
+    assert runtime.store.blocked("lab")["reason"] == "foreign change"
+
+
+def test_foreign_change_after_the_safeguard_is_removed_blocks(tmp_path):
+    device = FakeFortiOS()
+    runtime = make_runtime(tmp_path, device)
+    apply_lines = device.apply
+
+    def applying(lines, spec):
+        accepted = apply_lines(lines, spec)
+        if lines[:1] == ["config system automation-stitch"] and lines[1].startswith("delete"):
+            foreign_comment(device)
+        return accepted
+
+    device.apply = applying
+    record = execute.apply(runtime, "lab", request())
+    assert record["result"] == "unknown" and record["reason"] == "foreign change after the safeguard was removed"
+    assert record["differences"] == ["configuration outside the planned object changed"]
+    assert device.addresses["new-host"]["comment"] == "new host"
+    assert runtime.store.blocked("lab")["reason"] == "foreign change after the safeguard was removed"
+
+
+def test_unreadable_return_check_after_the_safeguard_is_removed_still_finishes_and_blocks(tmp_path, monkeypatch):
+    device = FakeFortiOS()
+    runtime = make_runtime(tmp_path, device)
+    apply_lines = device.apply
+    removed = []
+
+    def applying(lines, spec):
+        accepted = apply_lines(lines, spec)
+        if lines[:1] == ["config system automation-stitch"] and lines[1].startswith("delete"):
+            foreign_comment(device)
+            removed.append(True)
+        return accepted
+
+    verify = execute.engine.verify
+
+    def verifying(*args, **kwargs):
+        if removed and kwargs.get("expect") == "before":
+            raise ValueError("unreadable snapshot")
+        return verify(*args, **kwargs)
+
+    device.apply = applying
+    monkeypatch.setattr(execute.engine, "verify", verifying)
+    record = execute.apply(runtime, "lab", request())
+    assert record["status"] == "finished"
+    assert record["result"] == "unknown" and record["reason"] == "foreign change after the safeguard was removed"
+    assert runtime.store.blocked("lab")["reason"] == "foreign change after the safeguard was removed"
+
+
+def test_confirmation_without_a_save_takes_no_check_after_it(tmp_path):
+    device = FakeFortiOS()
+    record = execute.apply(make_runtime(tmp_path, device), "lab", request())
+    assert record["result"] == "confirmed" and record["reason"] is None
+    assert steps(record)[-2:] == ["check_identity_passed", "confirm_start"]

@@ -47,3 +47,17 @@ def test_pending_age_starts_when_the_queue_fills_and_resets_when_it_empties(tmp_
     assert json.loads(output.read_text()) == status
     assert export_status.write_status(output, 0, 1100.0)["oldest_pending_age_seconds"] == 0
     assert export_status.write_status(output, 1, 1200.0)["oldest_pending_age_seconds"] == 0
+
+
+def test_status_names_the_audit_file_only_when_given(tmp_path):
+    ctl = tmp_path / "syslog-ng-ctl"
+    ctl.write_text("#!/bin/sh\necho 'dst.syslog.d_netops_audit#0.tcp,192.0.2.10:601.queued=0'\n")
+    ctl.chmod(0o755)
+    output = tmp_path / "export-status.json"
+    base = ["--destination", "d_netops_audit", "--output", str(output), "--ctl", str(ctl)]
+    assert export_status.main(base + ["--audit-file", "/var/lib/netops-admin-audit/audit.jsonl"]) == 0
+    assert json.loads(output.read_text())["audit_file"] == "/var/lib/netops-admin-audit/audit.jsonl"
+    assert export_status.main(base) == 0
+    assert "audit_file" not in json.loads(output.read_text())
+    assert export_status.main(base + ["--audit-file", "audit.jsonl"]) == 2
+    assert "audit_file" not in json.loads(output.read_text())

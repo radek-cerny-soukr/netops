@@ -9,6 +9,10 @@ from netops_auditor import l1_fortios
 HEADER = "#config-version=FGT60F-8.0.0-FW-build0167-260420:opmode=1:vdom=0:user=netops-rw"
 
 
+def quoted(value):
+    return '"%s"' % value.replace("\\", "\\\\").replace('"', '\\"')
+
+
 class DeviceRefused(Exception):
     def __init__(self, accepted_lines):
         super().__init__("refused")
@@ -64,9 +68,9 @@ class FakeFortiOS:
         for number, raw in enumerate(lines, 1):
             if pending is not None:
                 pending.append(raw)
-                if raw.endswith('"') and not raw.endswith('\\"'):
-                    text = "\n".join(pending)
-                    body = text[text.index('"') + 1:-1].replace('\\"', '"').replace("\\\\", "\\")
+                text = "\n".join(pending)
+                if not l1_fortios._quote_state(text)[0]:
+                    body = l1_fortios.tokenize(text[text.index('"'):])[0]
                     self.actions.setdefault(current, {})
                     self.actions[current] = body
                     pending = None
@@ -99,8 +103,8 @@ class FakeFortiOS:
                 target.pop(tokens[1], None)
                 self.fired.discard(tokens[1])
             elif command == "set" and tokens[1] == "script" and section == "system automation-action":
-                if raw.endswith('"') and raw.count('"') >= 2 and not raw.endswith('\\"'):
-                    self.actions[current] = raw[raw.index('"') + 1:-1].replace('\\"', '"')
+                if not l1_fortios._quote_state(raw)[0]:
+                    self.actions[current] = l1_fortios.tokenize(raw[raw.index('"'):])[0]
                 else:
                     pending = [raw.strip()]
             elif command == "set" and section == "firewall address":
@@ -130,7 +134,7 @@ class FakeFortiOS:
             for key in ("uuid", "comment", "subnet"):
                 if key in attributes:
                     value = attributes[key]
-                    lines.append('        set %s %s' % (key, '"%s"' % value if key == "comment" else value))
+                    lines.append('        set %s %s' % (key, quoted(value) if key == "comment" else value))
             lines.append("    next")
         lines += ["end", "config firewall policy", "    edit 1", '        set dstaddr "srv-web"', "    next", "end"]
         return "\n".join(lines) + "\n"
@@ -159,9 +163,8 @@ class FakeFortiOS:
         if kind == "automation-action":
             if name not in self.actions:
                 return "entry is not found in table\n"
-            script = self.actions[name].replace('"', '\\"')
             return ('config system automation-action\n    edit "%s"\n        set action-type cli-script\n'
-                    '        set script "%s"\n    next\nend\n' % (name, script))
+                    '        set script %s\n    next\nend\n' % (name, quoted(self.actions[name])))
         if kind == "automation-trigger":
             if name not in self.triggers:
                 return "entry is not found in table\n"
@@ -198,5 +201,5 @@ class FakeFortiOS:
         for name in ("uuid", "comment", "subnet"):
             if name in attributes:
                 value = attributes[name]
-                lines.append("        set %s %s" % (name, '"%s"' % value if name == "comment" else value))
+                lines.append("        set %s %s" % (name, quoted(value) if name == "comment" else value))
         return "\n".join(lines + ["    next", "end", ""])

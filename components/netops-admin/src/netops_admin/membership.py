@@ -4,15 +4,61 @@ import hashlib
 import json
 import re
 
-from netops_auditor.management import exos_model, ports
+from netops_auditor.management import exos_model, port_inventory, ports
 from netops_admin.errors import Rejected
+
+DEFAULT_VLAN = "Default"
+EXPLICIT_DEFAULT = ("configure", "vlan", "default", "delete", "ports", "all")
+DEFAULT_ROUTER = ("configure", "vr", "vr-default")
+LAG_REFUSAL = "VLAN membership changes on link aggregation ports are unsupported"
+NATIVE_REFUSAL = "the port must have exactly one known native VLAN before and after the change"
+
+
+def _explicit_default(command) -> bool:
+    return tuple(token.casefold() for token in command.tokens) == EXPLICIT_DEFAULT
+
+
+def _default_rendering(snapshot, command) -> bool:
+    if snapshot.inventory is None:
+        return False
+    if _explicit_default(command):
+        return True
+    tokens = tuple(token.casefold() for token in command.tokens)
+    if len(tokens) != 6 or tokens[:3] != DEFAULT_ROUTER or tokens[3] not in ("add", "delete") or tokens[4] != "ports":
+        return False
+    try:
+        return ports(command.tokens[5]) == set(snapshot.inventory)
+    except (ValueError, IndexError):
+        return False
+
+
+def _implicit(snapshot) -> bool:
+    return snapshot.inventory is not None and not any(_explicit_default(command) for command in snapshot.commands)
+
+
+def _expanded(snapshot):
+    try:
+        return exos_model(snapshot.configuration, port_inventory(snapshot.configuration))
+    except ValueError:
+        raise Rejected(["VLAN membership cannot be evaluated from this snapshot"]) from None
+
+
+def implicit_default(snapshot) -> set:
+    if not _implicit(snapshot):
+        return set()
+    _vlans, members, _descriptions = _expanded(snapshot)
+    return {port for port in snapshot.inventory if not members.get(port, {}).get("untagged")}
 
 
 def model(snapshot):
-    try:
-        return exos_model(snapshot.configuration)
-    except ValueError:
-        raise Rejected(["VLAN membership cannot be evaluated from this snapshot"]) from None
+    vlans, members, descriptions = _expanded(snapshot)
+    if _implicit(snapshot):
+        vlans.setdefault(DEFAULT_VLAN, {})
+        for port in snapshot.inventory:
+            modes = members.setdefault(port, {"tagged": set(), "untagged": set()})
+            if not modes["untagged"]:
+                modes["untagged"].add(DEFAULT_VLAN)
+    return vlans, members, descriptions
 
 
 def states(snapshot):
@@ -26,25 +72,35 @@ def states(snapshot):
     return result
 
 
-def prechecks(snapshot, key, before, after):
-    vlans, members, _descriptions = model(snapshot)
-    if key not in members or len(members[key]["untagged"]) != 1 or not after.get("untagged"):
-        return ["the port must have exactly one known native VLAN before and after the change"]
-    named = set(after.get("tagged", "").split()) | {after["untagged"]}
-    if named - set(vlans):
-        return ["a requested VLAN does not exist"]
-    if after["untagged"] in after.get("tagged", "").split():
-        return ["the native VLAN cannot also be tagged on this port"]
+def lag_ports(snapshot) -> set:
+    affected = set()
     for command in snapshot.commands:
         t = command.tokens
         if t[:2] == ("enable", "sharing"):
             try:
                 group = t.index("grouping") if "grouping" in t else t.index("group")
-                affected = ports(t[2]) | ports(t[group + 1])
+                affected |= ports(t[2]) | ports(t[group + 1])
             except (ValueError, IndexError):
-                return ["link aggregation cannot be evaluated"]
-            if key in affected:
-                return ["VLAN membership changes on link aggregation ports are unsupported"]
+                raise Rejected(["link aggregation cannot be evaluated"]) from None
+    return affected
+
+
+def prechecks(snapshot, key, before, after):
+    vlans, members, _descriptions = model(snapshot)
+    if key not in members or len(members[key]["untagged"]) != 1 or not after.get("untagged"):
+        return [NATIVE_REFUSAL]
+    named = set(after.get("tagged", "").split()) | {after["untagged"]}
+    if named - set(vlans):
+        return ["a requested VLAN does not exist"]
+    if after["untagged"] in after.get("tagged", "").split():
+        return ["the native VLAN cannot also be tagged on this port"]
+    try:
+        if key in lag_ports(snapshot):
+            return [LAG_REFUSAL]
+    except Rejected as exc:
+        return list(exc.reasons)
+    for command in snapshot.commands:
+        t = command.tokens
         if t == ("configure", "vlan", "untagged-ports", "auto-move", "off") and before.get("untagged") != after["untagged"]:
             return ["native VLAN movement is disabled on this switch"]
     return []
@@ -69,7 +125,8 @@ def rest_digest(snapshot, port, commands=None):
     other = {key: {mode: sorted(names) for mode, names in modes.items()}
              for key, modes in members.items() if key != port}
     lines = [command.text for command in (snapshot.commands if commands is None else commands)
-             if command.tokens[:2] != ("configure", "vlan") or command.tokens[3:5] != ("add", "ports")]
+             if (command.tokens[:2] != ("configure", "vlan") or command.tokens[3:5] != ("add", "ports"))
+             and not _default_rendering(snapshot, command)]
     body = {"other_memberships": other, "configuration": lines}
     return hashlib.sha256(json.dumps(body, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
 

@@ -51,7 +51,7 @@ def test_version_drift_is_reported(tree):
 
 def test_dependency_drift_is_reported(tree):
     pyproject = tree / "pyproject.toml"
-    pyproject.write_text(pyproject.read_text(encoding="utf-8").replace("netops-auditor==0.2.8", "netops-auditor"),
+    pyproject.write_text(pyproject.read_text(encoding="utf-8").replace("netops-auditor==0.2.9", "netops-auditor"),
                          encoding="utf-8")
     assert gates.metadata_errors(tree) == ["dependencies must be exactly %r" % gates.DEPENDENCIES]
 
@@ -79,9 +79,23 @@ def test_private_material_in_a_released_file_is_reported(component):
 
 def test_sbom_version_drift_is_reported(component):
     sbom = component / "sbom.cdx.json"
-    sbom.write_text(sbom.read_text(encoding="utf-8").replace('"version": "0.2.4"', '"version": "0.0.9"', 1),
+    sbom.write_text(sbom.read_text(encoding="utf-8").replace('"type": "application",\n      "version": "0.2.5"',
+                                                           '"type": "application",\n      "version": "0.0.9"', 1),
                     encoding="utf-8")
     assert any("sbom.cdx.json" in error for error in gates.gate_version_metadata(component))
+
+
+@pytest.mark.parametrize("change", ["first", "duplicate"])
+def test_changelog_heading_drift_is_reported(component, change):
+    changelog = component / "CHANGELOG.md"
+    lines = changelog.read_text(encoding="utf-8").splitlines(keepends=True)
+    first = next(index for index, line in enumerate(lines) if line.startswith("## "))
+    if change == "first":
+        lines[first] = "## 0.0.9 - unreleased\n"
+    else:
+        lines.append("\n" + lines[first])
+    changelog.write_text("".join(lines), encoding="utf-8")
+    assert any("CHANGELOG.md" in error for error in gates.gate_version_metadata(component))
 
 
 def test_unpinned_mcp_requirement_is_reported(component):
