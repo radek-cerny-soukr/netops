@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import os
-import shutil
 import subprocess
 import tempfile
 from dataclasses import dataclass
@@ -185,9 +184,12 @@ def stat(
     runner = run if run is not None else ssh_module._capped_runner(budget)
     if not callable(runner):
         raise SftpError("run must be callable, got %s" % type(run).__name__)
+    ssh_module._abandoned_removed()
     workspace = tempfile.mkdtemp(prefix=WORKSPACE_PREFIX)
+    owner = None
     try:
         os.chmod(workspace, 0o700)
+        owner = ssh_module._claimed(workspace)
         known_hosts = hostkey.known_hosts_file(workspace, host_key_line)
         identity, environment = ssh_module._prepared(workspace, kind, credential)
         call = argv(name, number, user, known_hosts, identity=identity, legacy=profile)
@@ -286,4 +288,4 @@ def stat(
             finished_at=finished_at,
         )
     finally:
-        shutil.rmtree(workspace, ignore_errors=True)
+        ssh_module._released(workspace, owner)

@@ -157,10 +157,41 @@ the scan returns. Measured on 25 September 2026: IOSv 15.9(3)M12 and IOSvL2 15.2
 
 ## The workspace
 
-Every call creates its own directory with `tempfile.mkdtemp(prefix="netops-core-")` and mode 0700. It
-holds the `known_hosts` file, and the identity or the secret and the askpass script. The directory is
-removed in a `finally` block, so it is gone after the call whether the command succeeded, failed,
-timed out, or raised.
+Every call creates its own directory with `tempfile.mkdtemp(prefix="netops-core-")` and mode 0700.
+Before anything else is written into it, the call creates an empty owner file with `O_EXCL` and mode
+0600, takes an exclusive `flock` on it and only then renames it to `.owner`, so that name never
+stands for a file that is not locked yet; the descriptor is not inherited by the client. The
+directory then holds the `known_hosts` file, and the identity or the secret and the askpass script.
+It is removed in a `finally` block, so it is gone after the call whether the command succeeded,
+failed, timed out, or raised; the lock is released only after the removal.
+`netops_core.sftp.stat` and `netops_core.session.Session` create, lock and remove their workspaces
+through the same functions. A session holds its lock from opening until `close()` has removed its
+directory, so the workspace of an open session - or of one that is never closed, until its process
+ends - counts as running.
+
+### What a killed call leaves behind
+
+A `finally` block does not run when the process ends on a signal it cannot catch or does not handle -
+`SIGKILL`, or `SIGTERM` without a handler - or when the host stops. The directory then stays behind
+with everything written so far: once the credential has been handed over, the password in `secret` or
+the private key in `identity`, each with mode 0600, readable by the user of the process. A client
+started by `run_command` or `netops_core.sftp.stat` runs in its own session and is not stopped with
+it; the client of a session loses its terminal.
+
+The kernel releases the lock of a process that has ended. So every later `run_command`,
+`netops_core.sftp.stat` or `netops_core.session.Session` of the same user with the same temporary
+directory first removes what such a call left: it looks only at the entries directly in
+`tempfile.gettempdir()` whose names start with `netops-core-`, and removes one only when `lstat`
+shows a directory, not a symbolic link, owned by that user with mode 0700, whose `.owner` opens
+without following a symbolic link as a regular file of that user, and whose lock can be taken at
+once. A directory whose lock is held belongs to a call that is still running and is left alone. A
+directory without `.owner` is never removed this way - one written by an earlier release or by a
+call that has not taken its lock yet; what an ended process left there has to be removed by hand. A
+failure of this cleanup never fails the call.
+
+Nothing is removed before that next call. A remainder therefore lasts until a later call of the same
+user, until the temporary directory is cleared, or, in the helper's container, where `/tmp` is a
+`tmpfs`, at the latest until the container stops.
 
 ## Result and refusals
 
@@ -218,6 +249,13 @@ followed by `GlobalKnownHostsFile=/dev/null` (checked once more by `ssh -G` over
 legacy options after the base ones, the password absent from both the argument vector and the
 environment values, mode 0600 on the identity file, the workspace removed after success and after
 failure, and the remedy text present only without a profile.
+
+`tests/test_abandoned_workspaces.py` kills a call in a child process with `SIGKILL` after it has
+written the password and checks that the next call removes what it left, that the directory of a
+call that is still running stays, and that a symbolic link, a directory of another mode, a directory
+without an owner file and one whose `.owner` is a symbolic link are left alone. The same two checks
+run for `netops_core.sftp.stat` and for an open `netops_core.session.Session`, and no workspace or
+open descriptor outlives a finished or refused call of any of the three.
 
 ## Measured against
 

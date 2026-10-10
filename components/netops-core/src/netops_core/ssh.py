@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import fcntl
 import os
 import selectors
 import shutil
@@ -24,6 +25,8 @@ TERMINATE_GRACE_SECONDS = 0.5
 SWEEP_STEP_SECONDS = 0.05
 MOMENT_FORMAT = "%Y-%m-%dT%H:%M:%SZ"
 WORKSPACE_PREFIX = "netops-core-"
+OWNER_NAME = ".owner"
+OWNER_PENDING_NAME = ".owner-pending"
 IDENTITY_NAME = "identity"
 SECRET_NAME = "secret"
 ASKPASS_NAME = "askpass"
@@ -449,6 +452,64 @@ def _prepared(workspace, kind, credential) -> tuple:
     return None, environment
 
 
+def _claimed(workspace) -> int:
+    pending = os.path.join(workspace, OWNER_PENDING_NAME)
+    descriptor = os.open(pending, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_CLOEXEC, 0o600)
+    try:
+        fcntl.flock(descriptor, fcntl.LOCK_EX)
+        os.rename(pending, os.path.join(workspace, OWNER_NAME))
+    except BaseException:
+        os.close(descriptor)
+        raise
+    return descriptor
+
+
+def _released(workspace, owner) -> None:
+    shutil.rmtree(workspace, ignore_errors=True)
+    if owner is not None:
+        os.close(owner)
+
+
+def _removed_if_abandoned(path) -> None:
+    information = os.lstat(path)
+    if (
+        not stat.S_ISDIR(information.st_mode)
+        or information.st_uid != os.geteuid()
+        or stat.S_IMODE(information.st_mode) != 0o700
+    ):
+        return
+    descriptor = os.open(
+        os.path.join(path, OWNER_NAME),
+        os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC,
+    )
+    try:
+        owner = os.fstat(descriptor)
+        if not stat.S_ISREG(owner.st_mode) or owner.st_uid != os.geteuid():
+            return
+        try:
+            fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            return
+        shutil.rmtree(path, ignore_errors=True)
+    finally:
+        os.close(descriptor)
+
+
+def _abandoned_removed() -> None:
+    try:
+        root = tempfile.gettempdir()
+        names = os.listdir(root)
+    except OSError:
+        return
+    for name in names:
+        if not name.startswith(WORKSPACE_PREFIX):
+            continue
+        try:
+            _removed_if_abandoned(os.path.join(root, name))
+        except OSError:
+            pass
+
+
 def run_command(
     host,
     port,
@@ -475,9 +536,12 @@ def run_command(
     runner = run if run is not None else _capped_runner(budget)
     if not callable(runner):
         raise SshError("run must be callable, got %s" % type(run).__name__)
+    _abandoned_removed()
     workspace = tempfile.mkdtemp(prefix=WORKSPACE_PREFIX)
+    owner = None
     try:
         os.chmod(workspace, 0o700)
+        owner = _claimed(workspace)
         known_hosts = hostkey.known_hosts_file(workspace, host_key_line)
         identity, environment = _prepared(workspace, kind, credential)
         call = argv(
@@ -530,4 +594,4 @@ def run_command(
             finished_at=finished_at,
         )
     finally:
-        shutil.rmtree(workspace, ignore_errors=True)
+        _released(workspace, owner)

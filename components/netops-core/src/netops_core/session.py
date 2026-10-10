@@ -3,7 +3,6 @@ from __future__ import annotations
 import os
 import pty
 import select
-import shutil
 import signal
 import tempfile
 import time
@@ -130,9 +129,12 @@ class Session:
         start = _spawn if spawn is None else spawn
         if not callable(start):
             raise SessionError("spawn must be callable, got %s" % type(start).__name__)
+        ssh_module._abandoned_removed()
         workspace = tempfile.mkdtemp(prefix=ssh_module.WORKSPACE_PREFIX)
+        owner = None
         try:
             os.chmod(workspace, 0o700)
+            owner = ssh_module._claimed(workspace)
             known_hosts = hostkey.known_hosts_file(workspace, host_key_line)
             identity, environment = ssh_module._prepared(workspace, kind, credential)
             call = argv(name, number, user, known_hosts, identity=identity, legacy=profile)
@@ -145,10 +147,10 @@ class Session:
                     % (answer,)
                 )
         except SessionError:
-            shutil.rmtree(workspace, ignore_errors=True)
+            ssh_module._released(workspace, owner)
             raise
         except Exception as error:
-            shutil.rmtree(workspace, ignore_errors=True)
+            ssh_module._released(workspace, owner)
             raise SessionError(
                 "cannot open the session to %s (%s)" % (name, type(error).__name__)
             ) from None
@@ -162,6 +164,7 @@ class Session:
         self.discarded_login_bytes = 0
         self.seen_bytes = 0
         self._workspace = workspace
+        self._owner = owner
         self._pid = pid
         self._fd = fd
         self._pending = b""
@@ -305,7 +308,8 @@ class Session:
         pid, self._pid = self._pid, None
         if pid:
             self._reaped(pid)
-        shutil.rmtree(self._workspace, ignore_errors=True)
+        owner, self._owner = self._owner, None
+        ssh_module._released(self._workspace, owner)
 
     def workspace(self) -> str:
         return self._workspace

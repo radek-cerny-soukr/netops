@@ -7,6 +7,11 @@ import subprocess
 import sys
 from pathlib import Path
 
+import importlib.util as _guard_import
+_guard_spec = _guard_import.spec_from_file_location('netops_test_guard', Path(__file__).with_name('_test_guard.py'))
+guard = _guard_import.module_from_spec(_guard_spec)
+_guard_spec.loader.exec_module(guard)
+
 import pytest
 
 from netops_core import inventory, vault
@@ -36,9 +41,9 @@ def _limited():
 def _load_inventory(path):
     environment = dict(os.environ, PYTHONPATH=str(SOURCE))
     try:
-        return subprocess.run(
+        return guard.run(
             [sys.executable, "-B", "-c", PROBE, str(path)],
-            capture_output=True, text=True, timeout=SECONDS, env=environment, preexec_fn=_limited,
+            capture_output=True, text=True, timeout=SECONDS, env=environment, memory_limit=MEMORY_CAP, preexec_fn=_limited,
         )
     except subprocess.TimeoutExpired:
         pytest.fail("the inventory was still being read after %d seconds: %s" % (SECONDS, path))

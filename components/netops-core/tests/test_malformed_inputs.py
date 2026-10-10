@@ -19,6 +19,11 @@ import sys
 import tempfile
 from pathlib import Path
 
+import importlib.util as _guard_import
+_guard_spec = _guard_import.spec_from_file_location('netops_test_guard', Path(__file__).with_name('_test_guard.py'))
+guard = _guard_import.module_from_spec(_guard_spec)
+_guard_spec.loader.exec_module(guard)
+
 import pytest
 
 from netops_core import audit, hostkey, inventory, legacy_ssh, platforms, prompt, session, sftp, ssh, vault
@@ -96,22 +101,7 @@ def clean(failures):
 
 
 def bounded(call, seconds=SECONDS):
-    def expire(signum, frame):
-        raise Hang()
-
-    soft, hard = resource.getrlimit(resource.RLIMIT_AS)
-    with open("/proc/self/statm") as stream:
-        used = int(stream.read().split()[0]) * resource.getpagesize()
-    ceiling = used + MEMORY if hard == resource.RLIM_INFINITY else min(hard, used + MEMORY)
-    previous = signal.signal(signal.SIGALRM, expire)
-    signal.setitimer(signal.ITIMER_REAL, seconds)
-    resource.setrlimit(resource.RLIMIT_AS, (ceiling, hard))
-    try:
-        return call()
-    finally:
-        resource.setrlimit(resource.RLIMIT_AS, (soft, hard))
-        signal.setitimer(signal.ITIMER_REAL, 0)
-        signal.signal(signal.SIGALRM, previous)
+    return guard.bounded(call, seconds, MEMORY, Hang)
 
 
 def library(call, refusals):
@@ -461,10 +451,10 @@ def _limited():
 
 def _askpass(environment, codes=(0, 1)):
     try:
-        done = subprocess.run(
+        done = guard.run(
             [sys.executable, "-B", str(COMPONENT / "src" / "netops_core" / "askpass.py")],
             stdin=subprocess.DEVNULL, capture_output=True, timeout=SECONDS, env=environment,
-            preexec_fn=_limited,
+            memory_limit=MEMORY, preexec_fn=_limited,
         )
     except subprocess.TimeoutExpired:
         return "no answer within %d s" % SECONDS

@@ -21,6 +21,15 @@ NETWORK_TYPES = {"ipv4-classnet", "ipv4-classnet-any", "ipv4-classnet-host"}
 VALIDATED_TYPES = STRING_TYPES | NETWORK_TYPES | {"integer", "option", "uuid", "mac-address",
     "ipv6-network", "ipv6-prefix", "ipv6-address", "ipv4-netmask", "ipv4-netmask-any",
     "ipv4-address", "ipv4-address-any", "ipv4-address-multicast"}
+SHA256 = re.compile(r"^[a-f0-9]{64}$")
+CONDITION_FIELDS = frozenset(("any_of", "measured_on", "measured_contexts", "evidence_sha256"))
+LOCAL_CONDITION_FIELDS = frozenset(("when", "equals", "baseline", "hidden_by"))
+REFERENCE_CONDITION_FIELDS = frozenset(("attribute", "table", "target_attribute", "equals", "contexts", "evidence_sha256"))
+MAX_CONDITION_ALTERNATIVES = 64
+MAX_CONDITION_TERMS = 16
+MAX_CONDITION_DEPTH = 8
+MAX_CONDITION_CLAUSES = 256
+MAX_REFERENCE_CONTEXTS = 64
 
 
 class SchemaError(ValueError):
@@ -119,6 +128,121 @@ def _scalar_tokens(attribute, value):
     raise SchemaError("this attribute type has no measured write validator")
 
 
+def _measured_context(value):
+    return (isinstance(value, str) and value.isprintable() and
+            (value == "global" or value.startswith("vdom:") and 1 <= len(value[5:].encode("utf-8")) <= 128))
+
+
+def _holds_reference(value, depth=0):
+    if depth > 32:
+        return True
+    if isinstance(value, dict):
+        return "reference" in value or any(_holds_reference(item, depth + 1) for item in value.values())
+    if isinstance(value, list):
+        return any(_holds_reference(item, depth + 1) for item in value)
+    return False
+
+
+def _context_matches_scope(config, path, context):
+    expected = "global" if context == "global" else "vdom"
+    words = path.split(" ")
+    for index in range(1, len(words) + 1):
+        node = config.get(" ".join(words[:index]))
+        if not isinstance(node, dict) or "scope" not in node:
+            continue
+        scope = node["scope"]
+        if not isinstance(scope, str) or expected not in scope.split("+"):
+            return False
+    return True
+
+
+def _reference_condition(spec, site):
+    path, name, attrs, config = site
+    if not isinstance(spec, dict) or set(spec) != REFERENCE_CONDITION_FIELDS:
+        raise SchemaError("schema reference conditions are invalid")
+    _name(spec["attribute"])
+    _name(spec["target_attribute"])
+    _path(spec["table"])
+    _text(spec["equals"])
+    if not isinstance(spec["evidence_sha256"], str) or not SHA256.fullmatch(spec["evidence_sha256"]):
+        raise SchemaError("schema reference conditions are invalid")
+    contexts = spec["contexts"]
+    if (not isinstance(contexts, list) or not 1 <= len(contexts) <= MAX_REFERENCE_CONTEXTS or
+            any(not isinstance(pair, dict) or set(pair) != {"source", "target"} or
+                not _measured_context(pair["source"]) or not _measured_context(pair["target"]) for pair in contexts) or
+            len({pair["source"] for pair in contexts}) != len(contexts)):
+        raise SchemaError("schema reference condition contexts are invalid")
+    if any(not _context_matches_scope(config, path, pair["source"]) or
+           not _context_matches_scope(config, spec["table"], pair["target"]) for pair in contexts):
+        raise SchemaError("schema reference condition contexts disagree with the measured table scope")
+    source = attrs.get(spec["attribute"])
+    ref = source.get("ref") if isinstance(source, dict) else None
+    table = config.get(spec["table"])
+    words = spec["table"].split(" ")
+    if (spec["attribute"] == name or not isinstance(ref, dict) or source.get("multi") or
+            not isinstance(ref.get("tables"), list) or spec["table"] not in ref["tables"] or spec["table"] == path or
+            not isinstance(table, dict) or table.get("kind") != "table" or not isinstance(table.get("attrs"), dict) or
+            any(" ".join(words[:index]) in config for index in range(1, len(words)))):
+        raise SchemaError("schema reference condition target is invalid")
+    target = table["attrs"].get(spec["target_attribute"])
+    if (not isinstance(target, dict) or spec["target_attribute"] == table.get("key") or target.get("type") != "option" or
+            not isinstance(target.get("options"), list) or spec["equals"] not in target["options"] or
+            _holds_reference(target.get("conditions"))):
+        raise SchemaError("schema reference condition target attribute is invalid")
+    return spec["attribute"]
+
+
+def _condition_clauses(entries, limit, depth, site, found):
+    if depth > MAX_CONDITION_DEPTH or not isinstance(entries, list) or not 1 <= len(entries) <= limit:
+        raise SchemaError("schema visibility conditions are invalid")
+    for clause in entries:
+        found["clauses"] += 1
+        if found["clauses"] > MAX_CONDITION_CLAUSES or not isinstance(clause, dict):
+            raise SchemaError("schema visibility conditions are invalid")
+        if set(clause) == {"all_of"}:
+            _condition_clauses(clause["all_of"], MAX_CONDITION_TERMS, depth + 1, site, found)
+        elif set(clause) == {"reference"}:
+            found["references"].append(_reference_condition(clause["reference"], site))
+        elif {"when", "equals"} <= set(clause) <= LOCAL_CONDITION_FIELDS:
+            found["local"].append(_name(clause["when"]))
+            for field in ("equals", "baseline", "hidden_by"):
+                if field in clause:
+                    _text(clause[field])
+        else:
+            raise SchemaError("schema visibility conditions are invalid")
+    if len({json.dumps(clause, sort_keys=True) for clause in entries}) != len(entries):
+        raise SchemaError("schema visibility conditions repeat a clause")
+
+
+def _conditions(value, site):
+    if not isinstance(value, dict) or "any_of" not in value or not set(value) <= CONDITION_FIELDS:
+        raise SchemaError("schema visibility conditions are invalid")
+    if "measured_on" in value:
+        _text(value["measured_on"])
+    if "evidence_sha256" in value and (not isinstance(value["evidence_sha256"], str) or
+                                       not SHA256.fullmatch(value["evidence_sha256"])):
+        raise SchemaError("schema visibility condition evidence is invalid")
+    contexts = value.get("measured_contexts")
+    if "measured_contexts" in value and (not isinstance(contexts, list) or not 1 <= len(contexts) <= 256 or
+            not all(_measured_context(item) for item in contexts) or len(set(contexts)) != len(contexts)):
+        raise SchemaError("schema visibility condition contexts are invalid")
+    found = {"clauses": 0, "local": [], "references": []}
+    _condition_clauses(value["any_of"], MAX_CONDITION_ALTERNATIVES, 0, site, found)
+    return set(found["local"]) | set(found["references"]), found["references"]
+
+
+def _reaches(dependencies, start, goal):
+    pending, seen = [start], set()
+    while pending:
+        current = pending.pop()
+        if current == goal:
+            return True
+        if current not in seen:
+            seen.add(current)
+            pending.extend(dependencies.get(current, ()))
+    return False
+
+
 @dataclass(frozen=True)
 class ConfigInstance:
     path: str
@@ -195,6 +319,7 @@ class Library:
             if not isinstance(attrs, dict):
                 raise SchemaError("schema attributes are invalid")
             count += len(attrs)
+            dependencies, references = {}, []
             for name, attr in attrs.items():
                 _name(name)
                 if not isinstance(attr, dict) or not isinstance(attr.get("type"), (str, type(None))):
@@ -232,6 +357,11 @@ class Library:
                         if field in ref and (not isinstance(ref[field], list) or
                                 any(not isinstance(v, str) for v in ref[field])):
                             raise SchemaError("schema reference values are invalid")
+                if attr.get("conditions") is not None:
+                    dependencies[name], sources = _conditions(attr["conditions"], (path, name, attrs, config))
+                    references.extend((name, source) for source in sources)
+            if any(_reaches(dependencies, source, name) for name, source in references):
+                raise SchemaError("schema reference conditions form a dependency cycle")
         if count > 100000:
             raise SchemaError("schema attribute limit is exceeded")
         self._document = copy.deepcopy(document)
