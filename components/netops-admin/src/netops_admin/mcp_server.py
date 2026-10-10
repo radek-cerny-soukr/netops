@@ -277,7 +277,7 @@ def main() -> int:
     except ConfigurationError as error:
         sys.stderr.write("netops-admin mcp: %s\n" % error)
         return EXIT_ERROR
-    mcp.run()
+    mcp.run(show_banner=False)
     with _ACTIVE:
         pass
     return EXIT_OK

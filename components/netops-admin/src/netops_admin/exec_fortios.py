@@ -83,6 +83,10 @@ def safeguard_absent(access, record) -> bool:
         return False
 
 
+def safeguard_fired(access, record) -> bool:
+    return True
+
+
 def persist(access, spec) -> bool:
     return False
 

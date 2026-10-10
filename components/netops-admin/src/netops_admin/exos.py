@@ -261,6 +261,7 @@ SWITCH_TIME = re.compile(r"^Current Time:\s+(\w{3} \w{3} +\d{1,2} \d{2}:\d{2}:\d
 SYSNAME = re.compile(r"^SysName:\s+(\S+)\s*$", re.MULTILINE)
 IMAGE_VERSION = re.compile(r"^Image\s*:\s*ExtremeXOS version (\S+)", re.MULTILINE)
 TIMER_ROW = re.compile(r"^(\S+)\s+(\S+)\s+([edop]+)(?:\s+(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}))?\s*$", re.MULTILINE)
+UPM_SEPARATOR = re.compile(r"\s*(?:={3,}|-{3,})\s*")
 PROFILE_BEGIN = "Profile Contents Begin"
 PROFILE_END = "Profile Contents Ends"
 
@@ -315,7 +316,14 @@ def timer_row(text: str, timer: str):
 
 
 def upm_listing_complete(text: str, kind: str) -> bool:
-    return re.search(r"^\s*Number of UPM %s:\s*\d+\s*$" % kind, text, re.MULTILINE) is not None
+    count = re.search(r"^\s*Number of UPM %s:\s*(\d{1,9})\s*$" % kind, text, re.MULTILINE)
+    if count is None:
+        return False
+    lines = text.splitlines()
+    separators = [index for index, line in enumerate(lines) if UPM_SEPARATOR.fullmatch(line)]
+    rows = [line for line in lines[separators[1] + 1:separators[2]] if line.strip()] if len(separators) >= 3 else []
+    declared = int(count.group(1))
+    return not rows if declared == 0 else len(rows) >= declared
 
 
 def listed_names(text: str) -> list:

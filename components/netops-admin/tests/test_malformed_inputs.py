@@ -32,6 +32,11 @@ import tempfile
 import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+
+import importlib.util as _guard_import
+_guard_spec = _guard_import.spec_from_file_location('netops_test_guard', Path(__file__).with_name('_test_guard.py'))
+guard = _guard_import.module_from_spec(_guard_spec)
+_guard_spec.loader.exec_module(guard)
 from types import SimpleNamespace
 
 import pytest
@@ -46,8 +51,9 @@ from netops_admin.errors import Rejected
 from netops_admin.request import parse_request
 
 COMPONENT = Path(__file__).resolve().parents[1]
-SOURCES = os.pathsep.join(str(path) for path in (
-    COMPONENT / "src", COMPONENT.parent / "netops-auditor" / "src", COMPONENT.parent / "netops-core" / "src"))
+SOURCES = os.pathsep.join(item for item in (
+    str(COMPONENT / "src"), os.environ.get("PYTHONPATH", ""),
+    str(COMPONENT.parent / "netops-auditor" / "src"), str(COMPONENT.parent / "netops-core" / "src")) if item)
 SECONDS = 60
 IN_PROCESS_SECONDS = 15
 PLAN_CODES = frozenset((0, 2, 3))
@@ -351,10 +357,10 @@ def _limited():
 def launch(argv, module="netops_admin", environment=None, script=None):
     command = [sys.executable, "-B", script] if script else [sys.executable, "-B", "-m", module]
     try:
-        done = subprocess.run(
+        done = guard.run(
             [*command, *argv],
             stdin=subprocess.DEVNULL,
-            preexec_fn=_limited,
+            memory_limit=MEMORY, preexec_fn=_limited,
             capture_output=True,
             timeout=SECONDS,
             env=_environment() if environment is None else environment,
@@ -406,22 +412,7 @@ def clean(failures):
 
 
 def bounded(call, seconds=IN_PROCESS_SECONDS):
-    def expire(signum, frame):
-        raise Hang()
-
-    soft, hard = resource.getrlimit(resource.RLIMIT_AS)
-    with open("/proc/self/statm") as stream:
-        used = int(stream.read().split()[0]) * resource.getpagesize()
-    ceiling = used + MEMORY if hard == resource.RLIM_INFINITY else min(hard, used + MEMORY)
-    previous = signal.signal(signal.SIGALRM, expire)
-    signal.setitimer(signal.ITIMER_REAL, seconds)
-    resource.setrlimit(resource.RLIMIT_AS, (ceiling, hard))
-    try:
-        return call()
-    finally:
-        resource.setrlimit(resource.RLIMIT_AS, (soft, hard))
-        signal.setitimer(signal.ITIMER_REAL, 0)
-        signal.signal(signal.SIGALRM, previous)
+    return guard.bounded(call, seconds, MEMORY, Hang)
 
 
 def outcome(capsys, call, codes):
@@ -496,6 +487,9 @@ def fortios_policy():
 class _Delivered:
     status = 200
 
+    def __init__(self, url):
+        self.url = url
+
     def __enter__(self):
         return self
 
@@ -503,8 +497,13 @@ class _Delivered:
         return False
 
 
-def _delivered(request, timeout=None, context=None):
-    return _Delivered()
+class _Opener:
+    def open(self, request, timeout=None):
+        return _Delivered(request.full_url)
+
+
+def _delivered(*handlers):
+    return _Opener()
 
 
 REQUESTS = {
@@ -537,7 +536,7 @@ class Bench:
         self._load = configuration.load_config
         monkeypatch.setattr(configuration, "load_config", self.load)
         monkeypatch.setattr(cli, "build_runtime", self.runtime)
-        monkeypatch.setattr(notify.urllib.request, "urlopen", _delivered)
+        monkeypatch.setattr(notify.urllib.request, "build_opener", _delivered)
 
     def load(self, path):
         loaded = self._load(path)

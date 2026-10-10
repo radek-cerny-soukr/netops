@@ -51,7 +51,7 @@ def test_version_drift_is_reported(tree):
 
 def test_dependency_drift_is_reported(tree):
     pyproject = tree / "pyproject.toml"
-    pyproject.write_text(pyproject.read_text(encoding="utf-8").replace("netops-auditor==0.2.10", "netops-auditor"),
+    pyproject.write_text(pyproject.read_text(encoding="utf-8").replace("netops-auditor==0.2.11", "netops-auditor"),
                          encoding="utf-8")
     assert gates.metadata_errors(tree) == ["dependencies must be exactly %r" % gates.DEPENDENCIES]
 
@@ -79,7 +79,7 @@ def test_private_material_in_a_released_file_is_reported(component):
 
 def test_sbom_version_drift_is_reported(component):
     sbom = component / "sbom.cdx.json"
-    sbom.write_text(sbom.read_text(encoding="utf-8").replace('"type": "application",\n      "version": "0.2.6"',
+    sbom.write_text(sbom.read_text(encoding="utf-8").replace('"type": "application",\n      "version": "0.2.7"',
                                                            '"type": "application",\n      "version": "0.0.9"', 1),
                     encoding="utf-8")
     assert any("sbom.cdx.json" in error for error in gates.gate_version_metadata(component))
@@ -162,7 +162,7 @@ def test_installation_stops_on_every_unpack_or_checksum_failure():
                 assert "INSTALLATION_REACHED_NEXT_PHASE" not in result.stdout
 
 
-@pytest.mark.parametrize("metadata", [None, "[broken", "", '[project]\nversion="0.2.6"\n', '[project]\ndependencies=42\nversion="0.2.6"\n'])
+@pytest.mark.parametrize("metadata", [None, "[broken", "", '[project]\nversion="0.2.7"\n', '[project]\ndependencies=42\nversion="0.2.7"\n'])
 def test_installation_version_gate_reports_unusable_metadata(tmp_path, metadata):
     if metadata is not None:
         (tmp_path / "pyproject.toml").write_text(metadata)

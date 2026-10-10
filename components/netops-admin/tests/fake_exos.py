@@ -14,7 +14,8 @@ class FakeExos:
     def __init__(self, hostname="sw-lab"):
         self.hostname = hostname
         self.firmware = FIRMWARE
-        self.clock = datetime.datetime(2026, 9, 23, 12, 0, 0)
+        self._clock = datetime.datetime(2026, 9, 23, 12, 0, 0)
+        self.uptime = 0.0
         self.vlans = {
             "Default": {"tag": "1"},
             "DATA": {"tag": "10"},
@@ -39,16 +40,34 @@ class FakeExos:
         self.on_apply = None
         self.unreadable = False
         self.applied_blocks = []
+        self.timer_stuck = False
+        self.run_seconds = 0
+        self.history, self.runs = [], []
+
+    @property
+    def clock(self):
+        return self._clock
+
+    @clock.setter
+    def clock(self, value):
+        for timer in self.timers.values():
+            if timer["next"] is not None and value < timer["next"]:
+                timer["due"] = self.uptime + (timer["next"] - value).total_seconds()
+        self._clock = value
 
     def advance(self, seconds):
-        self.clock += datetime.timedelta(seconds=seconds)
+        self._clock += datetime.timedelta(seconds=seconds)
+        self.uptime += seconds
         self._fire()
 
     def _fire(self):
-        for timer in self.timers.values():
-            if timer["next"] is not None and self.clock >= timer["next"]:
+        for name, timer in self.timers.items():
+            if timer["next"] is not None and self.uptime >= timer["due"] and not self.timer_stuck:
                 timer["next"] = None
-                self._run(self.profiles.get(timer["profile"], []), automatic=True)
+                self.history.append((name, timer["profile"], timer["due"]))
+                self.runs.append((timer["due"] + self.run_seconds, self.profiles.get(timer["profile"], [])))
+        while self.runs and self.uptime >= self.runs[0][0]:
+            self._run(self.runs.pop(0)[1], automatic=True)
 
     def _run(self, lines, automatic=False):
         self.persistent_mode = not automatic
@@ -85,11 +104,12 @@ class FakeExos:
         elif words[:2] == ["unconfigure", "ports"] and words[3:] == ["display-string"]:
             self.port_strings.pop(words[2], None)
         elif words[:3] == ["create", "upm", "timer"] and len(words) == 4:
-            self.timers[words[3]] = {"profile": None, "next": None}
+            self.timers[words[3]] = {"profile": None, "next": None, "due": None}
         elif words[:3] == ["configure", "upm", "timer"] and words[4:5] == ["profile"]:
             self.timers[words[3]]["profile"] = words[5]
         elif words[:3] == ["configure", "upm", "timer"] and words[4:5] == ["after"]:
-            self.timers[words[3]]["next"] = self.clock + datetime.timedelta(seconds=int(words[5]) + self.timer_shift)
+            seconds = int(words[5]) + self.timer_shift
+            self.timers[words[3]].update(next=self.clock + datetime.timedelta(seconds=seconds), due=self.uptime + seconds)
         elif words[:3] == ["delete", "upm", "timer"]:
             if self.timers.pop(words[3], None) is None:
                 return False
@@ -186,8 +206,8 @@ class FakeExos:
         if command == "show version":
             return "Image   : ExtremeXOS version %s by release-manager\n" % self.firmware
         if command == "show upm timers":
-            rows = "".join("%-16s %-14s eo            %s\n" % (name, timer["profile"] or "",
-                                                               timer["next"].strftime(TIME_FORMAT) if timer["next"] else "")
+            rows = "".join("%-16s %-14s eo            %s\n" % (name, timer["profile"] or "", timer["next"].strftime(TIME_FORMAT))
+                           if timer["next"] else "%-16s %-14s e\n" % (name, timer["profile"] or "")
                            for name, timer in self.timers.items())
             clock = "Current Time: %s\n" % self.clock.strftime(TIME_FORMAT) if self.timers else ""
             return "%s----\nUPM               Profile       Flags              Next Execution\n----\n%s----\n\nNumber of UPM Timers: %d\n" % (

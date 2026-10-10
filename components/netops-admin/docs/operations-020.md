@@ -4,7 +4,7 @@ Admin requires enrollment and audits the predicted configuration before each sup
 
 ## From installation to the first confirmed change
 
-1. Install Core 0.2.7, Auditor 0.2.10 and Admin 0.2.6 as described in [installation](installation.md). Create separate write and check credentials and pin the device SSH host key.
+1. Install Core 0.2.8, Auditor 0.2.11 and Admin 0.2.7 as described in [installation](installation.md). Create separate write and check credentials and pin the device SSH host key.
 2. Configure notification and a working audit exporter. Enrollment requires both. Restrict the device accounts and the admin host network access, and configure protected objects.
 3. Put an operator policy in a local file. Set the device's `audit_policy` to its absolute path in `admin.json`. Requests and MCP tools cannot provide or replace this policy.
 4. Run the appropriate enrollment command with an unused test subnet or VLAN tag:

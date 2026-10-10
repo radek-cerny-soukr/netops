@@ -56,7 +56,8 @@ FILE_RULES = {
         "netops_auditor.state": frozenset(("evaluation_complete",)),
     }),
     "schema_policy.py": (PLANNING_MODULES | {"copy"},
-                         dict(INPUTS, **{"netops_auditor.schema_checks": frozenset(("SECRET_ATTRIBUTE",))})),
+                         dict(INPUTS, **{"netops_core": frozenset(("fortios",)),
+                                         "netops_auditor.schema_checks": frozenset(("SECRET_ATTRIBUTE",))})),
     "schema_plan.py": (PLANNING_MODULES | {"copy"}, {
         "netops_core": frozenset(("fortios", "schema")),
         "netops_auditor": frozenset(("schema_checks",)),
@@ -64,7 +65,7 @@ FILE_RULES = {
 }
 FORBIDDEN_NAMES = frozenset(("eval", "exec", "compile", "__import__", "breakpoint"))
 FORBIDDEN_ATTRIBUTES = frozenset(("system", "popen", "spawnv", "spawnve", "execv", "execve", "fork"))
-DEPENDENCIES = ["netops-auditor==0.2.10", "netops-core==0.2.7"]
+DEPENDENCIES = ["netops-auditor==0.2.11", "netops-core==0.2.8"]
 COMPONENT = "netops-admin"
 PLATFORMS = frozenset(("fortios", "exos"))
 RELEASE_SELECTOR = ("scripts", "create_release_artifacts.py")

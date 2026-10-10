@@ -28,11 +28,12 @@ REUSED_REQUEST = "request_id was already used for a different request"
 
 
 class Runtime:
-    def __init__(self, config, access_factory, notifier=None, sleep=time.sleep):
+    def __init__(self, config, access_factory, notifier=None, sleep=time.sleep, monotonic=time.monotonic):
         self.config = config
         self.access_factory = access_factory
         self.notifier = notifier
         self.sleep = sleep
+        self.monotonic = monotonic
         self.store = Store(config.state_dir)
         self.audit = audit.AuditLog(config.audit_file)
 
@@ -117,17 +118,33 @@ def refresh_delivery(runtime, record) -> dict:
     return record
 
 
-def _wait_for_expiry(runtime, adapter, access, fire_at: datetime.datetime) -> None:
-    waited = 0
+def _wait_for_expiry(runtime, adapter, access, record, due) -> None:
+    fire_at, started, waited = _fire_at(record), runtime.monotonic(), 0
     while waited <= EXPIRY_WAIT_LIMIT_SECONDS:
         now = adapter.clock(access)
         remaining = (fire_at - now).total_seconds() + EXPIRY_GRACE_SECONDS
         if remaining <= 0:
-            return
+            limit = max(runtime.monotonic(), due + EXPIRY_GRACE_SECONDS) + EXPIRY_WAIT_SLACK_SECONDS
+            return _wait_for_proof(runtime, adapter, access, record, waited,
+                                   min(limit, started + EXPIRY_WAIT_LIMIT_SECONDS))
         pause = min(max(remaining, 1), EXPIRY_POLL_SECONDS)
         runtime.sleep(pause)
         waited += pause
     raise Rejected(["the safeguard did not expire within the wait limit"])
+
+
+def _wait_for_proof(runtime, adapter, access, record, waited, limit) -> None:
+    pending = False
+    while not adapter.safeguard_fired(access, record):
+        remaining = limit - runtime.monotonic()
+        if remaining <= 0 or waited > EXPIRY_WAIT_LIMIT_SECONDS:
+            raise Rejected(["the safeguard was not seen fired within the wait limit"])
+        pause = min(max(remaining, 1), EXPIRY_POLL_SECONDS)
+        runtime.sleep(pause)
+        waited += pause
+        pending = True
+    if pending:
+        runtime.sleep(EXPIRY_GRACE_SECONDS)
 
 
 def _persist(runtime, adapter, access, record) -> bool:
@@ -141,10 +158,10 @@ def _persist(runtime, adapter, access, record) -> bool:
     return True
 
 
-def _settle_after_expiry(runtime, access, record, plan, reason):
+def _settle_after_expiry(runtime, access, record, plan, reason, due):
     adapter = _adapter(plan["platform"], schema_runtime.is_plan(plan))
     try:
-        _wait_for_expiry(runtime, adapter, access, _fire_at(record))
+        _wait_for_expiry(runtime, adapter, access, record, due)
         after_expiry = access.snapshot()
         verdict = engine.verify(plan, after_expiry.encode("utf-8"), expect="before")
     except Exception as exc:
@@ -185,9 +202,10 @@ def _budgets(runtime, device, changes=1) -> None:
     records = runtime.store.records()
     if len(records) >= limits["journal_records"]:
         raise BudgetExhausted(["the journal holds its maximum number of operations; archive it before new changes"])
-    started = [(record.get("created_at_epoch") or 0, record.get("budget_changes", 1)) for record in records if "safeguard" in record]
-    mine = [(record.get("created_at_epoch") or 0, record.get("budget_changes", 1)) for record in records
-            if "safeguard" in record and record.get("device") == device.name]
+    counted = [record for record in records if "safeguard" in record or record.get("status") == "running"]
+    started = [(record.get("created_at_epoch") or 0, record.get("budget_changes", 1)) for record in counted]
+    mine = [(record.get("created_at_epoch") or 0, record.get("budget_changes", 1)) for record in counted
+            if record.get("device") == device.name]
     if sum(weight for moment, weight in mine if moment >= now - HOUR) + changes > limits["changes_per_device_per_hour"]:
         raise BudgetExhausted(["the budget of changes on this device for this hour is exhausted"])
     if sum(weight for moment, weight in started if moment >= now - DAY) + changes > limits["changes_per_day"]:
@@ -395,9 +413,14 @@ def _apply(runtime, device_name: str, request, expected_before, enrolling=False)
             "budget_changes": len(request.operations) if isinstance(request, Transaction) else 1,
             "audit_before": audit_before, "audit_policy": policy, "audit_coverage": coverage, "accounts": accounts,
         }
-        runtime.store.save(record)
-        runtime.store.save_baseline(device.name, accounts)
-        runtime.store.remember_request(request.request_id, change_id, fingerprint, device.name)
+        with runtime.store.admission():
+            known = _known(runtime, device, request)
+            if known is not None:
+                return known
+            _budgets(runtime, device, record["budget_changes"])
+            runtime.store.save(record)
+            runtime.store.save_baseline(device.name, accounts)
+            runtime.store.remember_request(request.request_id, change_id, fingerprint, device.name)
         runtime.audit.event(
             "start", change_id=change_id, request_id=request.request_id, device=device.name,
             platform=plan["platform"], firmware=plan["firmware"], table=plan["table"], op=plan["op"],
@@ -442,6 +465,7 @@ def _execute(runtime, adapter, access, record, plan, device) -> dict:
         problems = adapter.install_safeguard(access, record, plan, device, spec)
     except Exception as exc:
         problems = ["safeguard installation failed (%s)" % type(exc).__name__]
+    due = runtime.monotonic() + device.safeguard_seconds
     if problems:
         _step(runtime, record, "safeguard_not_verified", problems[0])
         cleaned = adapter.remove_safeguard(access, record, spec)
@@ -456,7 +480,7 @@ def _execute(runtime, adapter, access, record, plan, device) -> dict:
         _step(runtime, record, "change_applied")
     except Exception as exc:
         _step(runtime, record, "change_failed", "%s after %d lines" % (type(exc).__name__, getattr(exc, "accepted_lines", 0)))
-        return _settle_after_expiry(runtime, access, record, plan, "change failed")
+        return _settle_after_expiry(runtime, access, record, plan, "change failed", due)
     cause = "administrator table"
     try:
         after_text = access.snapshot()
@@ -467,14 +491,14 @@ def _execute(runtime, adapter, access, record, plan, device) -> dict:
     except Rejected as exc:
         cause = getattr(exc, "category", cause)
         _step(runtime, record, "postcheck_failed", cause)
-        return _settle_after_expiry(runtime, access, record, plan, cause)
+        return _settle_after_expiry(runtime, access, record, plan, cause, due)
     except Exception as exc:
         _step(runtime, record, "postcheck_failed", type(exc).__name__)
-        return _settle_after_expiry(runtime, access, record, plan, "postcheck unavailable")
+        return _settle_after_expiry(runtime, access, record, plan, "postcheck unavailable", due)
     if verdict["result"] != "match":
         _step(runtime, record, "postcheck_failed", "%d differences" % len(verdict["differences"]))
         record["postcheck_differences"] = verdict["differences"]
-        return _settle_after_expiry(runtime, access, record, plan, "prediction mismatch")
+        return _settle_after_expiry(runtime, access, record, plan, "prediction mismatch", due)
     if schema_runtime.is_plan(plan):
         schema_runtime.bind_generated(plan, verdict["generated_bindings"])
     _step(runtime, record, "postcheck_passed")
@@ -489,47 +513,47 @@ def _execute(runtime, adapter, access, record, plan, device) -> dict:
             found = audit_gate.new_blocking(device.platform, record["audit_before"], audited, device.name, policy)
     except audit_gate.Incomplete as exc:
         _step(runtime, record, "audit_incomplete", exc.summary)
-        return _settle_after_expiry(runtime, access, record, plan, "audit incomplete")
+        return _settle_after_expiry(runtime, access, record, plan, "audit incomplete", due)
     except Exception as exc:
         _step(runtime, record, "audit_failed", type(exc).__name__)
-        return _settle_after_expiry(runtime, access, record, plan, "audit unavailable")
+        return _settle_after_expiry(runtime, access, record, plan, "audit unavailable", due)
     if found:
         record["audit_findings"] = found
         _step(runtime, record, "audit_failed", "%d new findings" % len(found))
-        return _settle_after_expiry(runtime, access, record, plan, "audit finding")
+        return _settle_after_expiry(runtime, access, record, plan, "audit finding", due)
     _step(runtime, record, "audit_passed", "%d rules, %d findings before, none new"
           % (audit_gate.rule_count(device.platform), len(record["audit_before"])))
     try:
         seen = engine.observed_state(plan, adapter.observe(access, plan))
     except Exception as exc:
         _step(runtime, record, "check_identity_failed", type(exc).__name__)
-        return _settle_after_expiry(runtime, access, record, plan, "check identity unavailable")
+        return _settle_after_expiry(runtime, access, record, plan, "check identity unavailable", due)
     if seen != plan["predicted"]["after"]:
         _step(runtime, record, "check_identity_failed", "state differs")
-        return _settle_after_expiry(runtime, access, record, plan, "check identity mismatch")
+        return _settle_after_expiry(runtime, access, record, plan, "check identity mismatch", due)
     _step(runtime, record, "check_identity_passed")
     if record.get("kind") == "enrollment":
-        return _settle_after_expiry(runtime, access, record, plan, "enrollment self-test")
+        return _settle_after_expiry(runtime, access, record, plan, "enrollment self-test", due)
     try:
         remaining = (_fire_at(record) - adapter.clock(access)).total_seconds()
     except Exception:
         remaining = -1
     if remaining < device.confirm_margin_seconds:
         _step(runtime, record, "confirm_skipped", "too close to the safeguard")
-        return _settle_after_expiry(runtime, access, record, plan, "no time left to confirm")
+        return _settle_after_expiry(runtime, access, record, plan, "no time left to confirm", due)
     try:
         final = engine.verify(plan, access.snapshot().encode("utf-8"), expect="after")
     except Exception as exc:
         _step(runtime, record, "final_check_failed", type(exc).__name__)
-        return _settle_after_expiry(runtime, access, record, plan, "final check unavailable")
+        return _settle_after_expiry(runtime, access, record, plan, "final check unavailable", due)
     if final["result"] != "match":
         _step(runtime, record, "final_check_failed", "%d differences" % len(final["differences"]))
         record["final_check_differences"] = final["differences"]
-        return _settle_after_expiry(runtime, access, record, plan, "foreign change")
+        return _settle_after_expiry(runtime, access, record, plan, "foreign change", due)
     _step(runtime, record, "confirm_start")
     if not adapter.remove_safeguard(access, record, spec):
         _step(runtime, record, "confirm_unverified")
-        return _settle_after_expiry(runtime, access, record, plan, "confirmation unverified")
+        return _settle_after_expiry(runtime, access, record, plan, "confirmation unverified", due)
     try:
         text = access.snapshot().encode("utf-8")
         removed = engine.verify(plan, text, expect="after")
@@ -635,7 +659,8 @@ def recover(runtime, device_name: str) -> list:
                 settled.append(_finish(runtime, record, "unknown", "interrupted; safeguard state unreadable"))
                 continue
             if present:
-                settled.append(_settle_after_expiry(runtime, access, record, plan, "interrupted"))
+                settled.append(_settle_after_expiry(runtime, access, record, plan, "interrupted",
+                                                    runtime.monotonic() + device.safeguard_seconds))
                 continue
             try:
                 text = access.snapshot().encode("utf-8")

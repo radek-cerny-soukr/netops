@@ -11,6 +11,7 @@ foreign_sessions=exec_fortios.foreign_sessions
 persist=exec_fortios.persist
 ports=exec_fortios.ports
 prechecks=exec_fortios.prechecks
+safeguard_fired=exec_fortios.safeguard_fired
 
 def hostname(access,text):
     return access.hostname

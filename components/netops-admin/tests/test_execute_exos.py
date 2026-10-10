@@ -25,6 +25,7 @@ def make_runtime(tmp_path, device, accounts=("admin", "netops-rw"), firmware=FIR
     )
     from enrollment_helpers import certify
     runtime = execute.Runtime(config, lambda _device: device, sleep=device.advance)
+    runtime.monotonic = lambda: device.uptime
     return certify(runtime, device, "sw")
 
 

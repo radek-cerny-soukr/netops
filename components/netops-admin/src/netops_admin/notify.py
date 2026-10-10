@@ -46,6 +46,11 @@ def message(record: dict) -> tuple:
     return title.encode("ascii", "replace").decode("ascii"), "\n".join(lines)
 
 
+class _Unredirected(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
+
+
 class NtfyNotifier:
     def __init__(self, server: str, topic_file: str, timeout_seconds: float, x509_strict: bool = True):
         self.server = server.rstrip("/")
@@ -69,7 +74,8 @@ class NtfyNotifier:
             headers={"Title": title, "Priority": PRIORITIES.get(record.get("result"), "4"), "Tags": "netops"},
         )
         try:
-            with urllib.request.urlopen(request, timeout=self.timeout_seconds, context=self._context()) as answer:
-                return "sent" if 200 <= answer.status < 300 else "failed"
+            opener = urllib.request.build_opener(urllib.request.HTTPSHandler(context=self._context()), _Unredirected)
+            with opener.open(request, timeout=self.timeout_seconds) as answer:
+                return "sent" if 200 <= answer.status < 300 and answer.url == request.full_url else "failed"
         except (urllib.error.URLError, OSError, ValueError):
             return "failed"

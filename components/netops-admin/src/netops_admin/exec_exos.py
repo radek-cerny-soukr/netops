@@ -98,6 +98,17 @@ def safeguard_absent(access, record) -> bool:
     return not ({names["profile"], names["timer"]} & listed)
 
 
+def safeguard_fired(access, record) -> bool:
+    names = exos.safeguard_names(record["change_id"])
+    try:
+        timers = access.query(exos.QUERY_TIMERS)
+    except Exception:
+        return False
+    row = exos.timer_row(timers, names["timer"])
+    return (exos.upm_listing_complete(timers, "Timers") and row is not None and row["profile"] == names["profile"]
+            and not row["next"] and "o" not in row["flags"])
+
+
 def persist(access, spec) -> bool:
     access.apply([("ask", "save configuration", b"(y/N)"), "y"], spec)
     return True

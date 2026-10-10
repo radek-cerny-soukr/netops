@@ -96,20 +96,48 @@ def _restore(library,path,values):
   return library.validate(path,native) if native else {}
  except ValueError:_reject("a snapshot attribute cannot be safely restored")
 
-def _assignments(library,path,values,state):
+def _assignments(library,path,values,state,scope=None,references=None):
+ if references is not None and not schema_policy.bound(references,library):_reject("the reference snapshot is not bound to this exact library")
  metadata=library.node(path)["attrs"];pending=dict(values);ordered={};current=dict(state)
+ def visible(name):
+  return schema_policy.condition_state(metadata.get(name,{}),metadata,current,scope,references,path)
  while pending:
   for name,tokens in sorted(pending.items()):
-   if schema_policy.condition_allowed(metadata[name],metadata,current):
+   if visible(name) is True:
     ordered[name]=tokens;pending.pop(name)
     if tokens is None:current.pop(name,None)
     else:current[name]=tuple(fortios.tokenize(" ".join(tokens)))
     break
-  else:_reject("schema attributes cannot be ordered under their measured visibility conditions")
+  else:
+   if any(visible(name) is None for name in sorted(pending)):_reject(schema_policy.UNKNOWN_VISIBILITY)
+   _reject("schema attributes cannot be ordered under their measured visibility conditions")
  for name in current:
-  if not schema_policy.condition_allowed(metadata.get(name,{}),metadata,current):
-   _reject("schema change would hide an existing attribute and its restoration is not calibrated")
+  verdict=visible(name)
+  if verdict is None:_reject(schema_policy.UNKNOWN_VISIBILITY)
+  if verdict is False:_reject("schema change would hide an existing attribute and its restoration is not calibrated")
  return ordered,current
+
+def _linked(library):
+ result={}
+ for path in library.paths:
+  for name,attribute in library.node(path)["attrs"].items():
+   for spec in schema_policy.reference_specs(attribute):
+    link=result.setdefault(spec["table"],{"targets":set(),"paths":{}})
+    link["targets"].add(spec["target_attribute"])
+    link["paths"].setdefault(path,{}).setdefault(name,set()).add(spec["attribute"])
+ return result
+
+def _dependents(library,tree,references,link,key):
+ result={};metadata={}
+ for instance in schema.config_instances(library,tree):
+  attributes=link["paths"].get(instance.path)
+  if not attributes:continue
+  if instance.path not in metadata:metadata[instance.path]=library.node(instance.path)["attrs"]
+  attrs=metadata[instance.path];state=_state(instance.node)
+  for name,sources in sorted(attributes.items()):
+   if any(value.casefold()==key.casefold() for source in sorted(sources) for value in state.get(source,())):
+    result[json.dumps([instance.scope,instance.path,instance.owners,name])]=schema_policy.condition_state(attrs[name],attrs,state,instance.scope,references,instance.path)
+ return result
 
 def _render(library,operation,mode,values):
  scope=operation["scope"]
@@ -141,10 +169,11 @@ def build(library,policy,text,operations,protected=None):
  if policy.library.sha256!=library.sha256:_reject("schema policy is bound to another library")
  if not isinstance(text,str) or len(text.encode())>16*1024*1024:_reject("schema snapshot exceeds its limit")
  if not isinstance(operations,list) or not 1<=len(operations)<=MAX_OPERATIONS:_reject("schema transaction operation count is invalid")
- try:tree=fortios.parse(text)
- except (fortios.ParseError,fortios.TruncatedError):_reject("schema snapshot is incomplete or malformed")
+ try:tree=fortios.parse(text);references=schema_policy.References(library,text)
+ except (fortios.ParseError,fortios.TruncatedError,ValueError):_reject("schema snapshot is incomplete or malformed")
+ snapshot_sha256=hashlib.sha256(text.encode()).hexdigest();links=_linked(library)
  before_findings,_=schema_checks.references(library,tree,True)
- known={_digest(x) for x in before_findings};working=copy.deepcopy(tree)
+ known={_digest(x) for x in before_findings};working=references.tree
  steps=[];commands=[];inverse=[]
  for data in operations:
   operation=_operation(data,library);path=operation["path"];mode=operation["op"]
@@ -163,8 +192,8 @@ def build(library,policy,text,operations,protected=None):
   native=changes if mode!="delete" else _source_values(library,path,before)
   try:canonical=library.validate(path,changes) if changes else {}
   except ValueError:_reject("schema change values cannot be validated")
-  canonical,planned_state=_assignments(library,path,canonical,before)
-  verdict=policy.require(path,operation["scope"],mode,native,planned_state if mode!="delete" else before)
+  canonical,planned_state=_assignments(library,path,canonical,before,operation["scope"],references)
+  verdict=policy.require(path,operation["scope"],mode,native,planned_state if mode!="delete" else before,references,snapshot_sha256)
   guarded={x.casefold() for names in (protected or {}).values() for x in names}
   referenced=set(value.casefold() for tokens in before.values() for value in tokens)
   referenced.update(value.casefold() for tokens in canonical.values() if tokens for value in fortios.tokenize(" ".join(tokens)))
@@ -174,6 +203,9 @@ def build(library,policy,text,operations,protected=None):
     if instance.node is node:continue
     if any(key.casefold() in {v.casefold() for v in a.values} for a in instance.node.attrs.values() if not a.unset):
      _reject("schema deletion has a configured incoming reference or an unclassified matching value")
+  link=links.get(path)
+  if link is not None and (key is None or mode=="update" and not link["targets"]&set(changes)):link=None
+  exposed=_dependents(library,working,references,link,key) if link is not None else None
   if mode=="create":
    node=fortios.Node(container.path+(key,),0);container.entries[key]=node
   if mode=="delete":
@@ -183,6 +215,10 @@ def build(library,policy,text,operations,protected=None):
    for name,tokens in canonical.items():
     if tokens is None:node.attrs.pop(name,None)
     else:node.attrs[name]=fortios.Attr(tuple(fortios.tokenize(" ".join(tokens))),0)
+  if link is not None:
+   now=_dependents(library,working,references,link,key)
+   if None in exposed.values() or None in now.values():_reject(schema_policy.UNKNOWN_VISIBILITY)
+   if now!=exposed:_reject("schema change would change the visibility of an attribute of a referencing object")
   after=None if mode=="delete" else _state(node)
   if mode=="update" and after==before:_reject("schema update changes nothing")
   findings,coverage=schema_checks.references(library,working,True)
@@ -193,14 +229,14 @@ def build(library,policy,text,operations,protected=None):
   forward=_render(library,operation,mode,canonical)
   reverse_mode="delete" if mode=="create" else "create" if mode=="delete" else "update"
   reverse_values={} if mode=="create" else restored if mode=="delete" else {name:restored.get(name) for name in changes}
-  reverse_values,_=_assignments(library,path,reverse_values,{} if mode=="delete" else after or {})
+  reverse_values,_=_assignments(library,path,reverse_values,{} if mode=="delete" else after or {},operation["scope"],references)
   reverse=_render(library,operation,reverse_mode,reverse_values)
   commands+=forward;inverse=reverse+inverse
   steps.append({"operation":operation,"risk":verdict["risk"],"evidence_sha256":verdict["evidence_sha256"],"generated_on_create":verdict["generated_on_create"],
                 "before_sha256":_digest(before if original_present else None),"after_sha256":_digest(after),"before_state":before if original_present else None,"after_state":after,"commands":forward,"inverse":reverse})
  if len(commands)>MAX_COMMANDS or len(inverse)>MAX_COMMANDS:_reject("schema transaction command count exceeds its limit")
  result={"format":FORMAT,"identity":library.identity,"schema_sha256":library.sha256,"calibration_sha256":policy.sha256,
-         "snapshot_sha256":hashlib.sha256(text.encode()).hexdigest(),"before_tree_sha256":_digest(_tree_state(tree)),"predicted_tree_sha256":_digest(_tree_state(working)),
+         "snapshot_sha256":snapshot_sha256,"before_tree_sha256":_digest(_tree_state(tree)),"predicted_tree_sha256":_digest(_tree_state(working)),
          "operations":steps,"commands":commands,"inverse":inverse,
          "execution_ready":False,"assurance":"schema plan only; live execution requires the existing journal, enrollment, audit and on-device safeguard pipeline"}
  result["plan_sha256"]=_digest(result)

@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import json
+import threading
 import time
 import urllib.error
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import pytest
 from fake_fortios import FakeFortiOS
@@ -39,7 +41,7 @@ def test_notifier_reports_failure_without_raising(tmp_path, monkeypatch):
     def unreachable(*args, **kwargs):
         raise urllib.error.URLError("down")
 
-    monkeypatch.setattr(notify.urllib.request, "urlopen", unreachable)
+    monkeypatch.setattr(notify.urllib.request, "build_opener", unreachable)
     sender = notify.NtfyNotifier("https://ntfy.example", str(topic), 1, x509_strict=False)
     assert sender({"device": "lab", "result": "confirmed"}) == "failed"
     assert not (sender._context().verify_flags & notify.ssl.VERIFY_X509_STRICT)
@@ -119,3 +121,81 @@ def test_message_names_the_block_for_every_blocking_reason():
     for reason in execute.BLOCKING_REASONS:
         _title, body = notify.message({"result": "confirmed", "reason": reason, "plan": {}})
         assert "the device is blocked until a person investigates it" in body
+
+
+class _Endpoint(BaseHTTPRequestHandler):
+    def _answer(self):
+        body = self.rfile.read(int(self.headers.get("Content-Length") or 0))
+        self.server.received.append((self.command, self.path, body))
+        status, location = self.server.answers.pop(0) if self.server.answers else (200, None)
+        self.send_response(status)
+        if location:
+            self.send_header("Location", location)
+        self.send_header("Content-Length", "0")
+        self.end_headers()
+
+    def do_POST(self):
+        self._answer()
+
+    def do_GET(self):
+        self._answer()
+
+    def log_message(self, *args):
+        pass
+
+
+@pytest.fixture
+def endpoints(tmp_path, monkeypatch):
+    for name in ("http_proxy", "HTTP_PROXY", "https_proxy", "HTTPS_PROXY", "all_proxy", "ALL_PROXY"):
+        monkeypatch.delenv(name, raising=False)
+    servers = []
+    for _ in range(2):
+        server = ThreadingHTTPServer(("127.0.0.1", 0), _Endpoint)
+        server.received, server.answers = [], []
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        servers.append(server)
+    topic = tmp_path / "topic.env"
+    topic.write_text("NTFY_TOPIC=abcdefgh_12345\n")
+    try:
+        yield servers, str(topic)
+    finally:
+        for server in servers:
+            server.shutdown()
+            server.server_close()
+
+
+def _sender(server, topic):
+    return notify.NtfyNotifier("http://127.0.0.1:%d" % server.server_address[1], topic, 5)
+
+
+@pytest.mark.parametrize("status", [301, 302, 303, 307, 308])
+def test_a_redirected_notification_is_failed_and_not_followed(endpoints, status):
+    (first, second), topic = endpoints
+    first.answers.append((status, "http://127.0.0.1:%d/elsewhere" % second.server_address[1]))
+    assert _sender(first, topic)({"device": "lab", "result": "confirmed"}) == "failed"
+    assert [(method, path) for method, path, _body in first.received] == [("POST", "/abcdefgh_12345")]
+    assert second.received == []
+
+
+def test_a_direct_answer_is_sent_with_its_body(endpoints):
+    (first, second), topic = endpoints
+    assert _sender(first, topic)({"device": "lab", "result": "confirmed"}) == "sent"
+    [(method, path, body)] = first.received
+    assert (method, path) == ("POST", "/abcdefgh_12345") and b"result: confirmed" in body
+    assert second.received == []
+
+
+def test_a_redirected_notification_refuses_the_next_change(tmp_path, endpoints):
+    (first, second), topic = endpoints
+    first.answers.append((302, "http://127.0.0.1:%d/elsewhere" % second.server_address[1]))
+    device = FakeFortiOS()
+    runtime = make_runtime(tmp_path, device)
+    runtime.notifier = _sender(first, topic)
+    record = execute.apply(runtime, "lab", request())
+    assert record["result"] == "confirmed" and record["notification"] == "failed"
+    assert second.received == []
+    blocks = len(device.applied_blocks)
+    with pytest.raises(Rejected) as caught:
+        execute.apply(runtime, "lab", request(key="other-host", request_id="req-0002-example"))
+    assert "was not delivered" in caught.value.reasons[0]
+    assert len(device.applied_blocks) == blocks

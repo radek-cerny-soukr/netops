@@ -30,6 +30,16 @@ def test_old_records_count_as_one_change_and_old_hours_do_not_count(monkeypatch)
     with pytest.raises(BudgetExhausted):
         execute._budgets(runtime([legacy,record(weight=4,at=6000)],hour=3,day=6),SimpleNamespace(name="a"),changes=2)
 
+def test_running_records_reserve_the_budget_until_they_finish(monkeypatch):
+    monkeypatch.setattr(execute.time,"time",lambda:10000)
+    running={"device":"other","budget_changes":2,"created_at_epoch":10000,"status":"running"}
+    with pytest.raises(BudgetExhausted):
+        execute._budgets(runtime([running],day=2),SimpleNamespace(name="a"),changes=1)
+    with pytest.raises(BudgetExhausted):
+        execute._budgets(runtime([dict(running,device="a")],hour=2),SimpleNamespace(name="a"),changes=1)
+    execute._budgets(runtime([dict(running,status="finished")],hour=2,day=2),SimpleNamespace(name="a"),changes=2)
+    execute._budgets(runtime([dict(running,device="a",created_at_epoch=10000-86401)],hour=2,day=2),SimpleNamespace(name="a"),changes=2)
+
 @pytest.mark.parametrize("changes",[True,0,-1,33,1.5,"2"])
 def test_invalid_transaction_weights_are_refused(changes):
     with pytest.raises(Rejected):

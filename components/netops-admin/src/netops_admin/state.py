@@ -7,6 +7,7 @@ import os
 import re
 import secrets
 import stat
+import time
 from pathlib import Path
 
 from netops_admin.errors import Rejected, StateUnreadable
@@ -17,6 +18,9 @@ DIRECTORY_MODE = 0o700
 FILE_MODE = 0o600
 REJECTIONS_FILE = "rejections.json"
 REJECTIONS_LOCK = ".rejections.lock"
+ADMISSION_LOCK = ".admission.lock"
+ADMISSION_WAIT_SECONDS = 10
+ADMISSION_POLL_SECONDS = 0.05
 CHANGE_NAME = re.compile(r"^[0-9a-f]{32}$")
 REQUEST_NAME = re.compile(r"^[A-Za-z0-9._:-]{8,64}$")
 REJECTION_WINDOW = 3600
@@ -147,6 +151,9 @@ class Store:
 
     def lock(self, device: str):
         return DeviceLock(self.locks / ("%s.lock" % device))
+
+    def admission(self):
+        return AdmissionLock(self.root / ADMISSION_LOCK)
 
     def unreadable(self, path: Path) -> StateUnreadable:
         return StateUnreadable(["the state file %s cannot be read; a person must check it"
@@ -285,3 +292,19 @@ class DeviceLock:
             os.close(self.descriptor)
             self.descriptor = None
         return False
+
+
+class AdmissionLock(DeviceLock):
+    def __enter__(self):
+        self.descriptor = _lock_descriptor(self.path)
+        deadline = time.monotonic() + ADMISSION_WAIT_SECONDS
+        while True:
+            try:
+                fcntl.flock(self.descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                return self
+            except BlockingIOError:
+                if time.monotonic() >= deadline:
+                    os.close(self.descriptor)
+                    self.descriptor = None
+                    raise Rejected(["another operation holds the admission lock of the journal"]) from None
+            time.sleep(ADMISSION_POLL_SECONDS)

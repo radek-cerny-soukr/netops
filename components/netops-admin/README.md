@@ -2,9 +2,17 @@
 
 Bounded, reversible changes to network devices: a single-object profile request or a calibrated FortiOS schema transaction of up to 32 operations, planned from a fresh snapshot and executed behind a rollback safeguard on the device itself.
 
-This source tree targets `netops-admin/v0.2.6` (2026-10-06); it pins `netops-auditor==0.2.10` and `netops-core==0.2.7`. The current release of every component is linked from the [repository release table](https://github.com/radek-cerny-soukr/netops/blob/main/README.md#components). **Install from the release assets:** the [installation guide](https://github.com/radek-cerny-soukr/netops/blob/main/components/netops-admin/docs/installation.md) downloads the source archives of this component and of the pinned `netops-auditor` and `netops-core` from their release pages and verifies them against the release `SHA256SUMS` and its Sigstore bundle. `netops-admin` 0.2.6 has a separate PyPI publication step after GitHub; check exact-version index availability before choosing that installation channel. Version 0.1.0 was an unpublished internal milestone.
+This source tree targets `netops-admin/v0.2.7` (2026-10-11); it pins `netops-auditor==0.2.11` and `netops-core==0.2.8`. The current release of every component is linked from the [repository release table](https://github.com/radek-cerny-soukr/netops/blob/main/README.md#components). **Install from the release assets:** the [installation guide](https://github.com/radek-cerny-soukr/netops/blob/main/components/netops-admin/docs/installation.md) downloads the source archives of this component and of the pinned `netops-auditor` and `netops-core` from their release pages and verifies them against the release `SHA256SUMS` and its Sigstore bundle. `netops-admin` 0.2.7 has a separate PyPI publication step after GitHub; check exact-version index availability before choosing that installation channel. Version 0.1.0 was an unpublished internal milestone.
 
 [Start here: enrollment, policies and the new operations](https://github.com/radek-cerny-soukr/netops/blob/main/components/netops-admin/docs/operations-020.md).
+
+## Fixes in 0.2.7
+
+- The notification does not follow redirects: a 3xx answer, or an answer from another URL than the one requested, is recorded as `failed`, so the next change on that device waits for a delivered notification.
+- Processes that share a state directory admit new operations one at a time under an admission lock of that directory, so clients on two devices can no longer exceed a budget such as `changes_per_day` together or start two operations with one `request_id`; the lock is never held while a device is contacted.
+- ExtremeXOS: a safeguard counts as removed only when each UPM listing holds at least as many entries as its count; a count without its table leaves the confirmation unverified.
+
+These answer points 1, 2, 3 and 9 of [issue #4](https://github.com/radek-cerny-soukr/netops/issues/4); see the [changelog](CHANGELOG.md) and the [issue resolution table](https://github.com/radek-cerny-soukr/netops/blob/main/docs/README.md#issue-4). 0.2.7 changes no profile file, so the upgrade does not by itself require a new enrollment.
 
 ## Installation fixes in 0.2.6
 
@@ -126,6 +134,21 @@ Protected parents and objects linked to protected names are refused. Deletion
 is limited to the last entry until restoration of entry order is calibrated.
 Visibility changes that could hide existing configuration are refused.
 Secrets and attributes without a measured value validator are refused.
+
+Visibility conditions are evaluated in the exact global or VDOM context of
+each operation. A reference condition reads the referenced object from the
+same pinned snapshot, including earlier operations of the same transaction,
+and only in its measured target context, with no fallback to another VDOM or
+to global. An attribute of the referenced object that the snapshot omits
+takes its measured default only when that default is not model-dependent and
+the attribute has no conditions of its own. A condition that cannot be
+evaluated, for example a missing or ambiguous referenced object, an attribute
+without such a default, an unmeasured context or invalid metadata, refuses
+the change as `cannot be evaluated`. A change to
+a referenced object that would change the visibility of another object's
+attributes is refused. A satisfied condition is not a grant: the attribute
+still needs its rollback calibration. The condition format is described in
+the [Core schema documentation](https://github.com/radek-cerny-soukr/netops/blob/main/components/netops-core/docs/schema.md).
 
 These commands produce an offline plan with `execution_ready: false`.
 Live execution uses `preview` and `apply` with an operator configured
