@@ -22,13 +22,19 @@ import tempfile
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
+import importlib.util as _guard_import
+_guard_spec = _guard_import.spec_from_file_location('netops_test_guard', Path(__file__).with_name('_test_guard.py'))
+guard = _guard_import.module_from_spec(_guard_spec)
+_guard_spec.loader.exec_module(guard)
+
 import pytest
 
 from netops_auditor import cli, collect, l1_exos, l1_fortios, sarif
 
 COMPONENT = Path(__file__).resolve().parents[1]
 FIXTURES = COMPONENT / "tests" / "fixtures"
-SOURCES = os.pathsep.join((str(COMPONENT / "src"), str(COMPONENT.parent / "netops-core" / "src")))
+SOURCES = os.pathsep.join(item for item in (
+    str(COMPONENT / "src"), os.environ.get("PYTHONPATH", ""), str(COMPONENT.parent / "netops-core" / "src")) if item)
 TENANT = "tenant-a"
 DEVICE = "fw-a.example.invalid"
 SECONDS = 60
@@ -283,10 +289,10 @@ def _limited():
 
 def launch(argv, module="netops_auditor", environment=None):
     try:
-        done = subprocess.run(
+        done = guard.run(
             [sys.executable, "-B", "-m", module, *argv],
             stdin=subprocess.DEVNULL,
-            preexec_fn=_limited,
+            memory_limit=MEMORY, preexec_fn=_limited,
             capture_output=True,
             timeout=SECONDS,
             env=_environment() if environment is None else environment,
@@ -325,22 +331,7 @@ def clean(failures):
 
 
 def bounded(call, seconds=SECONDS):
-    def expire(signum, frame):
-        raise Hang()
-
-    soft, hard = resource.getrlimit(resource.RLIMIT_AS)
-    with open("/proc/self/statm") as stream:
-        used = int(stream.read().split()[0]) * resource.getpagesize()
-    ceiling = used + MEMORY if hard == resource.RLIM_INFINITY else min(hard, used + MEMORY)
-    previous = signal.signal(signal.SIGALRM, expire)
-    signal.setitimer(signal.ITIMER_REAL, seconds)
-    resource.setrlimit(resource.RLIMIT_AS, (ceiling, hard))
-    try:
-        return call()
-    finally:
-        resource.setrlimit(resource.RLIMIT_AS, (soft, hard))
-        signal.setitimer(signal.ITIMER_REAL, 0)
-        signal.signal(signal.SIGALRM, previous)
+    return guard.bounded(call, seconds, MEMORY, Hang)
 
 
 def in_process(capsys, argv, codes):

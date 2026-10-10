@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from . import jsontext
-from .findings import fingerprint_of, fingerprint_v1
+from .findings import FingerprintError, checked_component, fingerprint_of, fingerprint_v1
 from .inputs import InputError, read_regular
 
 FILE_VERSION = 2
@@ -48,7 +48,10 @@ def _checked_now(now) -> datetime:
 def _checked_tenant(value) -> str:
     if not isinstance(value, str) or not value.strip():
         raise SuppressionError("tenant must be a non-empty string, got %r" % (value,))
-    return value
+    try:
+        return checked_component("tenant", value)
+    except FingerprintError as error:
+        raise SuppressionError(str(error)) from None
 
 
 def _checked_text(index: int, name: str, value) -> str:
@@ -115,9 +118,12 @@ def _suppression(index: int, item, tenant: str) -> Suppression:
         raise SuppressionError(
             "suppression %d: created %s is not before expires %s" % (index, item["created"], item["expires"])
         )
-    expected = fingerprint_of(
-        texts["rule_id"], rule_version, tenant, texts["device"], texts["object_key"]
-    )
+    try:
+        expected = fingerprint_of(
+            texts["rule_id"], rule_version, tenant, texts["device"], texts["object_key"]
+        )
+    except FingerprintError as error:
+        raise SuppressionError("suppression %d: %s" % (index, error)) from None
     if item["fingerprint"] != expected:
         raise SuppressionError(
             "suppression %d: fingerprint %r does not match components, expected %s"
@@ -190,6 +196,10 @@ def _document(path: Path) -> dict:
         raise SuppressionError(
             "suppression file %s: tenant must be a non-empty string, got %r" % (path, document["tenant"])
         )
+    try:
+        checked_component("tenant", document["tenant"])
+    except FingerprintError as error:
+        raise SuppressionError("suppression file %s: %s" % (path, error)) from None
     return document
 
 
@@ -239,7 +249,11 @@ def _migrated_item(index: int, item, tenant: str) -> dict:
     if created >= expires:
         raise SuppressionError("suppression %d: created is not before expires" % index)
     components = (item["rule_id"], item["rule_version"], item["device"], item["object_key"])
-    if item["fingerprint"] != fingerprint_v1(*components):
+    try:
+        previous = fingerprint_v1(*components)
+    except FingerprintError as error:
+        raise SuppressionError("suppression %d: %s" % (index, error)) from None
+    if item["fingerprint"] != previous:
         raise SuppressionError("suppression %d: fingerprint does not match components" % index)
     migrated = {name: item[name] for name in ITEM_FIELDS}
     migrated["fingerprint"] = fingerprint_of(

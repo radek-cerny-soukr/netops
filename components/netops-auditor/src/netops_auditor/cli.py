@@ -22,7 +22,7 @@ from . import l1_exos
 from . import l1_fortios
 from . import sarif
 from .engine import CATALOG_DIR, NOT_EVALUATED, CatalogError, CheckError, evaluate, load_catalog
-from .findings import Finding
+from .findings import Finding, FingerprintError, checked_component
 from .inputs import InputError, read_regular
 from .state import STATE_GONE, STATE_NEW, STATE_OPEN_KNOWN, STATE_SUPPRESSED, classify
 from .state import STATE_NOT_EVALUATED, evaluation_complete, last_evaluated, stored_statuses
@@ -105,6 +105,8 @@ COMPLETENESS_CLASS = "fakt"
 COMPLETENESS_REASON = "snapshot-incomplete"
 
 DEFAULT_PROFILE = "unknown"
+
+IDENTITY_ARGUMENTS = ("tenant", "device")
 
 
 class Failure(Exception):
@@ -229,9 +231,17 @@ def _audit(platform: str, text: str, tenant: str, device: str, rules, policy=Non
     except PARSE_ERRORS as error:
         raise Failure("cannot parse configuration: %s" % error)
     try:
-        return evaluate(tree, tenant, device, rules, policy)
+        findings, states = evaluate(tree, tenant, device, rules, policy)
     except CheckError as error:
         raise Failure("catalog does not match the checks: %s" % error)
+    for finding in findings:
+        try:
+            finding.fingerprint()
+        except FingerprintError as error:
+            raise Failure(
+                "cannot parse configuration: rule %s, line %d: %s" % (finding.rule_id, finding.line, error)
+            )
+    return findings, states
 
 
 def _rule_status(platform, rules, states, policy) -> dict:
@@ -552,6 +562,8 @@ def _command_schema_check(args) -> int:
                 _scope, rule = json.loads(key)
                 name = rule[len("fortios.management."):] if rule.startswith("fortios.management.") else None
                 catalog_coverage[key] = {"status": status, "reason": reason, "required": name is None or name in required}
+    except CatalogError as error:
+        raise Failure("catalog fortios: %s" % error) from None
     except CheckError as error:
         raise Failure("scoped catalog cannot be evaluated: %s" % error) from None
     except schema.SchemaError as error:
@@ -923,8 +935,12 @@ def _checked_arguments(args) -> None:
             if isinstance(item, str):
                 try:
                     item.encode("utf-8")
+                    if name in IDENTITY_ARGUMENTS:
+                        checked_component("argument %s" % name, item)
                 except UnicodeEncodeError:
                     raise Failure("argument %s is not valid UTF-8" % name) from None
+                except FingerprintError as error:
+                    raise Failure(str(error)) from None
 
 
 def main(argv=None) -> int:

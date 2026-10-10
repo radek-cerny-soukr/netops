@@ -10,16 +10,35 @@ FINGERPRINT_VERSION = 2
 FINGERPRINT_SEPARATOR = "\x1f"
 
 
-def _digest(values) -> str:
+class FingerprintError(ValueError):
+    pass
+
+
+def checked_component(name: str, value: str) -> str:
+    if FINGERPRINT_SEPARATOR in value:
+        raise FingerprintError("%s holds U+001F, the separator of the finding fingerprint" % name)
+    return value
+
+
+def _digest(*components) -> str:
+    values = tuple(checked_component(name, value) for name, value in components)
     return hashlib.sha256(FINGERPRINT_SEPARATOR.join(values).encode("utf-8")).hexdigest()
 
 
 def fingerprint_of(rule_id, rule_version, tenant, device, object_key) -> str:
-    return _digest((rule_id, str(rule_version), tenant, device, object_key))
+    return _digest(
+        ("rule_id", rule_id),
+        ("rule_version", str(rule_version)),
+        ("tenant", tenant),
+        ("device", device),
+        ("object_key", object_key),
+    )
 
 
 def fingerprint_v1(rule_id, rule_version, device, object_key) -> str:
-    return _digest((rule_id, str(rule_version), device, object_key))
+    return _digest(
+        ("rule_id", rule_id), ("rule_version", str(rule_version)), ("device", device), ("object_key", object_key)
+    )
 
 
 @dataclass(frozen=True)

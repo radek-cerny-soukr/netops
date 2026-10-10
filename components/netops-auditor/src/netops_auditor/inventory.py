@@ -4,6 +4,8 @@ from dataclasses import dataclass
 
 from netops_core import inventory as core
 
+from .findings import FingerprintError, checked_component
+
 CONSUMER = "auditor"
 FILE_VERSION = core.FILE_VERSION
 SECTION_FIELDS = ("channel", "source", "required_sections", "tls_fingerprint")
@@ -132,6 +134,10 @@ def _checked_common(where: str, channel: str, entry) -> None:
 
 def section(entry) -> AuditorSection:
     where = "device %s: auditor section" % entry.name
+    try:
+        checked_component("name", entry.name)
+    except FingerprintError as error:
+        raise InventoryError("device %r: %s" % (entry.name, error)) from None
     item = entry.auditor
     if not isinstance(item, dict):
         raise InventoryError(

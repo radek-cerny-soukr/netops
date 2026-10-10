@@ -2056,6 +2056,36 @@ def test_merge_sarif_keeps_every_result_under_one_run(tmp_path, capsys):
     assert "merged %d results from 3 files" % len(run["results"]) in out
 
 
+def test_merge_sarif_takes_rule_descriptions_from_every_input(tmp_path, capsys):
+    declaring = write_sarif(tmp_path, capsys, "fw-a", dirty_text(), "fw-a")
+    document = json.loads(declaring.read_text(encoding="utf-8"))
+    bare = json.loads(json.dumps(document))
+    bare["runs"][0]["tool"]["driver"]["rules"] = []
+    assert bare["runs"][0]["results"]
+    undeclaring = tmp_path / "bare.sarif"
+    undeclaring.write_text(json.dumps(bare), encoding="utf-8")
+    merged = {}
+    for name, order in (("declaring-first", [declaring, undeclaring]), ("bare-first", [undeclaring, declaring])):
+        output = tmp_path / (name + ".sarif")
+        code, out, err = invoke(capsys, ["merge-sarif", "--output", str(output)] + [str(path) for path in order])
+        assert code == 0, (name, err)
+        run = json.loads(output.read_text(encoding="utf-8"))["runs"][0]
+        rules = run["tool"]["driver"]["rules"]
+        assert rules == document["runs"][0]["tool"]["driver"]["rules"], name
+        assert len(run["results"]) == 2 * len(document["runs"][0]["results"]), name
+        for result in run["results"]:
+            assert rules[result["ruleIndex"]]["id"] == result["ruleId"], name
+        merged[name] = sorted(json.dumps(result, sort_keys=True) for result in run["results"])
+    assert merged["declaring-first"] == merged["bare-first"]
+    for order in ([("bare", bare), ("declaring", document)], [("declaring", document), ("bare", bare)]):
+        assert len(sarif.merge(order)["runs"][0]["results"]) == 2 * len(document["runs"][0]["results"])
+    output = tmp_path / "bare-alone.sarif"
+    code, out, err = invoke(capsys, ["merge-sarif", "--output", str(output), str(undeclaring)])
+    assert code == cli.EXIT_ERROR
+    assert "that no merged file describes" in err
+    assert not output.exists()
+
+
 def test_merge_sarif_refuses_foreign_or_inconsistent_input(tmp_path, capsys):
     own = write_sarif(tmp_path, capsys, "fw-a", dirty_text(), "fw-a")
     document = json.loads(own.read_text(encoding="utf-8"))
@@ -2071,7 +2101,7 @@ def test_merge_sarif_refuses_foreign_or_inconsistent_input(tmp_path, capsys):
     cases["changed"] = (changed, "differently")
     undescribed = json.loads(json.dumps(document))
     undescribed["runs"][0]["results"][0]["ruleId"] = "fortios.unknown"
-    cases["undescribed"] = (undescribed, "does not describe")
+    cases["undescribed"] = (undescribed, "that no merged file describes")
     twice = json.loads(json.dumps(document))
     twice["runs"].append(twice["runs"][0])
     cases["twice"] = (twice, "exactly one run")

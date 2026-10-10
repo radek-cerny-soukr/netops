@@ -4,7 +4,7 @@ import json
 from dataclasses import dataclass
 from pathlib import Path
 
-from .findings import CLASSES, EVIDENCE_TYPES, SEVERITIES, Finding
+from .findings import CLASSES, EVIDENCE_TYPES, SEVERITIES, Finding, FingerprintError, checked_component
 
 CATALOG_DIR = Path(__file__).parent / "catalog"
 
@@ -79,6 +79,10 @@ def load_catalog(platform: str) -> tuple:
         )
         if rule.id in seen:
             raise CatalogError("duplicate rule id %s" % rule.id)
+        try:
+            checked_component("id", rule.id)
+        except FingerprintError as error:
+            raise CatalogError("%r: %s" % (rule.id, error)) from None
         if rule.severity not in SEVERITIES:
             raise CatalogError("%s: unknown severity %s" % (rule.id, rule.severity))
         if rule.rule_class not in CLASSES:

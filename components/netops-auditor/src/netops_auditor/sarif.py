@@ -147,20 +147,21 @@ def _single_run(item, source: str) -> dict:
 def merge(documents) -> dict:
     if not documents:
         raise SarifError("nothing to merge")
-    rules, positions, results, devices = [], {}, [], []
-    for source, item in documents:
-        run = _single_run(item, source)
-        local = run["tool"]["driver"].get("rules", [])
-        for rule in local:
+    runs = [(source, _single_run(item, source)) for source, item in documents]
+    rules, positions = [], {}
+    for source, run in runs:
+        for rule in run["tool"]["driver"].get("rules", []):
             known = positions.get(rule["id"])
             if known is None:
                 positions[rule["id"]] = len(rules)
                 rules.append(rule)
             elif rules[known] != rule:
                 raise SarifError("%s describes rule %s differently" % (source, rule["id"]))
+    results, devices = [], []
+    for source, run in runs:
         for result in run.get("results", []):
             if result.get("ruleId") not in positions:
-                raise SarifError("%s reports rule %s it does not describe" % (source, result.get("ruleId")))
+                raise SarifError("%s reports rule %s that no merged file describes" % (source, result.get("ruleId")))
             merged = dict(result)
             merged["ruleIndex"] = positions[result["ruleId"]]
             results.append(merged)

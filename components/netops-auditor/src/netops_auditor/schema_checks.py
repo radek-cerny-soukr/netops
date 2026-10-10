@@ -8,6 +8,9 @@ from netops_core.schema import SchemaError, config_instances
 
 MAX_FINDINGS = 10000
 SECRET_ATTRIBUTE = re.compile(r"(?:^|[-_])(?:password|passwd|passphrase|pwd|psk|psksecret|secret|token|private.key|community|api.key)(?:$|[-_])",re.I)
+CONDITION_FIELDS = frozenset(("any_of", "measured_on", "measured_contexts", "evidence_sha256"))
+LOCAL_CONDITION_FIELDS = frozenset(("when", "equals", "baseline", "hidden_by"))
+REFERENCE_VISIBILITY = "target attribute visibility depends on a referenced object and is not evaluated"
 
 
 def _key(instance, attribute="", value=""):
@@ -108,6 +111,24 @@ def references(library, tree, complete=True):
                   "snapshot_complete":complete}
 
 
+def _local_clause(clause, depth=0):
+    if depth > 8 or not isinstance(clause, dict):
+        return False
+    if set(clause) == {"all_of"}:
+        return (isinstance(clause["all_of"], list) and bool(clause["all_of"]) and
+                all(_local_clause(item, depth + 1) for item in clause["all_of"]))
+    return {"when", "equals"} <= set(clause) <= LOCAL_CONDITION_FIELDS and all(isinstance(value, str) for value in clause.values())
+
+
+def _local_visibility(attribute):
+    conditions = attribute.get("conditions")
+    if conditions is None:
+        return True
+    return (isinstance(conditions, dict) and set(conditions) <= CONDITION_FIELDS and
+            isinstance(conditions.get("any_of"), list) and bool(conditions["any_of"]) and
+            all(_local_clause(clause) for clause in conditions["any_of"]))
+
+
 def upgrade(current, target, tree):
     if current.identity[0] != target.identity[0]:
         raise SchemaError("upgrade comparison requires the same hardware model")
@@ -149,6 +170,8 @@ def upgrade(current, target, tree):
                                   "configured attribute is absent from the target schema"))
                 continue
             before, after = old["attrs"][attribute], new["attrs"][attribute]
+            if not _local_visibility(after):
+                unknown.append({"path":instance.path,"attribute":attribute,"reason":REFERENCE_VISIBILITY})
             if before.get("type") is None or after.get("type") is None:
                 unknown.append({"path":instance.path,"attribute":attribute,"reason":"source or target attribute type is not measured"})
                 continue

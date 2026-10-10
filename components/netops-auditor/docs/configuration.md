@@ -15,7 +15,7 @@ document of `netops-core`, file version 2**, and its schema is
 [`../../netops-core/docs/vault.md`](../../netops-core/docs/vault.md). This document ships in the
 `netops-core` archive, not in the auditor archive: that relative path resolves in a repository
 checkout; from a standalone auditor archive the same file is published at
-[`netops-core/v0.2.7`](https://github.com/radek-cerny-soukr/netops/blob/netops-core/v0.2.7/components/netops-core/docs/vault.md).
+[`netops-core/v0.2.8`](https://github.com/radek-cerny-soukr/netops/blob/netops-core/v0.2.8/components/netops-core/docs/vault.md).
 What follows is what the auditor adds to it.
 
 ```json
@@ -35,7 +35,7 @@ What follows is what the auditor adds to it.
 | `credentials` | an object; the key is the record name an inventory entry refers to in `credential` |
 | `credentials.<name>.kind` | one of `password`, `ssh-key`, `api-token`, `snmp-community` |
 | `credentials.<name>.login` | the account name, **required** for `password` and `ssh-key`, **forbidden** for the other two |
-| `credentials.<name>.value` | the secret itself; for `ssh-key` the whole private key text, header line and all, newlines written as `\n` - the example above is a placeholder, and the real shape is in [`../../netops-core/docs/vault.md`](../../netops-core/docs/vault.md) (from a standalone archive, published at [`netops-core/v0.2.7`](https://github.com/radek-cerny-soukr/netops/blob/netops-core/v0.2.7/components/netops-core/docs/vault.md)) |
+| `credentials.<name>.value` | the secret itself; for `ssh-key` the whole private key text, header line and all, newlines written as `\n` - the example above is a placeholder, and the real shape is in [`../../netops-core/docs/vault.md`](../../netops-core/docs/vault.md) (from a standalone archive, published at [`netops-core/v0.2.8`](https://github.com/radek-cerny-soukr/netops/blob/netops-core/v0.2.8/components/netops-core/docs/vault.md)) |
 
 The file is read at mode `0600` or `0400` and at no other mode, and a vault path that is a symbolic
 link is refused before the mode is read.
@@ -82,7 +82,7 @@ suppression file - and refuses to start when any of them is missing or of the wr
 naming the variable. It needs `fastmcp`, which the auditor does not install itself: the pin lives in
 `requirements-mcp.txt` (`fastmcp==4.0.5`, the version `netops-helper` ships, so both MCP surfaces of
 the family speak one library). Started without it, the module says so in one line and exits with
-status 2 rather than raising an import error. Nothing on this surface writes to a device: the six
+status 2 rather than raising an import error. Nothing on this surface writes to a device: the seven
 tools read the store and the catalogue.
 
 ## Suppressions
@@ -131,6 +131,23 @@ is the sha256 over five values joined by the unit separator `\x1f`, in this orde
 `rule_version`, `tenant`, `device`, `object_key`. Raise the rule version, move the finding to another
 interface, meet the same rule on another device **or run the same device for another tenant**, and
 the suppression stops applying - by construction, not by policy.
+
+None of the five values may hold that separator itself, or two identities would join into the same
+text: tenant `a\x1fb` on device `c` and tenant `a` on device `b\x1fc` would share every fingerprint.
+`fingerprint_of` raises an error instead of joining such a value, and the auditor refuses it where it
+enters - `--tenant` and `--device` of every command, `NETOPS_AUDITOR_TENANT`, the tenant and the items
+of a suppression file, the `name` of a device the auditor reads from the inventory and a rule id of the
+catalogue - with one error line and exit code `2`, before anything is written to the store. A
+configuration whose finding would carry the separator in its object key is refused the same way, as
+`cannot parse configuration`; the separator anywhere else in a configuration is audited as before:
+
+```
+error: argument tenant holds U+001F, the separator of the finding fingerprint
+error: cannot parse configuration: rule fortios.mgmt.wan-admin-access, line 10: object_key holds U+001F, the separator of the finding fingerprint
+```
+
+A fingerprint of values without the separator is byte for byte the one earlier versions computed, so
+neither a suppression file nor the store needs a migration.
 
 The tenant sits inside the fingerprint, and that is the whole point of file version 2:
 before it, two tenants that happened to name a device the same way computed the same fingerprint for
@@ -237,7 +254,7 @@ device, and the `legacy_ssh` exception are in [`inventory.md`](inventory.md); th
 document is in [`../../netops-core/docs/inventory.md`](../../netops-core/docs/inventory.md), which
 ships in the `netops-core` archive, not the auditor archive: from a standalone auditor archive the
 same file is published at
-[`netops-core/v0.2.7`](https://github.com/radek-cerny-soukr/netops/blob/netops-core/v0.2.7/components/netops-core/docs/inventory.md).
+[`netops-core/v0.2.8`](https://github.com/radek-cerny-soukr/netops/blob/netops-core/v0.2.8/components/netops-core/docs/inventory.md).
 
 ## The platform picks the parser and the catalogue
 
@@ -304,7 +321,7 @@ error: suppressions: cannot read suppression file /run/netops/waivers: not a reg
 | `--inventory` | 4 MiB (4194304 bytes) | `netops_core.inventory.INVENTORY_MAX_BYTES` (from netops-core 0.2.6) |
 | `--vault` | 1 MiB (1048576 bytes) | `netops_core.vault.VAULT_MAX_BYTES` (from netops-core 0.2.6) |
 
-The inventory and the vault are read by netops-core; the auditor pins `netops-core==0.2.7`. The limits were introduced in Core 0.2.6 (0.2.5 read them whole).
+The inventory and the vault are read by netops-core; the auditor pins `netops-core==0.2.8`. The limits were introduced in Core 0.2.6 (0.2.5 read them whole).
 
 The output of `merge-sarif` is opened the same way, without blocking, and must be a regular file or
 not exist yet; a pipe nobody reads is refused instead of blocking the command. Every argument must be

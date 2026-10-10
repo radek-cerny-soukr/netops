@@ -6,7 +6,7 @@ credential name, host key pin and legacy SSH exception - is read by `netops_core
 documented in [`../../netops-core/docs/inventory.md`](../../netops-core/docs/inventory.md). This
 document ships in the `netops-core` archive, not in the auditor archive: that relative path resolves
 in a repository checkout; from a standalone auditor archive the same file is published at
-[`netops-core/v0.2.7`](https://github.com/radek-cerny-soukr/netops/blob/netops-core/v0.2.7/components/netops-core/docs/inventory.md).
+[`netops-core/v0.2.8`](https://github.com/radek-cerny-soukr/netops/blob/netops-core/v0.2.8/components/netops-core/docs/inventory.md).
 That page is the schema of everything this one does not repeat.
 
 What each component needs for itself lives in a section of its own name. The auditor owns the
@@ -152,9 +152,9 @@ options behind a profile name are in
 [`../../netops-core/docs/inventory.md`](../../netops-core/docs/inventory.md) and
 [`../../netops-core/docs/ssh.md`](../../netops-core/docs/ssh.md). Both relative paths resolve in a
 repository checkout; from a standalone auditor archive the same two files are published at
-[`netops-core/v0.2.7`](https://github.com/radek-cerny-soukr/netops/blob/netops-core/v0.2.7/components/netops-core/docs/inventory.md)
+[`netops-core/v0.2.8`](https://github.com/radek-cerny-soukr/netops/blob/netops-core/v0.2.8/components/netops-core/docs/inventory.md)
 and
-[`netops-core/v0.2.7`](https://github.com/radek-cerny-soukr/netops/blob/netops-core/v0.2.7/components/netops-core/docs/ssh.md).
+[`netops-core/v0.2.8`](https://github.com/radek-cerny-soukr/netops/blob/netops-core/v0.2.8/components/netops-core/docs/ssh.md).
 What matters here:
 
 - The `ssh` channel talks with the algorithms a current OpenSSH client offers by default. Some
@@ -183,4 +183,6 @@ host key pin to go with it, and a device that no component consumes.
 From the `auditor` section: a missing or unknown section field, a `channel` outside the three, a
 `source` on `ssh` or a missing one elsewhere, an empty `required_sections` or an entry in it that is
 not a non-empty string, a `tls_fingerprint` that is not 64 hexadecimal characters or one on a channel
-that has no use for it, and every cross-check of the table above.
+that has no use for it, and every cross-check of the table above. A device the auditor reads is also
+refused when its `name` holds U+001F, the separator of the finding fingerprint (see
+[`configuration.md`](configuration.md)); a device of another component is neither read nor checked.

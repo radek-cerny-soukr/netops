@@ -5,6 +5,11 @@ import subprocess
 import sys
 from pathlib import Path
 
+import importlib.util as _guard_import
+_guard_spec = _guard_import.spec_from_file_location('netops_test_guard', Path(__file__).with_name('_test_guard.py'))
+guard = _guard_import.module_from_spec(_guard_spec)
+_guard_spec.loader.exec_module(guard)
+
 import pytest
 
 from netops_auditor import cli
@@ -24,12 +29,12 @@ def _limited():
 
 
 def _cli(argv):
-    environment = dict(os.environ, PYTHONPATH=os.pathsep.join(
-        (str(COMPONENT / "src"), str(COMPONENT.parent / "netops-core" / "src"))))
+    environment = dict(os.environ, PYTHONPATH=os.pathsep.join(item for item in (
+        str(COMPONENT / "src"), os.environ.get("PYTHONPATH", ""), str(COMPONENT.parent / "netops-core" / "src")) if item))
     try:
-        return subprocess.run(
+        return guard.run(
             [sys.executable, "-B", "-m", "netops_auditor"] + [str(part) for part in argv],
-            capture_output=True, text=True, timeout=SECONDS, env=environment, preexec_fn=_limited,
+            capture_output=True, text=True, timeout=SECONDS, env=environment, memory_limit=MEMORY_CAP, preexec_fn=_limited,
         )
     except subprocess.TimeoutExpired:
         pytest.fail("the command was still reading after %d seconds: %s" % (SECONDS, argv))

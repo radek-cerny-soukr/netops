@@ -7,6 +7,11 @@ import threading
 from datetime import datetime, timezone
 from pathlib import Path
 
+import importlib.util as _guard_import
+_guard_spec = _guard_import.spec_from_file_location('netops_test_guard', Path(__file__).with_name('_test_guard.py'))
+guard = _guard_import.module_from_spec(_guard_spec)
+_guard_spec.loader.exec_module(guard)
+
 import pytest
 
 from netops_auditor import checks_fortios, cli, collect, l1_exos, l1_fortios, management, query
@@ -354,10 +359,10 @@ def limited():
 @pytest.mark.skipif(not Path("/dev/zero").exists(), reason="needs /dev/zero")
 def test_a14_policy_from_dev_zero_ends_with_an_error(tmp_path):
     config = write_config(tmp_path, clean_text())
-    environment = dict(os.environ, PYTHONPATH=os.pathsep.join(
-        (str(COMPONENT / "src"), str(COMPONENT.parent / "netops-core" / "src"))))
+    environment = dict(os.environ, PYTHONPATH=os.pathsep.join(item for item in (
+        str(COMPONENT / "src"), os.environ.get("PYTHONPATH", ""), str(COMPONENT.parent / "netops-core" / "src")) if item))
     argv = [sys.executable, "-B", "-m", "netops_auditor"] + run_args(config) + ["--policy", "/dev/zero"]
-    result = subprocess.run(argv, capture_output=True, text=True, timeout=60, env=environment, preexec_fn=limited)
+    result = guard.run(argv, capture_output=True, text=True, timeout=60, env=environment, memory_limit=768 * 1024 * 1024, preexec_fn=limited)
     assert result.returncode == cli.EXIT_ERROR, result.stderr[-400:]
     assert "policy is not a regular file" in result.stderr
     assert "Traceback" not in result.stderr

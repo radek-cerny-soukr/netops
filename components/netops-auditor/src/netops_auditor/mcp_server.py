@@ -21,10 +21,12 @@ except ModuleNotFoundError:
 
 from fastmcp.exceptions import ToolError
 
+from . import __version__
 from . import checks_exos
 from . import checks_fortios
 from . import query
 from .engine import CatalogError, load_catalog
+from .findings import FingerprintError, checked_component
 from .store import SCHEMA_VERSION, Store, schema_version
 from .suppressions import SuppressionError, load_for_tenant
 from .suppressions import load as load_suppressions
@@ -170,6 +172,10 @@ def configure(values=None) -> Configuration:
         )
     platform = _text(environment, CATALOG_VARIABLE)
     tenant = _text(environment, TENANT_VARIABLE)
+    try:
+        checked_component(TENANT_VARIABLE, environment[TENANT_VARIABLE])
+    except FingerprintError as error:
+        raise ConfigurationError(str(error)) from None
     current = Configuration(
         store_path=store_path,
         tenant=tenant,
@@ -231,7 +237,7 @@ def _tool_errors(function):
     return guarded
 
 
-mcp = FastMCP("NetOps Auditor Read-Only", instructions=INSTRUCTIONS)
+mcp = FastMCP("NetOps Auditor Read-Only", instructions=INSTRUCTIONS, version=__version__)
 
 
 @mcp.tool(
@@ -348,7 +354,7 @@ def main() -> int:
     except ConfigurationError as error:
         sys.stderr.write("netops-auditor mcp: %s\n" % error)
         return EXIT_ERROR
-    mcp.run()
+    mcp.run(show_banner=False)
     return EXIT_OK
 
 

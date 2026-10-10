@@ -2,7 +2,7 @@
 
 Release tags follow the component scheme `<name>/v<version>`, where `<name>` is the project name
 declared in this component's `pyproject.toml`: this component tags
-`netops-auditor/v0.2.10`, and the release title is `netops-auditor 0.2.10`. Tags of another component
+`netops-auditor/v0.2.11`, and the release title is `netops-auditor 0.2.11`. Tags of another component
 are never touched by this procedure. Publishing a newer version leaves the release page and the tag
 of earlier versions in place. The canonical origin is
 `https://github.com/radek-cerny-soukr/netops`.
@@ -26,7 +26,7 @@ credentials, host keys, or inventory and vault files. The release export is a po
 the component gate also reads the content of every released file and, outside a
 repository, holds the exported tree to exactly the released selection.
 
-## What 0.2.10 releases
+## What 0.2.11 releases
 
 This component releases **from source; it ships no container image**. The release carries four assets:
 
@@ -43,8 +43,8 @@ component runs on any Python 3.13 host, installed from the unpacked, verified re
 ### PyPI, a delayed channel
 
 The component is prepared for PyPI as `netops-auditor`: a source distribution
-and a wheel built from the release tag. Of its releases only 0.2.7 has been uploaded (1 October 2026);
-the uploads of later versions are postponed, and the release page stays authoritative. The workflow `.github/workflows/publish-pypi.yml` at the
+and a wheel built from the release tag. Each release is uploaded to PyPI after its GitHub release;
+the release page stays authoritative. The workflow `.github/workflows/publish-pypi.yml` at the
 repository root is started by hand on that tag. It accepts only a tag of this family, checks that the
 tag names the version in `pyproject.toml`, builds both files with hash-pinned build tools and
 `SOURCE_DATE_EPOCH` set to the time of the tagged commit, and uploads them through PyPI trusted
@@ -55,11 +55,11 @@ uploaded again.
 ### It needs `netops-core` beside it
 
 The auditor reads the inventory, the credential store, the host key trust and the SSH
-transport from `netops-core`, and `pyproject.toml` pins it as `netops-core==0.2.7`.
+transport from `netops-core`, and `pyproject.toml` pins it as `netops-core==0.2.8`.
 Once both are uploaded, `pip install netops-auditor` would resolve that pin on PyPI and install the
 core with it. Until then **the operator installs the `netops-core` source archive of exactly that
-version next to the auditor**: download `netops-core-0.2.7-source.tar.gz` with the release
-`SHA256SUMS` and its Sigstore bundle from the `netops-core` 0.2.7 page of the
+version next to the auditor**: download `netops-core-0.2.8-source.tar.gz` with the release
+`SHA256SUMS` and its Sigstore bundle from the `netops-core` 0.2.8 page of the
 [releases](https://github.com/radek-cerny-soukr/netops/releases), verify the bundle with `cosign` and
 the archive against `SHA256SUMS` as
 [Verifying a release](https://github.com/radek-cerny-soukr/netops/blob/main/docs/README.md#verifying-a-release)
@@ -100,9 +100,9 @@ The current published release is linked from the [repository release table](http
    ```
 
    Run source tests beside exactly one Core tree: `../netops-core` in the monorepository or
-   `../netops-core-0.2.7` after unpacking the pinned release archive. The supply-chain tests verify
+   `../netops-core-0.2.8` after unpacking the pinned release archive. The supply-chain tests verify
    its package identity and exact version in both layouts. For the archive layout, set
-   `PYTHONPATH="src:../netops-core-0.2.7/src"`; no rename or symlink is needed. The GitHub Action
+   `PYTHONPATH="src:../netops-core-0.2.8/src"`; no rename or symlink is needed. The GitHub Action
    keeps the monorepository layout provided by the checkout.
 
    The export destination must not already exist. Run the gate once more **inside** the export; away

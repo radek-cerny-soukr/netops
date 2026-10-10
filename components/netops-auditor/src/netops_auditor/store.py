@@ -6,7 +6,7 @@ import sqlite3
 from datetime import datetime, timezone
 
 from .engine import RULE_STATES
-from .findings import fingerprint_of
+from .findings import FingerprintError, fingerprint_of
 from .state import evaluation_complete
 
 MOMENT_FORMAT = "%Y-%m-%dT%H:%M:%SZ"
@@ -254,9 +254,12 @@ def _migrated_findings(connection) -> tuple:
                 "finding %d belongs to no run that names a tenant, the store cannot be migrated"
                 % row["id"]
             )
-        fresh = fingerprint_of(
-            row["rule_id"], row["rule_version"], tenant, row["device"], row["object_key"]
-        )
+        try:
+            fresh = fingerprint_of(
+                row["rule_id"], row["rule_version"], tenant, row["device"], row["object_key"]
+            )
+        except FingerprintError as error:
+            raise StoreError("finding %d cannot be migrated: %s" % (row["id"], error)) from None
         mapping[(tenant, row["fingerprint"])] = fresh
         connection.execute("UPDATE findings SET fingerprint = ? WHERE id = ?", (fresh, row["id"]))
         count += 1

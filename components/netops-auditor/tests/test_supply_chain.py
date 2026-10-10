@@ -1,5 +1,9 @@
 import json
+import os
 import re
+import shutil
+import subprocess
+import sys
 import tomllib
 from fnmatch import fnmatch
 from pathlib import Path
@@ -17,9 +21,15 @@ URL = re.compile(r"[a-z][a-z0-9+.-]*://[^\s\"]*")
 ABSOLUTE_PATH = re.compile(r"(?<![A-Za-z0-9_.~-])/[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)+")
 WINDOWS_PATH = re.compile(r"[A-Za-z]:\\\\?[A-Za-z0-9_.-]")
 CORE_NAME = "netops-core"
-CORE_VERSION = "0.2.7"
+CORE_VERSION = "0.2.8"
 CORE_REQUIREMENT = "%s==%s" % (CORE_NAME, CORE_VERSION)
 CORE_PURL = "pkg:pypi/%s@%s" % (CORE_NAME, CORE_VERSION)
+SUBPROCESS_TESTS = (
+    "tests/test_bounded_inputs.py::test_suppressions_from_dev_zero_are_refused",
+    "tests/test_input_hardening.py::test_a14_policy_from_dev_zero_ends_with_an_error",
+    "tests/test_malformed_inputs.py::test_the_installed_entry_point_answers_broken_input_without_a_traceback",
+    "tests/test_mcp_server_identity.py::test_initialize_over_stdio_announces_the_auditor_name_and_version",
+)
 
 
 def _canonical(name):
@@ -102,7 +112,7 @@ def test_core_source_layout_accepts_repository_and_pinned_archive(tmp_path, vers
     core = tmp_path / (CORE_NAME + "-" + CORE_VERSION if versioned else CORE_NAME)
     (core / "src/netops_core").mkdir(parents=True)
     (core / "src/netops_core/__init__.py").write_text("")
-    (core / "pyproject.toml").write_text('[project]\nname="netops-core"\nversion="0.2.7"\n')
+    (core / "pyproject.toml").write_text('[project]\nname="netops-core"\nversion="0.2.8"\n')
     assert _core_tree(tmp_path) == core
     (core / "pyproject.toml").write_text('[project]\nname="netops-core"\nversion="0.0.1"\n')
     with pytest.raises(AssertionError):
@@ -116,6 +126,23 @@ def test_core_source_layout_rejects_missing_or_ambiguous_trees(tmp_path):
     (tmp_path / (CORE_NAME + "-" + CORE_VERSION)).mkdir()
     with pytest.raises(AssertionError):
         _core_tree(tmp_path)
+
+
+def test_subprocess_tests_pass_beside_the_pinned_core_archive(tmp_path):
+    ignored = shutil.ignore_patterns("__pycache__")
+    core = tmp_path / (CORE_NAME + "-" + CORE_VERSION)
+    shutil.copytree(_core_tree(COMPONENT.parent) / "src", core / "src", ignore=ignored)
+    auditor = tmp_path / ("%s-%s" % (_project()["name"], _project()["version"]))
+    for name in ("src", "tests"):
+        shutil.copytree(COMPONENT / name, auditor / name, ignore=ignored)
+    shutil.copyfile(PYPROJECT, auditor / "pyproject.toml")
+    environment = dict(os.environ, PYTHONPATH=os.pathsep.join(("src", os.path.join("..", core.name, "src"))))
+    done = subprocess.run(
+        [sys.executable, "-B", "-m", "pytest", "-q", "-p", "no:cacheprovider",
+         "--basetemp", str(tmp_path / "basetemp"), *SUBPROCESS_TESTS],
+        cwd=str(auditor), env=environment, stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=600,
+    )
+    assert done.returncode == 0, done.stdout[-6000:] + done.stderr[-2000:]
 
 
 def test_every_link_into_the_core_archive_names_the_pinned_version():
