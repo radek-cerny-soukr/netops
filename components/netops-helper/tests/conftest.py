@@ -131,6 +131,7 @@ while True:
 
 def _write_client(directory: Path, name: str, body: str) -> None:
     path = directory / name
+    body = body.replace("#!/usr/bin/env python3\n", f"#!{sys.executable}\n", 1)
     path.write_text(body, encoding="utf-8")
     path.chmod(path.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
 

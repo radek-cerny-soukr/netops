@@ -74,7 +74,8 @@ def _assert_hardened(argv: list[str], secret: str, environment: dict) -> None:
     assert "-p" in argv and argv[argv.index("-p") + 1] == str(PORT)
     assert all(secret not in item for item in argv), argv
     assert all(secret not in str(value) for value in environment.values())
-    assert set(environment) <= {
+    bootstrap = {"__CF_USER_TEXT_ENCODING"} if sys.platform == "darwin" else set()
+    assert set(environment) - bootstrap <= {
         "PATH", "HOME", "LC_ALL",
         "SSH_ASKPASS", "SSH_ASKPASS_REQUIRE", "DISPLAY", "NETOPS_ASKPASS_FILE",
     }, sorted(environment)
@@ -113,6 +114,15 @@ def test_every_exec_platform_sends_its_preamble_and_the_catalog_command(
     sent = " ".join(call["argv"][-1] for call in calls[1:]).lower()
     for forbidden in FORBIDDEN_ON_THE_WIRE:
         assert forbidden not in sent or forbidden in " ".join(expected).lower(), forbidden
+
+
+
+def test_parent_environment_canaries_do_not_reach_the_client(wire, monkeypatch) -> None:
+    for name in ("CPATH", "LIBRARY_PATH", "SDKROOT", "MANPATH", "__CF_USER_TEXT_ENCODING"):
+        monkeypatch.setenv(name, PASSWORD)
+    result = engine.ssh_read(_target("linux", "hostname"), "linux", "hostname", {}, 0, 16_000)
+    assert result["ok"] is True, result
+    _assert_hardened(_calls(wire)[-1]["argv"], PASSWORD, _calls(wire)[-1]["env"])
 
 
 def test_the_password_reaches_the_client_only_through_the_askpass_file(wire) -> None:

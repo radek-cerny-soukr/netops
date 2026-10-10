@@ -14,6 +14,16 @@ These first-party command-reference pages establish syntax and intended operatio
 
 All output is sensitive, untrusted device data. Interface descriptions, topology, addresses, MAC tables, VLAN names, chassis identity, process state, and hardware inventory can disclose operational details.
 
+## Unsupported: show sharing
+
+NetOps excludes the former sharing query and every show sharing variant from automated diagnostics on virtual and physical EXOS platforms. Measurements on 7 October 2026 found the same mismatch on EXOS-VM 33.6.1.14 and an X440-G2 running 33.7.1.6: the command prints a complete Load Sharing Monitor table but sets native STATUS to -6 and sends SSH exit-status 250. Control queries returned STATUS/SSH pairs 0/0 for show lacp and -2/254 for an invalid command.
+
+This is an automation safety restriction: the complete table does not establish successful completion. The precise internal meaning of -6 and a vendor defect identifier remain unconfirmed. NetOps does not normalize 250 to zero. The query is absent from discovery and cannot be opted into; remove sharing from existing enabled_queries before upgrading. Validation refuses an inventory that still enrolls it.
+
+The lacp query remains available for LACP state; it is not a replacement for the full sharing table. NetOps Admin identifies LAG master/member ports from the configuration snapshot and continues to refuse VLAN membership changes on those ports without this diagnostic command.
+
+[EXOS STATUS documentation](https://documentation.extremenetworks.com/exos_30.2/GUID-73D712E2-C494-4E3F-9019-F82341FCDCEA.shtml) defines STATUS as the last command result. The dated catalogue measurements below remain historical evidence and do not re-enable this excluded query.
+
 ## Accepted Phase-1 queries
 
 The table is the conservative Phase-1 whitelist. A template slot is accepted only from matching enrolled inventory. `high-volume` follows the generated catalogue definition: it is a scheduling advisory for variable collections or histories that can require continuation, and changes no authorization or runtime limit. `normal` is not a bounded-output promise.
@@ -51,7 +61,6 @@ The fixed `no-refresh` token requests a one-shot display. It is part of the revi
 | `lldp_interface` | `show lldp port {interface} neighbors` | `interfaces.extreme_physical_port` | normal | E-LLDP |
 | `lldp_interface_details` | `show lldp port {interface} neighbors detailed` | `interfaces.extreme_physical_port` | normal | E-LLDP |
 | `vlan_summary` | `show vlan` | none | high-volume | E-VLAN |
-| `sharing` | `show sharing` | none | high-volume | E-SHARING |
 | `lacp` | `show lacp` | none | high-volume | E-LACP |
 | `stp_summary` | `show stpd` | none | high-volume | E-STPD |
 | `stp_detail` | `show stpd detail` | none | high-volume | E-STPD |
@@ -170,7 +179,6 @@ All links are first-party Extreme Networks Switch Engine command-reference pages
 | E-FDB | Switch Engine v33.7.1 Command References: `show fdb` | `mac_table`, `mac_interface` | https://documentation.extremenetworks.com/Switch%20Engine%20v33.7.1%20Command%20References/content/documents/Switch_Operating_Systems/Switch_Engine/Command_References/show_fdb.shtml |
 | E-LLDP | Switch Engine v33.7.1 Command References: `show lldp neighbors` | `lldp_neighbors`, `lldp_interface`, `lldp_interface_details` | https://documentation.extremenetworks.com/Switch%20Engine%20v33.7.1%20Command%20References/content/documents/Switch_Operating_Systems/Switch_Engine/Command_References/show_lldp_neighbors.shtml |
 | E-VLAN | Switch Engine v33.7.1 Command References: `show vlan` | `vlan_summary`, `vlan_details` | https://documentation.extremenetworks.com/Switch%20Engine%20v33.7.1%20Command%20References/content/documents/Switch_Operating_Systems/Switch_Engine/Command_References/show_vlan.shtml |
-| E-SHARING | Switch Engine v33.7.1 Command References: `show sharing` | `sharing` | https://documentation.extremenetworks.com/Switch%20Engine%20v33.7.1%20Command%20References/content/documents/Switch_Operating_Systems/Switch_Engine/Command_References/show_sharing.shtml |
 | E-LACP | Switch Engine v33.7.1 Command References: `show lacp` | `lacp` | https://documentation.extremenetworks.com/Switch%20Engine%20v33.7.1%20Command%20References/content/documents/Switch_Operating_Systems/Switch_Engine/Command_References/show_lacp.shtml |
 | E-STPD | Switch Engine v33.7.1 command set, Common EXOS/Switch Engine reference: `show stpd` | `stp_summary`, `stp_detail` | https://documentation.extremenetworks.com/Switch%20Engine%20v33.7.1%20Command%20References/content/documents/Switch_Operating_Systems/Common_EXOS_Switch_Engine/33.4.1/show_stpd.shtml |
 

@@ -13,6 +13,12 @@ For 0.3.8, the release assets identify the exact final image digest and its Gryp
 
 The ignore rule of CVE-2026-60002 names the package version: a build that installs any other `openssh-client` version is no longer covered by it, and an active Critical match then blocks the release until the new package is reviewed. The other active High, Medium and Low matches are distribution packages labelled `wont-fix` or `not-fixed`; they are listed in the Grype report of each image and are not reviewed one by one here.
 
+## Helper 0.3.10 fix release
+
+This release removes the EXOS `sharing` query, bounds what the proxy reads from the server and adds a Linux AMD64 image beside the ARM64 image. It keeps the digest-pinned Python 3.14.8 base and the runtime lock of 0.3.9. Each image needs its own fresh build, image SBOM and full Grype scan; the release notes bind both exact image digests and their counts. Earlier scans remain historical evidence.
+
+At the 9 October 2026 review, `apt-cache policy openssh-client` in the pinned base `python:3.14.8-slim-trixie@sha256:c3e521df8b2b498a7a682e7e18676771cb80c6b75b8699af886b2d554ce40151` still showed `1:10.0p1-7+deb13u4` as the trixie candidate, and the [Debian tracker](https://security-tracker.debian.org/tracker/CVE-2026-60002) lists trixie as vulnerable, `<no-dsa>` (Minor issue), fixed only in forky and sid. The CVE-2026-60002 exception stays bound to exactly that package version: it covers an image of 0.3.10, ARM64 or AMD64, only if that image's own SBOM lists `1:10.0p1-7+deb13u4`; no ignore rule is added or widened. The remaining Python findings below still apply to the unchanged Python 3.14.8 runtime.
+
 ## Helper 0.3.9 installation-fix release
 
 This release changes installation documentation, archive tests and version pins. It keeps the digest-pinned Python 3.14.8 base and runtime lock of 0.3.8. A fresh build, image SBOM and full Grype scan are required; its release notes bind the exact image digest and counts. Earlier scans remain historical evidence.

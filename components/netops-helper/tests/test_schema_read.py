@@ -213,13 +213,39 @@ def test_inline_table_keys_preserve_selection_and_redaction():
     assert item["attributes"]["buffer"]==["<REDACTED>"]
     assert "explicit-secret" not in json.dumps(report)
 
+def test_registry_refuses_malformed_reference_visibility_and_reads_without_inferring_it():
+    with tempfile.TemporaryDirectory() as temporary:
+        directory=Path(temporary);data=document()
+        data["config"]["system sdn-connector"]={"kind":"table","scope":"global","available":True,"attrs":{
+            "type":{"type":"option","options":["kubernetes","vmware"]}}}
+        attrs=data["config"]["firewall address"]["attrs"]
+        attrs["sdn"]={"type":"string","ref":{"tables":["system sdn-connector"]}}
+        attrs["node-ip-only"]={"type":"option","options":["enable","disable"],"conditions":{"any_of":[{"reference":{
+            "attribute":"sdn","table":"system sdn-connector","target_attribute":"type","equals":"kubernetes",
+            "contexts":[{"source":"vdom:root","target":"global"}],
+            "evidence_sha256":"c9b7df4e6734ed7dd33a0a9af3a8c3c0e945e2cfd51276570ae4d2aac85fac10"}}]}}
+        library=directory/"library.json";path=directory/"registry.json"
+        def bind(value):
+            library.write_text(json.dumps(value))
+            path.write_text(json.dumps({"format":1,"targets":{"device-a":{"schema":"library.json",
+                "sha256":sha256(library.read_bytes()).hexdigest(),"host_key_fingerprint":PIN}}}))
+            return reader.binding(auth(),path)
+        text='config vdom\n edit "root"\n  config firewall address\n   edit "dyn"\n    set sdn "k8s"\n    set node-ip-only enable\n   next\n  end\n next\nend\n'
+        report=reader.snapshot(bind(data),text,"firewall address","get","root",[])
+        assert report["objects"][0]["attributes"]["node-ip-only"]==["enable"]
+        attrs["node-ip-only"]["conditions"]["any_of"][0]["reference"]["contexts"]=[]
+        must_fail(bind,data)
+        attrs["node-ip-only"]["conditions"]={"any_of":[{"when":"type","equals":"dynamic","reference":{}}]}
+        must_fail(bind,data)
+
 def main():
     for function in [test_registry_digest_pin_and_identity,test_vdom_parent_keys_secrets_and_no_inferred_defaults,
                      test_unwrapped_snapshot_requires_live_vdom_and_cannot_claim_root,
                      test_proxy_and_server_both_reject_unenrolled_paths_and_bad_selectors,
                      test_engine_refuses_before_snapshot_and_paginates_without_another_connection,
                      test_schema_inventory_supports_all_measured_paths_with_a_distinct_bound,
-                     test_inline_table_keys_preserve_selection_and_redaction]:
+                     test_inline_table_keys_preserve_selection_and_redaction,
+                     test_registry_refuses_malformed_reference_visibility_and_reads_without_inferring_it]:
         function()
     print("schema_read_contracts=passed")
 

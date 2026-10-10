@@ -794,3 +794,78 @@ def test_json_nesting_boundary_accepts_limit_and_refuses_next_level(shape):
     assert isinstance(MODULE._json_document(valid), dict if shape == "object" else list)
     with pytest.raises(ValueError, match="JSON nesting exceeds the limit"):
         MODULE._json_document(opening + valid + closing)
+
+
+def test_askpass_refuses_a_peer_with_another_uid(monkeypatch, capsys) -> None:
+    child = MODULE.subprocess.Popen(["sleep", "30"])
+    handoff = MODULE._AskpassHandoff("askpass-secret")
+    try:
+        original = MODULE._peer_uid
+        monkeypatch.setattr(MODULE, "_peer_uid", lambda connection: MODULE.os.geteuid() + 1)
+        handoff.serve(child)
+        monkeypatch.setenv(MODULE.ASKPASS_SOCKET_ENV, handoff.name)
+        assert MODULE._run_askpass() == 1
+        assert capsys.readouterr().out == ""
+        assert handoff._secret == "askpass-secret"
+        monkeypatch.setattr(MODULE, "_peer_uid", original)
+        assert MODULE._run_askpass() == 0
+        assert capsys.readouterr().out == "askpass-secret\n"
+        assert MODULE._run_askpass() == 1
+    finally:
+        child.terminate()
+        child.wait()
+        handoff.close()
+
+
+def test_askpass_refuses_unavailable_peer_credentials(monkeypatch, capsys) -> None:
+    child = MODULE.subprocess.Popen(["sleep", "30"])
+    handoff = MODULE._AskpassHandoff("askpass-secret")
+    try:
+        def unavailable(connection):
+            raise OSError("synthetic credential lookup failure")
+        monkeypatch.setattr(MODULE, "_peer_uid", unavailable)
+        handoff.serve(child)
+        monkeypatch.setenv(MODULE.ASKPASS_SOCKET_ENV, handoff.name)
+        assert MODULE._run_askpass() == 1
+        assert capsys.readouterr().out == ""
+    finally:
+        child.terminate()
+        child.wait()
+        handoff.close()
+    assert handoff._secret == ""
+
+
+@pytest.mark.skipif(MODULE.sys.platform != "darwin", reason="Darwin filesystem socket")
+def test_darwin_askpass_socket_is_owner_only_and_ignores_long_tmpdir(tmp_path, monkeypatch) -> None:
+    monkeypatch.setenv("TMPDIR", str(tmp_path / ("x" * 100)))
+    handoff = MODULE._AskpassHandoff("askpass-secret")
+    path = Path(handoff.name)
+    try:
+        assert str(path).startswith("/tmp/netops-helper-askpass-")
+        assert len(str(path).encode()) < 104
+        assert MODULE.stat.S_IMODE(path.parent.stat().st_mode) == 0o700
+        assert MODULE.stat.S_IMODE(path.stat().st_mode) == 0o600
+        assert MODULE.stat.S_ISSOCK(path.stat().st_mode)
+        assert list(path.parent.iterdir()) == [path]
+    finally:
+        handoff.close()
+    assert not path.parent.exists()
+    assert handoff._secret == ""
+
+
+@pytest.mark.skipif(MODULE.sys.platform != "darwin", reason="Darwin filesystem socket")
+def test_darwin_askpass_bind_failure_removes_its_directory(monkeypatch) -> None:
+    class Listener:
+        address = None
+        closed = False
+        def bind(self, address):
+            self.address = address
+            raise OSError("synthetic bind failure")
+        def close(self):
+            self.closed = True
+    listener = Listener()
+    monkeypatch.setattr(MODULE.socket, "socket", lambda *args: listener)
+    with pytest.raises(OSError):
+        MODULE._AskpassHandoff("askpass-secret")
+    assert listener.closed
+    assert not Path(listener.address).parent.exists()

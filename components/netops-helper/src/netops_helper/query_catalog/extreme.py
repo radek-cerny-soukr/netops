@@ -138,7 +138,6 @@ QUERIES: dict[str, Query] = {
     "vlan_summary": Query(
         "show vlan", NO_SLOTS, "Summarize all VLANs.", high_volume=True,
     ),
-    "sharing": Query("show sharing", NO_SLOTS, "Show link aggregation groups.", high_volume=True),
     "lacp": Query("show lacp", NO_SLOTS, "Show LACP operating state.", high_volume=True),
     "stp_summary": Query(
         "show stpd", NO_SLOTS, "Summarize spanning-tree domains.",

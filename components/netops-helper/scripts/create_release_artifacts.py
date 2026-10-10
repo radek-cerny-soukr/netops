@@ -96,6 +96,7 @@ TESTS = {
     "tests/test_ftp_wire_safety.py",
     "tests/test_cli_errors.py",
     "tests/test_malformed_inputs.py",
+    "tests/_test_guard.py", "tests/test_resource_limits.py",
     "tests/test_runtime_tar_safety.py",
     "tests/test_connection_pacing.py",
     "tests/test_phase1_surface.py",

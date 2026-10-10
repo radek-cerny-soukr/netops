@@ -186,7 +186,7 @@ def _selected_paths(selector: Path, component_root: Path) -> list[str]:
 
 
 def component_selection(root: Path, name: str) -> tuple[set[str], list[str]]:
-    component_root = root / COMPONENTS_DIRECTORY / name
+    component_root = (root / COMPONENTS_DIRECTORY / name).resolve()
     selector_path = component_root / COMPONENT_SELECTOR
     if not selector_path.is_file():
         return set(), [f"component has no release selector: {name}/{COMPONENT_SELECTOR}"]
@@ -302,7 +302,7 @@ def _gate_errors(root: Path, names: list[str]) -> list[str]:
         if not gates:
             errors.append(f"component has no registered gate: {name}")
             continue
-        component_root = root / COMPONENTS_DIRECTORY / name
+        component_root = (root / COMPONENTS_DIRECTORY / name).resolve()
         for relative in gates:
             path = component_root / relative
             if not path.is_file():

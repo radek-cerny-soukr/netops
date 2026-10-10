@@ -11,7 +11,8 @@ input is a path, a symbolic link, a FIFO or a directory in place of a file. Each
 or refused with the documented error of its layer - a JSON-RPC error that is not `internal_error`,
 the script's own error and exit code, the parser's own error class, a tool error raised from a
 refusal - and it never ends in another exception and never hangs. The file runs under pytest and
-as a dependency-free script; the MCP tool checks need FastMCP and are skipped without it.
+as a dependency-free script; the MCP tool checks need FastMCP and icmplib and are skipped without
+them, or fail when NETOPS_REQUIRE_RUNTIME_TESTS=1.
 """
 
 from __future__ import annotations
@@ -25,6 +26,11 @@ import json
 import logging
 import os
 from pathlib import Path
+
+import importlib.util as _guard_import
+_guard_spec = _guard_import.spec_from_file_location('netops_test_guard', Path(__file__).with_name('_test_guard.py'))
+guard = _guard_import.module_from_spec(_guard_spec)
+_guard_spec.loader.exec_module(guard)
 import resource
 import signal
 import socket
@@ -88,22 +94,7 @@ def clean(failures):
 
 
 def bounded(call, seconds=SECONDS):
-    def expire(signum, frame):
-        raise Hang()
-
-    soft, hard = resource.getrlimit(resource.RLIMIT_AS)
-    with open("/proc/self/statm") as stream:
-        used = int(stream.read().split()[0]) * resource.getpagesize()
-    ceiling = used + MEMORY if hard == resource.RLIM_INFINITY else min(hard, used + MEMORY)
-    previous = signal.signal(signal.SIGALRM, expire)
-    signal.setitimer(signal.ITIMER_REAL, seconds)
-    resource.setrlimit(resource.RLIMIT_AS, (ceiling, hard))
-    try:
-        return call()
-    finally:
-        resource.setrlimit(resource.RLIMIT_AS, (soft, hard))
-        signal.setitimer(signal.ITIMER_REAL, 0)
-        signal.signal(signal.SIGALRM, previous)
+    return guard.bounded(call, seconds, MEMORY, Hang)
 
 
 def library(call, refusals):
@@ -440,9 +431,9 @@ def _launch(argv, environment, cwd=ROOT):
         resource.setrlimit(resource.RLIMIT_AS, (MEMORY, MEMORY))
 
     try:
-        done = subprocess.run(
+        done = guard.run(
             [sys.executable, "-B", *argv], stdin=subprocess.DEVNULL, capture_output=True,
-            timeout=SECONDS, env=environment, cwd=str(cwd), preexec_fn=limited,
+            timeout=SECONDS, env=environment, cwd=str(cwd), memory_limit=MEMORY, preexec_fn=limited,
         )
     except subprocess.TimeoutExpired:
         return None, "", ""
@@ -774,7 +765,10 @@ def test_every_operator_input_refuses_a_repeated_key() -> None:
 
 
 def _runtime_available() -> bool:
-    return all(importlib.util.find_spec(name) is not None for name in ("fastmcp", "icmplib"))
+    missing = [name for name in ("fastmcp", "icmplib") if importlib.util.find_spec(name) is None]
+    if missing and os.environ.get("NETOPS_REQUIRE_RUNTIME_TESTS") == "1":
+        raise RuntimeError("project runtime dependencies are missing: " + ", ".join(missing))
+    return not missing
 
 
 def test_ftps_pin_file_refuses_every_broken_shape() -> None:
@@ -962,7 +956,6 @@ def test_the_server_process_answers_a_refusal_without_a_traceback_in_its_log() -
             if answer.get("id") in REFUSED_CALLS:
                 answers[answer["id"]] = answer
     finally:
-        process.stdin.close()
         try:
             _out, log = process.communicate(timeout=SECONDS)
         except subprocess.TimeoutExpired:
@@ -982,6 +975,24 @@ def test_the_server_process_answers_a_refusal_without_a_traceback_in_its_log() -
         if result.get("isError") is not True or content != [message]:
             failures[tool] = "answered %r" % (answer,)
     clean(failures)
+
+
+class _PopenWithoutClosedStdinGuard(subprocess.Popen):
+    def communicate(self, input=None, timeout=None):
+        if self.stdin is not None and self.stdin.closed and not self._communication_started:
+            raise ValueError("flush of closed file")
+        return super().communicate(input, timeout)
+
+
+def test_the_server_refusal_check_leaves_closing_stdin_to_communicate() -> None:
+    if not _runtime_available():
+        return
+    original = subprocess.Popen
+    subprocess.Popen = _PopenWithoutClosedStdinGuard
+    try:
+        test_the_server_process_answers_a_refusal_without_a_traceback_in_its_log()
+    finally:
+        subprocess.Popen = original
 
 
 def main() -> int:

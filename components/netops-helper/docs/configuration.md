@@ -1,5 +1,7 @@
 # Configuration
 
+**EXOS upgrade note for 0.3.10:** remove sharing from every enabled_queries list. The show sharing command is unsupported on VM and physical platforms because of its unreliable completion status; see [the restriction](vendor-cli-references/extreme-switch-engine.md#unsupported-show-sharing). A stale enrollment is rejected.
+
 ## The four operator files
 
 The proxy reads four files. None of them is written by the tool, and every one of them is fail-closed: a file that does not match this page is refused as a whole.
@@ -294,7 +296,7 @@ After a syntactically valid `tools/call` reaches recognized tool handling, targe
 | `invalid_params` | `-32602` | `Tool arguments do not match the exact input schema.` |
 | `runner_file` | `-32010` | `The runner file is unavailable or invalid.` |
 | `legacy_configuration` | `-32011` | The message names the four files and the removed variables. |
-| `server_message` | `-32012` | Not sent to the client. A server line that is not a JSON-RPC object, is not valid JSON, or is not valid UTF-8 is refused on standard error and ends the server session; the waiting requests receive `session_terminated` with `reason: server_message`. |
+| `server_message` | `-32012` | Not sent to the client. A server line that is longer than 32 MiB, is not a JSON-RPC object, is not valid JSON, or is not valid UTF-8 is refused on standard error and ends the server session; the waiting requests receive `session_terminated` with `reason: server_message`. |
 | `server_input_request` | `-32013` | `The server asked the client for input; the read-only Helper does not relay such requests.` Sent in place of a result whose `resultType` is not `complete`. |
 | `pending_limit` | `-32014` | `Too many requests are waiting for a server answer; retry when one completes.` 64 requests are already waiting; `data.max_pending_requests` carries the limit and the request is not forwarded. |
 | `session_terminated` | `-32015` | `The proxy ended the server session before this request was answered.` Sent to every request still waiting when the proxy ends the server session; `data.reason` is `response_timeout`, `server_message`, `unpaired_response`, `session_start` or `transport_closed`. See [waiting requests and the server session](#waiting-requests-and-the-server-session). |
@@ -332,7 +334,7 @@ netops_proxy_refused category=<server_message|server_request|server_input_reques
 
 `method` is `sampling/createMessage`, `elicitation/create` or `roots/list` for those server requests, `tools/call`, `prompts/get` or `resources/read` for a refused result, and `other` for anything else. Parameters, ids and message content are never written. The server receives JSON-RPC error `-32601` `The NetOps Helper proxy does not relay server requests to the client.` for every server request except `ping`, which the proxy answers with an empty result.
 
-Raw SSH stderr, topology details, remote command output, and credentials are not relayed. The proxy first sanitizes the bounded raw stream, uses it only to choose a fixed category, and emits fixed public text. Use that category plus runner-side privileged logs for diagnosis; do not weaken host-key verification to obtain more detail.
+Raw SSH stderr, topology details, remote command output, and credentials are not relayed. The proxy reads the raw stream in pieces of at most 64 KiB, keeps its first 64 KiB and discards the rest as it reads, so a long line does not grow the proxy's memory. It sanitizes what it kept, uses it only to choose a fixed category, and emits fixed public text. Use that category plus runner-side privileged logs for diagnosis; do not weaken host-key verification to obtain more detail.
 
 ## Waiting requests and the server session
 
@@ -340,9 +342,11 @@ The proxy allows at most 128 nested object/array levels in a JSON document. It c
 
 A client line longer than 1 MiB (1,048,576 bytes including its newline) is answered once with JSON-RPC error `-32700` `Request exceeds the size limit.` and `id: null`, and discarded up to its newline; no part of it reaches the server.
 
+A server line longer than 32 MiB (33,554,432 bytes including its newline) ends the session as `server_message`; no part of it reaches the client. The proxy reads at most 32 MiB and one byte of a server line before it decides, so a longer line never has to fit in its memory. The limit leaves room above the largest answer the server of this release produces. That is an `ftp_list` result: at most 500 names from at most 2,000,000 received bytes, sent by FastMCP 4.0.5 twice, as `structuredContent` and as JSON text in `content`. Measured with the server, it is 4,003,489 bytes with plain names and 25,997,989 bytes when every byte of every name is a control character that JSON escapes as `\u00XX`. An `ssh_read` page of 48,000 bytes stays below 625,000 bytes, and the `read_query_catalog` answer is about 119,000 bytes.
+
 At most 64 client requests wait for a server answer at a time. One more is answered at once with `pending_limit` and not forwarded; notifications are not counted. Each forwarded request must be answered within 300 seconds, counted from the moment the proxy accepted it, so time spent queued in the server counts as well.
 
-The proxy no longer trusts the server session and ends it when an answer is overdue (`response_timeout`), when the server sends a line that is not a JSON-RPC object (`server_message`), or when an answer carries an id that matches no waiting request, `id: null` included (`unpaired_response`). Ending the session means, in this order: nothing more from that session is relayed; the proxy kills the `ssh` child and waits for it to exit; every waiting request receives `session_terminated`; the credentials, SNMP communities and authentication envelopes kept for redacting that session's answers are released. A late answer from an ended session is discarded unread, so it reaches the client neither redacted nor unredacted. The proxy writes one line to its standard error:
+The proxy no longer trusts the server session and ends it when an answer is overdue (`response_timeout`), when the server sends a line that is not a JSON-RPC object or is longer than 32 MiB (`server_message`), or when an answer carries an id that matches no waiting request, `id: null` included (`unpaired_response`). Ending the session means, in this order: nothing more from that session is relayed; the proxy kills the `ssh` child and waits for it to exit; every waiting request receives `session_terminated`; the credentials, SNMP communities and authentication envelopes kept for redacting that session's answers are released. A late answer from an ended session is discarded unread, so it reaches the client neither redacted nor unredacted. The proxy writes one line to its standard error:
 
 ```text
 netops_proxy_session category=session_terminated reason=<response_timeout|server_message|unpaired_response|session_start>

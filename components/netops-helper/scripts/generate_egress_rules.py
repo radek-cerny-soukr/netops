@@ -13,6 +13,9 @@ import tempfile
 from typing import Any
 import sys
 
+if __name__ == "__main__":
+    sys.dont_write_bytecode = True
+
 COMPONENT_ROOT = Path(__file__).resolve().parents[1]
 for SOURCE_ROOT in (
     COMPONENT_ROOT / "src", COMPONENT_ROOT.parent / "netops-core" / "src",

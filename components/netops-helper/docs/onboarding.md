@@ -19,7 +19,7 @@ A first-time path from nothing to one read-only diagnostic call, linking to the 
 Run this after step 4 above, and again after any later edit to the four files, before repeating step 6:
 
 ```bash
-python3 scripts/check_operator_config.py
+python3 -B scripts/check_operator_config.py
 ```
 
 It reads the same four files at the same `NETOPS_*`/`XDG_CONFIG_HOME` paths the proxy uses (pass `--inventory`, `--vault`, `--egress-policy`, or `--runner` to point it at files elsewhere first). Without contacting a device or opening a network connection, it confirms: the four files exist and vault permissions are mode `600` or `400`; all four parse and are the current schema; every helper-enrolled device carries the fields the helper section requires; every credential a device or the runner names actually exists in the vault, with a kind the helper accepts; the runner file names a valid host-key pin; when the egress policy profile is `lan-constrained`, that every enrolled device's address is covered by a declared LAN CIDR; and that the egress rule generator accepts the enrollment, so a configuration that passes here also generates a bundle. A refusal names the file and the reason, for example `inventory.json: device device-a: helper section: port 22 of the device lies inside egress tcp_port_ranges [20, 30]` or `egress-policy.json: the egress rule generator refuses this enrollment: DNS enrollment requires DNS resolvers`.
@@ -39,7 +39,7 @@ To move a `version: 1` (or pre-family, single-file) configuration forward withou
 5. **Validate the copies before they are live** by pointing the preflight command at them explicitly:
 
    ```bash
-   python3 scripts/check_operator_config.py \
+   python3 -B scripts/check_operator_config.py \
      --inventory /path/to/new/inventory.json \
      --vault /path/to/new/vault.json \
      --egress-policy /path/to/new/egress-policy.json \

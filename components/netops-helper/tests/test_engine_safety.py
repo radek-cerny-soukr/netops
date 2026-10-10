@@ -161,9 +161,31 @@ def test_exec_read_returns_the_output_of_a_nonzero_exit_status(monkeypatch) -> N
         engine.core_ssh, "run_command",
         recording_run_command([], FakeSshResult(250, b"Port: 1\n")),
     )
-    assert engine.read_from_device(auth(), "extreme_exos", "show sharing") == (
+    assert engine.read_from_device(auth(), "extreme_exos", "show iproute ipv6 summary") == (
         250, "Port: 1\n",
     )
+
+
+@pytest.mark.parametrize("platform", ("extreme_exos", "extreme_switch_engine"))
+@pytest.mark.parametrize("enabled_queries, message", (
+    (("lacp",), "SSH query is not enabled"),
+    (("lacp", "sharing"), "unknown read query"),
+))
+def test_unsupported_exos_sharing_refuses_before_device_transport(
+    monkeypatch, platform, enabled_queries, message,
+) -> None:
+    monkeypatch.setattr(engine, "record", lambda *args, **kwargs: None)
+    monkeypatch.setattr(
+        engine, "read_from_device",
+        lambda *args, **kwargs: (_ for _ in ()).throw(
+            AssertionError("unsupported sharing must not reach SSH")
+        ),
+    )
+    target = replace(
+        auth(), ssh_platform="extreme_exos", enabled_queries=enabled_queries, read_inventory={},
+    )
+    with pytest.raises(ValueError, match=message):
+        engine.ssh_read(target, platform, "sharing", None, 0, 1000)
 
 
 def test_a_transport_failure_of_the_client_still_refuses(monkeypatch) -> None:

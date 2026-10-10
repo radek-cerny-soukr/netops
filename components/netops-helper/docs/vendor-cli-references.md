@@ -22,6 +22,8 @@ The exact machine-checked commands, typed slots, volume labels, descriptions, an
 
 Source review establishes documented syntax and helps reject unsafe, secret-bearing, mutating, or unbounded command families. It does not prove that a particular hardware model, software image, feature license, local RBAC role, or TACACS+/RADIUS policy accepts a command. It also does not prove what an SSH driver transmits during login, paging setup, command execution, or cleanup.
 
+EXOS show sharing is excluded from Helper 0.3.10 onward on both VM and physical platforms; historical measurements do not establish current support. See [the measured restriction](vendor-cli-references/extreme-switch-engine.md#unsupported-show-sharing).
+
 ## Updating an audit
 
 When adding a command or supporting a newer vendor release:

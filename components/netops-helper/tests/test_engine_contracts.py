@@ -14,6 +14,7 @@ import os
 from pathlib import Path
 import subprocess
 import sys
+import tempfile
 import tomllib
 import types
 
@@ -1107,6 +1108,22 @@ def test_phase1_server_and_engine_expose_no_generic_body_reads() -> None:
 
 
 SERVER_RUNTIME_MODULES = ("fastmcp", "mcp", "icmplib")
+NETWORK_EVENTS = (
+    "socket.getaddrinfo", "socket.gethostbyname", "socket.gethostbyaddr", "socket.getnameinfo",
+    "socket.connect", "socket.sendto", "socket.sendmsg",
+)
+REFUSE_NETWORK = """
+import runpy, sys
+def refuse(event, arguments):
+    if event in %r:
+        sys.stderr.write("refused network access: %%s %%r\\n" %% (event, arguments[:2]))
+        sys.stderr.flush()
+        raise OSError("network access refused by the test")
+sys.addaudithook(refuse)
+module = sys.argv[1]
+sys.argv = [module]
+runpy.run_module(module, run_name="__main__", alter_sys=True)
+""" % (NETWORK_EVENTS,)
 
 
 def _skip(test: str, reason: str) -> None:
@@ -1237,6 +1254,60 @@ def test_initialize_reports_the_helper_distribution() -> None:
     assert (server_info["name"], server_info["version"]) == (name, version), server_info
 
 
+def test_server_start_makes_no_network_lookup_or_connection() -> None:
+    root = Path(__file__).resolve().parents[1]
+    missing = [
+        module for module in SERVER_RUNTIME_MODULES
+        if importlib.util.find_spec(module) is None
+    ]
+    if missing:
+        reason = "server runtime modules are not installed: " + ", ".join(missing)
+        assert os.environ.get("NETOPS_REQUIRE_RUNTIME_TESTS") != "1", reason
+        _skip("test_server_start_makes_no_network_lookup_or_connection", reason)
+        return
+    request = {
+        "jsonrpc": "2.0", "id": 1, "method": "initialize",
+        "params": {
+            "protocolVersion": "2025-06-18", "capabilities": {},
+            "clientInfo": {"name": "start-probe", "version": "0"},
+        },
+    }
+    with tempfile.TemporaryDirectory(prefix="netops-helper-start-") as home:
+        environment = {
+            key: value for key, value in os.environ.items() if not key.startswith("FASTMCP_")
+        }
+        environment["PYTHONPATH"] = os.pathsep.join(
+            item for item in (
+                str(root / "src"), str(root.parent / "netops-core" / "src"),
+                os.environ.get("PYTHONPATH", ""),
+            ) if item
+        )
+        environment.update(
+            PYTHONDONTWRITEBYTECODE="1", HOME=home, XDG_DATA_HOME=os.path.join(home, "data"),
+        )
+        completed = subprocess.run(
+            [sys.executable, "-B", "-c", REFUSE_NETWORK, "netops_helper.server"],
+            input=(json.dumps(request) + "\n").encode("utf-8"),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            env=environment,
+            cwd=root,
+            timeout=120,
+            check=False,
+        )
+    log = completed.stderr.decode("utf-8", "replace")
+    answers = []
+    for line in completed.stdout.decode("utf-8", "replace").splitlines():
+        try:
+            answers.append(json.loads(line))
+        except json.JSONDecodeError:
+            continue
+    initialized = [answer for answer in answers if answer.get("id") == 1]
+    assert len(initialized) == 1, log[-2000:]
+    assert initialized[0]["result"]["serverInfo"]["name"] == "netops-helper", initialized[0]
+    assert "refused network access" not in log, log[-2000:]
+
+
 def main() -> int:
     test_snmp_community_is_optional_for_non_snmp_tools()
     test_snmp_community_is_distinct_and_part_of_secret_set()
@@ -1268,6 +1339,7 @@ def main() -> int:
     test_phase1_server_and_engine_expose_no_generic_body_reads()
     test_mcp_server_identity_is_the_helper_distribution()
     test_initialize_reports_the_helper_distribution()
+    test_server_start_makes_no_network_lookup_or_connection()
     print("engine_contract_tests=passed")
     return 0
 

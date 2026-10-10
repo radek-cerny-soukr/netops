@@ -301,7 +301,7 @@ class PolicyParityTests(unittest.TestCase):
         expected_counts = {
             "linux": 16,
             "fortinet": 50,
-            "extreme_exos": 49,
+            "extreme_exos": 48,
             "cisco_ios": 27,
             "cisco_xe": 27,
             "cisco_nxos": 30,
@@ -318,7 +318,7 @@ class PolicyParityTests(unittest.TestCase):
             },
             expected_counts,
         )
-        self.assertEqual(sum(expected_counts.values()), 290)
+        self.assertEqual(sum(expected_counts.values()), 289)
         expected_names = {
             platform: frozenset(queries)
             for platform, queries in read_policy.READ_QUERIES.items()

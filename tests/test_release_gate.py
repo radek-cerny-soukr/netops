@@ -456,6 +456,16 @@ def test_gate_accepts_relative_markdown_links_to_a_file_and_a_directory() -> Non
         assert _gate_for(root).check(root) == []
 
 
+
+def test_gate_accepts_a_repository_beneath_a_parent_alias() -> None:
+    with tempfile.TemporaryDirectory() as directory:
+        parent = Path(directory).resolve()
+        root = _fixture(parent)
+        alias = parent / "repository-parent-alias"
+        alias.symlink_to(parent, target_is_directory=True)
+        assert _gate_for(root).check(alias / root.name) == []
+
+
 def test_gate_rejects_a_broken_relative_markdown_link() -> None:
     with tempfile.TemporaryDirectory() as directory:
         root = _fixture(Path(directory))

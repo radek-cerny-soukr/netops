@@ -210,7 +210,7 @@ def ftp_list(
 
 
 def main() -> None:
-    mcp.run()
+    mcp.run(show_banner=False)
 
 
 if __name__ == "__main__":

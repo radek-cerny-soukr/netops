@@ -107,8 +107,8 @@ RequiresMountsFor=/opt/netops-helper
 [Service]
 Type=oneshot
 RemainAfterExit=yes
-ExecStart=/usr/bin/python3 /opt/netops-helper/scripts/apply_egress_rules.py --bundle /etc/netops-helper/egress-bundle.json --apply
-ExecStart=/usr/bin/python3 /opt/netops-helper/scripts/check_egress_rules.py --expected /etc/netops-helper/egress-bundle.json
+ExecStart=/usr/bin/python3 -B /opt/netops-helper/scripts/apply_egress_rules.py --bundle /etc/netops-helper/egress-bundle.json --apply
+ExecStart=/usr/bin/python3 -B /opt/netops-helper/scripts/check_egress_rules.py --expected /etc/netops-helper/egress-bundle.json
 ExecStart=/usr/bin/docker start netops-helper
 ExecStop=/usr/bin/docker stop netops-helper
 
@@ -120,7 +120,7 @@ WantedBy=docker.service
 
 The helper is idempotent and fails closed, so a repeated run is safe; the checker should still run after every Docker restart or network recreation.
 
-A manual change can leave the managed chain behind without its DOCKER-USER jump. The checker reports `ipv4_jump_missing_or_not_first`, and the apply helper then refuses to continue with `foreign_chain_collision`, because it adopts only a chain it can prove it owns. To recover, stop the unit, compare `iptables -S NETOPS_HELPER_EGRESS` with the reviewed bundle, flush and delete that chain (`iptables -F NETOPS_HELPER_EGRESS`, `iptables -X NETOPS_HELPER_EGRESS`) and start the unit again. Neither a reboot nor a Docker restart produces this state: the first removes the chain, the second keeps the jump. The same holds for `NETOPS_HELPER_INPUT` without its `INPUT` jump; a jump that is merely no longer first is not this state, and the apply helper moves it back.
+A manual change can leave the managed chain behind without its DOCKER-USER jump, or change the chain and keep the jump. The checker reports `ipv4_jump_missing_or_not_first` in the first case and the drift of the chain, such as `ipv4_rules_drift` or `ipv4_default_deny_missing`, in the second, and the apply helper then refuses to continue with `foreign_chain_collision`, because it adopts only a chain it can prove it owns. To recover, stop the unit and compare `iptables -S NETOPS_HELPER_EGRESS` with the reviewed bundle. If `iptables -S DOCKER-USER` still lists the marked jump of this tool, delete that jump first with the same rule and `-D` in place of `-A`, `iptables -D DOCKER-USER -i nh-egress0 -m comment --comment "netops-helper-egress:<manifest_sha256>" -j NETOPS_HELPER_EGRESS`, with the marker exactly as `iptables -S` prints it, which may belong to an earlier bundle: `iptables -X` refuses a chain that a rule still jumps to, with `CHAIN_DEL failed (Device or resource busy)`. Then flush and delete the chain (`iptables -F NETOPS_HELPER_EGRESS`, `iptables -X NETOPS_HELPER_EGRESS`) and start the unit again. Neither a reboot nor a Docker restart produces these states: the first removes the chain, the second keeps the jump. The same holds for `NETOPS_HELPER_INPUT` and its marked jump in `INPUT` (`iptables -D INPUT -i nh-egress0 -m comment --comment "netops-helper-egress:<manifest_sha256>" -j NETOPS_HELPER_INPUT`); a jump that is merely no longer first is not this state, and the apply helper moves it back.
 
 The same unit installs the INPUT guard: it is part of the bundle the unit applies before `docker start`. Measured on 1 October 2026 on the runner: after a restart of Docker the unit applied the rules before the container started.
 

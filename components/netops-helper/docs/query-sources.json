@@ -413,12 +413,6 @@
       "baseline": "Switch Engine 33.7.1",
       "url": "https://documentation.extremenetworks.com/Switch%20Engine%20v33.7.1%20Command%20References/content/documents/Switch_Operating_Systems/Switch_Engine/Command_References/show_process.shtml"
     },
-    "E-SHARING": {
-      "vendor": "Extreme Networks",
-      "title": "Switch Engine v33.7.1 Command References: show sharing",
-      "baseline": "Switch Engine 33.7.1",
-      "url": "https://documentation.extremenetworks.com/Switch%20Engine%20v33.7.1%20Command%20References/content/documents/Switch_Operating_Systems/Switch_Engine/Command_References/show_sharing.shtml"
-    },
     "E-STPD": {
       "vendor": "Extreme Networks",
       "title": "Switch Engine v33.7.1 command set, Common EXOS/Switch Engine reference: show stpd",
@@ -2191,14 +2185,6 @@
       "source_type": "official_vendor",
       "source_ids": [
         "E-INDEX"
-      ]
-    },
-    "extreme_exos/sharing": {
-      "profile": "extreme_exos",
-      "query": "sharing",
-      "source_type": "official_vendor",
-      "source_ids": [
-        "E-SHARING"
       ]
     },
     "extreme_exos/sntp_client": {

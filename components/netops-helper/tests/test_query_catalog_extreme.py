@@ -93,7 +93,6 @@ EXPECTED = {
         False,
     ),
     "vlan_summary": ("show vlan", (), True),
-    "sharing": ("show sharing", (), True),
     "lacp": ("show lacp", (), True),
     "stp_summary": ("show stpd", (), True),
     "stp_detail": ("show stpd detail", (), True),
@@ -222,7 +221,20 @@ def test_scoped_diagnostic_inventory_boundaries() -> None:
             raise AssertionError("noncanonical or reserved inventory accepted")
 
 
+def test_sharing_is_not_renderable_for_either_exos_profile() -> None:
+    from netops_helper.read_policy import render_read_query
+
+    for platform in ("extreme_exos", "extreme_switch_engine"):
+        try:
+            render_read_query(platform, "sharing", None, {})
+        except ValueError as exc:
+            assert "unknown read query" in str(exc)
+        else:
+            raise AssertionError("unsupported sharing query was rendered")
+
+
 def main() -> None:
+    test_sharing_is_not_renderable_for_either_exos_profile()
     test_scoped_diagnostic_inventory_boundaries()
     test_exact_catalogue_contract()
     test_commands_are_narrow_read_only_cli()

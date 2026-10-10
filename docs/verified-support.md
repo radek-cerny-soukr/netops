@@ -7,6 +7,50 @@ client, a fixture, or a dump taken by something other than this code - not on th
 device. Every cell below is filled from a statement already written down elsewhere in this
 repository; follow the links for the exact wording, the exact byte counts and the exact dates.
 
+## Keeping the record current
+
+Record reviewed on 10 October 2026. Review dates and measurement dates are separate: historical evidence keeps its original target, software version and result.
+
+After each live test or firmware change, the person running it must update this record and the [README summary](../README.md#what-has-been-tested) before marking the work complete. The release maintainer reviews both against the final source and retained test evidence before every release. For each new or changed measurement, record:
+
+- vendor and exact hardware model, or vendor virtual image/container type;
+- exact OS/firmware version and build as observed; say "not recorded" for missing data;
+- physical hardware, virtual machine, container, or synthetic/unit test;
+- test date, tested component versions/source, commands or scenarios, result and refusals;
+- account/permission scope, known limits and a link to the dated public measurement or verification description; keep raw private configuration and access values outside public documentation.
+
+A firmware upgrade, a changed command, account policy or relevant product code requires a new measurement for that path before its row is presented as current evidence. Until then keep the old row dated and mark the changed combination unverified. A new release does not automatically inherit qualification from an older source. Historical failures stay recorded. A successful VM/container test does not qualify physical hardware, hardware sensors, ASIC behavior or other firmware builds. Catalogue baselines are distinguished from OS versions actually tested.
+
+Physical Cisco, Arista and Juniper devices have not been measured in the records below. Virtual images provide the available lab coverage; physical-device validation remains a separate gap. The Ruckus model/full firmware build and the small ARM Linux host's hardware model/distribution are absent from the retained record and are not inferred here.
+
+## Clean installation acceptance, 10 October 2026
+
+Before publication, a release candidate of Core 0.2.8, Auditor 0.2.11, Admin 0.2.7 and Helper 0.3.10 was installed from its local release assets by following the installation documents literally: on a clean Ubuntu 26.04.1 LTS amd64 virtual machine (Proxmox VE) and in a clean Linux ARM64 container (`python:3.13-slim`). The Sigstore signature and the public download steps cannot be checked before publication; they belong to the installation check after publication.
+
+| Target | Type | Measurement and boundary |
+| --- | --- | --- |
+| Ubuntu 26.04.1 LTS amd64 | virtual machine | release archive suites of Core, Auditor, Admin and Helper passed; Helper linux/amd64 image healthy, self-test and MCP `initialize` passed, client proxy connected |
+| Linux ARM64, `python:3.13-slim` | container | release archive suites of Core, Auditor, Admin and Helper passed; Helper linux/arm64 image loaded in a clean Docker engine, self-test and MCP `initialize` passed |
+| Extreme X440-G2-12p-10G4, ExtremeXOS 33.7.1.6-patch1-11 | physical hardware | from the amd64 installation: Admin enrollment with its safeguard, `doctor` with all 14 checks ready, protected objects refused, VLAN apply and `undo` confirmed, audit export acknowledged; Auditor collection and run; Helper `version`, `ports` and `switch` |
+| FortiGate 60F, FortiOS 8.0.0 build0167 | physical hardware | Helper `system_status` read only |
+
+The acceptance and its follow-up found five problems that this release fixes before publication: subprocess tests of Auditor and Admin did not find Core in the documented release-archive layout, documented Helper scripts wrote Python bytecode into the verified archive, the documented recovery from drifted egress rules left a jump that kept the chain from being removed, the Helper installation guide described the download of the image assets on the execution host only in prose, without a literal command that verifies them, and the MCP servers of Auditor, Admin and Helper asked PyPI for a newer FastMCP at every start, which in the Helper container meant a DNS query and blocked connection attempts each time. The [Auditor](../components/netops-auditor/CHANGELOG.md), [Admin](../components/netops-admin/CHANGELOG.md) and [Helper](../components/netops-helper/CHANGELOG.md) changelogs describe the fixes.
+
+## Physical EXOS follow-up, 9 October 2026
+
+The following physical-device evidence adds to the dated September catalogue runs. It covers the pre-release Admin 0.2.7 paths described in the [issue #4 resolution table](README.md#issue-4); it does not establish a complete run of the final release candidate or every query on these devices.
+
+| Physical device | Observed OS/build | Measurement and boundary |
+| --- | --- | --- |
+| Extreme X435-8P-4S | ExtremeXOS 33.7.1.6-patch1-11 | UPM profile/timer listing layout and clock movement; candidate enrollment, apply/undo, safeguards after forward/backward clock jumps and a missing timer. Representative Helper reads were also exercised; the whole catalogue was not rerun. |
+| Extreme X440-G2-12p-10G4 | ExtremeXOS 33.7.1.6-patch1-11 | UPM profile/timer listing layout and actual timer behavior under clock movement. The X435 candidate apply/undo series is not attributed to this device. |
+
+On these measurements, a backward clock jump follows the one-shot timer's device-clock deadline, while a forward jump past its next execution delays firing until the timer interval has run in real time. Admin now requires positive evidence that its timer fired before removing the safeguard and bounds its wait with monotonic time. This establishes the measured EXOS cases, not FortiOS clock-jump behavior or other switch models/builds.
+
+## EXOS diagnostic exclusion, 7 October 2026
+
+Helper 0.3.10 excludes the former sharing query (show sharing and its variants) on both EXOS-VM 33.6.1.14 and physical X440-G2/33.7.1.6. Both return a complete table with native STATUS=-6 and SSH exit-status250, so the output cannot safely be interpreted as successful completion. Existing enrollments must remove sharing before upgrading. [Reason and migration](../components/netops-helper/docs/vendor-cli-references/extreme-switch-engine.md#unsupported-show-sharing). The dated support rows below describe earlier catalogues and remain historical evidence.
+
 ## Candidate validation, 3-4 October 2026
 
 These runs cover candidate Core 0.2.6, Auditor 0.2.9, Admin 0.2.5 and Helper 0.3.8 paths. Later dependency, runtime-patch and documentation changes retain the same measured application source; release tests, artifact checks and exact image inspection qualify the final build separately. Historical September hardware rows are evidence for their stated sources.
@@ -17,13 +61,33 @@ These runs cover candidate Core 0.2.6, Auditor 0.2.9, Admin 0.2.5 and Helper 0.3
 | Admin calibrated schema transactions | First measured A/B/C rollback classes on the same VM firmware family, independent reader, apply/undo/timer return and interruption paths | Grants bind exact digest, hardware/build, operation and calibrated inverse. New digests inherit no grants; generated identifiers and entry order need their own measurement. Not universal table support. |
 | Auditor scoped schema reports | Saved global/root/VD1 snapshots from both VM builds; scope-separated catalogue findings, measured references, upgrade differences and explicit unknown type/coverage | Identity is operator-declared in offline schema-check. Ordinary CIS run remains separate. No migration simulation or whole-benchmark compliance claim. |
 | Helper bounded FortiOS recipes | Five recipes on both exact VM builds: ping, traceroute, ICMP header capture, filtered sessions and flow; interrupt/process-kill cleanup and audit checks; configuration unchanged | Separate grants for address, interface, VDOM and temporary controls. Lab administrator measurements do not establish permission of each deployed read-only account. Shared debug state and cleanup limits are documented in the tool reference. |
-| FortiOS conditional/reference coverage | Eleven nested context combinations, ten conditional attributes; measured references for empty members/duplication/service, with context retained | SLA context was probed without committing a change. Neighbor references and the SLA health-check key remain unknown. FortiSwitch/FortiAP, physical model/licence combinations and other unmeasured attributes remain open. |
+| FortiOS conditional/reference coverage | Eleven nested context combinations, ten conditional attributes; measured references for empty members/duplication/service, with context retained | SLA context was probed without committing a change. Neighbor references and the SLA health-check key were unresolved in these VM measurements. Later measurements on physical FortiGate-60F, FortiOS 8.0.0 build0167, qualified these references; see [FortiOS schema follow-up](#fortios-schema-follow-up) for the measured scope and release-content limits. FortiSwitch/FortiAP, physical model/licence combinations and other unmeasured attributes remain open. |
 | EXOS trees and changed profile paths | Two retained command trees revalidated; available EXOS default-port/undo/configuration checks and synthetic confirmation/save regressions | Command-tree coverage does not measure all arguments/permutations. Physical failed-save behavior remains a separate gap. |
 | Helper/Core Junos and routing reads | vJunos-switch 26.2R1.7 with cEOS LACP/MSTP scenarios and FRR 11 OSPF/eBGP faults/recovery; observed state and route presence through the actual Helper/Core path | Eight-second SSH spacing was used. Paced probe samples are not a general convergence bound. Preferred BGP forwarding, routing hardware and a physical forwarding plane were not measured. |
 
 All available lab changes were restored and configuration comparisons retained. Release runtime and installation qualification runs on native Linux ARM64. Full signed-installation/runtime qualification on macOS or Linux amd64, and the unavailable physical 60F/FortiSwitch/FortiAP paths, are not claimed tested for these candidates. GitHub CI source-test coverage is recorded separately.
 
 The [issue resolution table](README.md#github-issue-resolution) distinguishes code corrections, regression controls, publication checks and observations that were not established bugs. Known OpenSSH and remaining Python findings stay disclosed in [Helper's vulnerability record](../components/netops-helper/docs/known-vulnerabilities.md).
+
+## Native client qualification, 7 October 2026
+
+This source candidate was exercised on macOS 26.7.1, arm64, Python 3.13.16. The client and the Helper runner are separate deployment roles.
+
+| Role | Measured path | Boundary |
+| --- | --- | --- |
+| Core client | Native SSH access and bounded source tests with Darwin resident-memory observation and an independent watchdog | Memory is sampled every 10 ms; short overshoots are possible. Guard observation failures refuse the run. |
+| Auditor client | Native source suite, including malformed-input and resource-limit controls | This does not extend the measured device or benchmark catalogue. |
+| Admin client | Fresh native enrollment, on-device timer return, doctor, preview, apply and undo on FortiOS 8.0.0 build0167 and EXOS-VM 33.6.1.14; stale export refusal, durable audit ACK and HTTPS notifications | Notifications/export used local test HTTPS adapters with certificate verification. Production notification and syslog services were not qualified. Configuration was restored exactly on EXOS and after documented volatile-field normalization on FortiOS. |
+| Helper client proxy | Pinned SSH to a Linux runner, representative catalogue reads on eight device targets across six catalogue platform IDs, including NX-OS, ungranted-query refusal, and actual password-auth SSH/MCP acceptance plus wrong-password refusal | Representative reads do not qualify every catalogue query. The password-auth runner was an isolated Linux fixture. |
+| Helper runner | Linux deployment and source contracts | A native macOS runner or macOS Docker deployment was not tested. |
+
+The Darwin proxy uses a private filesystem UNIX socket, checks the peer effective UID, releases the secret once and removes its temporary files. Linux retains its abstract-socket path. Negative mutations of the peer/permissions checks and memory/timeout test controls were rejected.
+
+These measurements qualify the stated candidate client paths. They do not establish a complete signed macOS installation workflow or Linux amd64 runtime qualification. Existing production services were kept running during the client tests.
+
+### FortiOS schema follow-up
+
+On physical FortiGate-60F, FortiOS 8.0.0 build0167, uncommitted address buffers exposed seven attributes through four address types. Numeric/text value probes exposed no further attribute. The SLA health-check key was proven to reference the SD-WAN health-check table. Later isolated workspace measurements accepted candidate BGP neighbor groups, IPv4 and IPv6 neighbors in the SD-WAN neighbor key and rejected missing names and addresses; the neighbor health-check field accepted an existing SD-WAN health check and rejected a missing one. With a connected AP, six existing WTP/profile radio contexts were read. New VAP reference checks were limited to radio1/2 in a fresh, unassigned default WTP profile; the 221E default was derived from schema, not a separate model or RF qualification. Radio3, other models/builds, licence-dependent paths and the remaining documented contexts are unqualified. Transactions were aborted and independent configuration readbacks matched after the documented volatile-field normalization; raw or secret-field equality was not established. These later measurements are separate supporting evidence, not an automatic update to the schema libraries an operator pins, the grants or the qualification of these releases; the releases ship no schema library.
 
 ## Helper platforms (`netops-helper` catalogue)
 
@@ -203,6 +267,4 @@ The configuration after each series matched the one before it; on FortiOS except
 - **Cisco IOS, IOS-XE, NX-OS, Arista EOS, Junos and Junos ELS are measured on virtual images only** (25 September 2026, see [Live lab measurements](#live-lab-measurements-25-september-2026)); no physical device of these vendors has been measured.
   Linux is live-verified only for `kernel` and `hostname`; the other Linux queries remain wire-simulated.
   Ruckus has live wire measurements but no verified read-only account model.
-- A platform's row here can go stale exactly like any other measured fact: a firmware upgrade, a new
-  catalogue command, or a changed AAA policy can outdate the specific numbers cited without changing
-  this page. Treat every cell as dated evidence, not a standing guarantee, and follow its link.
+- Treat every cell as dated evidence, not a standing guarantee. Firmware, catalogue and AAA changes require the update and remeasurement rules in [keeping the record current](#keeping-the-record-current); a row must not silently become a claim for an unmeasured combination.

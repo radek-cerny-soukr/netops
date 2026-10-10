@@ -18,6 +18,9 @@ import sys
 import tomllib
 from typing import Any
 
+if __name__ == "__main__":
+    sys.dont_write_bytecode = True
+
 
 ROOT = Path(__file__).resolve().parents[1]
 TEXT_SUFFIXES = {
@@ -71,6 +74,7 @@ REQUIRED_RELEASE_PATHS = {
     "tests/test_secret_canaries.py",
     "tests/test_cli_errors.py",
     "tests/test_malformed_inputs.py",
+    "tests/_test_guard.py", "tests/test_resource_limits.py",
     "tests/test_runtime_tar_safety.py",
     "tests/test_connection_pacing.py",
     "tests/test_policy_parity.py",

@@ -25,6 +25,9 @@ import subprocess
 import sys
 from typing import Any, Callable
 
+if __name__ == "__main__":
+    sys.dont_write_bytecode = True
+
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import check_egress_rules as checker
 import generate_egress_rules as generator

@@ -13,7 +13,7 @@ Contributions are welcome when they preserve the fail-closed model.
    lock generator changes, pin and record the exact generator environment (Python 3.14.8 for Helper; Python 3.13.15 for Core and Auditor), regenerate
    both locks, and explain the complete dependency diff. Always regenerate and byte-compare the
    CycloneDX SBOM with the reviewed release environment.
-6. Update tool, limitation, security, and changelog documentation with behavior changes.
+6. Update tool, limitation, security, and changelog documentation with behavior changes. After live measurements, update [verified platform support](docs/verified-support.md#keeping-the-record-current) and the [tested-device summary](README.md#what-has-been-tested) with the exact model/image, OS build, physical/virtual/container type, date, tested source, result and scope. Release maintainers review both before publishing each release; retain historical evidence and mark changed but unmeasured combinations as unverified.
 
 Do not add raw command input, a generic-shell escape hatch, automatic host-key acceptance, write tools, or broad credentials to phase 1. New queries require named templates, typed inventory-bound slots, positive and negative tests, explicit pagination, and review of prompt-injection exposure. Device-side read-only authorization is mandatory; redaction and skill instructions are not authorization boundaries.
 

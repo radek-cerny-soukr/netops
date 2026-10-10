@@ -1,14 +1,25 @@
 # NetOps Helper
 
-The current release is `netops-helper/v0.3.9` (2026-10-06), which pins `netops-core==0.2.7` and vendors `src/netops_core` inside its own release archive. The [repository release table](https://github.com/radek-cerny-soukr/netops/blob/main/README.md#components) links the current release of every component.
+The current release is `netops-helper/v0.3.10` (2026-10-11), which pins `netops-core==0.2.8` and vendors `src/netops_core` inside its own release archive. The [repository release table](https://github.com/radek-cerny-soukr/netops/blob/main/README.md#components) links the current release of every component.
 
 **Install from the release assets.** The [installation guide](https://github.com/radek-cerny-soukr/netops/blob/main/components/netops-helper/docs/installation.md) downloads the source archives of this component and of the pinned `netops-core` from their release pages and verifies them against the release `SHA256SUMS` and its Sigstore bundle; the server runs as a container image built from that archive, or loaded from the published OCI archive, on a separate runner host. **`netops-helper` has a separate PyPI publication step after GitHub**; check exact-version index availability before choosing that installation channel. The package is prepared as the client side only: once uploaded, installing the package with pip would put only the stdio proxy `netops-helper-proxy` that an MCP client launches on the host, with the pinned `netops-core`, never the server.
+
+**Breaking change in 0.3.10:** the EXOS query `sharing` (`show sharing`) is removed, because on VM and physical platforms it returns a complete table with native STATUS=-6 and SSH exit status 250. Remove `sharing` from the `enabled_queries` of every EXOS device before upgrading; the proxy refuses a device that still names it. See [the restriction](docs/vendor-cli-references/extreme-switch-engine.md#unsupported-show-sharing).
 
 NetOps Helper provides bounded MCP troubleshooting reads, optional measured FortiOS configuration-path reads and separately enrolled finite diagnostic recipes. Ordinary named queries expose no arbitrary CLI or configuration export. `schema_read` reads a full snapshot in memory and returns only enrolled, redacted attributes. `fortios_diagnostics` can change temporary diagnostic options/debug state and must verify cleanup; it does not change persistent configuration. Both extensions require explicit grants, exact live identity and independent server-owned schema binding.
 
 Operators address explicitly enrolled devices by name. A local stdio proxy validates the device's `helper` section of the shared inventory, injects that one device's credential after the MCP client boundary, transports the request over SSH to a host-key-pinned runner, and invokes an isolated container there. Device output keeps identifiers needed for correlation while recognized secrets are removed on a best-effort basis.
 
 This is a self-hosted community project for experienced operators and security reviewers. It is not an enterprise orchestrator, a replacement for device-side authorization, or proof that a diagnostic conclusion is correct.
+
+## Fixes in 0.3.10
+
+- The proxy reads at most 32 MiB and one byte of a server line, and the SSH standard error in pieces of at most 64 KiB, keeping its first 64 KiB; a longer server line ends the session through a controlled path. Point 4 of [issue #4](https://github.com/radek-cerny-soukr/netops/issues/4).
+- The malformed-input test leaves closing the server's standard input to `communicate()`; closing it first failed on Python 3.13.0 to 3.13.9. With `NETOPS_REQUIRE_RUNTIME_TESTS=1` the test fails instead of passing when FastMCP or icmplib is missing. Point 6 of the same issue.
+- The runner password handoff of the proxy works on macOS too, through a private socket with a check of the connecting user.
+- From 0.3.10 each release carries a Linux AMD64 image beside the ARM64 image; see [Requirements](#requirements).
+
+See the [changelog](CHANGELOG.md), which also describes the removal of `sharing`, and the [issue resolution table](https://github.com/radek-cerny-soukr/netops/blob/main/docs/README.md#issue-4).
 
 ## Installation fixes in 0.3.9
 
@@ -98,7 +109,7 @@ Read [Security model](https://github.com/radek-cerny-soukr/netops/blob/main/comp
 
 ## Requirements
 
-- A Linux ARM64 runner with Docker Engine and Compose v2.
+- A Linux ARM64 or AMD64 runner with Docker Engine and Compose v2. This release carries, beside the ARM64 image, the separate AMD64 assets `netops-helper-0.3.10-linux-amd64.oci.tar`, `netops-helper-0.3.10-linux-amd64-image-digest.txt`, `netops-helper-0.3.10-linux-amd64-image.cdx.json` and `netops-helper-0.3.10-linux-amd64-grype.json`, listed in the same `release-SHA256SUMS` that the one Sigstore bundle of the release signs; verify and load them as the [installation guide](https://github.com/radek-cerny-soukr/netops/blob/main/components/netops-helper/docs/installation.md#4-build-and-create-stopped-docker-resources) describes.
 - A local MCP client host with Python 3.13+, OpenSSH, and the host key fingerprints of the runner and of every device.
 - Dedicated device identities whose persistent configuration-write restrictions are enforced on the targets; validate each optional schema/diagnostic permission separately.
 - A local inventory, credential store, egress policy, and runner file that are never shipped with the source or container image.
@@ -124,7 +135,7 @@ This sequence deliberately creates the Compose network and container in a stoppe
 5. On the proxy host, generate a mode-`600`, secret-free but topology-sensitive bundle from file paths:
 
    ```bash
-   python3 scripts/generate_egress_rules.py \
+   python3 -B scripts/generate_egress_rules.py \
      --inventory /path/to/inventory.json \
      --policy /path/to/egress-policy.json \
      --output /restricted/path/netops-helper-egress.json
@@ -133,9 +144,9 @@ This sequence deliberately creates the Compose network and container in a stoppe
 6. Transfer the bundle through a host-key-verified channel if proxy and runner differ. On the runner, compare its SHA-256 digest with the sender, inspect its manifest and rules, retain out-of-band recovery, then explicitly apply and check it:
 
    ```bash
-   sudo python3 scripts/apply_egress_rules.py \
+   sudo python3 -B scripts/apply_egress_rules.py \
      --bundle /restricted/path/netops-helper-egress.json --apply
-   sudo python3 scripts/check_egress_rules.py \
+   sudo python3 -B scripts/check_egress_rules.py \
      --expected /restricted/path/netops-helper-egress.json
    ```
 
@@ -148,7 +159,7 @@ This sequence deliberately creates the Compose network and container in a stoppe
    docker compose ps
    ```
 
-8. Configure the proxy as a stdio MCP server in a dedicated read-only profile of any compatible client: the command `netops-helper-proxy` when the component is installed, or `scripts/remote_mcp_proxy.py` when it is run from an unpacked archive. The proxy needs `netops_core` and `netops_helper` on its path; see [Installation](https://github.com/radek-cerny-soukr/netops/blob/main/components/netops-helper/docs/installation.md#2-install-the-shared-access-layer-on-the-proxy-host). Start a fresh session, call `helper_status`, inspect `target_scope` for one listed device, and test one harmless enrolled query against a controlled test target.
+8. Configure the proxy as a stdio MCP server in a dedicated read-only profile of any compatible client: the command `netops-helper-proxy` when the component is installed, or `python3 -B` with the absolute path to `scripts/remote_mcp_proxy.py` when it is run from an unpacked archive. The proxy needs `netops_core` and `netops_helper` on its path; see [Installation](https://github.com/radek-cerny-soukr/netops/blob/main/components/netops-helper/docs/installation.md#2-install-the-shared-access-layer-on-the-proxy-host). Start a fresh session, call `helper_status`, inspect `target_scope` for one listed device, and test one harmless enrolled query against a controlled test target.
 
 A device credential reuses its login and secret across SSH, SFTP, FTPS, and plain FTP; plain FTP transmits them without encryption. SNMPv2c sends its separate community in plaintext at the protocol layer. The stock image validates public trust; `tls_probe` and system-trust FTPS will normally reject private-CA or self-signed devices until a private image contains an independently verified trust anchor and the device certificate has a matching SAN. Follow the [credential](https://github.com/radek-cerny-soukr/netops/blob/main/components/netops-helper/docs/configuration.md#credentials-and-protocol-use) and [private CA and FTPS pin](https://github.com/radek-cerny-soukr/netops/blob/main/components/netops-helper/docs/configuration.md#private-tls-and-ftps-ca-san-and-pins) procedures; verification must not be disabled.
 

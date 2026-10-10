@@ -18,7 +18,7 @@ def _run_askpass() -> int:
     try:
         with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as connection:
             connection.settimeout(10)
-            connection.connect("\0" + name)
+            connection.connect(name if os.path.isabs(name) else "\0" + name)
             chunks = []
             while True:
                 chunk = connection.recv(4096)
@@ -95,6 +95,8 @@ AUTH_FIELD = "auth_context"
 DEFAULT_RATE_REQUESTS = helper_inventory.DEFAULT_RATE_REQUESTS
 DEFAULT_RATE_WINDOW_SECONDS = helper_inventory.DEFAULT_RATE_WINDOW_SECONDS
 MAX_REQUEST_BYTES = 1_048_576
+MAX_SERVER_FRAME_BYTES = 33_554_432
+MAX_STDERR_CAPTURE_BYTES = 65_536
 MAX_JSON_NESTING = 128
 MAX_PENDING_REQUESTS = 64
 PENDING_RESPONSE_TIMEOUT_SECONDS = 300.0
@@ -235,7 +237,6 @@ READ_QUERY_NAMES = {
         "qos_profiles",
         "route_summary",
         "sessions",
-        "sharing",
         "sntp_client",
         "stacking",
         "stacking_support",
@@ -2253,7 +2254,11 @@ class Proxy:
         return True
 
     def response(self, raw: bytes, epoch: int | None = None) -> bytes:
-        if not self.accepting(epoch) or not raw.strip():
+        if not self.accepting(epoch):
+            return b""
+        if len(raw) > MAX_SERVER_FRAME_BYTES:
+            return self._refuse_server_message(epoch)
+        if not raw.strip():
             return b""
         try:
             message = _json_document(raw)
@@ -2498,9 +2503,9 @@ def _drain_stderr(
     stream: Any, secrets: tuple[str, ...] = (), state: dict[str, Any] | None = None,
 ) -> None:
     captured = bytearray()
-    for line in iter(stream.readline, b""):
-        if len(captured) < 65_536:
-            captured.extend(line[:65_536 - len(captured)])
+    for line in iter(lambda: stream.readline(MAX_STDERR_CAPTURE_BYTES), b""):
+        if len(captured) < MAX_STDERR_CAPTURE_BYTES:
+            captured.extend(line[:MAX_STDERR_CAPTURE_BYTES - len(captured)])
     if captured and state is not None:
         state["captured"] = sanitize_text(captured.decode(errors="replace"), secrets)
 
@@ -2523,36 +2528,76 @@ def _exit_diagnostic(exit_code: int, timed_out: bool, state: dict[str, Any]) -> 
     state.update(emitted=True, category=category)
 
 
+def _peer_uid(connection: socket.socket) -> int:
+    if sys.platform == "darwin":
+        import ctypes
+
+        uid, gid = ctypes.c_uint(), ctypes.c_uint()
+        getpeereid = ctypes.CDLL(None, use_errno=True).getpeereid
+        getpeereid.argtypes = (ctypes.c_int, ctypes.POINTER(ctypes.c_uint), ctypes.POINTER(ctypes.c_uint))
+        getpeereid.restype = ctypes.c_int
+        if getpeereid(connection.fileno(), ctypes.byref(uid), ctypes.byref(gid)) != 0:
+            raise OSError(ctypes.get_errno(), "UNIX peer credentials are unavailable")
+        return uid.value
+    credentials = connection.getsockopt(socket.SOL_SOCKET, socket.SO_PEERCRED, struct.calcsize("iII"))
+    return struct.unpack("iII", credentials)[1]
+
+
 class _AskpassHandoff:
     def __init__(self, secret: str) -> None:
-        self.name = "netops-helper-askpass-" + secrets_module.token_hex(16)
+        self._directory: str | None = None
+        self._closed = threading.Event()
         self._secret = secret
         self._listener = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-        self._listener.bind("\0" + self.name)
-        self._listener.listen(1)
-        self._listener.settimeout(0.5)
+        try:
+            if sys.platform == "darwin":
+                # Keep the socket below Darwin's sockaddr_un limit even when
+                # TMPDIR is a long per-user path. Only a socket, never a secret
+                # file, exists inside this owner-only directory.
+                self._directory = tempfile.mkdtemp(prefix="netops-helper-askpass-", dir="/tmp")
+                self.name = os.path.join(self._directory, "socket")
+                self._listener.bind(self.name)
+                os.chmod(self.name, 0o600)
+            else:
+                self.name = "netops-helper-askpass-" + secrets_module.token_hex(16)
+                self._listener.bind("\0" + self.name)
+            self._listener.listen(1)
+            self._listener.settimeout(0.5)
+        except Exception:
+            self.close()
+            raise
+
+    def close(self) -> None:
+        self._closed.set()
+        self._secret = ""
+        self._listener.close()
+        if self._directory is not None:
+            shutil.rmtree(self._directory, ignore_errors=True)
 
     def serve(self, child: subprocess.Popen[bytes]) -> None:
         threading.Thread(target=self._serve, args=(child,), daemon=True).start()
 
     def _serve(self, child: subprocess.Popen[bytes]) -> None:
         try:
-            while child.poll() is None:
+            while child.poll() is None and not self._closed.is_set():
                 try:
                     connection, _ = self._listener.accept()
                 except socket.timeout:
                     continue
+                except OSError:
+                    if self._closed.is_set():
+                        return
+                    raise
                 with connection:
-                    credentials = connection.getsockopt(
-                        socket.SOL_SOCKET, socket.SO_PEERCRED, struct.calcsize("3i"),
-                    )
-                    _, uid, _ = struct.unpack("3i", credentials)
-                    if uid == os.getuid():
+                    try:
+                        uid = _peer_uid(connection)
+                    except OSError:
+                        continue
+                    if uid == os.geteuid():
                         connection.sendall(self._secret.encode())
                         return
         finally:
-            self._secret = ""
-            self._listener.close()
+            self.close()
 
 
 def _askpass_program():
@@ -2650,7 +2695,7 @@ class _ServerConnection:
 
     def _responses(self) -> None:
         proxy = self.proxy
-        for line in iter(self.child.stdout.readline, b""):
+        for line in iter(lambda: self.child.stdout.readline(MAX_SERVER_FRAME_BYTES + 1), b""):
             try:
                 transformed = proxy.response(line, self.epoch)
             except Exception:
@@ -2884,6 +2929,8 @@ def main() -> int:
                         ASKPASS_MODE_ENV: "1", ASKPASS_SOCKET_ENV: handoff.name,
                     })
             except (OSError, ProxyError) as exc:
+                if handoff is not None:
+                    handoff.close()
                 category = getattr(exc, "category", "auth_material")
                 message = getattr(
                     exc, "public_message", AuthenticationMaterialError.public_message,
@@ -2893,6 +2940,8 @@ def main() -> int:
             try:
                 connection = _ServerConnection(proxy, command, env, secrets, handoff)
             except OSError:
+                if handoff is not None:
+                    handoff.close()
                 _write_transport_diagnostic(
                     "ssh_transport", "The local SSH process could not start.",
                 )
