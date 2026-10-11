@@ -51,11 +51,11 @@ tag names the version in `pyproject.toml`, builds both files with hash-pinned bu
 publishing, so no upload token is stored anywhere: optionally to TestPyPI, or directly to PyPI after the GitHub release and required approval. The two files are not assets of the release page and are not covered by its
 Sigstore bundle; the upload carries its own provenance attestation. A version already on PyPI is never
 uploaded again. The upload is not part of the release run and can lag behind the release page, which
-stays authoritative; `docs/installation.md` says which versions were on PyPI when the release was made.
+stays authoritative. On 11 October 2026 PyPI carries `netops-admin` 0.2.7 with the pinned `netops-auditor` 0.2.11 and `netops-core` 0.2.8.
 
 ### It needs `netops-core` and `netops-auditor` beside it
 
-The admin reads the credential store, the host key trust, the SSH transport and the interactive session from `netops-core`, and the configuration parsers and the snapshot collector from `netops-auditor`; `pyproject.toml` pins them as `netops-core==0.2.8` and `netops-auditor==0.2.11`. Once the three are uploaded, `pip install netops-admin` would resolve those pins on PyPI. Until then **the operator installs the source archives of exactly those versions next to the admin**, each verified against its release `SHA256SUMS` and Sigstore bundle; [installation.md](installation.md) gives the commands. In this repository the archives are the tree, so the tests take the components from `../netops-core/src` and `../netops-auditor/src` through `[tool.pytest.ini_options] pythonpath`. `fastmcp` is needed solely for the MCP surface.
+The admin reads the credential store, the host key trust, the SSH transport and the interactive session from `netops-core`, and the configuration parsers and the snapshot collector from `netops-auditor`; `pyproject.toml` pins them as `netops-core==0.2.8` and `netops-auditor==0.2.11`. From PyPI, where the three are uploaded, `pip install netops-admin==0.2.7` resolves those pins. From the release archives **the operator installs the source archives of exactly those versions next to the admin**, each verified against its release `SHA256SUMS` and Sigstore bundle; [installation.md](installation.md) gives the commands. In this repository the archives are the tree, so the tests take the components from `../netops-core/src` and `../netops-auditor/src` through `[tool.pytest.ini_options] pythonpath`. `fastmcp` is needed solely for the MCP surface.
 
 ## Procedure
 

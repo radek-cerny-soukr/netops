@@ -22,7 +22,7 @@ The same device credential is used for SSH, SFTP, FTPS, and plain FTP. Plain FTP
 
 ## 2. Install the shared access layer on the proxy host
 
-The proxy and the egress generator import `netops_core` and `netops_helper`. Install them from the release assets: the source archive of this release and the source archive of `netops-core` 0.2.8, which it pins. Download each archive with the release `SHA256SUMS` and its Sigstore bundle from the release page, verify the bundle with [cosign](https://github.com/sigstore/cosign) and the archive against `SHA256SUMS`, and stop if either check fails:
+The proxy and the egress generator import `netops_core` and `netops_helper`. Install them from the release assets: the source archive of this release and the source archive of `netops-core` 0.2.8, which it pins. Download each archive with the release `SHA256SUMS` and its Sigstore bundle from the release page, verify the bundle with [cosign](https://github.com/sigstore/cosign) and the archive against `SHA256SUMS`, and stop if either check fails. [Tools on the installing host](https://github.com/radek-cerny-soukr/netops/blob/main/docs/README.md#tools-on-the-installing-host) shows how to get `cosign`, Python and Docker:
 
 ```sh
 for release in netops-helper:0.3.10 netops-core:0.2.8; do
@@ -54,12 +54,13 @@ Every file must report `OK`.
 
 This guide installs the signed GitHub source assets. PyPI publication is separate and carries only the client proxy plus its exact Core dependency; check version availability before selecting that channel. The server image and its hash-locked runtime are still installed from the verified release assets. You can also install `components/netops-core` and `components/netops-helper` from a checkout, or place their `src` directories on `PYTHONPATH`. Checkout scripts add those two source directories themselves.
 
-From a release export the same two ways apply to the unpacked archives: `python -m pip install <netops-core directory> <netops-helper directory>` into the environment that runs the proxy, or their `src` directories on `PYTHONPATH`. **Both archives are needed for that path on a host without an index**, and in that order: the helper archive carries a copy of `netops_core` for the image build, but its metadata pins `netops-core==0.2.8`, so `pip install <netops-helper directory>` on its own looks for that version on the package index, and ends in `No matching distribution found for netops-core` where the index does not carry it or no index is reachable. That is the pin doing its job, not a damaged archive.
+From a release export the same two ways apply to the unpacked archives: both directories installed into the environment that runs the proxy, as the commands below do, or their `src` directories on `PYTHONPATH`. Give `pip` a path that contains a `/`, such as `./netops-core-0.2.8`; a bare directory name makes it look that name up on the package index instead. **Both archives are needed**, and in that order: the helper archive carries a copy of `netops_core` for the image build, but its metadata pins `netops-core==0.2.8`, so installing the helper directory on its own looks for that version on the package index, and ends in `No matching distribution found for netops-core` where the index does not carry it or no index is reachable. That is the pin doing its job, not a damaged archive.
 
-For the installed-command path, create a private-user-owned environment and install from copies of the verified source trees. The local `umask 022` in each installation command prevents a login default of `0002` from creating group-writable launchers. It applies to public code only; keep operator files private as described in section 3.
+For the installed-command path, create a private-user-owned environment with Python 3.13 or newer and install from copies of the verified source trees; the first command stops when `python3` is older. The local `umask 022` in each installation command prevents a login default of `0002` from creating group-writable launchers. It applies to public code only; keep operator files private as described in section 3.
 
 ```sh
-(umask 022; python3.13 -m venv "$HOME/.local/share/netops-helper/venv") || exit 1
+python3 -c 'import sys; raise SystemExit(0 if sys.version_info >= (3, 13) else "Python 3.13 or newer is required")' || exit 1
+(umask 022; python3 -m venv "$HOME/.local/share/netops-helper/venv") || exit 1
 (umask 022; "$HOME/.local/share/netops-helper/venv/bin/python" -m pip install --require-hashes -r netops-helper-0.3.10/requirements-release.lock) || exit 1
 mkdir build-proxy || exit 1
 cp -r netops-core-0.2.8 netops-helper-0.3.10 build-proxy/ || exit 1
@@ -68,6 +69,26 @@ cp -r netops-core-0.2.8 netops-helper-0.3.10 build-proxy/ || exit 1
 ```
 
 Launch the installed proxy by its absolute path above, or add that environment's `bin` directory to `PATH`. Do not loosen the Core permission guard to accept a group-writable program. If an earlier installation created unsafe scripts, reinstall with the safe umask or remove only their group/other write bits after checking their owner; do not change credential directories recursively.
+
+The two archives are not enough on a host without an index. `pip` builds a source directory with the build backend its `pyproject.toml` names, `setuptools>=77` and `wheel`, and takes them from the package index into a temporary build environment, even with `--no-deps`; they are not in the hash lock either. Without an index the installation stops with `No matching distribution found for setuptools>=77`. The hash-locked runtime of the commands above needs the index as well; the proxy itself runs on the standard library and `netops_core`. On such a host install only the two directories, with build tools carried over from a connected host: there, in the environment the commands above created, download the hash-pinned `setuptools==84.0.0` and `wheel==0.48.0` of the [lock generator environment](releasing.md#lock-generator-environment) and compare the output of `sha256sum` with the hashes listed there:
+
+```sh
+"$HOME/.local/share/netops-helper/venv/bin/python" -m pip download --no-deps --only-binary=:all: --dest build-tools setuptools==84.0.0 wheel==0.48.0
+sha256sum build-tools/*.whl
+```
+
+Then, with `build-tools` beside the two verified archives on the host without an index:
+
+<!-- install-check: skip offline variant; needs build tools carried over from a connected host -->
+```sh
+(umask 022; python3 -m venv "$HOME/.local/share/netops-helper/venv") || exit 1
+(umask 022; "$HOME/.local/share/netops-helper/venv/bin/python" -m pip install --no-index --no-deps build-tools/setuptools-84.0.0-py3-none-any.whl build-tools/wheel-0.48.0-py3-none-any.whl) || exit 1
+mkdir build-proxy || exit 1
+cp -r netops-core-0.2.8 netops-helper-0.3.10 build-proxy/ || exit 1
+(umask 022; "$HOME/.local/share/netops-helper/venv/bin/python" -m pip install --no-index --no-deps --no-build-isolation build-proxy/netops-core-0.2.8 build-proxy/netops-helper-0.3.10) || exit 1
+```
+
+This installs the proxy without its runtime dependencies; the launcher check of the commands above applies to it unchanged.
 
 Installing has one practical advantage over `PYTHONPATH` on a proxy host: it puts the proxy on the path as the command **`netops-helper-proxy`**, which is what a client is then configured to launch instead of an absolute path into an unpacked archive.
 
@@ -90,7 +111,7 @@ For private TLS or FTPS trust, complete [the private CA, SAN, and FTPS pin proce
 
 ## 4. Build and create stopped Docker resources
 
-Install Docker Engine with Compose v2 or later (sections 4 to 7 were last run with Docker 29.9.0 and Compose v5.6.0 on an AMD64 runner). On the execution host, download the source archive of this release, which carries `compose.yaml` and the Dockerfile, with the OCI archive and manifest digest of the published image for the runner architecture, verify them as in [section 2](#2-install-the-shared-access-layer-on-the-proxy-host), and unpack the archive:
+Install Docker Engine with Compose v2 or later (sections 4 to 7 were last run with Docker 29.9.0 and Compose v5.6.0 on an AMD64 runner, and with Docker 29.1.3 and Compose 2.40.3 of the Ubuntu 26.04 packages in [Tools on the installing host](https://github.com/radek-cerny-soukr/netops/blob/main/docs/README.md#tools-on-the-installing-host)). The `docker` commands of sections 4 and 7 need the Docker socket: run them with `sudo` or from an account in the `docker` group, which is equivalent to root on the runner. On the execution host, download the source archive of this release, which carries `compose.yaml` and the Dockerfile, with the OCI archive and manifest digest of the published image for the runner architecture, verify them as in [section 2](#2-install-the-shared-access-layer-on-the-proxy-host), and unpack the archive:
 
 ```sh
 for release in netops-helper:0.3.10; do
@@ -116,7 +137,7 @@ tar -xzf netops-helper-0.3.10-source.tar.gz || exit 1
 (cd netops-helper-0.3.10 && sha256sum -c SHA256SUMS) || exit 1
 ```
 
-`uname -m` selects `linux-amd64.oci.tar` and `linux-amd64-image-digest.txt` on an AMD64 runner (`x86_64`) and `linux-arm64.oci.tar` and `image-digest.txt` on an ARM64 runner (`aarch64`); on any other architecture the loop stops. `cosign` must report `Verified OK` and `sha256sum` `OK` for every file. The image needs both `src/netops_helper` and `src/netops_core`. In the repository `compose.yaml` builds from the repository root and passes the two build arguments `COMPONENT_DIR=components/netops-helper` and `CORE_PACKAGE_DIR=components/netops-core/src/netops_core`; in a release export (`scripts/create_release_artifacts.py`), which carries `src/netops_core` inside the component tree, the exported `compose.yaml` builds from the archive root (`context: .`) with the Dockerfile's own defaults (`COMPONENT_DIR=.`, `CORE_PACKAGE_DIR=src/netops_core`), so `docker compose build --pull=false` in the unpacked archive is the documented path. The Compose network contract is:
+`uname -m` selects `linux-amd64.oci.tar` and `linux-amd64-image-digest.txt` on an AMD64 runner (`x86_64`) and `linux-arm64.oci.tar` and `image-digest.txt` on an ARM64 runner (`aarch64`); on any other architecture the loop stops. `cosign` must report `Verified OK` and `sha256sum` `OK` for every file. The image needs both `src/netops_helper` and `src/netops_core`. In the repository `compose.yaml` builds from the repository root and passes the two build arguments `COMPONENT_DIR=components/netops-helper` and `CORE_PACKAGE_DIR=components/netops-core/src/netops_core`; in a release export (`scripts/create_release_artifacts.py`), which carries `src/netops_core` inside the component tree, the exported `compose.yaml` builds from the archive root (`context: .`) with the Dockerfile's own defaults (`COMPONENT_DIR=.`, `CORE_PACKAGE_DIR=src/netops_core`), so `docker compose build --pull=false` in the unpacked archive is the documented build path, alternative (b) below. The Compose network contract is:
 
 - network name `netops-helper`;
 - bridge interface `nh-egress0`;
@@ -133,24 +154,33 @@ The health check also refuses to report healthy when `NETOPS_ASKPASS_PROGRAM` is
 
 **Known and unfixed:** the `openssh-client` that Debian trixie ships carries CVE-2026-60002, a Critical client-side use-after-free triggered by a server that changes its host key during a key re-exchange; the upstream fix is OpenSSH 10.4 and trixie stays on 10.0. This release ships with that vulnerability as a reviewed exception, not with a fix. Read [known vulnerability findings](known-vulnerabilities.md) before deploying; if the exposure is not acceptable, rebuild the image on a base that ships OpenSSH 10.4 or newer.
 
-The release also publishes the image as an OCI archive (`netops-helper-<version>-linux-arm64.oci.tar`) together with its manifest digest (`netops-helper-<version>-image-digest.txt`). From 0.3.10 it also publishes a Linux AMD64 image, built natively on an AMD64 builder from the same release source, as separate assets: the OCI archive `netops-helper-<version>-linux-amd64.oci.tar`, its manifest digest `netops-helper-<version>-linux-amd64-image-digest.txt`, its image SBOM `netops-helper-<version>-linux-amd64-image.cdx.json` and its Grype report `netops-helper-<version>-linux-amd64-grype.json`. All of them are listed in the same `release-SHA256SUMS` as the ARM64 assets, which the one Sigstore bundle of the release signs. The loop at the start of this section verifies the archive and the digest of the runner architecture against that `SHA256SUMS` and its Sigstore bundle; both architectures load the same way. `docker load -i` accepts the archive only when Docker uses the containerd image store; on the ARM64 release builder the loaded image ID equals the published digest. With the classic image store, Docker 29.8 refuses the archive with `invalid archive: does not contain a manifest.json` (measured on 21 September 2026). On such a runner build from the verified source archive as described here, or move the runner to the containerd image store first - that change restarts Docker and every container on the host. If a load does not create the `image:` name used in `compose.yaml`, tag the verified image with it and keep `--no-build`. On an AMD64 runner, in the directory of the verified downloads:
+The image comes from exactly one of two alternatives: (a) the published image, loaded from its verified OCI archive, or (b) an image built from the verified source archive. Never mix them.
+
+**(a) The published image.** The release also publishes the image as an OCI archive (`netops-helper-<version>-linux-arm64.oci.tar`) together with its manifest digest (`netops-helper-<version>-image-digest.txt`). From 0.3.10 it also publishes a Linux AMD64 image, built natively on an AMD64 builder from the same release source, as separate assets: the OCI archive `netops-helper-<version>-linux-amd64.oci.tar`, its manifest digest `netops-helper-<version>-linux-amd64-image-digest.txt`, its image SBOM `netops-helper-<version>-linux-amd64-image.cdx.json` and its Grype report `netops-helper-<version>-linux-amd64-grype.json`. All of them are listed in the same `release-SHA256SUMS` as the ARM64 assets, which the one Sigstore bundle of the release signs. The loop at the start of this section verifies the archive and the digest of the runner architecture against that `SHA256SUMS` and its Sigstore bundle; both architectures load the same way. `docker load -i` accepts the archive only when Docker uses the containerd image store; on the ARM64 release builder the loaded image ID equals the published digest. With the classic image store, Docker 29.8 refuses the archive with `invalid archive: does not contain a manifest.json` (measured on 21 September 2026). On such a runner use alternative (b), or move the runner to the containerd image store first - that change restarts Docker and every container on the host. A load does not create the `image:` name used in `compose.yaml`, so tag the verified image with it, then create the network and container from the unpacked archive with `--no-build` and without starting the service. On an AMD64 runner, in the directory of the verified downloads:
 
 ```sh
 docker load -i netops-helper-0.3.10-linux-amd64.oci.tar
 docker tag "$(cat netops-helper-0.3.10-linux-amd64-image-digest.txt)" local/netops-helper:0.3.10
 docker image inspect --format '{{.Id}}' local/netops-helper:0.3.10
+cd netops-helper-0.3.10
+docker compose up --no-start --no-build
+docker compose ps --all
+docker network inspect netops-helper
 ```
 
-On an ARM64 runner the two files are `netops-helper-0.3.10-linux-arm64.oci.tar` and `netops-helper-0.3.10-image-digest.txt`. The tag refers to the image by the published digest, so it fails when the load produced no image with that ID, and the last command must print exactly the digest the file holds.
+On an ARM64 runner the two files are `netops-helper-0.3.10-linux-arm64.oci.tar` and `netops-helper-0.3.10-image-digest.txt`. The tag refers to the image by the published digest, so it fails when the load produced no image with that ID, and the third command must print exactly the digest the file holds. Do not run `docker compose build` on this path: it builds a local image from the source and moves the tag `local/netops-helper:0.3.10` from the verified image to that build, whose ID is not the published digest.
 
-Build the digest-pinned image, then create the network and container without starting the service:
+**(b) An image built from the verified source.** Build the digest-pinned image in the unpacked archive instead of loading one, then create the network and container without starting the service:
 
 ```bash
+cd netops-helper-0.3.10
 docker compose build --pull=false
 docker compose up --no-start --no-build
 docker compose ps --all
 docker network inspect netops-helper
 ```
+
+The build pulls the digest-pinned base image and installs the hash-locked runtime from the package index; its image ID is not the published digest (see [Reproducibility of the image](releasing.md#reproducibility-of-the-image)).
 
 The official Docker Compose CLI defines `up --no-start` as creating services without starting them. The explicit network declaration causes Compose to create the named network as part of that operation. See the official [`docker compose up` reference](https://docs.docker.com/reference/cli/docker/compose/up/) and [Compose network reference](https://docs.docker.com/reference/compose-file/networks/).
 
@@ -212,7 +242,7 @@ Bundle schema 4 contains one IPv4 ruleset and apply uses one IPv4 `iptables-rest
 
 ## 7. Start the service only after the check
 
-Start the already-created stopped container and confirm its state:
+In the unpacked archive directory `netops-helper-0.3.10` of section 4, start the already-created stopped container and confirm its state:
 
 ```bash
 docker compose start
@@ -231,21 +261,21 @@ Use a dedicated read-only agent/session with no generic shell, write-capable fil
 
 ## 9. Validate the deployment
 
-Run portable source checks in a suitable development environment, from this component's directory: `components/netops-helper/` in the `netops` repository, or the unpacked release archive `netops-helper-<version>`. The archive carries `src/netops_core` itself, so there `src` on `PYTHONPATH` is enough; `../netops-core/src` exists only in the repository, and a missing entry is ignored. `-B` keeps the tree free of bytecode, which the last check reports in the archive:
+Run portable source checks in a suitable development environment, from this component's directory: `components/netops-helper/` in the `netops` repository, or the unpacked release archive `netops-helper-<version>`. The archive carries `src/netops_core` itself, so there `src` on `PYTHONPATH` is enough; `../netops-core/src` exists only in the repository, and a missing entry is ignored. Every check that imports the packages needs that `PYTHONPATH`, unless the interpreter already has `netops_core` and `netops_helper` installed. `-B` keeps the tree free of bytecode, which the last check reports in the archive:
 
 ```bash
 PYTHONPATH=src:../netops-core/src python3 -B tests/run_tests.py
 PYTHONPATH=src:../netops-core/src python3 -B tests/test_engine_contracts.py
-python3 -B tests/test_proxy_contracts.py
+PYTHONPATH=src:../netops-core/src python3 -B tests/test_proxy_contracts.py
 python3 -B tests/test_egress_scripts.py
 python3 -B tests/test_apply_egress_rules.py
 python3 -B scripts/check_public_release.py
 ```
 
-On the maintained ARM64 release builder, install the locked runtime and run the complete suite with mandatory runtime tests:
+With the locked runtime installed, for example in the environment of section 2, run the complete suite with mandatory runtime tests, on an ARM64 or AMD64 host alike:
 
 ```bash
-NETOPS_REQUIRE_RUNTIME_TESTS=1 python3 -B -m pytest -q -p no:cacheprovider
+NETOPS_REQUIRE_RUNTIME_TESTS=1 "$HOME/.local/share/netops-helper/venv/bin/python" -B -m pytest -q -p no:cacheprovider
 ```
 
 Then start a fresh dedicated client session:
@@ -258,7 +288,7 @@ Then start a fresh dedicated client session:
 6. Confirm target-side authentication/authorization logging and the expected two-phase audit pair.
 7. Confirm a forbidden query or malformed parameter is rejected without a target connection.
 
-The ARM64 live network test must also verify:
+The live network test on the runner, ARM64 or AMD64, must also verify:
 
 - allowed and denied target address/port combinations;
 - IPv6 remains unavailable to containers on this network;

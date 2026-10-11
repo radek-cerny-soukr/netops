@@ -44,7 +44,7 @@ component runs on any Python 3.13 host, installed from the unpacked, verified re
 
 The component is prepared for PyPI as `netops-auditor`: a source distribution
 and a wheel built from the release tag. Each release is uploaded to PyPI after its GitHub release;
-the release page stays authoritative. The workflow `.github/workflows/publish-pypi.yml` at the
+on 11 October 2026 PyPI carries 0.2.11, and the release page stays authoritative. The workflow `.github/workflows/publish-pypi.yml` at the
 repository root is started by hand on that tag. It accepts only a tag of this family, checks that the
 tag names the version in `pyproject.toml`, builds both files with hash-pinned build tools and
 `SOURCE_DATE_EPOCH` set to the time of the tagged commit, and uploads them through PyPI trusted
@@ -56,9 +56,9 @@ uploaded again.
 
 The auditor reads the inventory, the credential store, the host key trust and the SSH
 transport from `netops-core`, and `pyproject.toml` pins it as `netops-core==0.2.8`.
-Once both are uploaded, `pip install netops-auditor` would resolve that pin on PyPI and install the
-core with it. Until then **the operator installs the `netops-core` source archive of exactly that
-version next to the auditor**: download `netops-core-0.2.8-source.tar.gz` with the release
+From PyPI, where both are uploaded, `pip install netops-auditor==0.2.11` resolves that pin and installs the
+core with it. From the release archives **the operator installs the `netops-core` source archive of exactly that
+version next to the auditor**, as the [installation guide](installation.md) does: download `netops-core-0.2.8-source.tar.gz` with the release
 `SHA256SUMS` and its Sigstore bundle from the `netops-core` 0.2.8 page of the
 [releases](https://github.com/radek-cerny-soukr/netops/releases), verify the bundle with `cosign` and
 the archive against `SHA256SUMS` as
@@ -70,7 +70,7 @@ this repository the archive is the tree, so the tests and the CI job take the co
 `fastmcp` is needed solely for the MCP surface.
 
 Either way works, and both are covered by the CI job. Installing the two unpacked directories into
-one environment - `(umask 022; python -m pip install <netops-core directory> <netops-auditor directory>)` - puts
+one environment - `(umask 022; python -m pip install ./netops-core-0.2.8 ./netops-auditor-0.2.11)` from the directory that holds them; a path without a `/` would be looked up on the package index - puts
 the rule catalogues inside the installed package and puts the command `netops-auditor` on the path,
 which is the name every message and every example in these documents uses. Running from the unpacked
 tree with `src` on `PYTHONPATH` and `python -m netops_auditor` is the same program.

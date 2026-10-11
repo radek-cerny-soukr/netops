@@ -1,6 +1,6 @@
 # Installation and configuration
 
-`netops-admin` runs on a Python 3.13 host that can reach the managed devices over SSH. It needs `netops-core` and `netops-auditor` of exactly the pinned versions beside it, and `fastmcp` only for the MCP surface.
+`netops-admin` runs on a host with Python 3.13 or newer that can reach the managed devices over SSH. It needs `netops-core` and `netops-auditor` of exactly the pinned versions beside it, and `fastmcp` only for the MCP surface.
 
 ## Install
 
@@ -10,7 +10,7 @@ This guide installs the signed GitHub source assets. PyPI publication is a separ
 
 ### From the release archives
 
-1. Download the source archive of each component with the release `SHA256SUMS` and its Sigstore bundle from its release page: `netops-core` 0.2.8, `netops-auditor` 0.2.11 and `netops-admin` 0.2.7. Verify the bundle with [cosign](https://github.com/sigstore/cosign) and the archive against `SHA256SUMS`, and stop if either check fails:
+1. Download the source archive of each component with the release `SHA256SUMS` and its Sigstore bundle from its release page: `netops-core` 0.2.8, `netops-auditor` 0.2.11 and `netops-admin` 0.2.7. Verify the bundle with [cosign](https://github.com/sigstore/cosign) and the archive against `SHA256SUMS`, and stop if either check fails. [Tools on the installing host](https://github.com/radek-cerny-soukr/netops/blob/main/docs/README.md#tools-on-the-installing-host) shows how to get `cosign` and Python:
 
    ```sh
    for release in netops-core:0.2.8 netops-auditor:0.2.11 netops-admin:0.2.7; do
@@ -40,11 +40,12 @@ This guide installs the signed GitHub source assets. PyPI publication is a separ
    (cd netops-admin-0.2.7 && sha256sum -c SHA256SUMS) || exit 1
    ```
 
-2. Run the installation as a regular user with sudo permission to create the application directory. Create `/opt/netops-admin` owned by that user before creating the virtual environment; the application directory is public code, while credentials and runtime configuration belong in separate private directories. The code-installation commands below use a local `umask 022`, even if the login shell defaults to `0002`; generated console scripts must not be writable by group or other. This does not change the shell umask used later for private configuration. Create a virtual environment with Python 3.13 and install the pinned dependencies with their hashes. The lock also carries the test and SBOM tools; `fastmcp` and its dependencies are the only ones the program uses.
+2. Run the installation as a regular user with sudo permission to create the application directory. Create `/opt/netops-admin` owned by that user before creating the virtual environment; the application directory is public code, while credentials and runtime configuration belong in separate private directories. The code-installation commands below use a local `umask 022`, even if the login shell defaults to `0002`; generated console scripts must not be writable by group or other. This does not change the shell umask used later for private configuration. Create a virtual environment with Python 3.13 or newer and install the pinned dependencies with their hashes; the first command stops when `python3` is older. The lock also carries the test and SBOM tools; `fastmcp` and its dependencies are the only ones the program uses.
 
    ```sh
+   python3 -c 'import sys; raise SystemExit(0 if sys.version_info >= (3, 13) else "Python 3.13 or newer is required")' || exit 1
    sudo install -d -m 0755 -o "$(id -un)" -g "$(id -gn)" /opt/netops-admin || exit 1
-   (umask 022; python3.13 -m venv /opt/netops-admin/venv) || exit 1
+   (umask 022; python3 -m venv /opt/netops-admin/venv) || exit 1
    (umask 022; /opt/netops-admin/venv/bin/python -m pip install --require-hashes -r netops-admin-0.2.7/requirements-release.lock) || exit 1
    ```
 

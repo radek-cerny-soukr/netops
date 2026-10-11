@@ -1,6 +1,6 @@
 # netops-core
 
-This source tree targets `netops-core/v0.2.8` (2026-10-11); `netops-auditor` 0.2.11, `netops-admin` 0.2.7 and `netops-helper` 0.3.10, released with it, pin exactly that version. Earlier releases keep their pins: `netops-auditor` 0.2.10, `netops-admin` 0.2.6 and `netops-helper` 0.3.9 pin `netops-core/v0.2.7` (2026-10-06); `netops-auditor` 0.2.9, `netops-admin` 0.2.5 and `netops-helper` 0.3.8 pin 0.2.6; `netops-auditor` 0.2.8, `netops-admin` 0.2.3 and 0.2.4 and `netops-helper` 0.3.7 pin `netops-core/v0.2.5` (2026-09-26); `netops-auditor` 0.2.7 and `netops-admin` 0.2.2 pin 0.2.4, and earlier releases pin 0.2.3 or 0.2.2. `netops-core` 0.2.8 has a separate PyPI publication step after GitHub; check exact-version index availability before choosing that installation channel: on 1 October 2026 PyPI carries `netops-core` 0.2.4 only. This version reads the inventory and the vault with a size bound and refuses a key repeated within one JSON object, makes the pinned host key the only one OpenSSH trusts, never opens the audit log through a link and keeps a value that may be a misplaced secret out of its errors; see the [changelog](https://github.com/radek-cerny-soukr/netops/blob/main/components/netops-core/CHANGELOG.md).
+This source tree targets `netops-core/v0.2.8` (2026-10-11); `netops-auditor` 0.2.11, `netops-admin` 0.2.7 and `netops-helper` 0.3.10, released with it, pin exactly that version. Earlier releases keep their pins: `netops-auditor` 0.2.10, `netops-admin` 0.2.6 and `netops-helper` 0.3.9 pin `netops-core/v0.2.7` (2026-10-06); `netops-auditor` 0.2.9, `netops-admin` 0.2.5 and `netops-helper` 0.3.8 pin 0.2.6; `netops-auditor` 0.2.8, `netops-admin` 0.2.3 and 0.2.4 and `netops-helper` 0.3.7 pin `netops-core/v0.2.5` (2026-09-26); `netops-auditor` 0.2.7 and `netops-admin` 0.2.2 pin 0.2.4, and earlier releases pin 0.2.3 or 0.2.2. `netops-core` 0.2.8 has a separate PyPI publication step after GitHub; check exact-version index availability before choosing that installation channel: on 11 October 2026 PyPI carries `netops-core` 0.2.8. The [installation guide](https://github.com/radek-cerny-soukr/netops/blob/main/components/netops-core/docs/installation.md) installs it on its own from the verified release archive. This version reads the inventory and the vault with a size bound and refuses a key repeated within one JSON object, makes the pinned host key the only one OpenSSH trusts, never opens the audit log through a link and keeps a value that may be a misplaced secret out of its errors; see the [changelog](https://github.com/radek-cerny-soukr/netops/blob/main/components/netops-core/CHANGELOG.md).
 
 The shared access and configuration primitives of the `netops` family: bounded inventory and credential readers, exclusive SSH host-key trust, SSH exec and terminal transports, SFTP metadata, prompt cleaning and audit records. Since version 0.2.6, Core also provides the shared FortiOS configuration parser and measured schema library runtime. Consumers decide authorization, audit policy and whether a result allows a change. Core exposes no server or network listener.
 
@@ -118,13 +118,13 @@ Keeping that client current is the operator's responsibility, not this library's
 ## Verifying it
 
 ```sh
-python3 -m pytest -q                         # the test suite
-python3 scripts/check_gates.py               # the gate of a release
+python3 -B -m pytest -q -p no:cacheprovider  # the test suite
+python3 -B scripts/check_gates.py            # the gate of a release
 python3 scripts/generate_sbom.py             # regenerates the committed SBOM
 python3 scripts/create_release_artifacts.py --output path/to/new-output
 ```
 
-The gate runs three checks: `core_stdlib` (no third-party import under `src/`), `version_metadata`
+Run them with an interpreter that has the test tools of `requirements-release.lock`, such as the environment of the [installation guide](https://github.com/radek-cerny-soukr/netops/blob/main/components/netops-core/docs/installation.md). `-B` and `-p no:cacheprovider` keep `__pycache__` and `.pytest_cache` out of the tree, so the first two commands also pass in an unpacked release archive; the last two belong to a repository checkout. The gate runs three checks: `core_stdlib` (no third-party import under `src/`), `version_metadata`
 (the version in `pyproject.toml`, in `src/netops_core/__init__.py`, and in the root of
 `sbom.cdx.json` agree), and `release_content` (every released file is read and held against an
 allowlist of addresses, names, paths, and credential shapes). Outside a repository - which is what an

@@ -80,6 +80,20 @@ Three of the earliest versions - `netops-auditor` 0.2.2, `netops-core` 0.2.1 and
 
 A component release archive is self-contained: it carries the component tree, its own `LICENSE`, and its own changelog. Self-contained does not mean identical in shape: the `netops-helper` archive additionally vendors `src/netops_core`, the `netops-auditor` archive pins one exact `netops-core` version and needs that core archive installed beside it, the `netops-admin` archive pins both, and the `netops-helper` archive pins one exact `netops-core` version and needs that core archive too, because its vendored copy of `netops_core` is there for the image build and does not satisfy the pin for `pip`, and `netops-core` is a library archive with no image of its own. The released `netops-auditor` 0.2.8, `netops-admin` 0.2.4 and `netops-helper` 0.3.7 pin `netops-core==0.2.5`, `netops-auditor` 0.2.9, `netops-admin` 0.2.5 and `netops-helper` 0.3.8 pin `netops-core==0.2.6`, and `netops-auditor` 0.2.10, `netops-admin` 0.2.6 and `netops-helper` 0.3.9 pin `netops-core==0.2.7`; the current versions in this tree, `netops-auditor` 0.2.11, `netops-admin` 0.2.7 and `netops-helper` 0.3.10, pin `netops-core==0.2.8`. Repository-level files (this page, `SECURITY.md`, `CONTRIBUTING.md`, CI) live here and are not part of a component archive.
 
+## Tools on the installing host
+
+The installation guides of the components need `curl`, `sha256sum`, `tar`, [cosign](https://github.com/sigstore/cosign) and Python 3.13 or newer with its `venv` module; the `netops-helper` runner also needs Docker Engine with Compose v2. On Ubuntu 26.04 LTS the distribution packages cover all of them:
+
+```sh
+sudo apt-get update
+sudo apt-get install -y curl python3-venv cosign
+sudo apt-get install -y docker-compose-v2
+```
+
+Run on 11 October 2026 on a fresh Ubuntu 26.04.1 LTS AMD64 server: `python3` is 3.14.4 and has no `venv` module until `python3-venv` is installed, and the distribution has no `python3.13`; `cosign` 2.6.2 verified the release bundles of all four components; `docker-compose-v2` 2.40.3 brings the Docker Engine 29.1.3 of the distribution as a recommended package, which `apt-get` installs by default, and that engine uses the containerd image store that `docker load` of a `netops-helper` OCI archive needs. The ARM64 archive of Ubuntu 26.04 carries the same packages. On another system take Python from the distribution or [python.org](https://www.python.org/downloads/), `cosign` from the distribution or as a binary of the [cosign releases](https://github.com/sigstore/cosign/releases) checked against the checksum file of that release, and Docker from the distribution or from [Docker's own packages](https://docs.docker.com/engine/install/).
+
+Every `docker` command talks to the Docker daemon socket, which only root and the members of the `docker` group can use, and membership of that group is equivalent to root on that host. Run the `docker` commands of the `netops-helper` guide with `sudo`, or add the operator account to the group with `sudo usermod -aG docker "$(id -un)"` and log in again.
+
 ## Verifying a release
 
 Each release page carries `<component>-<version>-release-SHA256SUMS`, the SHA-256 of every other asset of that page, and `<component>-<version>-release-SHA256SUMS.sigstore.json`, a Sigstore bundle that signs that manifest. The signing identity is the maintainer's GitHub account: certificate identity `325383355+radek-cerny-soukr@users.noreply.github.com`, OIDC issuer `https://github.com/login/oauth`. Verify the manifest first, then every asset against it, and use nothing that fails either step. With [cosign](https://github.com/sigstore/cosign), for the source archive of `netops-helper` 0.3.10:

@@ -77,7 +77,7 @@ Verified on 1 October 2026 in an isolated network namespace on the ARM64 runner 
 
 This is still not complete containment. The daemon forwards DNS for the container from the host's own stack, which neither chain sees; replies to connections the runner opens towards the container are accepted; and IPv6 rests on the Docker network setting alone.
 
-Before relying on the control, an ARM64 live test on the deployed runner must verify:
+Before relying on the control, a live test on the deployed runner, ARM64 or AMD64, must verify:
 
 - allowed and denied target address/port combinations;
 - the Docker network remains IPv6-disabled and IPv6 is unavailable to its containers;
@@ -95,7 +95,15 @@ The apply helper writes live kernel state only. Nothing in this project persists
 
 Releases up to 0.3.5 shipped `restart: unless-stopped`. A container created from one of them keeps that policy until it is recreated from the current `compose.yaml`; until then a Compose override with `restart: "no"` for the `netops-helper` service closes the same window.
 
-Let a unit, not Docker, start the container. Create the container once with `docker compose up --no-start --no-build` and install a oneshot unit that applies the reviewed bundle, checks it and only then starts the container:
+Let a unit, not Docker, start the container. Create the container once with `docker compose up --no-start --no-build` and install a oneshot unit that applies the reviewed bundle, checks it and only then starts the container. The unit runs the scripts as root, so it takes them from a root-owned copy of the verified source tree, `/opt/netops-helper`, and the bundle from `/etc/netops-helper/egress-bundle.json` with mode 600. From the directory of section 4 of the [installation guide](installation.md#4-build-and-create-stopped-docker-resources), with the reviewed bundle of its section 5:
+
+```sh
+sudo cp -r netops-helper-0.3.10 /opt/netops-helper
+sudo install -d -m 0700 /etc/netops-helper
+sudo install -m 0600 /restricted/path/netops-helper-egress.json /etc/netops-helper/egress-bundle.json
+```
+
+Save the unit as `/etc/systemd/system/netops-helper-egress.service`, owned by root with mode 644:
 
 ```
 [Unit]
@@ -116,7 +124,16 @@ ExecStop=/usr/bin/docker stop netops-helper
 WantedBy=docker.service
 ```
 
-`WantedBy=docker.service` runs the unit whenever Docker starts, `PartOf=docker.service` stops the container with Docker, and a failed apply or check leaves the container stopped. Measured on 21 September 2026 with Docker 29.8 on an ARM64 runner: after a reboot the Docker API was up at 21:24:22, `egress_apply=ok` and `egress_check=ok` followed at 21:24:23, the container started 0.9 seconds later and became healthy, and it had not run before that. Adjust `RequiresMountsFor=` and the paths to where the release is unpacked.
+Then load, enable and start it. Started after section 7 of the installation guide, it applies and checks the bundle again and leaves the running container running:
+
+```sh
+sudo systemctl daemon-reload
+sudo systemctl enable netops-helper-egress.service
+sudo systemctl start netops-helper-egress.service
+systemctl is-active netops-helper-egress.service
+```
+
+`WantedBy=docker.service` runs the unit whenever Docker starts, `PartOf=docker.service` stops the container with Docker, and a failed apply or check leaves the container stopped. Measured on 21 September 2026 with Docker 29.8 on an ARM64 runner: after a reboot the Docker API was up at 21:24:22, `egress_apply=ok` and `egress_check=ok` followed at 21:24:23, the container started 0.9 seconds later and became healthy, and it had not run before that. If you keep the tree elsewhere, adjust `RequiresMountsFor=` and the paths to it.
 
 The helper is idempotent and fails closed, so a repeated run is safe; the checker should still run after every Docker restart or network recreation.
 
@@ -144,7 +161,7 @@ The checker validates the supplied bundle internally and compares it with observ
 4. Keep an out-of-band recovery path.
 5. Apply the exact bundle with the dedicated helper under the minimum required privilege.
 6. Run the checker against live observed state.
-7. Perform the ARM64 traffic tests above, including the runner-host services through every runner address.
+7. Perform the live traffic tests above on the runner, ARM64 or AMD64, including the runner-host services through every runner address.
 8. Regenerate, reapply, and recheck after any device entry, helper section, metadata/listing root, port, Docker network, or resolver change.
 
 Generated bundles reveal network scope even though they contain no credentials. Store them as environment-sensitive operational data and never publish them as release artifacts.
