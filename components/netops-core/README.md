@@ -90,8 +90,8 @@ Measured FortiOS schemas and the shared parser are described in [Schema and conf
 `netops-auditor`, `netops-admin` and, from 0.3.7, `netops-helper` depend on `netops-core` by an exact
 pin. From the release archives the operator installs the verified `netops-core` source archive of
 that version beside the component, as the installation guide of that component describes. PyPI is a
-delayed channel: on 1 October 2026 PyPI carries `netops-core` 0.2.4 only, so a component that pins a
-later version cannot be installed from there yet. Inside this
+delayed channel: on 11 October 2026 PyPI carries `netops-core` 0.2.8, the version the current
+releases pin; check exact-version availability before installing from there. Inside this
 repository a component takes it from the tree instead: the consuming component installs the directory
 `components/netops-core` into its own environment or image, or puts `components/netops-core/src` on
 `PYTHONPATH`, and the `netops-helper` image carries a copy from the tree. No consumer resolves a

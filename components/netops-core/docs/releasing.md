@@ -40,8 +40,8 @@ installed beside the standard library.
 ### PyPI, a delayed channel
 
 The component is prepared for PyPI as `netops-core`: a source distribution
-and a wheel built from the release tag. Of its releases only 0.2.4 has been uploaded (1 October 2026);
-the uploads of later versions are postponed, and the release page stays authoritative. The workflow `.github/workflows/publish-pypi.yml` at the
+and a wheel built from the release tag. On 11 October 2026 PyPI carries 0.2.8;
+the upload follows the GitHub release, and the release page stays authoritative. The workflow `.github/workflows/publish-pypi.yml` at the
 repository root is started by hand on that tag. It accepts only a tag of this family, checks that the
 tag names the version in `pyproject.toml`, builds both files with hash-pinned build tools and
 `SOURCE_DATE_EPOCH` set to the time of the tagged commit, and uploads them through PyPI trusted

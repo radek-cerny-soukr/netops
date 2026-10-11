@@ -1,8 +1,26 @@
 # netops
 
-Tools that give an AI agent the narrowest possible hands and usable eyes on network devices, and a configuration auditor that is useful without any agent at all. Four components live in this one repository; each is released on its own, under its own tag and its own maturity.
+**Let an AI agent work on your network without handing it the keys.** netops gives an agent a fixed catalogue of named read-only queries instead of a shell, lets it change a little only behind a rollback that the device itself enforces, and ships a configuration auditor that is useful on its own, with no agent at all. Four components live in this one repository; each is released on its own, under its own tag and its own maturity.
 
-**Helper 0.3.10 removes EXOS `show sharing`:** the query is excluded on VM and physical platforms because of inconsistent completion status (STATUS=-6 / SSH250 with a complete table). Remove `sharing` from `enabled_queries` before upgrading. [Reason and upgrade migration](components/netops-helper/docs/vendor-cli-references/extreme-switch-engine.md#unsupported-show-sharing).
+## Why netops
+
+- **No raw commands.** The agent chooses a named query and its parameters; it never writes a command line. Every device is reached with an account the device itself keeps read-only.
+- **Changes that undo themselves.** Before it writes, `netops-admin` arms a rollback on the device (a FortiOS automation stitch or an ExtremeXOS Universal Port Manager timer). Only when a separate check account confirms the predicted result is the rollback disarmed; otherwise the device restores the previous state on its own.
+- **Useful without AI.** `netops-auditor` checks FortiGate and ExtremeXOS configurations from a file, straight from the device or in GitHub Actions with SARIF code scanning. Twelve FortiOS rules are hardening checks mapped to the CIS FortiGate 7.4.x Benchmark, and reports never quote the configuration.
+- **Verifiable releases.** Every release carries a source archive, an SBOM, a checksum manifest and a Sigstore signature; Helper server images come with their SBOM and Grype report.
+- **Measured, not assumed.** Reads, audits and changes were run on physical FortiGate 60F and 80F and Extreme X435 and X440 switches; Arista, Cisco and Juniper reads on virtual images. Every result and every gap is in [What has been tested](#what-has-been-tested).
+
+## What's new — 11 October 2026
+
+Core 0.2.8, Auditor 0.2.11, Admin 0.2.7 and Helper 0.3.10 fix the points of the follow-up audit in [GitHub issue #4](docs/README.md#issue-4).
+
+- **Helper on Linux AMD64.** Next to the ARM64 image, a server image built and self-tested natively on an AMD64 builder.
+- **Safer ExtremeXOS rollbacks.** Admin removes a safeguard only with proof from `show upm timers` that its own timer has fired; checked live on an X435 with the switch clock set 300 seconds forward and back.
+- **One change at a time.** Processes that share a state directory admit operations one at a time, so the daily budget and request IDs hold across devices; notifications no longer follow redirects.
+- **Quiet start.** The MCP servers of Auditor, Admin and Helper no longer ask PyPI for a newer FastMCP when they start.
+- **Breaking change in Helper 0.3.10:** the EXOS query `sharing` (`show sharing`) is removed because of inconsistent completion status (STATUS=-6 / SSH250 with a complete table). Remove `sharing` from `enabled_queries` before upgrading. [Reason and upgrade migration](components/netops-helper/docs/vendor-cli-references/extreme-switch-engine.md#unsupported-show-sharing).
+
+Release notes: [Core 0.2.8](https://github.com/radek-cerny-soukr/netops/releases/tag/netops-core%2Fv0.2.8), [Auditor 0.2.11](https://github.com/radek-cerny-soukr/netops/releases/tag/netops-auditor%2Fv0.2.11), [Admin 0.2.7](https://github.com/radek-cerny-soukr/netops/releases/tag/netops-admin%2Fv0.2.7), [Helper 0.3.10](https://github.com/radek-cerny-soukr/netops/releases/tag/netops-helper%2Fv0.3.10).
 
 ## Start here
 
@@ -63,7 +81,7 @@ The workflow needs `security-events: write`. Inputs, outputs and the SARIF mappi
 | [`netops-admin`](components/netops-admin/) | Bounded device changes, mandatory rollback enrollment and predicted/observed audit | [`netops-admin/v0.2.7`](https://github.com/radek-cerny-soukr/netops/releases/tag/netops-admin%2Fv0.2.7) (2026-10-11) |
 | [`netops-core`](components/netops-core/) | Shared access layer the other components build on: inventory, credential store, host key trust, SSH transport, audit records | [`netops-core/v0.2.8`](https://github.com/radek-cerny-soukr/netops/releases/tag/netops-core%2Fv0.2.8) (2026-10-11) |
 
-Every release carries a source archive, an SBOM, a checksum manifest and a Sigstore signature; install from those assets after [verifying them](docs/README.md#verifying-a-release). The release page is authoritative. PyPI is a delayed, secondary channel: publication is a separate workflow after GitHub and does not install the Helper server; check exact-version availability before using the index. On 1 October 2026 PyPI carries `netops-core` 0.2.4, `netops-auditor` 0.2.7 and `netops-admin` 0.2.2; Helper was absent on that date. Earlier versions keep their release pages and tags; the table above links the current one. How releases are cut and signed, and what the repository gate enforces, is in the [documentation map](docs/README.md#releases).
+Every release carries a source archive, an SBOM, a checksum manifest and a Sigstore signature; install from those assets after [verifying them](docs/README.md#verifying-a-release). The release page is authoritative. PyPI is a delayed, secondary channel: publication is a separate workflow after GitHub and does not install the Helper server; check exact-version availability before using the index. On 11 October 2026 PyPI carries the current releases: `netops-core` 0.2.8, `netops-auditor` 0.2.11, `netops-admin` 0.2.7 and the `netops-helper` 0.3.10 client proxy. Earlier versions keep their release pages and tags; the table above links the current one. How releases are cut and signed, and what the repository gate enforces, is in the [documentation map](docs/README.md#releases).
 
 ## What has been tested
 
