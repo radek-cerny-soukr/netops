@@ -105,6 +105,13 @@ Inventory reviewed on 10 October 2026. The dates in the rows are the measurement
 
 The detailed support record is authoritative for dates, tested component versions, accounts and limits. Update it and this summary after live measurements and review both before each release; see [keeping the record current](docs/verified-support.md#keeping-the-record-current). An unrecorded model, full firmware build or Linux distribution is stated as unknown rather than inferred.
 
+### Device clock movement, 11 October 2026
+
+- FortiGate 60F (physical hardware), FortiOS 8.0.0 build0167 and 7.6.7 build3704, with Admin 0.2.7: the `once` automation stitch of the safeguard follows the device clock. A clock set forward past the planned second fires it at once and the admin ends `reverted`; a clock set back delays it and the admin waits by the device clock; a clock set forward past the planned second before `autod` has loaded the stitch leaves the change on the device as `revert-failed` with the device blocked, as does a safeguard removed by hand.
+- Native one-shot return timers of the other virtual images, which the admin does not support: NX-OS 9.3(12), Junos 26.2R1.7 and FortiOS 8.0.1 build0245 follow the device clock; Cisco IOS 15.9(3)M12, IOS-XE 17.18.2 and Arista EOS 4.36.1F ran their interval in real time; EXOS-VM 33.6.1.14 behaves as the physical ExtremeXOS switches did.
+
+See [device clock movement and one-shot timers](docs/verified-support.md#device-clock-movement-and-one-shot-timers-11-october-2026).
+
 ### New candidate validation, 3–4 October 2026
 
 - FortiGate-VM64-KVM 7.6.7 build3704 and 8.0.0 build0167: exact-bound schema reads, nested/conditional/reference measurements, scoped Auditor reports, the first calibrated Admin schema wave and five bounded Helper recipes with interruption and cleanup checks.
