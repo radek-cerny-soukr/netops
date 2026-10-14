@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.2.12 - unreleased
+## 0.2.12 - 2026-10-14
 
 - Audit runs and their channel events are recorded together, including collection events when a run is refused. Interrupted writes no longer leave a run that appears complete without its events.
 - The Auditor refuses a regular output write that reports no bytes written instead of retrying forever; existing close behavior and ordinary I/O error propagation remain unchanged.
