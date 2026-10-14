@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.2.8 - unreleased
+## 0.2.8 - 2026-10-14
 
 - **Upgrade:** Admin 0.2.8 changes the profile files and invalidates existing enrollment bindings for every device, including FortiOS and ExtremeXOS. After upgrading, run enrollment again for each device before applying changes. Enrollment uses the change budget.
 
