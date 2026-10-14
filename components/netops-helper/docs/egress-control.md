@@ -98,7 +98,7 @@ Releases up to 0.3.5 shipped `restart: unless-stopped`. A container created from
 Let a unit, not Docker, start the container. Create the container once with `docker compose up --no-start --no-build` and install a oneshot unit that applies the reviewed bundle, checks it and only then starts the container. The unit runs the scripts as root, so it takes them from a root-owned copy of the verified source tree, `/opt/netops-helper`, and the bundle from `/etc/netops-helper/egress-bundle.json` with mode 600. From the directory of section 4 of the [installation guide](installation.md#4-build-and-create-stopped-docker-resources), with the reviewed bundle of its section 5:
 
 ```sh
-sudo cp -r netops-helper-0.3.10 /opt/netops-helper
+sudo cp -r netops-helper-0.3.11 /opt/netops-helper
 sudo install -d -m 0700 /etc/netops-helper
 sudo install -m 0600 /restricted/path/netops-helper-egress.json /etc/netops-helper/egress-bundle.json
 ```

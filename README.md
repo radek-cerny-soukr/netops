@@ -117,7 +117,7 @@ Each component includes negative tests for memory exhaustion, timeouts, normal r
 
 ## How this project is built
 
-NetOps is developed by its author with two AI coding agents, Claude Code (Anthropic) and Codex (OpenAI). The agents write code, tests and documentation, run the acceptance and red-team passes against each other’s work, and record the limits of what was actually measured. The author decides what is built, reviews the result, and signs and publishes every release; nothing in the verified-support record is inferred.
+NetOps is conceived and directed by its author, who decides which features the tools offer, which platforms and devices they support and how they behave, and who uses NetOps actively and deploys it in real projects; that practice drives what comes next. The author builds it with two AI coding agents, Claude Code (Anthropic) and Codex (OpenAI). The agents implement that design: they write code, tests and documentation, run the acceptance and red-team passes against each other’s work, and record the limits of what was actually measured. The author reviews and accepts the result, and signs and publishes every release; nothing in the verified-support record is inferred.
 
 ## Security
 
