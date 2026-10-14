@@ -1,8 +1,8 @@
 # NetOps Helper
 
-This source tree contains netops-helper/v0.3.11. Its metadata pins netops-core==0.2.9.
+This source tree contains netops-helper/v0.3.12. Its metadata pins netops-core==0.2.9.
 
-Published release context (14 October 2026): the current published release is `netops-helper/v0.3.11` (2026-10-14), which pins `netops-core version 0.2.9` and vendors `src/netops_core` inside its own release archive. The [repository release table](https://github.com/radek-cerny-soukr/netops/blob/main/README.md#components) links the current release of every component.
+Published release context (14 October 2026): the current published release is `netops-helper/v0.3.12` (2026-10-14), which pins `netops-core version 0.2.9` and vendors `src/netops_core` inside its own release archive. The [repository release table](https://github.com/radek-cerny-soukr/netops/blob/main/README.md#components) links the current release of every component.
 
 **Install from the release assets.** The [installation guide](https://github.com/radek-cerny-soukr/netops/blob/main/components/netops-helper/docs/installation.md) downloads the source archives of this component and of the pinned `netops-core` from their release pages and verifies them against the release `SHA256SUMS` and its Sigstore bundle; the server runs as a container image built from that archive, or loaded from the published OCI archive, on a separate runner host. **`netops-helper` has a separate PyPI publication step after GitHub**; check exact-version index availability before choosing that installation channel. The package is prepared as the client side only: once uploaded, installing the package with pip would put only the stdio proxy `netops-helper-proxy` that an MCP client launches on the host, with the pinned `netops-core`, never the server.
 
@@ -13,6 +13,17 @@ NetOps Helper provides bounded MCP troubleshooting reads, optional measured Fort
 Operators address explicitly enrolled devices by name. A local stdio proxy validates the device's `helper` section of the shared inventory, injects that one device's credential after the MCP client boundary, transports the request over SSH to a host-key-pinned runner, and invokes an isolated container there. Device output keeps identifiers needed for correlation while recognized secrets are removed on a best-effort basis.
 
 This is a self-hosted community project for experienced operators and security reviewers. It is not an enterprise orchestrator, a replacement for device-side authorization, or proof that a diagnostic conclusion is correct.
+
+## Fixes in 0.3.12
+
+- The installation guide documents [upgrading from an earlier release](docs/installation.md#upgrade-from-an-earlier-release). In 0.3.11 it had none: section 4 run in the new archive directory while the previous release's container existed stopped with `Conflict. The container name "/netops-helper" is already in use`, and the block still ended with exit status 0, without a new container.
+- `compose.yaml` names the Compose project `netops-helper` and declares the state volume `netops-helper-state` as external; section 4 creates it with `docker volume create`, which keeps an existing volume and its data. Up to 0.3.11 the project was named after the archive directory, so after an upgrade every Compose command warned that the volume had been created for another project. The volume, network and container names are unchanged.
+- The shell blocks of installation sections 4 to 7 end at the first failing command.
+- The deployment validation of [installation section 9](docs/installation.md#9-validate-the-deployment) passes in the published source archive. In 0.3.11 the archive's vendor-reference test rejected the link to this repository that the release exporter writes into the exported documentation.
+- The vendor-reference test accepts, besides vendor documentation, only canonical links to this repository at the tag of this release; other repositories, refs and versions are still refused.
+- A regression test exports the release archive and runs that test inside the export.
+
+Application code, the runtime lock and the vendored Core are those of 0.3.11. See the [changelog](CHANGELOG.md).
 
 ## Fixes in 0.3.11
 
@@ -124,7 +135,7 @@ Read [Security model](https://github.com/radek-cerny-soukr/netops/blob/main/comp
 
 ## Requirements
 
-- A Linux ARM64 or AMD64 runner with Docker Engine and Compose v2. This release carries, beside the ARM64 image, the separate AMD64 assets `netops-helper-0.3.11-linux-amd64.oci.tar`, `netops-helper-0.3.11-linux-amd64-image-digest.txt`, `netops-helper-0.3.11-linux-amd64-image.cdx.json` and `netops-helper-0.3.11-linux-amd64-grype.json`, listed in the same `release-SHA256SUMS` that the one Sigstore bundle of the release signs; verify and load them as the [installation guide](https://github.com/radek-cerny-soukr/netops/blob/main/components/netops-helper/docs/installation.md#4-build-and-create-stopped-docker-resources) describes.
+- A Linux ARM64 or AMD64 runner with Docker Engine and Compose v2. This release carries, beside the ARM64 image, the separate AMD64 assets `netops-helper-0.3.12-linux-amd64.oci.tar`, `netops-helper-0.3.12-linux-amd64-image-digest.txt`, `netops-helper-0.3.12-linux-amd64-image.cdx.json` and `netops-helper-0.3.12-linux-amd64-grype.json`, listed in the same `release-SHA256SUMS` that the one Sigstore bundle of the release signs; verify and load them as the [installation guide](https://github.com/radek-cerny-soukr/netops/blob/main/components/netops-helper/docs/installation.md#4-build-and-create-stopped-docker-resources) describes.
 - A local MCP client host with Python 3.13+, OpenSSH, and the host key fingerprints of the runner and of every device.
 - Dedicated device identities whose persistent configuration-write restrictions are enforced on the targets; validate each optional schema/diagnostic permission separately.
 - A local inventory, credential store, egress policy, and runner file that are never shipped with the source or container image.
@@ -133,7 +144,7 @@ Read [Security model](https://github.com/radek-cerny-soukr/netops/blob/main/comp
 
 ## Quick start
 
-This sequence deliberately creates the Compose network and container in a stopped state. Do not start the helper until the generated egress contract has been reviewed, applied, and checked.
+This sequence deliberately creates the Compose network and container in a stopped state. Do not start the helper until the generated egress contract has been reviewed, applied, and checked. To upgrade an existing installation, follow [Upgrade from an earlier release](https://github.com/radek-cerny-soukr/netops/blob/main/components/netops-helper/docs/installation.md#upgrade-from-an-earlier-release) instead.
 
 1. Download and verify the same release on the proxy host and the runner, as in [Installation](https://github.com/radek-cerny-soukr/netops/blob/main/components/netops-helper/docs/installation.md#2-install-the-shared-access-layer-on-the-proxy-host).
 2. Create dedicated target accounts and independently test both allowed reads and denied configuration, export, maintenance, and shell actions. Follow [Read-only accounts](https://github.com/radek-cerny-soukr/netops/blob/main/components/netops-helper/docs/read-only-accounts.md).
@@ -141,10 +152,11 @@ This sequence deliberately creates the Compose network and container in a stoppe
 4. On the runner, build the image and create the network and container without starting the service:
 
    ```bash
-   docker compose build --pull=false
-   docker compose up --no-start --no-build
-   docker compose ps --all
-   docker network inspect netops-helper
+   docker compose build --pull=false || exit 1
+   docker volume create netops-helper-state || exit 1
+   docker compose up --no-start --no-build || exit 1
+   docker compose ps --all || exit 1
+   docker network inspect netops-helper || exit 1
    ```
 
 5. On the proxy host, generate a mode-`600`, secret-free but topology-sensitive bundle from file paths:
@@ -153,16 +165,16 @@ This sequence deliberately creates the Compose network and container in a stoppe
    python3 -B scripts/generate_egress_rules.py \
      --inventory /path/to/inventory.json \
      --policy /path/to/egress-policy.json \
-     --output /restricted/path/netops-helper-egress.json
+     --output /restricted/path/netops-helper-egress.json || exit 1
    ```
 
 6. Transfer the bundle through a host-key-verified channel if proxy and runner differ. On the runner, compare its SHA-256 digest with the sender, inspect its manifest and rules, retain out-of-band recovery, then explicitly apply and check it:
 
    ```bash
    sudo python3 -B scripts/apply_egress_rules.py \
-     --bundle /restricted/path/netops-helper-egress.json --apply
+     --bundle /restricted/path/netops-helper-egress.json --apply || exit 1
    sudo python3 -B scripts/check_egress_rules.py \
-     --expected /restricted/path/netops-helper-egress.json
+     --expected /restricted/path/netops-helper-egress.json || exit 1
    ```
 
    Continue only after `egress_apply=ok` and `egress_check=ok`. The bundle also installs the host INPUT guard; before relying on it, run the live checks in [Egress control](https://github.com/radek-cerny-soukr/netops/blob/main/components/netops-helper/docs/egress-control.md#host-input-guard), among them that the runner's own services time out from the container through every runner address.
@@ -170,8 +182,8 @@ This sequence deliberately creates the Compose network and container in a stoppe
 7. Start the already-created service and confirm its state:
 
    ```bash
-   docker compose start
-   docker compose ps
+   docker compose start || exit 1
+   docker compose ps || exit 1
    ```
 
 8. Configure the proxy as a stdio MCP server in a dedicated read-only profile of any compatible client: the command `netops-helper-proxy` when the component is installed, or `python3 -B` with the absolute path to `scripts/remote_mcp_proxy.py` when it is run from an unpacked archive. The proxy needs `netops_core` and `netops_helper` on its path; see [Installation](https://github.com/radek-cerny-soukr/netops/blob/main/components/netops-helper/docs/installation.md#2-install-the-shared-access-layer-on-the-proxy-host). Start a fresh session, call `helper_status`, inspect `target_scope` for one listed device, and test one harmless enrolled query against a controlled test target.

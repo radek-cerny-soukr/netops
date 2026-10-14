@@ -13,6 +13,10 @@ For 0.3.8, the release assets identify the exact final image digest and its Gryp
 
 The ignore rule of CVE-2026-60002 names the package version: a build that installs any other `openssh-client` version is no longer covered by it, and an active Critical match then blocks the release until the new package is reviewed. The other active High, Medium and Low matches are distribution packages labelled `wont-fix` or `not-fixed`; they are listed in the Grype report of each image and are not reviewed one by one here.
 
+## Helper 0.3.12 risk review scope
+
+Helper 0.3.12 changes release tests and documentation only; its application code and runtime lock are those of 0.3.11. Its ARM64 and AMD64 images are nevertheless new builds. The [Helper 0.3.11 risk review scope](#helper-0311-risk-review-scope) applies to each 0.3.12 image in the same way: each image needs its own image digest, image SBOM and complete vulnerability report, and reports of 0.3.11 images do not supply 0.3.12 scan counts.
+
 ## Helper 0.3.11 risk review scope
 
 Application fixes in 0.3.11 do not establish fixes for dependency vulnerabilities. Each ARM64 or AMD64 image needs its own image digest, image SBOM and complete vulnerability report; its release notes must bind the risk review to those exact assets. Package versions and active/ignored matches come from that image's reports, not from a source-version string or an earlier image.

@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import importlib.util
 from pathlib import Path
+import posixpath
 import re
 import sys
-from urllib.parse import urlsplit
+import tomllib
+from urllib.parse import unquote, urlsplit
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -51,6 +53,8 @@ ALLOWED_HOSTS = {
     "www.arista.com",
     "www.juniper.net",
 }
+REPOSITORY = "https://github.com/radek-cerny-soukr/netops"
+COMPONENT_PATH = "components/netops-helper/"
 URL_RE = re.compile(r"https?://[^\s<>()|\]]+")
 INDEX_LINK_RE = re.compile(r"\[[^\]]+\]\((vendor-cli-references/[^)]+\.md)\)")
 TABLE_ROW_RE = re.compile(
@@ -89,8 +93,31 @@ def _extract_urls(text: str) -> tuple[str, ...]:
     return tuple(URL_RE.findall(text))
 
 
+def _repository_link_prefix() -> str:
+    project = tomllib.loads(_read(ROOT / "pyproject.toml"))["project"]
+    return REPOSITORY + "/blob/" + project["name"] + "/v" + project["version"] + "/"
+
+
+REPOSITORY_LINK_PREFIX = _repository_link_prefix()
+
+
+def _is_repository_link(url: str) -> bool:
+    if not url.startswith(REPOSITORY_LINK_PREFIX):
+        return False
+    path = unquote(urlsplit(url).path)[len(urlsplit(REPOSITORY_LINK_PREFIX).path):]
+    return (
+        posixpath.normpath(path) == path
+        and path != ".."
+        and not path.startswith(("/", "../", COMPONENT_PATH))
+    )
+
+
+def _vendor_urls(text: str) -> tuple[str, ...]:
+    return tuple(url for url in _extract_urls(text) if not _is_repository_link(url))
+
+
 def _validate_official_urls(text: str) -> None:
-    urls = _extract_urls(text)
+    urls = _vendor_urls(text)
     assert urls, "source document has no URL"
     for url in urls:
         parsed = urlsplit(url)
@@ -102,7 +129,7 @@ def _validate_official_urls(text: str) -> None:
 
 
 def _validate_login_only_source(text: str) -> None:
-    assert not _extract_urls(text), "a source behind a login must claim no public URL"
+    assert not _vendor_urls(text), "a source behind a login must claim no public URL"
     assert LOGIN_SOURCE_TITLE in text
     assert LOGIN_VERIFIED_ON_DEVICE in text
     assert "behind a vendor support login" in text
@@ -281,6 +308,45 @@ def test_mutations_cannot_introduce_foreign_or_insecure_urls() -> None:
         _assert_rejected(lambda mutated=mutated: _validate_official_urls(mutated))
 
 
+def test_only_this_release_repository_links_are_accepted_besides_vendors() -> None:
+    cisco = _read(SOURCE_DIR / "cisco.md")
+    ruckus = _read(SOURCE_DIR / "ruckus-unleashed.md")
+    names = set(READ_QUERIES["ruckus_unleashed"])
+    own = REPOSITORY_LINK_PREFIX + "docs/compatibility-boundaries.md"
+    for accepted in (own, own + "#scope", REPOSITORY_LINK_PREFIX + "components/netops-core/docs/ssh.md"):
+        _validate_official_urls(f"{cisco}\nSee [it]({accepted}).\n")
+        _validate_source_document(f"{ruckus}\nSee [it]({accepted}).\n", names, True)
+    _assert_rejected(lambda: _validate_official_urls(f"See [it]({own})."))
+    version = REPOSITORY_LINK_PREFIX.split("/blob/", 1)[1]
+    for rejected in (
+        own.replace("radek-cerny-soukr/netops", "someone-else/netops", 1),
+        own.replace("/netops/blob/", "/netops-fork/blob/", 1),
+        own.replace(version, "main/", 1),
+        own.replace(version, "netops-helper/v0.0.1/", 1),
+        own.replace(version, "netops-core/v" + version.split("/v", 1)[1], 1),
+        own.replace("https://", "http://", 1),
+        own.replace("github.com", "github.com:8443", 1),
+        own.replace("github.com", "user@github.com", 1),
+        own.replace("github.com", "github.com.evil.example", 1),
+        REPOSITORY_LINK_PREFIX + COMPONENT_PATH + "docs/installation.md",
+        REPOSITORY_LINK_PREFIX + "../docs/compatibility-boundaries.md",
+        REPOSITORY_LINK_PREFIX + "docs/../../compatibility-boundaries.md",
+        REPOSITORY_LINK_PREFIX,
+        REPOSITORY_LINK_PREFIX + "..",
+        REPOSITORY_LINK_PREFIX + "/docs/compatibility-boundaries.md",
+        "https://github.com/radek-cerny-soukr/netops",
+        "https://example.com/vendor-reference",
+    ):
+        _assert_rejected(
+            lambda rejected=rejected: _validate_official_urls(f"{cisco}\nSee [it]({rejected}).\n")
+        )
+        _assert_rejected(
+            lambda rejected=rejected: _validate_source_document(
+                f"{ruckus}\nSee [it]({rejected}).\n", names, True,
+            )
+        )
+
+
 def test_a_login_only_source_may_not_invent_a_public_url() -> None:
     text = _read(SOURCE_DIR / "ruckus-unleashed.md")
     names = set(READ_QUERIES["ruckus_unleashed"])
@@ -308,6 +374,7 @@ def main() -> int:
     test_fortinet_and_extreme_tables_match_catalogue_and_registry()
     test_mutations_cannot_remove_query_tokens_or_change_source_ids()
     test_mutations_cannot_introduce_foreign_or_insecure_urls()
+    test_only_this_release_repository_links_are_accepted_besides_vendors()
     test_a_login_only_source_may_not_invent_a_public_url()
     print("vendor_reference_tests=passed")
     return 0

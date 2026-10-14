@@ -322,6 +322,15 @@ class GeneratorTests(unittest.TestCase):
         self.assertIn("    enable_ipv6: false\n", network)
         self.assertIn("com.docker.network.bridge.name: nh-egress0", network)
 
+    def test_compose_project_and_state_volume_do_not_depend_on_the_directory(self) -> None:
+        compose = (ROOT / "compose.yaml").read_text(encoding="utf-8")
+        self.assertTrue(compose.startswith("name: netops-helper\n"))
+        volumes = compose.split("\nvolumes:\n", 1)[-1]
+        self.assertEqual(
+            volumes,
+            "  netops-helper-state:\n    name: netops-helper-state\n    external: true\n",
+        )
+
     def test_authoritative_inventory_validation_fails_closed(self) -> None:
         invalid_inventory = (
             {"interfaces": ["Ethernet1/1;show"]},

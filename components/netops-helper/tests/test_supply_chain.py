@@ -368,7 +368,7 @@ def test_version_invariant_rejects_changed_pyproject(tmp_path: Path) -> None:
     root = _version_fixture(tmp_path)
     _replace_exact(
         root / "pyproject.toml",
-        "version = \"0.3.11\"",
+        "version = \"0.3.12\"",
         "version = \"not-a-release\"",
     )
     errors = _load_release_module("check_public_release")._version_invariant_errors(root)
@@ -381,7 +381,7 @@ def test_version_invariant_rejects_changed_package_version(tmp_path: Path) -> No
     root = _version_fixture(tmp_path)
     _replace_exact(
         root / "src/netops_helper/__init__.py",
-        "__version__ = \"0.3.11\"",
+        "__version__ = \"0.3.12\"",
         "__version__ = \"9.9.9\"",
     )
     errors = _load_release_module("check_public_release")._version_invariant_errors(root)
@@ -434,7 +434,7 @@ def test_version_invariant_rejects_changed_compose_image(tmp_path: Path) -> None
     root = _version_fixture(tmp_path)
     _replace_exact(
         root / "compose.yaml",
-        "image: local/netops-helper:0.3.11",
+        "image: local/netops-helper:0.3.12",
         "image: local/netops-helper:9.9.9",
     )
     errors = _load_release_module("check_public_release")._version_invariant_errors(root)
@@ -591,7 +591,7 @@ def test_public_allowlist_contains_all_0_2_contracts() -> None:
     manifest = ROOT / "release-manifest.json"
     if manifest.is_file():
         assert selected == set(json.loads(manifest.read_text(encoding="utf-8"))["files"])
-    assert exporter.VERSION == "0.3.11"
+    assert exporter.VERSION == "0.3.12"
     assert required_tests <= exporter.TESTS
     assert required_tests <= gate.REQUIRED_RELEASE_PATHS
     assert dependency_free_required <= dependency_free_tests
@@ -659,7 +659,7 @@ def _public_source_fixture(tmp_path: Path) -> Path:
         check=True,
         text=True,
     )
-    exported = output / "netops-helper-0.3.11"
+    exported = output / "netops-helper-0.3.12"
     manifest = json.loads(
         (exported / "release-manifest.json").read_text(encoding="utf-8")
     )
@@ -857,7 +857,7 @@ def test_release_selection_rejects_unsafe_entries(tmp_path: Path) -> None:
 
 def test_release_export_preserves_existing_destination(tmp_path: Path) -> None:
     output = tmp_path / "existing-output"
-    destination = output / "netops-helper-0.3.11"
+    destination = output / "netops-helper-0.3.12"
     destination.mkdir(parents=True)
     marker = destination / "marker"
     marker_bytes = SELECTION_MARKER.encode("utf-8")
@@ -906,7 +906,7 @@ def test_release_export_rejects_symlinked_output(tmp_path: Path) -> None:
     parent_link.symlink_to(actual, target_is_directory=True)
 
     cases = {
-        "direct": (direct_link, actual / "netops-helper-0.3.11"),
+        "direct": (direct_link, actual / "netops-helper-0.3.12"),
         "parent": (
             parent_link / "nested-output",
             actual / "nested-output",
@@ -952,7 +952,7 @@ def test_release_gate_rejects_missing_vendor_contract(tmp_path: Path) -> None:
         ],
         check=True,
     )
-    exported = output / "netops-helper-0.3.11"
+    exported = output / "netops-helper-0.3.12"
     (exported / "release-manifest.json").unlink()
     gate = _load_release_module("check_public_release")
 
@@ -1076,7 +1076,7 @@ def test_release_tree_integrity_fails_closed(tmp_path: Path) -> None:
         ],
         check=True,
     )
-    exported = output / "netops-helper-0.3.11"
+    exported = output / "netops-helper-0.3.12"
     gate = _load_release_module("check_public_release")
     assert gate._release_tree_integrity_errors(exported) == []
 
@@ -1375,7 +1375,7 @@ def test_public_export_contains_no_python_bytecode(tmp_path: Path) -> None:
         ],
         check=True,
     )
-    exported = tmp_path / "netops-helper-0.3.11"
+    exported = tmp_path / "netops-helper-0.3.12"
     assert not [path for path in exported.rglob("*") if "__pycache__" in path.parts]
     assert not list(exported.rglob("*.pyc"))
     assert not list(exported.rglob("*.pyo"))
@@ -1422,7 +1422,7 @@ def test_release_export_compose_builds_from_archive_root(tmp_path: Path) -> None
         ],
         check=True,
     )
-    exported = output / "netops-helper-0.3.11"
+    exported = output / "netops-helper-0.3.12"
     compose_text = (exported / "compose.yaml").read_text(encoding="utf-8")
     assert "      context: .\n" in compose_text
     assert "../.." not in compose_text
@@ -1444,7 +1444,7 @@ def test_release_export_keeps_askpass_executable(tmp_path: Path) -> None:
         ],
         check=True,
     )
-    exported = output / "netops-helper-0.3.11"
+    exported = output / "netops-helper-0.3.12"
     askpass_mode = stat.S_IMODE(
         (exported / "src/netops_core/askpass.py").stat().st_mode
     )
@@ -1760,6 +1760,7 @@ def main() -> int:
             temporary / "compose-build-root"
         )
         test_release_export_root_mode_is_independent_of_private_umask(temporary / "private-umask")
+        test_exported_vendor_references_pass_their_own_contract(temporary / "vendor-references")
         test_release_export_keeps_askpass_executable(
             temporary / "compose-build-modes"
         )
@@ -1784,10 +1785,47 @@ def test_release_export_root_mode_is_independent_of_private_umask(tmp_path: Path
     subprocess.run([sys.executable, "-B", str(source / "scripts/create_release_artifacts.py"),
                     "--output", str(output)], check=True, capture_output=True,
                    preexec_fn=lambda: os.umask(0o077))
-    exported = output / "netops-helper-0.3.11"
+    exported = output / "netops-helper-0.3.12"
     directories = [exported] + sorted(path for path in exported.rglob("*") if path.is_dir())
     assert len(directories) > 1
     assert all(stat.S_IMODE(path.stat().st_mode) == 0o755 for path in directories), [(str(path.relative_to(exported)), oct(stat.S_IMODE(path.stat().st_mode))) for path in directories]
+
+
+def _exported_vendor_reference_run(exported: Path) -> subprocess.CompletedProcess[str]:
+    environment = dict(os.environ, PYTHONPATH=str(exported / "src"))
+    return subprocess.run(
+        [sys.executable, "-B", str(exported / "tests/test_vendor_references.py")],
+        cwd=exported, env=environment, stdin=subprocess.DEVNULL,
+        capture_output=True, text=True, timeout=60, check=False,
+    )
+
+
+def test_exported_vendor_references_pass_their_own_contract(tmp_path: Path) -> None:
+    source = _source_fixture_for_export(tmp_path)
+    output = tmp_path / "vendor-references-output"
+    subprocess.run([sys.executable, "-B", str(source / "scripts/create_release_artifacts.py"),
+                    "--output", str(output)], check=True, capture_output=True)
+    exported = output / "netops-helper-0.3.12"
+    references = exported / "docs/vendor-cli-references"
+    repository = "https://github.com/radek-cerny-soukr/netops/blob/netops-helper/v0.3.12/"
+    rewritten = sorted(path.name for path in references.glob("*.md") if repository in path.read_text(encoding="utf-8"))
+    assert rewritten, "the export no longer rewrites a vendor reference link"
+    completed = _exported_vendor_reference_run(exported)
+    assert completed.returncode == 0, completed.stdout + completed.stderr
+    assert "vendor_reference_tests=passed" in completed.stdout
+
+    document = references / rewritten[0]
+    original = document.read_text(encoding="utf-8")
+    for foreign in (
+        "https://github.com/someone-else/netops/blob/netops-helper/v0.3.12/",
+        "https://github.com/radek-cerny-soukr/netops/blob/main/",
+        "https://example.com/",
+    ):
+        document.write_text(original.replace(repository, foreign), encoding="utf-8")
+        completed = _exported_vendor_reference_run(exported)
+        assert completed.returncode != 0, foreign
+        assert foreign in completed.stderr, completed.stderr
+    document.write_text(original, encoding="utf-8")
 
 
 if __name__ == "__main__":

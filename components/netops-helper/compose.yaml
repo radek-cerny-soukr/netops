@@ -1,3 +1,5 @@
+name: netops-helper
+
 services:
   netops-helper:
     build:
@@ -6,7 +8,7 @@ services:
       args:
         COMPONENT_DIR: components/netops-helper
         CORE_PACKAGE_DIR: components/netops-core/src/netops_core
-    image: local/netops-helper:0.3.11
+    image: local/netops-helper:0.3.12
     container_name: netops-helper
     restart: "no"
     read_only: true
@@ -39,3 +41,4 @@ networks:
 volumes:
   netops-helper-state:
     name: netops-helper-state
+    external: true

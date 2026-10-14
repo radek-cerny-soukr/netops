@@ -1,6 +1,6 @@
 # Installation
 
-These instructions install netops-helper 0.3.11 from its matching versioned source assets. Verify the release checksums and provenance before installation.
+These instructions install netops-helper 0.3.12 from its matching versioned source assets. Verify the release checksums and provenance before installation.
 
 NetOps Helper phase 1 uses three trust zones:
 
@@ -29,7 +29,7 @@ The same device credential is used for SSH, SFTP, FTPS, and plain FTP. Plain FTP
 The proxy and the egress generator import `netops_core` and `netops_helper`. Install them from the release assets: the source archive of this release and the source archive of `netops-core` 0.2.9, which it pins. Download each archive with the release `SHA256SUMS` and its Sigstore bundle from the release page, verify the bundle with [cosign](https://github.com/sigstore/cosign) and the archive against `SHA256SUMS`, and stop if either check fails. [Tools on the installing host](https://github.com/radek-cerny-soukr/netops/blob/main/docs/README.md#tools-on-the-installing-host) shows how to get `cosign`, Python and Docker:
 
 ```sh
-for release in netops-helper:0.3.11 netops-core:0.2.9; do
+for release in netops-helper:0.3.12 netops-core:0.2.9; do
   component=${release%%:*}
   version=${release#*:}
   base="https://github.com/radek-cerny-soukr/netops/releases/download/${component}%2Fv${version}"
@@ -48,9 +48,9 @@ done
 Each archive must report `Verified OK` from `cosign` and `OK` from `sha256sum`. The certificate identity and issuer are the maintainer's GitHub account, the same for every component; [Verifying a release](https://github.com/radek-cerny-soukr/netops/blob/main/docs/README.md#verifying-a-release) describes the check for any release asset. Each archive also carries its own `SHA256SUMS` for the files inside it. Unpack both archives in the same directory and check those files:
 
 ```sh
-tar -xzf netops-helper-0.3.11-source.tar.gz || exit 1
+tar -xzf netops-helper-0.3.12-source.tar.gz || exit 1
 tar -xzf netops-core-0.2.9-source.tar.gz || exit 1
-(cd netops-helper-0.3.11 && sha256sum -c SHA256SUMS) || exit 1
+(cd netops-helper-0.3.12 && sha256sum -c SHA256SUMS) || exit 1
 (cd netops-core-0.2.9 && sha256sum -c SHA256SUMS) || exit 1
 ```
 
@@ -65,10 +65,10 @@ For the installed-command path, create a private-user-owned environment with Pyt
 ```sh
 python3 -c 'import sys; raise SystemExit(0 if sys.version_info >= (3, 13) else "Python 3.13 or newer is required")' || exit 1
 (umask 022; python3 -m venv "$HOME/.local/share/netops-helper/venv") || exit 1
-(umask 022; "$HOME/.local/share/netops-helper/venv/bin/python" -m pip install --require-hashes -r netops-helper-0.3.11/requirements-release.lock) || exit 1
+(umask 022; "$HOME/.local/share/netops-helper/venv/bin/python" -m pip install --require-hashes -r netops-helper-0.3.12/requirements-release.lock) || exit 1
 build_dir=$(mktemp -d ./netops-build.XXXXXXXXXX) || exit 1
-cp -r netops-core-0.2.9 netops-helper-0.3.11 "$build_dir/" || exit 1
-(umask 022; "$HOME/.local/share/netops-helper/venv/bin/python" -m pip install --no-deps "$build_dir/netops-core-0.2.9" "$build_dir/netops-helper-0.3.11") || exit 1
+cp -r netops-core-0.2.9 netops-helper-0.3.12 "$build_dir/" || exit 1
+(umask 022; "$HOME/.local/share/netops-helper/venv/bin/python" -m pip install --no-deps "$build_dir/netops-core-0.2.9" "$build_dir/netops-helper-0.3.12") || exit 1
 rm -rf -- "$build_dir" || exit 1
 "$HOME/.local/share/netops-helper/venv/bin/python" -c 'from os import access,stat,X_OK; from stat import S_ISREG; from sys import argv,exit; valid=all(S_ISREG(stat(p).st_mode) and access(p,X_OK) and not stat(p).st_mode & 0o022 for p in argv[1:]); exit(0 if valid else "Unsafe launcher permissions")' "$HOME/.local/share/netops-helper/venv/bin/netops-askpass" "$HOME/.local/share/netops-helper/venv/bin/netops-helper-proxy" || exit 1
 ```
@@ -92,8 +92,8 @@ python3 -c 'import sys; raise SystemExit(0 if sys.version_info >= (3, 13) else "
 (umask 022; python3 -m venv "$HOME/.local/share/netops-helper/venv") || exit 1
 (umask 022; "$HOME/.local/share/netops-helper/venv/bin/python" -m pip install --no-index --no-deps build-tools/setuptools-84.0.0-py3-none-any.whl build-tools/wheel-0.48.0-py3-none-any.whl) || exit 1
 build_dir=$(mktemp -d ./netops-build.XXXXXXXXXX) || exit 1
-cp -r netops-core-0.2.9 netops-helper-0.3.11 "$build_dir/" || exit 1
-(umask 022; "$HOME/.local/share/netops-helper/venv/bin/python" -m pip install --no-index --no-deps --no-build-isolation "$build_dir/netops-core-0.2.9" "$build_dir/netops-helper-0.3.11") || exit 1
+cp -r netops-core-0.2.9 netops-helper-0.3.12 "$build_dir/" || exit 1
+(umask 022; "$HOME/.local/share/netops-helper/venv/bin/python" -m pip install --no-index --no-deps --no-build-isolation "$build_dir/netops-core-0.2.9" "$build_dir/netops-helper-0.3.12") || exit 1
 rm -rf -- "$build_dir" || exit 1
 ```
 
@@ -127,7 +127,7 @@ Sections 4-7 deploy the Helper server on a Linux runner. Their Docker Engine/Com
 Install Docker Engine with Compose v2 or later (sections 4 to 7 were last run with Docker 29.9.0 and Compose v5.6.0 on an AMD64 runner, and with Docker 29.1.3 and Compose 2.40.3 of the Ubuntu 26.04 packages in [Tools on the installing host](https://github.com/radek-cerny-soukr/netops/blob/main/docs/README.md#tools-on-the-installing-host)). The `docker` commands of sections 4 and 7 need the Docker socket: run them with `sudo` or from an account in the `docker` group, which is equivalent to root on the runner. On the execution host, download the source archive of this release, which carries `compose.yaml` and the Dockerfile, with the OCI archive and manifest digest of the published image for the runner architecture, verify them as in [section 2](#2-install-the-shared-access-layer-on-the-proxy-host), and unpack the archive:
 
 ```sh
-for release in netops-helper:0.3.11; do
+for release in netops-helper:0.3.12; do
   component=${release%%:*}
   version=${release#*:}
   base="https://github.com/radek-cerny-soukr/netops/releases/download/${component}%2Fv${version}"
@@ -146,8 +146,8 @@ for release in netops-helper:0.3.11; do
     "${component}-${version}-release-SHA256SUMS" || exit 1
   sha256sum --check --ignore-missing "${component}-${version}-release-SHA256SUMS" || exit 1
 done
-tar -xzf netops-helper-0.3.11-source.tar.gz || exit 1
-(cd netops-helper-0.3.11 && sha256sum -c SHA256SUMS) || exit 1
+tar -xzf netops-helper-0.3.12-source.tar.gz || exit 1
+(cd netops-helper-0.3.12 && sha256sum -c SHA256SUMS) || exit 1
 ```
 
 `uname -m` selects `linux-amd64.oci.tar` and `linux-amd64-image-digest.txt` on an AMD64 runner (`x86_64`) and `linux-arm64.oci.tar` and `image-digest.txt` on an ARM64 runner (`aarch64`); on any other architecture the loop stops. `cosign` must report `Verified OK` and `sha256sum` `OK` for every file. The image needs both `src/netops_helper` and `src/netops_core`. In the repository `compose.yaml` builds from the repository root and passes the two build arguments `COMPONENT_DIR=components/netops-helper` and `CORE_PACKAGE_DIR=components/netops-core/src/netops_core`; in a release export (`scripts/create_release_artifacts.py`), which carries `src/netops_core` inside the component tree, the exported `compose.yaml` builds from the archive root (`context: .`) with the Dockerfile's own defaults (`COMPONENT_DIR=.`, `CORE_PACKAGE_DIR=src/netops_core`), so `docker compose build --pull=false` in the unpacked archive is the documented build path, alternative (b) below. The Compose network contract is:
@@ -158,6 +158,8 @@ tar -xzf netops-helper-0.3.11-source.tar.gz || exit 1
 - `enable_ipv6: false` as the network-scoped IPv6 boundary.
 
 Do not change `internal` to true as an egress-hardening shortcut; it removes required external connectivity. Do not force a fixed bridge subnet unless it was independently designed for that host. Interface-based matching does not need a fixed subnet, and a fixed allocation can collide with existing networks.
+
+`compose.yaml` names the Compose project `netops-helper`, so the archive directory of every release manages the same container and network, whatever the directory is called. The state volume `netops-helper-state`, which holds the audit log described in the [security model](security-model.md), is declared `external`: the blocks below create it with `docker volume create netops-helper-state` before Compose uses it. That command leaves an existing volume and its data unchanged, `docker compose down` does not remove it, not even with `-v`, and Compose does not report it as created for another project. Releases up to 0.3.11 named the project after the archive directory and let Compose create the volume; [Upgrade from an earlier release](#upgrade-from-an-earlier-release) covers the change.
 
 The image also installs `netops_core/askpass.py` as `/usr/local/bin/netops-askpass` and sets `NETOPS_ASKPASS_PROGRAM` to it. A device credential of kind `password` is handed to the client by an askpass program the client executes, and this Compose file mounts `/tmp` and `/run` `noexec`, so the default program written beside the secret could not run there. Keep both: the `noexec` mounts and the installed program. Do not remove `noexec` to make password authentication work, and do not point the variable at a path under `/tmp`, `/run`, or any directory the service can write.
 
@@ -172,30 +174,34 @@ The image comes from exactly one of two alternatives: (a) the published image, l
 **(a) The published image.** The release also publishes the image as an OCI archive (`netops-helper-<version>-linux-arm64.oci.tar`) together with its manifest digest (`netops-helper-<version>-image-digest.txt`). From 0.3.10 it also publishes a Linux AMD64 image, built natively on an AMD64 builder from the same release source, as separate assets: the OCI archive `netops-helper-<version>-linux-amd64.oci.tar`, its manifest digest `netops-helper-<version>-linux-amd64-image-digest.txt`, its image SBOM `netops-helper-<version>-linux-amd64-image.cdx.json` and its Grype report `netops-helper-<version>-linux-amd64-grype.json`. All of them are listed in the same `release-SHA256SUMS` as the ARM64 assets, which the one Sigstore bundle of the release signs. The loop at the start of this section verifies the archive and the digest of the runner architecture against that `SHA256SUMS` and its Sigstore bundle; both architectures load the same way. `docker load -i` requires Docker's containerd image store for the published OCI layout. Other image-store configurations are outside this loading path; verify archive/store compatibility before installation.
 
 ```sh
-docker load -i netops-helper-0.3.11-linux-amd64.oci.tar
-docker tag "$(cat netops-helper-0.3.11-linux-amd64-image-digest.txt)" local/netops-helper:0.3.11
-docker image inspect --format '{{.Id}}' local/netops-helper:0.3.11
-cd netops-helper-0.3.11
-docker compose up --no-start --no-build
-docker compose ps --all
-docker network inspect netops-helper
+docker load -i netops-helper-0.3.12-linux-amd64.oci.tar || exit 1
+docker tag "$(cat netops-helper-0.3.12-linux-amd64-image-digest.txt)" local/netops-helper:0.3.12 || exit 1
+docker image inspect --format '{{.Id}}' local/netops-helper:0.3.12 || exit 1
+cd netops-helper-0.3.12 || exit 1
+docker volume create netops-helper-state || exit 1
+docker compose up --no-start --no-build || exit 1
+docker compose ps --all || exit 1
+docker network inspect netops-helper || exit 1
 ```
 
-On an ARM64 runner the two files are `netops-helper-0.3.11-linux-arm64.oci.tar` and `netops-helper-0.3.11-image-digest.txt`. The tag refers to the image by the published digest, so it fails when the load produced no image with that ID, and the third command must print exactly the digest the file holds. Do not run `docker compose build` on this path: it builds a local image from the source and moves the tag `local/netops-helper:0.3.11` from the verified image to that build, whose ID is not the published digest.
+On an ARM64 runner the two files are `netops-helper-0.3.12-linux-arm64.oci.tar` and `netops-helper-0.3.12-image-digest.txt`. The tag refers to the image by the published digest, so it fails when the load produced no image with that ID, and the third command must print exactly the digest the file holds. Do not run `docker compose build` on this path: it builds a local image from the source and moves the tag `local/netops-helper:0.3.12` from the verified image to that build, whose ID is not the published digest.
 
 **(b) An image built from the verified source.** Build the digest-pinned image in the unpacked archive instead of loading one, then create the network and container without starting the service:
 
 ```bash
-cd netops-helper-0.3.11
-docker compose build --pull=false
-docker compose up --no-start --no-build
-docker compose ps --all
-docker network inspect netops-helper
+cd netops-helper-0.3.12 || exit 1
+docker compose build --pull=false || exit 1
+docker volume create netops-helper-state || exit 1
+docker compose up --no-start --no-build || exit 1
+docker compose ps --all || exit 1
+docker network inspect netops-helper || exit 1
 ```
 
 The build pulls the digest-pinned base image and installs the hash-locked runtime from the package index; its image ID is not the published digest (see [Reproducibility of the image](releasing.md#reproducibility-of-the-image)).
 
 The official Docker Compose CLI defines `up --no-start` as creating services without starting them. The explicit network declaration causes Compose to create the named network as part of that operation. See the official [`docker compose up` reference](https://docs.docker.com/reference/cli/docker/compose/up/) and [Compose network reference](https://docs.docker.com/reference/compose-file/networks/).
+
+Each command of these blocks ends the block when it fails. When a container named `netops-helper` already exists in another Compose project, such as the container of a release up to 0.3.11, `docker compose up` stops with `Conflict. The container name "/netops-helper" is already in use` and exit status 1; follow [Upgrade from an earlier release](#upgrade-from-an-earlier-release) then.
 
 Verify that the container is not running and that the inspected network is the bridge `nh-egress0` with `EnableIPv6: false`. Stop here if any value differs. Do not use `docker compose up -d` at this stage: that would start the helper before egress enforcement is verified.
 
@@ -211,7 +217,7 @@ Run the generator from the same verified source revision that is deployed on the
 python3 -B scripts/generate_egress_rules.py \
   --inventory /path/to/inventory.json \
   --policy /path/to/egress-policy.json \
-  --output /restricted/path/netops-helper-egress.json
+  --output /restricted/path/netops-helper-egress.json || exit 1
 ```
 
 `-B`, here and with every other script of the unpacked archive, keeps Python from writing `__pycache__` into the verified tree; `scripts/check_public_release.py` in [section 9](#9-validate-the-deployment) would report such a tree as `release file set does not exactly match the manifest`. The scripts also turn bytecode writing off themselves. Generation must finish with exit status zero. Do not pass JSON inline, and do not place the output in the public repository.
@@ -244,9 +250,9 @@ Then invoke the privileged apply helper with the explicit consent flag and immed
 
 ```bash
 sudo python3 -B scripts/apply_egress_rules.py \
-  --bundle /restricted/path/netops-helper-egress.json --apply
+  --bundle /restricted/path/netops-helper-egress.json --apply || exit 1
 sudo python3 -B scripts/check_egress_rules.py \
-  --expected /restricted/path/netops-helper-egress.json
+  --expected /restricted/path/netops-helper-egress.json || exit 1
 ```
 
 Continue only after `egress_apply=ok` and `egress_check=ok`. The helper requires root, a mode-`600` bundle, Docker inspection, `nft`, and `iptables-save`/`iptables-restore`. It rejects native Docker nftables, an indeterminate backend, an unreachable IPv4 DOCKER-USER path, a network mismatch, or any Docker IPv6 state other than exact boolean false.
@@ -255,11 +261,11 @@ Bundle schema 4 contains one IPv4 ruleset and apply uses one IPv4 `iptables-rest
 
 ## 7. Start the service only after the check
 
-In the unpacked archive directory `netops-helper-0.3.11` of section 4, start the already-created stopped container and confirm its state:
+In the unpacked archive directory `netops-helper-0.3.12` of section 4, start the already-created stopped container and confirm its state:
 
 ```bash
-docker compose start
-docker compose ps
+docker compose start || exit 1
+docker compose ps || exit 1
 ```
 
 If start causes an unexpected recreate or network change, stop the service, rerun the checker, and investigate before reconnecting a client. Do not replace this guarded first start with `docker compose up -d`.
@@ -312,6 +318,50 @@ The live network test on the runner, ARM64 or AMD64, must also verify:
 
 The host INPUT guard is verified by the checker only as rules; confirm with live traffic that runner services time out from the container through the bridge address, the other bridge addresses and the LAN address. See [Egress control](egress-control.md#host-input-guard).
 
+## Upgrade from an earlier release
+
+An upgrade installs this release beside the previous one and replaces the installed distributions on the proxy host and the image, container and Compose network on the runner. It keeps the state volume `netops-helper-state` with the audit log in it, the operator files of [section 3](#3-prepare-configuration-and-trust-on-the-proxy-host), and, where the [persistence unit](egress-control.md#persistence-across-reboot) is installed, its bundle in `/etc/netops-helper` as long as the release generates the same bundle. Read the [changelog](../CHANGELOG.md) entries between the installed release and this one first, and make the configuration changes they require before upgrading; 0.3.10, for example, removed the EXOS query `sharing`.
+
+1. On the proxy host, run [section 2](#2-install-the-shared-access-layer-on-the-proxy-host) for this release in a new empty directory. It installs this Helper and the Core it pins into the same environment, replacing the previous versions; the operator files stay as they are.
+2. On the runner, download, verify and unpack this release with the first block of [section 4](#4-build-and-create-stopped-docker-resources), in a new empty directory beside the previous archive directory, never inside it.
+3. Disconnect the MCP client. If the persistence unit is installed, stop it with `sudo systemctl stop netops-helper-egress.service`, which also stops the container. Then remove the previous container and the Compose network. From 0.3.12 the Compose project is always `netops-helper`, so the new archive directory manages the container of the previous release:
+
+   ```sh
+   (cd netops-helper-0.3.12 && docker compose down) || exit 1
+   ```
+
+   **Upgrading from 0.3.11 or earlier:** those releases named the Compose project after the archive directory, `netops-helper-0311` for `netops-helper-0.3.11`, so Compose in the new directory does not see the previous container, and creating the new one in step 4 stops with `Conflict. The container name "/netops-helper" is already in use`. Run `docker compose down` once in the previous archive directory instead, for example:
+
+   ```sh
+   (cd netops-helper-0.3.11 && docker compose down) || exit 1
+   ```
+
+   If that directory no longer exists, unpack the previous release's source archive again and run the command there. Never add `-v`: up to 0.3.11 the volume belongs to the Compose project, and `docker compose down -v` deletes it with the audit log. Without `-v`, `down` removes the container and the network `netops-helper` and keeps the volume and the images.
+4. In the new directory, create the stopped container of this release with [section 4](#4-build-and-create-stopped-docker-resources), alternative (a) or (b). Its `docker volume create netops-helper-state` keeps the existing volume and its data, and the new container mounts it as before.
+5. On the proxy host, generate the bundle with [section 5](#5-generate-the-egress-bundle-on-the-proxy-host) of this release from the unchanged inventory and egress policy, into a new file, and compare it with the bundle applied so far:
+
+   ```bash
+   python3 -B netops-helper-0.3.12/scripts/generate_egress_rules.py \
+     --inventory /path/to/inventory.json \
+     --policy /path/to/egress-policy.json \
+     --output /restricted/path/netops-helper-egress.new.json || exit 1
+   cmp /restricted/path/netops-helper-egress.json /restricted/path/netops-helper-egress.new.json || exit 1
+   ```
+
+   When `cmp` prints nothing and exits with status 0, the release generates the bundle that was reviewed and applied before; keep using that bundle on the runner, also in `/etc/netops-helper/egress-bundle.json`, and delete the new file. When it reports a difference, this release changed the generated rules: review the new bundle as in [section 6](#6-review-explicitly-apply-and-check-egress), transfer it as in section 5, and use it in place of the previous one on the runner and in `/etc/netops-helper/egress-bundle.json`.
+6. On the runner, apply and check the bundle with [section 6](#6-review-explicitly-apply-and-check-egress), run from the new archive directory. The network was recreated in step 4, so this step is required even when the bundle is unchanged.
+7. If the persistence unit is installed, replace its root-owned copy of the source tree with this release; the unit file itself stays as it is:
+
+   ```sh
+   sudo rm -rf -- /opt/netops-helper || exit 1
+   sudo cp -r netops-helper-0.3.12 /opt/netops-helper || exit 1
+   ```
+
+8. Start the container with [section 7](#7-start-the-service-only-after-the-check) in the new directory. With the persistence unit installed, then start it again with `sudo systemctl start netops-helper-egress.service`; it applies and checks the bundle once more and leaves the running container running. `docker compose ps` in the new directory lists `netops-helper` with this release's image.
+9. Validate with [section 9](#9-validate-the-deployment) in the new archive directory and reconnect the client in a fresh session; MCP `initialize` reports this release as the server version.
+
+From 0.3.12 on, every later upgrade follows the same steps, with `docker compose down` in the new directory in step 3.
+
 ## Change procedure
 
 Any change to a device entry or its connection port, a helper section, metadata/listing roots, resolver scope, Compose network, or Docker networking requires the guarded sequence again:
@@ -323,8 +373,8 @@ Any change to a device entry or its connection port, a helper section, metadata/
 5. run the checker and live negative tests;
 6. start the service only after all checks pass.
 
-Do not assume that a previously installed rule follows enrollment changes automatically. Run the checker after Docker restart or network recreation even when the policy did not change.
+Do not assume that a previously installed rule follows enrollment changes automatically. Run the checker after Docker restart or network recreation even when the policy did not change. An upgrade to a new release contains this sequence; follow [Upgrade from an earlier release](#upgrade-from-an-earlier-release).
 
 ## Removal
 
-Disconnect the MCP client and stop the container. Remove or replace the tool-owned host-firewall chain through a reviewed operator procedure before removing the Compose network. Preserve or securely dispose of the audit volume according to retention policy. Removing the MCP connection does not remove the vault, the inventory, the runner file, the transferred bundle, or host firewall state.
+Disconnect the MCP client and stop the container. Remove or replace the tool-owned host-firewall chain through a reviewed operator procedure before removing the Compose network. Preserve or securely dispose of the audit volume according to retention policy; `docker compose down` keeps the external volume `netops-helper-state`, even with `-v`, and `docker volume rm netops-helper-state` deletes it. Removing the MCP connection does not remove the vault, the inventory, the runner file, the transferred bundle, or host firewall state.

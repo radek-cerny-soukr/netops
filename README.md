@@ -12,7 +12,7 @@
 
 ## What's new - 14 October 2026
 
-This source tree contains Core 0.2.9, Auditor 0.2.12, Admin 0.2.8 and Helper 0.3.11. Helper's Ruckus Unleashed enrollment uses the explicit administrator-bounded role and catalogue boundary. Admin's optional strict audit-file binding setting defaults to false and, when enabled, requires export status to identify the configured audit file. These contracts do not extend device-account privileges or compatibility beyond their documented scope.
+This source tree contains Core 0.2.9, Auditor 0.2.12, Admin 0.2.8 and Helper 0.3.12. Helper 0.3.12 corrects Helper 0.3.11 only: the deployment validation documented in its [installation guide](components/netops-helper/docs/installation.md#9-validate-the-deployment) passes on the published source archive, where a test in 0.3.11 rejected the archive's own link to this repository. Core, Auditor and Admin are unchanged. Helper's Ruckus Unleashed enrollment uses the explicit administrator-bounded role and catalogue boundary. Admin's optional strict audit-file binding setting defaults to false and, when enabled, requires export status to identify the configured audit file. These contracts do not extend device-account privileges or compatibility beyond their documented scope.
 
 ## What's new - 11 October 2026 (previous release)
 
@@ -83,7 +83,7 @@ The workflow needs `security-events: write`. Inputs, outputs and the SARIF mappi
 | Component | What it does | Released |
 |---|---|---|
 | [`netops-auditor`](components/netops-auditor/) | Configuration audit; collects the configuration from the device itself or reads a file | [`netops-auditor/v0.2.12`](https://github.com/radek-cerny-soukr/netops/releases/tag/netops-auditor%2Fv0.2.12) (2026-10-14) |
-| [`netops-helper`](components/netops-helper/) | Bounded troubleshooting MCP server; installed client command: `netops-helper-proxy` | [`netops-helper/v0.3.11`](https://github.com/radek-cerny-soukr/netops/releases/tag/netops-helper%2Fv0.3.11) (2026-10-14) |
+| [`netops-helper`](components/netops-helper/) | Bounded troubleshooting MCP server; installed client command: `netops-helper-proxy` | [`netops-helper/v0.3.12`](https://github.com/radek-cerny-soukr/netops/releases/tag/netops-helper%2Fv0.3.12) (2026-10-14) |
 | [`netops-admin`](components/netops-admin/) | Bounded device changes, mandatory rollback enrollment and predicted/observed audit | [`netops-admin/v0.2.8`](https://github.com/radek-cerny-soukr/netops/releases/tag/netops-admin%2Fv0.2.8) (2026-10-14) |
 | [`netops-core`](components/netops-core/) | Shared access layer the other components build on: inventory, credential store, host key trust, SSH transport, audit records | [`netops-core/v0.2.9`](https://github.com/radek-cerny-soukr/netops/releases/tag/netops-core%2Fv0.2.9) (2026-10-14) |
 
