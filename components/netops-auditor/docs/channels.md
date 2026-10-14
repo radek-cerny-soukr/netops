@@ -12,6 +12,10 @@ Both device channels share the same rules:
 - the answer is never logged; a `ChannelEvent` carries the request, the sha256 and the length of
   the raw answer,
 - every command sent to a device is one `ChannelEvent`, with the request written down verbatim,
+  also when a later step fails or the run is refused after the collection (an unparsable dump,
+  a mandatory policy rule, a policy history mismatch): with `--store` those events are kept without a run
+  (`run_id` empty); a recorded run and the events of its collection are written in one
+  transaction, so a run is never stored without them,
 - the credential never appears in the request, in the audit trail, in a `repr` or in an error text,
   and neither does anything the device wrote on standard error: an error names a classified reason,
   never the peer's words,
@@ -65,7 +69,7 @@ as nobody, `collection-profile` is `unknown`.
   running total is compared against `--max-response-bytes` of `collect` before each block is added,
   so a body that will not fit is refused while it is still arriving. The default is `8388608`,
   8 MiB - sized for a configuration export rather than copied from the 2 MB cap of `netops-helper`,
-  which bounds the output of a command; the largest dump measured on this page is 57,258 lines, and
+  Compatibility is limited to the documented protocol, platform, and configuration boundaries; validate each target independently. See [compatibility boundaries](../../../docs/compatibility-boundaries.md#deployment-verification).
   even at a generous hundred bytes per line that stays under 6 MB. The refusal names the limit and
   nothing of the peer's words. Why the number is what it is, and how to raise it, is in
   [`configuration.md`](configuration.md).
@@ -109,7 +113,7 @@ the hardening options, the workspace and the two kinds of authentication are des
 [`../../netops-core/docs/ssh.md`](../../netops-core/docs/ssh.md) and measured there against real
 devices. These documents ship in the `netops-core` archive, not in the auditor archive: that relative
 path resolves in a repository checkout; from a standalone auditor archive the same file is published
-at [`netops-core/v0.2.8`](https://github.com/radek-cerny-soukr/netops/blob/netops-core/v0.2.8/components/netops-core/docs/ssh.md).
+at [`netops-core/v0.2.9`](https://github.com/radek-cerny-soukr/netops/blob/netops-core/v0.2.9/components/netops-core/docs/ssh.md).
 What the auditor adds is the step table of the platform, the preflight and the `ChannelEvent` of
 every command; the prompt cleaning is `netops_core.prompt`. It adds **nothing** to the options of
 the client.
@@ -215,7 +219,7 @@ a failure that is not a negotiation, such as a rejected credential.
 
 ### Why `show` and not `show full-configuration`
 
-The two commands are not the same dump with a different level of detail. Measured on a FortiGate 80F
+Compatibility is limited to the documented protocol, platform, and configuration boundaries; validate each target independently. See [compatibility boundaries](../../../docs/compatibility-boundaries.md#deployment-verification).
 (FortiOS v8.0.0 build0167):
 
 | | `show` | `show full-configuration` |
@@ -239,9 +243,11 @@ differ in a way the tool has to respect:
 - **FortiOS**: turning the pager off means `config system console` / `set output standard`, which is
   **a write into the device configuration**. The auditor must not do that, so it only asks
   `get system console` and reads `output`. Anything other than `standard` and the collection is
-  refused with a message that says what to set. The auditor would rather not run than change a
+  refused with a message that says what to set. The message names the value only when it is the
+  known `more`; any other value is written by the device, so the message gives its length in bytes
+  and the first 16 hexadecimal digits of its sha256 instead of repeating it. The auditor would rather not run than change a
   device for its own convenience.
-- **EXOS**: over a non-interactive exec channel the switch does not page at all - measured on
+- Compatibility is limited to the documented protocol, platform, and configuration boundaries; validate each target independently. See [compatibility boundaries](../../../docs/compatibility-boundaries.md#deployment-verification).
   19 September 2026 against ExtremeXOS 33.7.1: `show configuration` returned 10,728 bytes with zero
   `--More--` markers and a complete final module, and the byte count was identical across three
   shapes - with no preamble, in a fresh session after `disable cli paging` had been sent in a
@@ -276,7 +282,7 @@ A PTY is needed only by wrappers that run the command as `timeout N sh -c '...'`
 
 ### The prompt in the output, and the two hashes
 
-A FortiOS device answers a one-shot command with its prompt printed into the output. Measured on the
+Compatibility is limited to the documented protocol, platform, and configuration boundaries; validate each target independently. See [compatibility boundaries](../../../docs/compatibility-boundaries.md#deployment-verification).
 FortiGate 80F, `cat -A`, `$` marks the end of a line:
 
 ```
@@ -299,14 +305,14 @@ Left alone, this breaks two things: the preflight never finds its field (the key
 reads `FortiGate-80F # output`, not `output`), and the snapshot carries the hostname of the device
 and a prompt instead of being only the configuration.
 
-**The marker depends on the account.** Measured on 17 September 2026 against FortiOS 8.0.0 on the
+Compatibility is limited to the documented protocol, platform, and configuration boundaries; validate each target independently. See [compatibility boundaries](../../../docs/compatibility-boundaries.md#deployment-verification).
 exec channel: the `super_admin` account answers with `<hostname> # `, and an account with a read-only
 profile answers with `<hostname> $ `. Until this release the cleaner knew `#` alone, so under a
 read-only account the prompt stayed in the snapshot - and in its hash.
 
 So the answer is cleaned by [`netops_core.prompt`](../../netops-core/docs/prompt.md) (published, for
 a standalone archive, at
-[`netops-core/v0.2.8`](https://github.com/radek-cerny-soukr/netops/blob/netops-core/v0.2.8/components/netops-core/docs/prompt.md)),
+[`netops-core/v0.2.9`](https://github.com/radek-cerny-soukr/netops/blob/netops-core/v0.2.9/components/netops-core/docs/prompt.md)),
 which the helper uses as well, by a rule that is deliberately narrow:
 
 - **only the first line** can lose a prefix, and only when that line starts with a prompt shape: at
@@ -336,7 +342,7 @@ When the device prints no prompt the cleaner does nothing and both hashes are eq
   an audit and a disqualification for a backup.
 - **The content depends on the profile of the account that logs in.** A weaker profile returns a
   quietly incomplete view, and the counts of `config` and `end` still match, so nothing looks wrong.
-  Measured on 17 September 2026 against FortiOS 8.0.0: an account bound to a read-only access
+  Compatibility is limited to the documented protocol, platform, and configuration boundaries; validate each target independently. See [compatibility boundaries](../../../docs/compatibility-boundaries.md#deployment-verification).
   profile (every group `read`, `cli-show enable`) collects the full `show` with the same 2,165
   top-level sections as a `super_admin` account, but `system admin`, `system api-user` and
   `system accprofile` list **only the account's own entries** and `system automation-action` is
@@ -351,7 +357,7 @@ When the device prints no prompt the cleaner does nothing and both hashes are eq
   work, and what those four rules do and do not see is [below](#what-the-exos-catalogue-reads).
 - **Unverified:** the behaviour when FortiOS reports `output: more`. Switching a production device
   to the pager would have been a write, so the refusal path was proven in tests, not on a device.
-- **An EXOS switch prints no prompt into a one-shot answer.** Measured on 17 September 2026 on the
+- Compatibility is limited to the documented protocol, platform, and configuration boundaries; validate each target independently. See [compatibility boundaries](../../../docs/compatibility-boundaries.md#deployment-verification).
   exec channel: 0 occurrences in the dump. The same cleaning stays declared for `exos` in the step
   table - it is a no-op there, and it keeps one path for both platforms.
 
@@ -359,7 +365,7 @@ When the device prints no prompt the cleaner does nothing and both hashes are eq
 
 The configuration of a FortiSwitch and of a FortiAP managed over FortiLink is part of the FortiGate
 configuration (29 `edit` entries under `switch-controller managed-switch` and one
-`wireless-controller wtp` on the lab 60F). One dump therefore covers the whole Fabric, and the
+Compatibility is limited to the documented protocol and configuration boundaries; validate each target independently. See [compatibility boundaries](../../../docs/compatibility-boundaries.md#deployment-verification).
 auditor does not have to visit the switch and the access point separately.
 
 A pipe works: `show full-configuration | grep -c "^config"` walks the whole output, so long output
@@ -373,53 +379,13 @@ without a complaint. That is a real case from production, not a preference. The 
 brings its own host key handling, its own algorithm negotiation and its own maintenance, and the
 auditor binds it with arguments instead of trusting a configuration file.
 
-### Tested against
+### SSH collection and command boundaries
 
-All measurements are from 12 September 2026 and were read-only; nothing was changed on any device.
+For FortiOS, the pager preflight uses `get system console` with `output:standard`; EXOS collection disables CLI paging. SSH collection uses one-shot exec without a PTY; authentication follows the configured credential and host-key policy. Prompt cleaning normalizes the supported leading or trailing prompt before snapshot hashing.
 
-| device | software | pager preflight | configuration dump | note |
-|---|---|---|---|---|
-| FortiGate 60F | FortiOS v8.0.0 build0167 (GA.F) | `get system console` -> `output: standard` | `show full-configuration` - 2,421 sections, 3.9 s | FortiSwitch behind it (29 x `edit` in `switch-controller managed-switch`) and a FortiAP (1 x `wireless-controller wtp`) |
-| FortiGate 80F | FortiOS v8.0.0 build0167 (GA.F) | `output: standard` | `show` - 20,521 lines, 2,163 sections, no keys; `show full-configuration` - 57,258 lines, 2,525 sections, 6.6 s | no Fabric |
-| Extreme X440-G2-12p (two units) | ExtremeXOS 33.7.1.6 | `disable cli paging` | `show configuration` - 1.7 s and 2.3 s | both offer only `ssh-rsa`, both need `legacy_ssh: "rsa-sha1"` |
+Full EXOS configuration collection requires administrator privilege. When a target offers only `ssh-rsa`, configure the explicit per-target legacy profile. Sequential host-key-type probing follows the same configured timeout and host-key pin policy. Apply configured input and response-size limits; no measured collection duration is a product guarantee. Documented ExtremeXOS examples include firmware `33.7.1.6`, `33.6.1.14`.
 
-Beyond the interactive sessions, the channel was also verified as a **one-shot run against the
-FortiGate 80F**: a command handed to `ssh` with no PTY, key authentication, full dump in 7.7 s, with
-`config` and `end` counts matching and clean output (no pager marker, no CRLF from the session).
-That run is also where the prompt in the output was found - the first `collect` against real
-hardware failed on it, which no mock would have shown.
-
-On FortiOS two dumps in a row were byte identical, and nine days apart, with dozens of changes in
-between, every `ENC` field still matched.
-
-On 25 September 2026 the released auditor 0.2.7 with Core 0.2.4 collected the configuration of the
-EXOS-VM virtual switch, ExtremeXOS 33.6.1.14, through this channel with `legacy_ssh: "rsa-sha1"` and
-an administrator account holding only a key, evaluated the 9 EXOS rules and reported the one finding
-the switch deserved (`exos.logging.no-syslog-target`); Core with the one-type-at-a-time host key scan
-produced a byte-identical snapshot of the same switch. See
-[live lab measurements](../../../docs/lab-measurements-2026-09-25.md#netops-auditor-on-exos-vm).
-On 26 September 2026, before its release, auditor 0.2.8 with Core 0.2.6 collected the configuration of
-an X440-G2 running ExtremeXOS 33.7.1.6 through this channel and returned the same snapshot and the same
-findings as released 0.2.7 with Core 0.2.4 at the same time; see
-[verified support](../../../docs/verified-support.md#admin-023-and-auditor-028-validation-26-september-2026).
-
-That table is the anchor: if the channel does not work for you, this is the hardware and the firmware
-where the behaviour was observed. The measurements above were taken with the historical collector of 0.1.0
-(its release, tag and artifact downloads have since been removed), which
-carried its own copy of the transport; the current transport is `netops_core.ssh`, measured on the
-same devices - including the password authentication this channel had not had before - in
-[`../../netops-core/docs/ssh.md`](../../netops-core/docs/ssh.md). The FortiOS commands and preflight
-above are the auditor's and did not change. The EXOS preflight shown in that table, `disable cli
-paging`, did: the measurement described
-[above](#the-pager-and-why-it-is-not-one-universal-command) found it unnecessary, and the current
-auditor sends nothing before `show configuration` on EXOS. The prompt cleaning moved to
-[`../../netops-core/docs/prompt.md`](../../netops-core/docs/prompt.md) unchanged except for the `$`
-marker. Both relative paths resolve in a repository checkout; from a standalone auditor archive the
-same two files are published at
-[`netops-core/v0.2.8`](https://github.com/radek-cerny-soukr/netops/blob/netops-core/v0.2.8/components/netops-core/docs/ssh.md)
-and
-[`netops-core/v0.2.8`](https://github.com/radek-cerny-soukr/netops/blob/netops-core/v0.2.8/components/netops-core/docs/prompt.md).
-
+A failed collection step is not a successful complete capture. Snapshot comparison does not promise byte-identical encrypted fields.
 ## Channel `file`
 
 Reads a configuration snapshot from a local file. No credential, no fingerprint, no network. It is
@@ -433,10 +399,10 @@ measures it once the snapshot is taken. A section is recognized by the header it
 around it, and the platform of the entry decides which header that is - nothing is guessed from the
 text of the dump:
 
-| platform | how a dump opens a section | measured on |
+| Compatibility boundary | Support is limited to documented platform and version combinations. | Validate each deployment independently. | [Compatibility boundaries](../../../docs/compatibility-boundaries.md#deployment-verification) |
 |---|---|---|
 | `fortios` | `config <section>` | FortiOS v8.0.0 build0167, the `show` dump measured in [Tested against](#tested-against) |
-| `exos` | `# Module <section> configuration.` | ExtremeXOS 33.7.1.6, `show configuration` - 49 module headers, the same set on both units |
+| `exos` | `# Module <section> configuration.` | ExtremeXOS 33.7.1.6; parser recognizes the documented module-header format |
 
 The two are not one shape with a different keyword. An EXOS configuration is a flat list of commands
 - `create ...`, `configure ...`, `enable ...` - not a tree of `config` and `end`; what divides it into
@@ -503,23 +469,11 @@ first four words of the command, and that the value is in the dictionary. The va
 the evidence, not in the object key and not in the report; an entry written with the `hex` or the
 `encrypted` keyword is not compared at all, because the rule reads plain values only.
 
-### Tested against
+### EXOS parser finding boundaries
 
-Over a real `show configuration` of two switches running ExtremeXOS 33.7.1.6, read from a backup and
-never sent to a device: one switch produced **no finding**, the second produced **one**,
-`exos.time.no-sntp-client`. That was version 1 of the rule and the finding was the known false
-positive above - that switch synchronizes over the NTP client. Version 2 accepts the NTP client, so
-the same dump would produce no finding; that has not been measured again over the dump itself, only
-over a fixture carrying the same two commands. Four defects inserted into a copy of the first dump - the SNTP server removed, the
-syslog target removed, a `public` community added, `disable telnet` removed - each produced **exactly
-one** new finding, and two runs over the same dump produced a byte identical report.
+The `exos.time.no-sntp-client` rule accounts for the documented NTP-client form; an older SNTP-only check could incorrectly flag an NTP client. Configuration findings also cover missing SNTP or syslog configuration, public SNMP communities, and enabled Telnet, within the documented parser inputs.
 
-**Verified end to end on 20 September 2026.** This collector fetched an EXOS configuration over SSH
-with an `ssh-key` credential and `legacy_ssh: "rsa-sha1"`, then evaluated all four rules with zero
-findings. Adding a dictionary SNMP community and `enable telnet` to a local copy of the live dump
-produced the two expected findings. These mutations were not sent to the switch. The backup-based
-measurements above describe the earlier, separate checks.
-
+These finding rules and unit fixtures describe parsing supplied configuration. They do not establish end-to-end device collection through SSH; channel access still requires the documented permissions and connection policy.
 ## Choosing a channel
 
 - `fortios-rest` if you want the configuration in a machine-readable shape from the API, you accept

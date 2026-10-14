@@ -301,9 +301,12 @@ DEAF_BUT_ALIVE = "\n".join(
 )
 LEAVES_A_CHILD = "\n".join(
     (
-        "import os, subprocess, sys",
+        "import os, subprocess, sys, time",
         "open(sys.argv[1], 'w').write(str(os.getpid()))",
         "subprocess.Popen([sys.executable, sys.argv[2], sys.argv[3]])",
+        "deadline = time.monotonic() + 10",
+        "while not os.path.exists(sys.argv[3]) and time.monotonic() < deadline:",
+        "    time.sleep(0.01)",
         "sys.exit(0)",
     )
 )
@@ -452,8 +455,10 @@ def test_a_client_that_leaves_a_child_behind_has_its_whole_group_stopped(tmp_pat
     parent = _program(tmp_path, LEAVES_A_CHILD, name="parent.py")
     child = _program(tmp_path, OUTLIVES_ITS_PARENT, name="grandchild.py")
     call = [sys.executable, str(parent), str(parent_marker), str(child), str(child_marker)]
-    with pytest.raises(subprocess.TimeoutExpired):
-        _run(call, timeout=1.0)
+    start = time.monotonic()
+    result = _run(call, timeout=20.0)
+    assert result.returncode == 0
+    assert time.monotonic() - start < 10.0
     assert _ended_within(_pid_of(child_marker))
 
 
@@ -468,9 +473,12 @@ def test_a_slow_client_with_open_streams_still_stops_at_the_deadline(tmp_path):
 
 LEAVES_A_QUIET_CHILD = "\n".join(
     (
-        "import os, subprocess, sys",
+        "import os, subprocess, sys, time",
         "open(sys.argv[1], 'w').write(str(os.getpid()))",
         "subprocess.Popen([sys.executable, sys.argv[2], sys.argv[3]])",
+        "deadline = time.monotonic() + 10",
+        "while not os.path.exists(sys.argv[3]) and time.monotonic() < deadline:",
+        "    time.sleep(0.01)",
         "sys.exit(0)",
     )
 )
@@ -503,3 +511,182 @@ def test_a_finished_client_leaves_no_child_of_its_own_behind(tmp_path, monkeypat
     grandchild = _pid_of(marker)
     assert result.rc == 0
     assert _ended(grandchild)
+
+
+def _stub(tmp_path, monkeypatch, script, name="ssh-stub"):
+    binary = tmp_path / name
+    binary.write_text("#!/bin/sh\n" + script + "\n", encoding="utf-8")
+    binary.chmod(0o755)
+    monkeypatch.setattr(ssh_module, "SSH_BINARY", str(binary))
+
+
+def _ask(timeout=20.0):
+    return run_command(
+        HOST, PORT, LOGIN, FakeCredential(), HOST_KEY_LINE, COMMAND, timeout_seconds=timeout,
+    )
+
+
+@pytest.mark.parametrize("held", ("2>&1", ">/dev/null", "2>/dev/null"))
+def test_a_process_that_holds_an_inherited_pipe_does_not_change_the_answer(
+    tmp_path, monkeypatch, held
+):
+    marker = tmp_path / "held-pid"
+    _stub(
+        tmp_path, monkeypatch,
+        "sleep 30 %s &\necho $! > %s\necho answer\nexit 0" % (held, marker),
+    )
+    start = time.monotonic()
+    result = _ask(timeout=20.0)
+    assert time.monotonic() - start < 10.0
+    assert result.rc == 0
+    assert result.stdout == b"answer\n"
+    assert _ended_within(_pid_of(marker))
+
+
+def test_a_held_pipe_and_a_plain_answer_in_sequence_both_return_at_once(tmp_path, monkeypatch):
+    marker = tmp_path / "held-pid"
+    _stub(tmp_path, monkeypatch, "sleep 30 >/dev/null &\necho $! > %s\nprintf 'one\\n'" % marker)
+    start = time.monotonic()
+    assert _ask().stdout == b"one\n"
+    _stub(tmp_path, monkeypatch, "printf 'two\\n'", name="ssh-plain")
+    assert _ask().stdout == b"two\n"
+    assert time.monotonic() - start < 10.0
+    assert _ended_within(_pid_of(marker))
+
+
+def test_a_client_killed_by_a_signal_through_the_default_runner_is_refused(tmp_path, monkeypatch):
+    _stub(tmp_path, monkeypatch, "printf 'config system global\\n    set'\nkill -9 $$")
+    with pytest.raises(SshError) as caught:
+        _ask()
+    assert "was ended by signal 9" in str(caught.value)
+    assert caught.value.rc == -9
+    _stub(tmp_path, monkeypatch, "printf 'config system global\\nend\\n'", name="ssh-whole")
+    assert _ask().stdout == b"config system global\nend\n"
+
+def _mock_capped_io(monkeypatch, batches, reads, exit_descriptor=None):
+    from unittest.mock import Mock
+
+    proc = Mock()
+    proc.pid = 41
+    proc.stdout.fileno.return_value = 101
+    proc.stderr.fileno.return_value = 102
+    proc.wait.return_value = 0
+    selector = Mock()
+    selector.select.side_effect = batches
+    stopped = Mock()
+    swept = Mock()
+    mocked_os = types.SimpleNamespace(read=Mock(side_effect=reads), close=Mock())
+    monkeypatch.setattr(
+        ssh_module, "subprocess",
+        types.SimpleNamespace(
+            Popen=Mock(return_value=proc), PIPE=subprocess.PIPE, DEVNULL=subprocess.DEVNULL,
+            CompletedProcess=subprocess.CompletedProcess, TimeoutExpired=subprocess.TimeoutExpired,
+        ),
+    )
+    monkeypatch.setattr(
+        ssh_module, "selectors",
+        types.SimpleNamespace(DefaultSelector=Mock(return_value=selector), EVENT_READ=selectors.EVENT_READ),
+    )
+    monkeypatch.setattr(ssh_module, "os", mocked_os)
+    monkeypatch.setattr(ssh_module, "time", types.SimpleNamespace(monotonic=Mock(return_value=0.0)))
+    monkeypatch.setattr(ssh_module, "_own_group", Mock(return_value=41))
+    monkeypatch.setattr(ssh_module, "_exit_watch", Mock(return_value=exit_descriptor))
+    monkeypatch.setattr(ssh_module, "_stopped", stopped)
+    monkeypatch.setattr(ssh_module, "_swept", swept)
+    return types.SimpleNamespace(
+        proc=proc, selector=selector, stopped=stopped, swept=swept, os=mocked_os,
+    )
+
+
+@pytest.mark.parametrize("budget", (5, 6))
+def test_one_stream_eof_does_not_skip_the_other_stream_or_its_cap(monkeypatch, budget):
+    err = types.SimpleNamespace(fileobj=102, data="err")
+    out = types.SimpleNamespace(fileobj=101, data="out")
+    mocks = _mock_capped_io(
+        monkeypatch, [[(err, 1)], [(out, 1)], [(out, 1)], [(out, 1)]],
+        [b"", b"abc", b"def", b""],
+    )
+    if budget == 5:
+        with pytest.raises(SshError, match="more than 5 bytes on stdout"):
+            ssh_module._run_capped(["mock-client"], budget, timeout=10.0, env={}, stdin_bytes=None)
+        assert mocks.selector.select.call_count == 3
+        assert mocks.os.read.call_count == 3
+        mocks.proc.wait.assert_not_called()
+        mocks.stopped.assert_called_once_with(mocks.proc, 41)
+        mocks.swept.assert_not_called()
+    else:
+        answer = ssh_module._run_capped(["mock-client"], budget, timeout=10.0, env={}, stdin_bytes=None)
+        assert (answer.returncode, answer.stdout, answer.stderr) == (0, b"abcdef", b"")
+        assert mocks.selector.select.call_count == 4
+        assert [call.args[0] for call in mocks.os.read.call_args_list] == [102, 101, 101, 101]
+        mocks.proc.wait.assert_called_once_with(timeout=10.0)
+        mocks.swept.assert_called_once_with(41)
+        mocks.stopped.assert_not_called()
+    mocks.selector.close.assert_called_once_with()
+    mocks.proc.stdout.close.assert_called_once_with()
+    mocks.proc.stderr.close.assert_called_once_with()
+
+
+def test_run_capped_failure_passes_owned_group_to_stopped(monkeypatch):
+    failure = OSError("synthetic selector failure")
+    mocks = _mock_capped_io(monkeypatch, failure, [])
+    with pytest.raises(OSError) as caught:
+        ssh_module._run_capped(["mock-client"], 6, timeout=10.0, env={}, stdin_bytes=None)
+    assert caught.value is failure
+    mocks.stopped.assert_called_once_with(mocks.proc, 41)
+    mocks.swept.assert_not_called()
+    mocks.proc.wait.assert_not_called()
+    mocks.os.read.assert_not_called()
+    mocks.selector.close.assert_called_once_with()
+    mocks.proc.stdout.close.assert_called_once_with()
+    mocks.proc.stderr.close.assert_called_once_with()
+
+
+def test_exited_client_drains_only_currently_ready_bytes_without_waiting(monkeypatch):
+    exited = types.SimpleNamespace(fileobj=103, data="exit")
+    out = types.SimpleNamespace(fileobj=101, data="out")
+    mocks = _mock_capped_io(
+        monkeypatch, [[(exited, 1)], [(out, 1)], []], [b"answer"], exit_descriptor=103,
+    )
+    answer = ssh_module._run_capped(["mock-client"], 6, timeout=10.0, env={}, stdin_bytes=None)
+    assert (answer.returncode, answer.stdout, answer.stderr) == (0, b"answer", b"")
+    assert [call.args for call in mocks.selector.select.call_args_list] == [(10.0,), (0,), (0,)]
+    assert [call.args for call in mocks.selector.unregister.call_args_list] == [(103,)]
+    mocks.os.close.assert_called_once_with(103)
+    mocks.proc.wait.assert_called_once_with(timeout=10.0)
+    mocks.swept.assert_called_once_with(41)
+    mocks.stopped.assert_not_called()
+    mocks.selector.close.assert_called_once_with()
+
+
+def test_stopped_signals_the_owned_group_and_client_in_term_kill_order(monkeypatch):
+    from unittest.mock import Mock
+
+    events = []
+    term = ssh_module.signal.SIGTERM
+    kill = ssh_module.signal.SIGKILL
+    proc = types.SimpleNamespace(
+        send_signal=Mock(side_effect=lambda number: events.append(("client", number))),
+        wait=Mock(side_effect=[
+            subprocess.TimeoutExpired(["mock-client"], ssh_module.TERMINATE_GRACE_SECONDS), 0,
+        ]),
+    )
+
+    def wait(timeout):
+        events.append(("wait", timeout))
+        return proc_wait(timeout=timeout)
+
+    proc_wait = proc.wait
+    proc.wait = Mock(side_effect=wait)
+    mocked_os = types.SimpleNamespace(
+        killpg=Mock(side_effect=lambda group, number: events.append(("group", group, number))),
+    )
+    monkeypatch.setattr(ssh_module, "os", mocked_os)
+    ssh_module._stopped(proc, 41)
+    assert events == [
+        ("group", 41, term), ("client", term), ("wait", ssh_module.TERMINATE_GRACE_SECONDS),
+        ("group", 41, kill), ("client", kill), ("wait", ssh_module.KILL_GRACE_SECONDS),
+    ]
+    assert proc.send_signal.call_count == 2
+    assert mocked_os.killpg.call_count == 2
+    assert proc_wait.call_count == 2

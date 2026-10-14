@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from netops_admin import audit, audit_gate, engine, enrollment, execute, prediction
+from netops_admin import audit_gate, engine, enrollment, execute, prediction
+from netops_admin.config import summary as configuration_summary
 from netops_admin.errors import Rejected, StateUnreadable, shown
 from netops_admin.profiles import find_profile, load_profiles
 
@@ -46,7 +47,7 @@ def _local(report, runtime, device):
     config = runtime.config
     report.attempt("journal and audit log writable", lambda: (runtime.store.check_writable(),
                                                               runtime.audit.check_writable()))
-    state, why = audit.export_state(config.export_status_file, config.limits, audit_file=config.audit_file)
+    state, why = execute.export_state(config)
     if state == "not-configured":
         report.add("audit export", MISSING, "no export status file is configured")
     elif state == "blocked":
@@ -94,6 +95,12 @@ def _operations(platform, firmware) -> dict:
 
 
 def doctor(runtime, device_name: str) -> dict:
+    result = _doctor(runtime, device_name)
+    result["configuration"] = configuration_summary(runtime.config)
+    return result
+
+
+def _doctor(runtime, device_name: str) -> dict:
     device = runtime.config.devices.get(device_name)
     if device is None:
         raise Rejected(["device %s is not configured" % shown(device_name)])

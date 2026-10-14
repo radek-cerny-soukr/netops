@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 import sqlite3
 from datetime import datetime, timezone
@@ -112,7 +113,7 @@ _SELECT_FINDINGS = (
 _SELECT_RUN = "SELECT tenant, device FROM runs WHERE id = ?"
 
 _SELECT_LAST_RULES_VERSION = (
-    "SELECT rules_version FROM runs WHERE tenant = ? AND device = ? ORDER BY started_at DESC, id DESC LIMIT 1"
+    "SELECT rules_version FROM runs WHERE tenant = ? AND device = ? ORDER BY id DESC LIMIT 1"
 )
 
 _INSERT_RULE_STATUS = "INSERT INTO rule_status (run_id, rule_id, status, reason, required) VALUES (?, ?, ?, ?, ?)"
@@ -173,7 +174,7 @@ _INSERT_CHANNEL_EVENT = (
 
 _SELECT_CHANNEL_EVENTS = (
     "SELECT %s FROM channel_events WHERE tenant = ? AND device = ?"
-    " ORDER BY started_at DESC, id DESC"
+    " ORDER BY id DESC"
 ) % CHANNEL_EVENT_COLUMNS
 
 _SELECT_CHANNEL_EVENTS_FOR_RUN = (
@@ -381,6 +382,29 @@ def _checked_rule_status(rule_status) -> tuple:
     return tuple(rows)
 
 
+def _insert_events(connection, tenant, device, events, run_id) -> int:
+    written = 0
+    for event in events:
+        values = _checked_event(event, device)
+        connection.execute(
+            _INSERT_CHANNEL_EVENT,
+            (
+                tenant,
+                values["device"],
+                run_id,
+                values["channel"],
+                values["request"],
+                values["response_sha256"],
+                values["response_bytes"],
+                values["started_at"],
+                values["finished_at"],
+                values["outcome"],
+            ),
+        )
+        written += 1
+    return written
+
+
 def _row_to_finding(row) -> dict:
     item = dict(row)
     item["evidence"] = json.loads(item["evidence"])
@@ -390,8 +414,15 @@ def _row_to_finding(row) -> dict:
 class Store:
     def __init__(self, path):
         try:
+            if str(path) not in ("", ":memory:"):
+                try:
+                    descriptor = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+                except FileExistsError:
+                    pass
+                else:
+                    os.close(descriptor)
             self._connection = sqlite3.connect(str(path), isolation_level=None)
-        except sqlite3.Error as error:
+        except (OSError, sqlite3.Error) as error:
             raise StoreError("cannot open store %s: %s" % (path, error)) from None
         try:
             self._connection.row_factory = sqlite3.Row
@@ -426,7 +457,40 @@ class Store:
         rule_status=None,
         admit=None,
         observe=None,
+        events=(),
     ) -> int:
+        return self._record_run(
+            tenant, device, snapshot_sha256, snapshot_source, rules_version, findings,
+            started_at, rule_status, admit, observe, events, None,
+        )[0]
+
+    def record_accepted_run(
+        self,
+        tenant,
+        device,
+        snapshot_sha256,
+        snapshot_source,
+        rules_version,
+        findings,
+        accepted_by,
+        note,
+        started_at=None,
+        rule_status=None,
+        admit=None,
+        observe=None,
+        events=(),
+    ) -> tuple:
+        _checked_text("accepted_by", accepted_by)
+        _checked_text("note", note)
+        return self._record_run(
+            tenant, device, snapshot_sha256, snapshot_source, rules_version, findings,
+            started_at, rule_status, admit, observe, events, (accepted_by, note),
+        )
+
+    def _record_run(
+        self, tenant, device, snapshot_sha256, snapshot_source, rules_version, findings,
+        started_at, rule_status, admit, observe, events, acceptance,
+    ) -> tuple:
         _checked_text("tenant", tenant)
         _checked_text("device", device)
         _checked_text("snapshot_sha256", snapshot_sha256)
@@ -474,11 +538,15 @@ class Store:
                 )
             for row in statuses:
                 connection.execute(_INSERT_RULE_STATUS, (run_id,) + row)
+            _insert_events(connection, tenant, device, events, run_id)
+            accepted = None
+            if acceptance is not None:
+                accepted = self._accepted(tenant, device, run_id, acceptance[0], acceptance[1], moment)
             connection.execute("COMMIT")
         except BaseException:
             _rollback(connection)
             raise
-        return run_id
+        return run_id, accepted
 
     def findings_for_run(self, tenant, run_id) -> tuple:
         rows = self._connection.execute(_SELECT_FINDINGS, (run_id, tenant)).fetchall()
@@ -495,14 +563,14 @@ class Store:
 
     def last_run(self, tenant, device):
         row = self._connection.execute(
-            "SELECT %s FROM runs WHERE tenant = ? AND device = ? ORDER BY started_at DESC, id DESC LIMIT 1" % RUN_COLUMNS,
+            "SELECT %s FROM runs WHERE tenant = ? AND device = ? ORDER BY id DESC LIMIT 1" % RUN_COLUMNS,
             (tenant, device),
         ).fetchone()
         return None if row is None else dict(row)
 
     def runs_for_device(self, tenant, device) -> tuple:
         rows = self._connection.execute(
-            "SELECT %s FROM runs WHERE tenant = ? AND device = ? ORDER BY started_at DESC, id DESC" % RUN_COLUMNS,
+            "SELECT %s FROM runs WHERE tenant = ? AND device = ? ORDER BY id DESC" % RUN_COLUMNS,
             (tenant, device),
         ).fetchall()
         return tuple(dict(row) for row in rows)
@@ -516,38 +584,42 @@ class Store:
         connection = self._connection
         connection.execute("BEGIN IMMEDIATE")
         try:
-            run = connection.execute(_SELECT_RUN, (run_id,)).fetchone()
-            if run is None:
-                raise StoreError("run %r does not exist" % (run_id,))
-            if run["tenant"] != tenant:
-                raise StoreError("run %r belongs to another tenant than %r" % (run_id, tenant))
-            if run["device"] != device:
-                raise StoreError("run %r covers device %r, not %r" % (run_id, run["device"], device))
-            identities = connection.execute(_SELECT_RUN_IDENTITIES, (run_id,)).fetchall()
-            if not evaluation_complete(identities, self.rule_status_for_run(tenant, run_id)):
-                raise StoreError("cannot accept a baseline from an unevaluated audit")
-            before = connection.total_changes
-            for item in identities:
-                connection.execute(
-                    _INSERT_BASELINE,
-                    (
-                        tenant,
-                        device,
-                        item["fingerprint"],
-                        item["rule_id"],
-                        item["object_key"],
-                        moment,
-                        accepted_by,
-                        note,
-                        run_id,
-                    ),
-                )
-            accepted = connection.total_changes - before
+            accepted = self._accepted(tenant, device, run_id, accepted_by, note, moment)
             connection.execute("COMMIT")
         except BaseException:
             _rollback(connection)
             raise
         return accepted
+
+    def _accepted(self, tenant, device, run_id, accepted_by, note, moment) -> int:
+        connection = self._connection
+        run = connection.execute(_SELECT_RUN, (run_id,)).fetchone()
+        if run is None:
+            raise StoreError("run %r does not exist" % (run_id,))
+        if run["tenant"] != tenant:
+            raise StoreError("run %r belongs to another tenant than %r" % (run_id, tenant))
+        if run["device"] != device:
+            raise StoreError("run %r covers device %r, not %r" % (run_id, run["device"], device))
+        identities = connection.execute(_SELECT_RUN_IDENTITIES, (run_id,)).fetchall()
+        if not evaluation_complete(identities, self.rule_status_for_run(tenant, run_id)):
+            raise StoreError("cannot accept a baseline from an unevaluated audit")
+        before = connection.total_changes
+        for item in identities:
+            connection.execute(
+                _INSERT_BASELINE,
+                (
+                    tenant,
+                    device,
+                    item["fingerprint"],
+                    item["rule_id"],
+                    item["object_key"],
+                    moment,
+                    accepted_by,
+                    note,
+                    run_id,
+                ),
+            )
+        return connection.total_changes - before
 
     def baseline_fingerprints(self, tenant, device) -> frozenset:
         rows = self._connection.execute(_SELECT_BASELINE_FINGERPRINTS, (tenant, device)).fetchall()
@@ -580,25 +652,7 @@ class Store:
                     raise StoreError("run %r belongs to another tenant than %r" % (run_id, tenant))
                 if run["device"] != device:
                     raise StoreError("run %r covers device %r, not %r" % (run_id, run["device"], device))
-            written = 0
-            for event in events:
-                values = _checked_event(event, device)
-                connection.execute(
-                    _INSERT_CHANNEL_EVENT,
-                    (
-                        tenant,
-                        values["device"],
-                        run_id,
-                        values["channel"],
-                        values["request"],
-                        values["response_sha256"],
-                        values["response_bytes"],
-                        values["started_at"],
-                        values["finished_at"],
-                        values["outcome"],
-                    ),
-                )
-                written += 1
+            written = _insert_events(connection, tenant, device, events, run_id)
             connection.execute("COMMIT")
         except BaseException:
             _rollback(connection)

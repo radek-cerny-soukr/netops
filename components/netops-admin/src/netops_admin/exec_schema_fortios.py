@@ -51,5 +51,26 @@ def safeguard_absent(access,record):
     except Exception:
         return False
 
+def remove_remaining(access,record,spec):
+    try:
+        names=fortios.safeguard_names(record["change_id"]);parts=[]
+        for part in fortios.SAFEGUARD_PARTS:
+            table=schema_runtime.GUARD_TABLES[part]
+            node=core_fortios.parse(access.query("show "+table)).section(table)
+            if node is None or names[part] in node.entries:parts.append(part)
+        if parts:
+            access.apply(["config global"]+fortios.render_safeguard_removal(record["change_id"],parts)+["end"],spec)
+    except Exception:
+        pass
+    return safeguard_absent(access,record)
+
+def safeguard_disarmed(access,record):
+    try:
+        table=schema_runtime.GUARD_TABLES["stitch"]
+        node=core_fortios.parse(access.query("show "+table)).section(table)
+        return node is not None and fortios.safeguard_names(record["change_id"])["stitch"] not in node.entries
+    except Exception:
+        return False
+
 def observe(access,plan):
     return access.observe(plan)

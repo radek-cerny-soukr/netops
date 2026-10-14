@@ -24,7 +24,7 @@ class FakeSuppression:
     fingerprint: str
     expires: datetime
     reason: str = "ticket NET-1"
-    author: str = "radek"
+    author: str = "operator"
 
     def is_active(self, now):
         return now < self.expires

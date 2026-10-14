@@ -1755,6 +1755,14 @@
       "version": "11.1.0"
     },
     {
+      "bom-ref": "pkg:pypi/netops-core@0.2.9",
+      "name": "netops-core",
+      "purl": "pkg:pypi/netops-core@0.2.9",
+      "scope": "required",
+      "type": "library",
+      "version": "0.2.9"
+    },
+    {
       "bom-ref": "requirements-L384",
       "description": "requirements line 384: openapi-pydantic==0.5.1     --hash=sha256:a3a09ef4586f5bd760a8df7f43028b60cafb6d9f61de2acba9574766255ab146     --hash=sha256:ff6835af6bde7a459fb93eb93bb92b8749b754fc6e51b2f1590a19dc3005ee0d",
       "externalReferences": [
@@ -4799,6 +4807,10 @@
   ],
   "dependencies": [
     {
+      "dependsOn": [],
+      "ref": "pkg:pypi/netops-core@0.2.9"
+    },
+    {
       "ref": "requirements-L11"
     },
     {
@@ -5022,6 +5034,7 @@
     },
     {
       "dependsOn": [
+        "pkg:pypi/netops-core@0.2.9",
         "requirements-L265",
         "requirements-L292",
         "requirements-L302",
@@ -5072,7 +5085,7 @@
       ],
       "name": "netops-helper",
       "type": "application",
-      "version": "0.3.10"
+      "version": "0.3.11"
     },
     "properties": [
       {

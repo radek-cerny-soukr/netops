@@ -89,14 +89,24 @@ EXACT = {
 }
 TESTS = {
     "tests/conftest.py", "tests/run_tests.py", "tests/test_apply_egress_rules.py",
+    "tests/test_t127_contracts.py",
+    "tests/test_mutation_helper_engine.py",
+    "tests/test_mutation_helper_proxy_arguments.py",
+    "tests/test_mutation_helper_proxy_messages.py",
+    "tests/test_mutation_helper_proxy_sanitize.py",
+    "tests/test_error_branches_helper_engine.py",
+    "tests/test_error_branches_helper_proxy.py",
     "tests/test_audit_rotation.py", "tests/test_egress_scripts.py",
     "tests/test_engine_contracts.py", "tests/test_engine_safety.py", "tests/test_schema_read.py",
     "tests/test_fortios_diagnostics.py",
     "tests/test_ssh_wire_safety.py",
     "tests/test_ftp_wire_safety.py",
     "tests/test_cli_errors.py",
+    "tests/test_cli_closed_output.py",
+    "tests/test_proxy_vault_size.py",
     "tests/test_malformed_inputs.py",
     "tests/_test_guard.py", "tests/test_resource_limits.py",
+    "tests/_sandbox_guard.py", "tests/test_sandbox_guard.py",
     "tests/test_runtime_tar_safety.py",
     "tests/test_connection_pacing.py",
     "tests/test_phase1_surface.py",
@@ -308,6 +318,50 @@ def _prepare_output_root(path: Path) -> Path:
     return output_root
 
 
+def _export_documentation_bytes(source: Path, relative: Path) -> bytes:
+    data = _read_regular_bytes(source)
+    if relative.suffix != ".md":
+        return data
+    import posixpath
+    from urllib.parse import quote, unquote, urlsplit
+    project = tomllib.loads(_read_regular_bytes(ROOT / "pyproject.toml").decode("utf-8"))["project"]
+    component = "components/" + project["name"] + "/"
+    prefix = project["urls"]["Homepage"].rstrip("/") + "/blob/" + project["name"] + "/v" + project["version"] + "/"
+    pattern = re.compile(r"(!?\[[^\]\n]*\]\()([^\s)]+)(\))|(?P<ticks>`+).*?(?P=ticks)")
+
+    def replace(match: re.Match[str]) -> str:
+        if match.group(1) is None:
+            return match.group(0)
+        target = urlsplit(match.group(2))
+        if target.scheme or target.netloc or not target.path or target.path.startswith("/"):
+            return match.group(0)
+        path = posixpath.normpath(component + relative.parent.as_posix() + "/" + unquote(target.path))
+        if path.startswith(component):
+            return match.group(0)
+        if path == ".." or path.startswith("../"):
+            raise ReleaseSelectionError("documentation link leaves the repository")
+        suffix = ("?" + target.query if target.query else "") + ("#" + target.fragment if target.fragment else "")
+        return match.group(1) + prefix + quote(path, safe="/") + suffix + match.group(3)
+
+    result: list[str] = []
+    fence: str | None = None
+    for line in data.decode("utf-8").splitlines(keepends=True):
+        marker = re.match(r"^\s*(`{3,}|~{3,})", line)
+        if marker:
+            token = marker.group(1)
+            if fence is None:
+                fence = token
+            elif token[0] == fence[0] and len(token) >= len(fence):
+                fence = None
+            result.append(line)
+            continue
+        if fence is not None:
+            result.append(line)
+            continue
+        result.append(pattern.sub(replace, line))
+    return "".join(result).encode("utf-8")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--output", type=Path, default=ROOT / "dist")
@@ -337,6 +391,7 @@ def main() -> int:
     destination = output_root / f"netops-helper-{VERSION}"
     try:
         destination.mkdir()
+        destination.chmod(0o755)
     except FileExistsError:
         print(
             "release_export=failed detail=destination already exists",
@@ -355,9 +410,9 @@ def main() -> int:
             relative = source.relative_to(ROOT)
             target = destination / relative
             target.parent.mkdir(parents=True, exist_ok=True)
-            target.write_bytes(_read_regular_bytes(source))
+            target.write_bytes(_export_documentation_bytes(source, relative))
             target.chmod(0o755 if relative.as_posix() in SCRIPTS else 0o644)
-    except (OSError, ReleaseSelectionError):
+    except (OSError, ReleaseSelectionError, UnicodeError, ValueError):
         print(
             "release_export=failed detail=public source copy rejected",
             file=sys.stderr,
@@ -390,6 +445,11 @@ def main() -> int:
         return 1
 
     try:
+        # All exported directories must be traversable after packaging,
+        # independently of the private build umask. Files retain explicit modes.
+        for directory in destination.rglob("*"):
+            if stat.S_ISDIR(directory.lstat().st_mode):
+                directory.chmod(0o755)
         from_line = _read_regular_bytes(destination / "Dockerfile").decode(
             "utf-8"
         ).splitlines()[0]

@@ -11,16 +11,26 @@ found and what is expected.
 
 ## The file itself
 
-Before the document is parsed, the path is checked with `lstat`:
+Before the document is parsed, the file is opened once, with `O_NOFOLLOW` and without blocking, and
+everything is judged on that open descriptor (`fstat`), never on the path:
+
+A symbolic link substituted at the vault path before that open is refused too.
+The resulting `VaultError` is the specified refusal; the loader does not follow
+the substituted link to obtain credentials.
 
 | Check | Refusal |
 |---|---|
-| the path is a symbolic link | refused, saying the vault path is a symbolic link; the check happens before the mode is read, so a link to a world-readable file is never opened |
+| the path is a symbolic link | refused, saying the vault path is a symbolic link; `O_NOFOLLOW` refuses the open itself, so a link - to a world-readable file or to anything else - is never opened |
+| the file type | must be a regular file; a directory, a pipe or a device is refused |
+| the owner | must be the effective user of the process; a file of another user is refused, naming both user ids |
+| the hard links | the file must have exactly one name; a second hard link is refused, naming the count |
 | the file mode | must be `0600` or `0400`; any other mode is refused, naming the mode that was found and the two that are accepted |
 
-The file is then opened with `O_NOFOLLOW` and without blocking, checked again on the open descriptor
-to be a regular file, and read no further than `VAULT_MAX_BYTES` (1 MiB, 1048576 bytes) plus one
-byte; a longer file is refused as `larger than 1048576 bytes` before anything is parsed.
+The document is then read from the same descriptor, no further than `VAULT_MAX_BYTES` (1 MiB,
+1048576 bytes) plus one byte; a longer file is refused as `larger than 1048576 bytes` before anything
+is parsed. Because nothing is looked up by name a second time, a file that replaces the vault path
+before the open is the one that is judged, and the replacement of a file after it was opened is never
+read: the opened file then has no name left (0 hard links) and is refused as well.
 
 ## Document
 
@@ -35,11 +45,14 @@ byte; a longer file is refused as `larger than 1048576 bytes` before anything is
 |---|---|---|
 | `kind` | string | one of `KINDS = ("password", "ssh-key", "api-token", "snmp-community")` |
 | `login` | string | **required** for `LOGIN_KINDS = ("password", "ssh-key")` and **forbidden** for `api-token` and `snmp-community`. Both cases are refusals naming the credential and its kind |
-| `value` | string | non-empty. For `ssh-key` it must begin with the private key header line, so a public key or a path pasted by mistake is refused |
+| `value` | string | non-empty. For `ssh-key` it must begin with a private key header line, `-----BEGIN ` plus optional upper-case words plus `PRIVATE KEY-----` and a line break (`OPENSSH PRIVATE KEY`, `RSA PRIVATE KEY`, `EC PRIVATE KEY`, `PRIVATE KEY`, `ENCRYPTED PRIVATE KEY`, ...), so a public key (`PUBLIC KEY`, `SSH2 PUBLIC KEY`, an `ssh-ed25519 ...` line), a certificate or a path pasted by mistake is refused |
 
 An unknown field in an entry is refused, naming the credential and the field.
 
-`login` is a plain user name: no leading `-`, and no `@`, `:`, `/` or whitespace anywhere. A name that
+`login` is a plain user name: no leading `-`, and no `@`, `:`, `/` or whitespace anywhere. Whitespace
+is every character Python's `str.isspace()` answers true for - space, tab, line breaks, vertical tab,
+form feed, `\x1c`-`\x1f`, NEL, no-break space and the Unicode spaces and separators - not only space,
+tab, CR and LF. Leading and trailing whitespace is stripped before the check. A name that
 breaks the rule is refused naming the credential and the character class that is not allowed. The rule
 exists because the login becomes an argument of the SSH client, and a name starting with `-` would be
 read as an option.
@@ -74,6 +87,9 @@ component that needs it.
 | Situation | Refusal |
 |---|---|
 | the path is a symbolic link | named before the mode check |
+| not a regular file | names the path |
+| owned by another user than the effective user of the process | names both user ids |
+| more than one hard link | names the count |
 | mode other than 0600 or 0400 | names the mode found and the accepted ones |
 | `version` missing or not 2 | names the value found and the expected one |
 | unknown `kind` | names the credential and lists the four kinds |
@@ -81,7 +97,7 @@ component that needs it.
 | `login` present for a non-login kind | names the credential and the kind |
 | `login` with `@`, `:`, `/`, whitespace, or a leading `-` | names the credential |
 | empty or non-string `value` | names the credential |
-| `ssh-key` whose value is not a private key text | names the credential |
+| `ssh-key` whose value does not begin with a private key header line | names the credential |
 | unknown field in an entry | names the credential and the field |
 | unknown record name asked for | names the name and lists the known ones |
 

@@ -23,7 +23,8 @@ A device belongs to the helper when its `helper` field is an object. The alias a
 
 | Field | Required | Exact contract |
 | --- | --- | --- |
-| `account_role` | yes | `"read-only"`; any other value is `role_rejected` |
+| `account_role` | yes | `"read-only"`, or `"admin-bounded"` only with `role_boundary: "catalogue"` and an `ssh_platform` without a read-only account (`ruckus_unleashed`); any other value or combination is `role_rejected` |
+| `role_boundary` | only with `admin-bounded` | `"catalogue"`: the account is unrestricted on the device and bounded only by the Helper catalogue; not allowed with `read-only` |
 | `ssh_platform` | yes | a canonical platform name of `netops_core.platforms` (`fortios`, `exos`, `linux`, `cisco_ios`, `cisco_xe`, `cisco_nxos`, `arista_eos`, `juniper_junos`, `juniper_junos_els`, `ruckus_unleashed`) or `null`. An alias such as `fortinet` is refused here; the inventory carries canonical names |
 | `enabled_queries` | yes | an opt-in subset of that platform's catalogue, unique, at most 256 names; empty when `ssh_platform` is `null` |
 | `egress` | yes | exactly the eight fields below |
@@ -96,7 +97,7 @@ A device whose `helper` section is `null` belongs to another component of the fa
 
 ## Credentials and protocol use
 
-The vault is one mode-`600` or mode-`400` regular file holding one JSON object of credential records. A device record is of kind `password` or `ssh-key` and carries the `login`; the SNMP community is a separate record of kind `snmp-community` and carries no login. [`config/vault.example.json`](../config/vault.example.json) shows the three kinds with `replace-me` placeholders.
+The vault is one mode-`600` or mode-`400` regular file holding one JSON object of credential records. The proxy reads at most 1 MiB of it, the limit of `netops_core.vault`; a larger vault is refused as `vault_schema` before it is read whole. A device record is of kind `password` or `ssh-key` and carries the `login`; the SNMP community is a separate record of kind `snmp-community` and carries no login. [`config/vault.example.json`](../config/vault.example.json) shows the three kinds with `replace-me` placeholders.
 
 For a device, the same record authenticates `ssh_read`, `sftp_stat`, and `ftp_list` over either FTPS or plain FTP. The device `port` is only the SSH/SFTP port; the FTP/FTPS control port is the `ftp_list` argument and must also be enrolled in `egress`. The negotiated FTP passive data port must fall in an explicitly enrolled TCP range.
 
@@ -175,7 +176,7 @@ See [Egress control](egress-control.md) for schema-4 generation, review, applica
 
 ## The hidden authentication envelope
 
-The current proxy-to-server envelope has an exact schema and carries exactly: `alias`, `host`, `port`, `login`, `credential_kind`, `secret`, `host_key_fingerprint`, `legacy_ssh`, `account_role`, `ssh_platform`, `enabled_queries`, `read_inventory`, `sftp_roots`, `fortios_output_standard_verified`, `egress`, and `snmp_community` only for `snmp_get`. The removed `known_hosts` and `password` keys are refused as unsupported fields, so an old proxy fails closed instead of half-working. Unknown fields, a legacy envelope, an alias mismatch, and a client-supplied `auth_context` all fail closed.
+The current proxy-to-server envelope has an exact schema and carries exactly: `alias`, `host`, `port`, `login`, `credential_kind`, `secret`, `host_key_fingerprint`, `legacy_ssh`, `account_role`, `ssh_platform`, `enabled_queries`, `read_inventory`, `sftp_roots`, `fortios_output_standard_verified`, `egress`, `role_boundary` only for an `admin-bounded` account, and `snmp_community` only for `snmp_get`. The removed `known_hosts` and `password` keys are refused as unsupported fields, so an old proxy fails closed instead of half-working. Unknown fields, a legacy envelope, an alias mismatch, and a client-supplied `auth_context` all fail closed.
 
 ### Discovery and information exposure
 
@@ -218,7 +219,7 @@ Remote permissions or chroot remain necessary because lexical checks cannot reso
 
 Each proxy process enforces a per-device sliding window before forwarding; two devices that point at the same address have separate windows. The default is 30 device calls per 60 seconds; `requests` is bounded to 1-60 and `window_seconds` to 1-3600. Rate state is process-local, not a distributed device quota.
 
-A valid `ssh_read` continuation with integer `offset > 0` does not consume another device rate slot because it must use an existing in-memory SSH snapshot. Every other device call consumes a slot. Expired or missing continuation state fails and must restart at offset 0.
+A valid `ssh_read` or `schema_read` continuation does not consume another device rate slot: its integer `offset > 0` must be the `next_offset` that this proxy process relayed from the server, within the last 120 seconds, for the same tool, target and arguments (`max_bytes` aside) together with the `content_sha256` of that answer, which the continuation passes. The proxy keeps at most eight such offsets, and each one is free once. Any other continuation - an offset the server never issued, one already used, or one older than 120 seconds - consumes a slot like every other device call. Expired or missing continuation state, a snapshot digest that matches no retained snapshot and a continuation without `content_sha256` fail and must restart at offset 0; the server refuses such a continuation before its audit preflight, so it writes no audit record and reaches no device.
 
 An offset-0 SSH read captures at most 2 MB after sanitization. Output exceeding the capture limit fails rather than silently truncating. A retained SSH snapshot lasts at most 120 seconds, up to eight entries per process; the last page discards it. No other Phase-1 tool has a body snapshot or continuation path.
 
@@ -244,7 +245,7 @@ The exception is named per device, in that device's inventory entry, and nowhere
 
 A profile requires a host key pin: weakening the algorithms of a session whose key is not recognised would make no sense, and the inventory refuses it.
 
-`legacy_ssh` accepts exactly `null` (the default, modern algorithms only), `"rsa-sha1"` or `"rsa-sha1-dh14"`. `"rsa-sha1"` re-enables the `ssh-rsa` host key algorithm for that one device and nothing else. `"rsa-sha1-dh14"` does the same and adds exactly one SHA-1 key exchange, `diffie-hellman-group14-sha1`, for that one device; it exists for classic Cisco IOS switches and routers, which offer no other key exchange (measured on IOSv 15.9(3)M12 and IOSvL2 15.2: `diffie-hellman-group14-sha1`, `diffie-hellman-group1-sha1` and `diffie-hellman-group-exchange-sha1` only, and no command to change it). `diffie-hellman-group1-sha1` and the SHA-1 group exchange stay disabled even there. Any other value, including an algorithm name, fails closed in the inventory loader and in the server's authentication envelope.
+`legacy_ssh` accepts exactly `null` (the default, modern algorithms only), `"rsa-sha1"` or `"rsa-sha1-dh14"`. `"rsa-sha1"` re-enables the `ssh-rsa` host key algorithm for that one device and nothing else. `"rsa-sha1-dh14"` does the same and adds exactly one SHA-1 key exchange, `diffie-hellman-group14-sha1`, for that one device; it exists for classic Cisco IOS switches and routers, which offer no other key exchange (documented IOSv 15.9(3)M12 and IOSvL2 15.2 algorithm profile: `diffie-hellman-group14-sha1`, `diffie-hellman-group1-sha1` and `diffie-hellman-group-exchange-sha1` only, and no command to change it). `diffie-hellman-group1-sha1` and the SHA-1 group exchange stay disabled even there. Any other value, including an algorithm name, fails closed in the inventory loader and in the server's authentication envelope.
 
 There is deliberately no global switch and no list of algorithm names in configuration. A named profile expands to a fixed algorithm set written in the code, so an operator file can never widen the cryptography of a connection beyond what the component already ships and reviewed. Enabling SHA-1 for one target must not enable it for the others, which a global option or an inherited default could not guarantee.
 
@@ -266,7 +267,7 @@ device alone; a target which also offers only SHA-1 key exchange needs "legacy_s
 
 On the `ssh_read` path that message replaces the client's own refusal, which names the offered algorithm but no remedy. It is raised only when the client reports that the algorithm sets do not intersect and the device has no profile yet; an unrelated timeout, an authentication failure, or a wrong host key keeps its own error, and a device that already carries the exception gets the plain failure.
 
-On the SFTP path the message depends on which side reports first. `sftp` is a facade over `ssh`, so when the client reports the failed negotiation the same remedy appears. Measured on 13 September 2026 against a device which offers only `ssh-rsa`, the device closed the connection before the client had evaluated the offer; then standard error carries no algorithm marker and all that is left is the generic failure - a closed connection, exit status 255, no algorithm named. Read an opaque SFTP connection failure against an old target as the same cause and apply the same fix, `legacy_ssh` for that one device; `ssh_read` against the same target usually names it explicitly, so ask the exec channel first.
+A legacy SFTP server can close before the client evaluates its offer, leaving status 255 without a negotiation marker. That opaque refusal does not establish the missing algorithm. Configure an explicit legacy_ssh profile only from independently known device requirements; an exec-channel refusal may provide a more specific reason.
 
 ## Host keys
 
@@ -346,7 +347,7 @@ A server line longer than 32 MiB (33,554,432 bytes including its newline) ends t
 
 At most 64 client requests wait for a server answer at a time. One more is answered at once with `pending_limit` and not forwarded; notifications are not counted. Each forwarded request must be answered within 300 seconds, counted from the moment the proxy accepted it, so time spent queued in the server counts as well.
 
-The proxy no longer trusts the server session and ends it when an answer is overdue (`response_timeout`), when the server sends a line that is not a JSON-RPC object or is longer than 32 MiB (`server_message`), or when an answer carries an id that matches no waiting request, `id: null` included (`unpaired_response`). Ending the session means, in this order: nothing more from that session is relayed; the proxy kills the `ssh` child and waits for it to exit; every waiting request receives `session_terminated`; the credentials, SNMP communities and authentication envelopes kept for redacting that session's answers are released. A late answer from an ended session is discarded unread, so it reaches the client neither redacted nor unredacted. The proxy writes one line to its standard error:
+The proxy no longer trusts the server session and ends it when an answer is overdue (`response_timeout`), when the server sends a line that is not a JSON-RPC 2.0 message (not JSON, not UTF-8, not an object or an array of objects, or an object without the shape of a request, notification or answer; see [Security model](security-model.md#tls-trust-and-untrusted-output)) or is longer than 32 MiB (`server_message`), or when an answer carries an id that matches no waiting request, `id: null` included (`unpaired_response`). Ending the session means, in this order: nothing more from that session is relayed; the proxy kills the `ssh` child and waits for it to exit; every waiting request receives `session_terminated`; the credentials, SNMP communities and authentication envelopes kept for redacting that session's answers are released. A late answer from an ended session is discarded unread, so it reaches the client neither redacted nor unredacted. The proxy writes one line to its standard error:
 
 ```text
 netops_proxy_session category=session_terminated reason=<response_timeout|server_message|unpaired_response|session_start>
@@ -381,6 +382,8 @@ The stock image contains the base image's public CA bundle. `tls_probe` and FTPS
 
 `tls_probe` returns verified certificate metadata only; it sends no HTTP request and reads no application response body. A different `server_name` is accepted only when that canonical name is enrolled in `tls_server_names`.
 
+Helper 0.3.11 sets the TLS probe's minimum protocol version explicitly to at least TLS 1.2. Certificate chain and SAN verification remain required.
+
 For FTPS only, a private image may use an alias-specific pin. Copy the independently reviewed PEM certificate to `config/container/certs/edge-a-cert`, then put only this shape in the private build's `config/container/tls-pins.json`:
 
 ```json
@@ -405,7 +408,7 @@ A global trust anchor affects `tls_probe` and every unpinned FTPS connection in 
 Before starting or restarting the helper, confirm:
 
 - vault mode is `600` or `400` and the transferred bundle mode is exactly `600`;
-- the runner file names a credential of its own and no device entry repeats it, and every helper section has `account_role: "read-only"`;
+- the runner file names a credential of its own and no device entry repeats it, and every helper section has `account_role: "read-only"`, or `account_role: "admin-bounded"` with `role_boundary: "catalogue"` on a platform without a read-only account;
 - device address form, host key pins, DNS results, and egress addresses agree;
 - enabled queries and every typed inventory item are the minimum required;
 - no configuration, backup, secret store, support bundle, or broad log root is exposed;
@@ -438,7 +441,7 @@ VLAN names contain 1-32 ASCII letters, digits, underscores or hyphens, starting 
 
 Add each required query to the target's `enabled_queries` and its exact selector to the matching inventory category. Existing enrollments stay unchanged and gain no automatic access. Controller requests use the enrolled FortiGate connection and its host-key pin; they do not connect directly to the managed switch. No FortiAP query is added in this release.
 
-Live CLI checks on 20-21 September 2026 observed certificate details under a read-only account on FortiOS 8.0.0 and DHCP bindings on EXOS 33.7.1. Three VLANs returned complete detail output through exec and interactive SSH on EXOS 33.7.1; status 250 is preserved, not normalized to zero. FortiOS 8.0.1 returned controller status, PoE, MAC and LLDP data using an administrator account. The tested switch does not support stacking and returned the recognized feature refusal -7622. These are direct CLI observations, not end-to-end MCP verification of the new queries. Restricted controller-profile permissions and positive stacking behavior remain unverified. Deployments must still validate each query with their intended read-only identity, firmware, hardware and output mode; see [read-only accounts](read-only-accounts.md) and the [FortiOS](vendor-cli-references/fortinet-fortios.md#scoped-diagnostic-queries) and [EXOS](vendor-cli-references/extreme-switch-engine.md#scoped-diagnostic-queries) evidence.
+These query entries have distinct firmware, feature and account requirements. Validate each query using the intended role, model, build and output mode; direct CLI shape compatibility does not establish every end-to-end MCP path. Status 250 remains a command status rather than being normalized to zero, and a recognized unsupported-feature reply is device_cli_error. The [role boundary](read-only-accounts.md) and [FortiOS](vendor-cli-references/fortinet-fortios.md#scoped-diagnostic-queries)/[EXOS](vendor-cli-references/extreme-switch-engine.md#scoped-diagnostic-queries) grammars remain authoritative for their exact scope.
 
 ### Optional FortiOS diagnostic grants
 

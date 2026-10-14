@@ -167,6 +167,10 @@ def probe_argv(host, port, timeout_seconds, known_hosts, legacy) -> list:
     name = _checked_host(host)
     number = _checked_port(port)
     seconds = _checked_timeout(timeout_seconds)
+    try:
+        known_hosts = ssh_module._checked_client_path("known_hosts", known_hosts)
+    except ssh_module.SshError as error:
+        raise HostKeyError(str(error)) from None
     options = PROBE_OPTIONS + (
         "UserKnownHostsFile=%s" % known_hosts,
         "ConnectTimeout=%d" % max(1, int(seconds)),

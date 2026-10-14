@@ -1080,8 +1080,8 @@ def assert_audit_statuses(path: Path) -> None:
     records = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()]
     assert records, "the canary run wrote no audit record"
     assert {record["status"] for record in records} <= set(STATUSES), records
-    assert any(
-        record["status"] == "failed" and record.get("detail") == "ValueError" for record in records
+    assert not any(
+        record["event"] == "ssh_read" and record.get("offset") == 1000 for record in records
     ), records
 
 

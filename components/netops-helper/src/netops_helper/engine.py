@@ -539,6 +539,29 @@ def _audit_fields(arguments: dict[str, Any], result: dict[str, Any]) -> dict[str
     return fields
 
 
+def _named_snapshot(value: object) -> bool:
+    return isinstance(value, str) and re.fullmatch(r"[0-9a-f]{64}", value) is not None
+
+
+def _missing_continuation(
+    event: str, auth: TargetAuth, arguments: dict[str, Any],
+) -> str | None:
+    continuation = _CONTINUATIONS.get(event)
+    offset = arguments.get("offset")
+    if continuation is None or type(offset) is not int or offset <= 0:
+        return None
+    key_of, message, unnamed = continuation
+    snapshot = arguments.get("content_sha256")
+    if not _named_snapshot(snapshot):
+        return unnamed
+    try:
+        _validate_pagination(offset, arguments.get("max_bytes"))
+        key = (*key_of(auth, arguments), snapshot)
+    except Exception:
+        return None
+    return message if _load_cached_ssh_output(key) is None else None
+
+
 def _audit_device_call(function: Any) -> Any:
     signature = inspect.signature(function)
     event = function.__name__
@@ -587,6 +610,9 @@ def _audit_device_call(function: Any) -> Any:
         async def async_wrapper(auth: TargetAuth, *args: Any, **kwargs: Any) -> dict[str, Any]:
             bound = signature.bind(auth, *args, **kwargs)
             arguments = dict(bound.arguments)
+            missing = _missing_continuation(event, auth, arguments)
+            if missing is not None:
+                raise ValueError(missing)
             operation_id = preflight(auth, arguments)
             try:
                 result = await function(auth, *args, **kwargs)
@@ -607,6 +633,9 @@ def _audit_device_call(function: Any) -> Any:
     def wrapper(auth: TargetAuth, *args: Any, **kwargs: Any) -> dict[str, Any]:
         bound = signature.bind(auth, *args, **kwargs)
         arguments = dict(bound.arguments)
+        missing = _missing_continuation(event, auth, arguments)
+        if missing is not None:
+            raise ValueError(missing)
         operation_id = preflight(auth, arguments)
         try:
             result = function(auth, *args, **kwargs)
@@ -652,6 +681,14 @@ def _store_cached_ssh_output(key: tuple[Any, ...], rc: int | None, output: str) 
         _SSH_PAGE_CACHE[key] = (time.monotonic() + _SSH_CACHE_TTL_SECONDS, rc, output)
 
 
+def _ssh_read_state(
+    auth: TargetAuth, platform: str, query: str, parameters: dict[str, str] | None,
+) -> tuple[str, str, tuple[Any, ...]]:
+    normalized = auth.require_ssh_query(platform, query)
+    normalized, command = render_read_query(normalized, query, parameters, auth.read_inventory)
+    return normalized, command, _ssh_cache_key(auth, normalized, query, parameters)
+
+
 @_audit_device_call
 def ssh_read(
     auth: TargetAuth,
@@ -660,17 +697,18 @@ def ssh_read(
     parameters: dict[str, str] | None,
     offset: int,
     max_bytes: int,
+    content_sha256: str | None = None,
 ) -> dict[str, Any]:
     if not isinstance(platform, str) or not isinstance(query, str):
         raise ValueError("platform and query must be strings")
     offset, max_bytes = _validate_pagination(offset, max_bytes)
-    normalized = auth.require_ssh_query(platform, query)
-    normalized, command = render_read_query(normalized, query, parameters, auth.read_inventory)
+    normalized, command, cache_key = _ssh_read_state(auth, platform, query, parameters)
     transport = _SSH_TRANSPORTS[normalized]
-    cache_key = _ssh_cache_key(auth, normalized, query, parameters)
     pagination_source = "fresh"
     if offset:
-        cached = _load_cached_ssh_output(cache_key)
+        if not _named_snapshot(content_sha256):
+            raise ValueError(_SSH_SNAPSHOT_UNNAMED)
+        cached = _load_cached_ssh_output((*cache_key, content_sha256))
         if cached is None:
             raise ValueError("SSH pagination state expired; restart at offset 0")
         rc, cleaned = cached
@@ -691,6 +729,7 @@ def ssh_read(
                 "query": query, "transport": transport, "rc": rc,
                 "error": "SSH output exceeds the 2000000-byte safety cap",
             }
+    cache_key = (*cache_key, hashlib.sha256(cleaned.encode("utf-8")).hexdigest())
     if _cli_refused(normalized, cleaned):
         with _SSH_CACHE_LOCK:
             _SSH_PAGE_CACHE.pop(cache_key, None)
@@ -789,21 +828,29 @@ def fortios_diagnostics(auth: TargetAuth, recipe: str, address: str, interface: 
             "untrusted_device_output": returned}
 
 
+def _schema_cache_key(
+    auth: TargetAuth, library: Any, path: str, view: str, vdom: str | None, keys: list[str],
+) -> tuple[Any, ...]:
+    return _ssh_cache_key(auth,"fortinet","schema_read",{
+        "path":path,"view":view,"vdom":json.dumps(vdom),"owners":json.dumps(keys),
+        "schema":library.sha256})
+
+
 @_audit_device_call
 def schema_read(
     auth: TargetAuth, path: str, view: str, vdom: str | None,
-    owners: list[str] | None, offset: int, max_bytes: int,
+    owners: list[str] | None, offset: int, max_bytes: int, content_sha256: str | None = None,
 ) -> dict[str, Any]:
     from . import schema_read as reader
     offset,max_bytes=_validate_pagination(offset,max_bytes)
     library=reader.binding(auth)
     keys=[] if owners is None else owners
     reader.selectors(auth,library,path,view,vdom,keys)
-    cache_key=_ssh_cache_key(auth,"fortinet","schema_read",{
-        "path":path,"view":view,"vdom":json.dumps(vdom),"owners":json.dumps(keys),
-        "schema":library.sha256})
+    cache_key=_schema_cache_key(auth,library,path,view,vdom,keys)
     if offset:
-        cached=_load_cached_ssh_output(cache_key)
+        if not _named_snapshot(content_sha256):
+            raise ValueError(_SCHEMA_SNAPSHOT_UNNAMED)
+        cached=_load_cached_ssh_output((*cache_key,content_sha256))
         if cached is None:
             raise ValueError("schema pagination state expired; restart at offset 0")
         rc,cleaned=cached
@@ -828,12 +875,44 @@ def schema_read(
             raise ValueError("schema result exceeds its safety cap")
         source="fresh"
     page=_page_text(cleaned,offset,max_bytes)
+    cache_key=(*cache_key,page["content_sha256"])
     if page["next_offset"] is not None:
         if offset==0:_store_cached_ssh_output(cache_key,rc,cleaned)
     else:
         with _SSH_CACHE_LOCK:_SSH_PAGE_CACHE.pop(cache_key,None)
     return {"ok":True,"target":auth.alias,"platform":"fortinet","query":"schema_read",
             "schema_sha256":library.sha256,"pagination_source":source,**page}
+
+
+def _schema_continuation_key(auth: TargetAuth, arguments: dict[str, Any]) -> tuple[Any, ...]:
+    from . import schema_read as reader
+    path, view, vdom = arguments["path"], arguments["view"], arguments["vdom"]
+    keys=[] if arguments["owners"] is None else arguments["owners"]
+    library=reader.binding(auth)
+    reader.selectors(auth,library,path,view,vdom,keys)
+    return _schema_cache_key(auth,library,path,view,vdom,keys)
+
+
+_SSH_SNAPSHOT_UNNAMED = (
+    "SSH pagination needs the content_sha256 of its first page; restart at offset 0"
+)
+_SCHEMA_SNAPSHOT_UNNAMED = (
+    "schema pagination needs the content_sha256 of its first page; restart at offset 0"
+)
+_CONTINUATIONS = {
+    "ssh_read": (
+        lambda auth, arguments: _ssh_read_state(
+            auth, arguments["platform"], arguments["query"], arguments["parameters"],
+        )[2],
+        "SSH pagination state expired; restart at offset 0",
+        _SSH_SNAPSHOT_UNNAMED,
+    ),
+    "schema_read": (
+        _schema_continuation_key,
+        "schema pagination state expired; restart at offset 0",
+        _SCHEMA_SNAPSHOT_UNNAMED,
+    ),
+}
 
 
 @_audit_device_call
@@ -914,6 +993,7 @@ def tls_probe(auth: TargetAuth, port: int, server_name: str | None) -> dict[str,
     auth.require_tcp_port(port)
     selected_server_name = auth.require_tls_server_name(server_name)
     context = ssl.create_default_context()
+    context.minimum_version = max(context.minimum_version, ssl.TLSVersion.TLSv1_2)
     started = time.monotonic()
     try:
         address = _resolve_target_ipv4(auth)[0]

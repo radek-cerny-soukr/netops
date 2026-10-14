@@ -1,4 +1,5 @@
 import os
+from unittest.mock import Mock
 import pty
 import sys
 import tempfile
@@ -443,3 +444,46 @@ def test_terminal_interrupt_rejects_a_closed_session():
     terminal.host=HOST
     with pytest.raises(SessionError):
         terminal.interrupt()
+
+def test_send_completes_positive_partial_writes(monkeypatch):
+    connection = Session.__new__(Session)
+    connection.host, connection._fd, connection._closed = HOST, 37, False
+    proxy = Mock(wraps=os)
+    proxy.write.side_effect = [2, 2, 1]
+    monkeypatch.setattr(session_module, "os", proxy)
+    connection.send("show")
+    assert [call.args for call in proxy.write.call_args_list] == [
+        (37, b"show\n"), (37, b"ow\n"), (37, b"\n"),
+    ]
+    assert connection._fd == 37 and not connection._closed
+
+
+@pytest.mark.parametrize("progress", [0, -1])
+@pytest.mark.parametrize("partial", [False, True])
+def test_send_refuses_nonpositive_write_without_retry(monkeypatch, progress, partial):
+    connection = Session.__new__(Session)
+    connection.host, connection._fd, connection._closed = HOST, 37, False
+    proxy = Mock(wraps=os)
+    proxy.write.side_effect = ([2] if partial else []) + [
+        progress, AssertionError("write retried after no progress"),
+    ]
+    monkeypatch.setattr(session_module, "os", proxy)
+    with pytest.raises(SessionError) as caught:
+        connection.send("show")
+    assert str(caught.value) == "cannot write to the session to %s (OSError)" % HOST
+    assert [call.args for call in proxy.write.call_args_list] == (
+        [(37, b"show\n"), (37, b"ow\n")] if partial else [(37, b"show\n")]
+    )
+    assert connection._fd == 37 and not connection._closed
+
+
+def test_send_preserves_the_existing_write_error_mapping(monkeypatch):
+    connection = Session.__new__(Session)
+    connection.host, connection._fd, connection._closed = HOST, 37, False
+    proxy = Mock(wraps=os)
+    proxy.write.side_effect = BrokenPipeError("closed synthetic output")
+    monkeypatch.setattr(session_module, "os", proxy)
+    with pytest.raises(SessionError) as caught:
+        connection.send("show")
+    assert str(caught.value) == "cannot write to the session to %s (BrokenPipeError)" % HOST
+    proxy.write.assert_called_once_with(37, b"show\n")

@@ -13,7 +13,8 @@ from netops_core.inputs import InputError, read_regular
 CONFIG_VERSION = 1
 CONFIG_MAX_BYTES = 1024 * 1024
 SAFEGUARD_MAX_SECONDS = 900
-CONFIG_FIELDS = frozenset(("version", "state_dir", "audit_file", "export_status_file", "notify", "limits", "devices"))
+CONFIG_FIELDS = frozenset(("version", "state_dir", "audit_file", "export_status_file", "export_status_require_audit_file",
+                           "notify", "limits", "devices"))
 DEVICE_FIELDS = frozenset((
     "platform", "address", "port", "host_key_fingerprint", "vault", "credential", "firmware",
     "safeguard_seconds", "confirm_margin_seconds", "protected", "legacy_ssh", "accounts", "check_credential",
@@ -68,6 +69,11 @@ class Config:
     notify: Notify | None
     limits: dict
     devices: dict
+    export_status_require_audit_file: bool = False
+
+
+def summary(config) -> dict:
+    return {"export_status_require_audit_file": config.export_status_require_audit_file}
 
 
 def _require(condition, message):
@@ -180,10 +186,13 @@ def load_config(path) -> Config:
     for field, value in given.items():
         limits[field] = _integer(value, field, 1, 10 ** 6)
     export_status = data.get("export_status_file")
+    require_audit_file = data.get("export_status_require_audit_file", False)
+    _require(isinstance(require_audit_file, bool), "export_status_require_audit_file must be true or false")
     return Config(
         state_dir=_absolute(data.get("state_dir"), "state_dir"),
         audit_file=_absolute(data.get("audit_file"), "audit_file"),
         export_status_file=None if export_status is None else _absolute(export_status, "export_status_file"),
         notify=notify, limits=limits,
         devices={name: _device(name, value) for name, value in devices.items()},
+        export_status_require_audit_file=require_audit_file,
     )

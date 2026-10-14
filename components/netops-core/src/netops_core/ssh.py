@@ -59,6 +59,7 @@ REASONS = (
     ("not found", "the remote path is not there"),
 )
 UNKNOWN_REASON = "the client reported a failure this transport does not recognize"
+CLIENT_PATH_MARKS = ("%", "$", '"', "'", "\\")
 OPTIONS = (
     "BatchMode=yes",
     "StrictHostKeyChecking=yes",
@@ -118,6 +119,21 @@ def _checked_host(value) -> str:
     return host
 
 
+def _checked_client_path(name, value) -> str:
+    path = _checked_text(name, value)
+    if any(mark in path for mark in CLIENT_PATH_MARKS) or any(
+        character.isspace() or not character.isprintable() for character in path
+    ):
+        raise SshError(
+            "%s %r cannot be handed to the OpenSSH client, which expands %% and ${...} in the"
+            " paths of its file options, splits UserKnownHostsFile on whitespace and reads quotes"
+            " and backslashes there; the path lies in the temporary directory, so set TMPDIR to a"
+            " directory whose path holds none of %s, no whitespace and no control character"
+            % (name, path, " ".join(CLIENT_PATH_MARKS))
+        )
+    return path
+
+
 def _checked_port(value) -> int:
     if isinstance(value, bool) or not isinstance(value, int) or not 0 < value < 65536:
         raise SshError("port must be a whole number between 1 and 65535, got %r" % (value,))
@@ -126,7 +142,11 @@ def _checked_port(value) -> int:
 
 def _checked_login(value) -> str:
     login = _checked_text("login", value).strip()
-    if login.startswith("-") or any(mark in login for mark in ("@", ":", "/", " ", "\t")):
+    if (
+        login.startswith("-")
+        or any(mark in login for mark in ("@", ":", "/"))
+        or any(character.isspace() for character in login)
+    ):
         raise SshError(
             "login must be a plain user name without @, : or whitespace, got %r" % (value,)
         )
@@ -298,6 +318,13 @@ def _remaining(deadline):
     return max(0.0, deadline - time.monotonic())
 
 
+def _exit_watch(proc):
+    try:
+        return os.pidfd_open(proc.pid)
+    except (AttributeError, OSError):
+        return None
+
+
 def _run_capped(call, max_bytes, *, timeout, env, stdin_bytes):
     deadline = None if timeout is None else time.monotonic() + timeout
     proc = subprocess.Popen(
@@ -325,15 +352,27 @@ def _run_capped(call, max_bytes, *, timeout, env, stdin_bytes):
         err = bytearray()
         open_streams = 2
         overrun = False
+        ended = False
+        exited = None
         selector = selectors.DefaultSelector()
         try:
             selector.register(proc.stdout.fileno(), selectors.EVENT_READ, "out")
             selector.register(proc.stderr.fileno(), selectors.EVENT_READ, "err")
+            exited = _exit_watch(proc)
+            if exited is not None:
+                selector.register(exited, selectors.EVENT_READ, "exit")
             while open_streams and not overrun:
                 remaining = _remaining(deadline)
                 if remaining is not None and remaining <= 0:
                     raise subprocess.TimeoutExpired(call, timeout)
-                for key, _ in selector.select(remaining):
+                ready = selector.select(0 if ended else remaining)
+                if ended and not ready:
+                    break
+                for key, _ in ready:
+                    if key.data == "exit":
+                        selector.unregister(key.fileobj)
+                        ended = True
+                        continue
                     chunk = os.read(key.fileobj, READ_CHUNK)
                     if not chunk:
                         selector.unregister(key.fileobj)
@@ -348,6 +387,8 @@ def _run_capped(call, max_bytes, *, timeout, env, stdin_bytes):
                         err += chunk[: STDERR_MAX_BYTES - len(err)]
         finally:
             selector.close()
+            if exited is not None:
+                os.close(exited)
             proc.stdout.close()
             proc.stderr.close()
         if overrun:
@@ -371,7 +412,8 @@ def _capped_runner(max_bytes):
 
 
 def known_hosts_options(known_hosts) -> tuple:
-    return ("UserKnownHostsFile=%s" % known_hosts, GLOBAL_KNOWN_HOSTS_OPTION)
+    path = _checked_client_path("known_hosts", known_hosts)
+    return ("UserKnownHostsFile=%s" % path, GLOBAL_KNOWN_HOSTS_OPTION)
 
 
 def argv(host, port, login, known_hosts, command, *, identity=None, legacy=None) -> list:
@@ -379,7 +421,7 @@ def argv(host, port, login, known_hosts, command, *, identity=None, legacy=None)
     number = _checked_port(port)
     user = _checked_login(login)
     line = _checked_command(command)
-    _checked_text("known_hosts", known_hosts)
+    _checked_client_path("known_hosts", known_hosts)
     options = OPTIONS if identity is not None else PASSWORD_OPTIONS
     result = [SSH_BINARY, "-F", CONFIG_FILE]
     for option in options + legacy_module.openssh_options(legacy):
@@ -387,7 +429,7 @@ def argv(host, port, login, known_hosts, command, *, identity=None, legacy=None)
     for option in known_hosts_options(known_hosts):
         result.extend(["-o", option])
     if identity is not None:
-        result.extend(["-i", _checked_text("identity", identity)])
+        result.extend(["-i", _checked_client_path("identity", identity)])
     result.extend(["-p", str(number), "%s@%s" % (user, name), line])
     return result
 
@@ -572,6 +614,13 @@ def run_command(
             )
         said = _said(result)
         code = getattr(result, "returncode", None)
+        if isinstance(code, int) and not isinstance(code, bool) and code < 0:
+            raise SshError(
+                "ssh to %s was ended by signal %d before it finished; what it wrote is not an"
+                " answer" % (name, -code),
+                code,
+                said,
+            )
         if (
             isinstance(code, bool)
             or not isinstance(code, int)

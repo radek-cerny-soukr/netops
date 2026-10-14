@@ -109,7 +109,7 @@ def channel_event(device=SECOND_DEVICE, outcome="failed"):
     )
 
 
-def suppression(finding, expires=None, device=DEVICE, author="radek", reason="ticket NET-1"):
+def suppression(finding, expires=None, device=DEVICE, author="operator", reason="ticket NET-1"):
     return Suppression(
         fingerprint=finding.fingerprint(),
         rule_id=finding.rule_id,
@@ -190,7 +190,7 @@ def populated(tmp_path):
         evidence=(("interface", "wan1"), ("services", "https ssh")),
     )
     first = record(opened, (kept, left), started_at=RUN_ONE_AT)
-    opened.accept_baseline(TENANT, DEVICE, first, "radek", "prevzato pri zavedeni", accepted_at=RUN_ONE_AT)
+    opened.accept_baseline(TENANT, DEVICE, first, "operator", "prevzato pri zavedeni", accepted_at=RUN_ONE_AT)
     canary = make_finding(
         rule_id=RULE_DANGLING,
         object_key=OBJECT_CORP,
@@ -625,7 +625,7 @@ def test_finding_detail_carries_the_baseline_record(populated):
     assert detail["object_key"] == OBJECT_POLICY
     assert detail["suppression"] is None
     assert set(detail["baseline"]) == set(query.BASELINE_KEYS)
-    assert detail["baseline"]["accepted_by"] == "radek"
+    assert detail["baseline"]["accepted_by"] == "operator"
     assert detail["baseline"]["accepted_at"] == RUN_ONE_AT
     assert detail["baseline"]["run_id"] == populated.first
 
@@ -641,7 +641,7 @@ def test_finding_detail_carries_the_suppression_and_its_validity(populated):
         now=NOW,
     )
     assert set(detail["suppression"]) == set(query.SUPPRESSION_KEYS)
-    assert detail["suppression"]["author"] == "radek"
+    assert detail["suppression"]["author"] == "operator"
     assert detail["suppression"]["reason"] == "ticket NET-1"
     assert detail["suppression"]["expires"] == "2026-09-19T12:00:00Z"
     assert detail["suppression"]["active"] is True

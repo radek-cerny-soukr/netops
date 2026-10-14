@@ -502,7 +502,7 @@ def _suppressions(capsys, tmp_path, version):
         "device": DEVICE,
         "object_key": finding["object_key"],
         "reason": "ticket NET-1",
-        "author": "radek",
+        "author": "operator",
         "created": "2026-01-01T00:00:00Z",
         "expires": "2036-01-01T00:00:00Z",
     }

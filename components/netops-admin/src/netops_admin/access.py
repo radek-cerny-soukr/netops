@@ -22,6 +22,8 @@ class AccessError(Exception):
 
 
 class DeviceAccess:
+    read_seconds = None
+
     def __init__(self, device):
         self.device = device
         try:
@@ -69,7 +71,8 @@ class DeviceAccess:
         try:
             result = ssh.run_command(
                 address, self.device.port, None, credential, self._host_key(address), command,
-                legacy_ssh=self.device.legacy_ssh, timeout_seconds=QUERY_TIMEOUT_SECONDS,
+                legacy_ssh=self.device.legacy_ssh, timeout_seconds=(
+                    QUERY_TIMEOUT_SECONDS if self.read_seconds is None else min(QUERY_TIMEOUT_SECONDS, self.read_seconds)),
             )
         except ssh.SshError as exc:
             raise AccessError("query failed: %s" % exc) from None
@@ -86,8 +89,8 @@ class DeviceAccess:
     def _login(self, shell, spec) -> bytes:
         _index, data = shell.expect([_login_anchor(spec)], LOGIN_TIMEOUT_SECONDS)
         shell.discard(data)
-        shell.expect(list(spec.ends), LOGIN_TIMEOUT_SECONDS)
-        return data
+        _index, prompt = shell.expect(list(spec.ends), LOGIN_TIMEOUT_SECONDS)
+        return data + prompt
 
     def login_prefix(self, spec) -> bytes:
         try:
@@ -95,7 +98,10 @@ class DeviceAccess:
                 data = self._login(shell, spec)
         except session.SessionError as exc:
             raise AccessError("interactive login failed: %s" % exc) from None
-        return data[:-len(_login_anchor(spec))].rsplit(b"\n", 1)[-1].strip()
+        before, anchor, _after = re.split(rb"[\r\n]", data)[-1].partition(_login_anchor(spec))
+        if not anchor:
+            raise AccessError("the login prompt does not carry the device name")
+        return before.strip()
 
     def apply(self, steps: list, spec) -> int:
         if not HOSTNAME.fullmatch(spec.anchor.decode("ascii", "replace").strip().rstrip(".")):

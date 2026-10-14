@@ -44,13 +44,13 @@ The following first-party configuration guides constrain the typed interface-nam
 | C-NXOS-105-IP-TUNNEL | Nexus 9000 NX-OS 10.5(x): Configuring IP Tunnels | `cisco_nxos` | https://www.cisco.com/c/en/us/td/docs/dcn/nx-os/nexus9000/105x/configuration/interfaces/cisco-nexus-9000-series-nx-os-interfaces-configuration-guide-release-105x/m_configuring_ip_tunnels_9x.html |
 
 
-Besides the Catalyst names, `cisco_ios` and `cisco_xe` accept `Ethernet<slot>/<port>` (abbreviation `Et`, slot and port 0-15, no leading zeros, no subinterface) as a physical interface: the fixed Ethernet ports of Cisco routers and of the IOL and IOL-L2 images are named this way. Measured on 25 September 2026 on IOS-XE 17.18.2 IOL images, whose ports are `Ethernet0/0` to `Ethernet3/3` and where the Catalyst grammar left no port that could be enrolled.
+Besides the Catalyst names, `cisco_ios` and `cisco_xe` accept `Ethernet<slot>/<port>` (abbreviation `Et`, slot and port 0-15, no leading zeros, no subinterface) as a physical interface: the fixed Ethernet ports of Cisco routers and of the IOL and IOL-L2 images are named this way.
 
 The NX-OS neighbor-table command is `show ipv6 neighbor`. The earlier `show ipv6 icmp neighbor` wording was corrected: the 10.5 I-command reference uses the latter prefix for narrower ICMPv6 subcommands, while the operational neighbor table is documented as `show ipv6 neighbor`.
 
-## Live measurements, 25 September 2026
+## Cisco virtual-image compatibility
 
-All three profiles were run query by query against Cisco's virtual images; the per-query tables, the lab and the device configuration are in [Live lab measurements](../../../../docs/lab-measurements-2026-09-25.md#cisco-ios-xe-cisco_xe). The images are not the Catalyst and Nexus 10.5 baselines above, so these runs show what the transport, the account and the parser of these releases do, not that every command exists on the baseline hardware.
+Cisco virtual-image profiles have distinct firmware, privilege, feature and transport boundaries. They do not establish that every command exists on Catalyst or Nexus hardware. See [compatibility boundaries](../../../../docs/compatibility-boundaries.md).
 
 | Profile | Image | Account | Released 0.3.6 | 0.3.7 candidate |
 | --- | --- | --- | --- | --- |

@@ -143,29 +143,64 @@ def prediction(snapshot, port, state):
     return "\n".join(lines) + "\n"
 
 
-def shown(text, port):
+PORT_NUMBER = re.compile(r"[1-9][0-9]*(?::[1-9][0-9]*)?")
+MODE_ROW = re.compile(r"\s+(Untagged|Tagged)\s+(.*?)\s*")
+PORT_ROW = re.compile(r"\s*(\S+)\s+(Untagged|Tagged)\s+(.*?)\s*")
+NAME_LINE = re.compile(r"(\S+)\s*")
+
+
+def _line(line):
+    row = MODE_ROW.fullmatch(line)
+    if row:
+        return None, row[1], row[2]
+    row = PORT_ROW.fullmatch(line)
+    if row:
+        return row[1], row[2], row[3]
+    row = NAME_LINE.fullmatch(line)
+    if row and set(row[1]) != {"-"}:
+        return row[1], None, None
+    return None, None, None
+
+
+def label(text):
+    for line in text.splitlines():
+        identity = _line(line)[0]
+        if identity is not None:
+            return None if PORT_NUMBER.fullmatch(identity) else identity
+    return None
+
+
+def _selected(identity, port, alias):
+    if PORT_NUMBER.fullmatch(identity):
+        if identity != port:
+            raise Rejected(["the check account returned another port"])
+    elif alias is None or identity != alias:
+        raise Rejected(["the check account membership answer names the port by another name than the"
+                        " display string the switch reports for port %s" % port])
+
+
+def shown(text, port, alias=None):
     if "VLAN Name(s)" not in text or "Untagged" not in text:
         raise Rejected(["the check account membership answer is not recognised"])
     modes = {"Tagged": set(), "Untagged": set()}
     current = None
     matched = False
     for line in text.splitlines():
-        row = re.fullmatch(r"\s*(?:(\d+)\s+)?(Untagged|Tagged)\s+(.*?)\s*", line)
-        if row:
-            if row[1] is not None and row[1] != port:
-                raise Rejected(["the check account returned another port"])
-            if row[1] == port:
-                matched = True
+        identity, mode, names = _line(line)
+        if identity is not None:
+            _selected(identity, port, alias)
+            matched = True
+        if mode is not None:
             if not matched:
-                if row[1] is None and not row[3].strip():
+                if not names.strip():
                     continue
                 raise Rejected(["membership answer has no selected port"])
-            current = row[2]
-            names = re.split(r"[,\s]+", row[3])
+            current = mode
+            names = re.split(r"[,\s]+", names)
             if not all(re.fullmatch(r"[A-Za-z][A-Za-z0-9_-]{0,31}", name) for name in names):
                 raise Rejected(["unsupported VLAN name in membership answer"])
             modes[current].update(names)
-        elif matched and line.strip():
+        elif identity is None and matched and line.strip():
             if not current or not re.fullmatch(r"\s+[A-Za-z][A-Za-z0-9_, -]*\s*", line):
                 raise Rejected(["unsupported membership continuation"])
             modes[current].update(re.split(r"[,\s]+", line.strip()))

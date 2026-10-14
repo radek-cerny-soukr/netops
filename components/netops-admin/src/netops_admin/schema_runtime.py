@@ -124,7 +124,7 @@ def read_plan(plan):
     return plan
 
 def build(device,request,text,enrolling=False):
-    if not enrolling and any(key.startswith("netops-enroll-") for operation in request.operations for key in operation["owners"]):
+    if not enrolling and any(key.casefold().startswith("netops-enroll-") for operation in request.operations for key in operation["owners"]):
         raise Rejected(["the enrollment object namespace is reserved"])
     lib,cal=policy(device)
     inner=schema_plan.build(lib,cal,text,request.operations,device.protected)

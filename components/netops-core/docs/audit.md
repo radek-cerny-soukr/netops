@@ -28,10 +28,13 @@ line: a reader can split the file on newlines without parsing it.
 | `status` | when present, one of `STATUSES = ("started", "ok", "failed")` |
 | `operation_id` | when present, matches `op_[0-9a-f]{32}` |
 
-`FIELDS` is `operation_id`, `device`, `status`, `channel`, `request`, `response_sha256`,
-`response_bytes`, `started_at`, `finished_at`, `legacy_ssh`, `detail`, `query`, `platform`, `port`,
-`count`, `item_count`, `offset`, `max_bytes`, `total_bytes`, `returned_bytes`, `path_sha256`,
-`result_sha256`, `use_tls`, `plaintext_acknowledged`, `pagination_source`, `transport`, `rc`.
+`FIELDS` is `channel`, `count`, `detail`, `device`, `finished_at`, `item_count`, `legacy_ssh`, `max_bytes`, `offset`, `operation_id`, `pagination_source`, `path_sha256`, `plaintext_acknowledged`, `platform`, `port`, `query`, `rc`, `recipe`, `request`, `response_bytes`, `response_sha256`, `result_sha256`, `returned_bytes`, `started_at`, `status`, `timeout`, `total_bytes`, `transport`, `use_tls`.
+
+`recipe` and `timeout` are optional diagnostic metadata accepted by the recorder. The
+recorder checks the closed set of field names, plus the `status` and `operation_id`
+constraints above; it does not apply diagnostic recipe or timeout argument validation.
+The calling component validates its inputs before recording them, and supplied values
+must still be JSON serializable. Unknown field names are rejected before any write.
 
 A response is recorded by its length and its SHA-256, never by its content: `response_sha256` and
 `response_bytes` say that the same answer came back twice without the file holding either answer.
@@ -42,9 +45,9 @@ A response is recorded by its length and its SHA-256, never by its content: `res
 |---|---|
 | mode | the file is created with mode 0600 |
 | links | the log, its lock and the log reopened after a rotation are opened with `O_NOFOLLOW` and must be regular files owned by the user of the process with exactly one hard link (rotation renames, it never adds a second link); only then is mode 0600 set, on the open descriptor |
-| durability | each record is written and flushed, and the file is fsynced before the call returns |
+| durability | each record is written with `write(2)` straight to the descriptor, and the file is fsynced before the call returns |
 | exclusion | an advisory `flock` on a stable lock file beside the log covers the size check, the whole rotation and the write, so writers in different processes cannot interleave a line or rotate the same file at once; a `threading.Lock` does the same inside one process |
-| rotation | a segment larger than `segment_bytes` is rotated; `retained_segments` files are kept in total, the active one and `retained_segments - 1` rotated ones, and the oldest is removed |
+| rotation | a segment larger than `segment_bytes` is rotated; `retained_segments` files are kept in total, the active one and `retained_segments - 1` rotated ones, and the oldest is removed. Rotation is a series of renames that loses nothing when it is interrupted: the oldest segment is removed only when every rotated slot is taken; when a slot is free - one that an interrupted rotation emptied - the newer segments move up into it and nothing is removed. The directory is fsynced after the renames |
 
 The lock file is the log's name with a leading dot and a `.lock` suffix - `audit.jsonl` is locked
 through `.audit.jsonl.lock` - so it is never mistaken for a segment and its name does not move when
@@ -54,7 +57,17 @@ every writer goes through this module; it does not protect the log from a proces
 without one.
 
 A write that cannot be completed raises `AuditPersistenceError`: a run whose record cannot be written
-fails rather than continuing unrecorded.
+fails rather than continuing unrecorded. A write that fails part way, for example on a full disk
+(`ENOSPC`) or at a file size limit (`EFBIG`), is first cut back, under the same lock, to the size the
+file had before it began, so no fragment of the refused record stays in front of the next one. A log
+that already ends without a newline - a writer killed in the middle of a record leaves such a fragment -
+receives a newline before the next record: the fragment stays one unreadable line of its own and the
+record after it is still one line.
+
+A process killed in the middle of a rotation leaves a gap: one rotated name, `audit.jsonl.1` for
+example, is missing while the older ones are in place. The next write that rotates finds the lowest
+free slot and only moves the newer segments into it, so after it every segment that was kept before the
+interrupted rotation is still kept, and the oldest is removed only when a later rotation needs its slot.
 
 ## What is refused
 

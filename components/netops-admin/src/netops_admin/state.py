@@ -1,15 +1,19 @@
 from __future__ import annotations
 
 import fcntl
+from contextlib import contextmanager
 import json
 import math
 import os
 import re
 import secrets
 import stat
+import subprocess
+import sys
 import time
 from pathlib import Path
 
+from netops_admin.config import DEVICE_NAME
 from netops_admin.errors import Rejected, StateUnreadable
 from netops_admin.jsontext import parse
 from netops_core.inputs import InputError, read_regular
@@ -30,7 +34,7 @@ OPERATION_FIELDS = ("change_id", "request_id", "device", "status")
 OPERATION_STATUSES = ("running", "finished")
 OPERATION_TEXTS = ("result", "reason", "notification", "audit_delivery", "hostname", "kind", "accounts",
                    "created_at", "request_sha256")
-OPERATION_NUMBERS = ("created_at_epoch", "finished_at_epoch")
+OPERATION_NUMBERS = ("created_at_epoch", "finished_at_epoch", "budget_at_epoch")
 OPERATION_LISTS = ("differences", "postcheck_differences", "final_check_differences")
 SAFE_TEXT = re.compile(r"^[\x20-\x7e]{0,200}$")
 MAX_STATE_BYTES = 16 * 1024 * 1024
@@ -76,6 +80,10 @@ def _block_valid(document) -> bool:
 
 def _directory(path: Path) -> Path:
     path.mkdir(mode=DIRECTORY_MODE, parents=True, exist_ok=True)
+    if not stat.S_ISDIR(path.lstat().st_mode):
+        raise OSError("the state directory is not a physical directory")
+    with _atomic_lock(path):
+        _cleanup_temporaries(path)
     return path
 
 
@@ -87,7 +95,7 @@ def _fsync_directory(path: Path) -> None:
         os.close(descriptor)
 
 
-def write_atomic(path: Path, document) -> None:
+def _write_atomic(path: Path, document) -> None:
     data = (json.dumps(document, sort_keys=True, ensure_ascii=True, indent=1) + "\n").encode("ascii")
     temporary = path.with_name(".%s.%s.tmp" % (path.name, secrets.token_hex(8)))
     descriptor = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL, FILE_MODE)
@@ -106,6 +114,33 @@ def write_atomic(path: Path, document) -> None:
     _fsync_directory(path.parent)
 
 
+
+@contextmanager
+def _atomic_lock(directory):
+    descriptor = os.open(directory, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC)
+    try:
+        fcntl.flock(descriptor, fcntl.LOCK_EX)
+        yield
+    finally:
+        os.close(descriptor)
+
+
+def _cleanup_temporaries(directory):
+    changed = False
+    for path in directory.iterdir():
+        if re.fullmatch(r"\..+\.[0-9a-f]{16}\.tmp", path.name):
+            information = path.lstat()
+            if stat.S_ISREG(information.st_mode) and information.st_uid == os.getuid():
+                path.unlink()
+                changed = True
+    if changed:
+        _fsync_directory(directory)
+
+
+def write_atomic(path: Path, document) -> None:
+    with _atomic_lock(path.parent):
+        _write_atomic(path, document)
+
 def read_json(path: Path):
     try:
         raw = read_regular(path, MAX_STATE_BYTES, follow=False)
@@ -114,6 +149,14 @@ def read_json(path: Path):
     except InputError as error:
         raise ValueError(str(error)) from None
     return parse(raw)
+
+
+def _revision(path: Path):
+    try:
+        information = path.lstat()
+    except FileNotFoundError:
+        return None
+    return information.st_ino, information.st_mtime_ns, information.st_size
 
 
 def _lock_descriptor(path: Path) -> int:
@@ -130,7 +173,9 @@ def _lock_descriptor(path: Path) -> int:
 class Store:
     def __init__(self, root):
         self.root = Path(root)
+        self._held = set()
         try:
+            _directory(self.root)
             self.operations = _directory(self.root / "operations")
             self.requests = _directory(self.root / "requests")
             self.locks = _directory(self.root / "locks")
@@ -141,6 +186,39 @@ class Store:
             raise StateUnreadable(["the state directory cannot be used: %s"
                                    % (getattr(exc, "strerror", None) or type(exc).__name__)]) from None
 
+    def budget_now(self):
+        try:
+            return self._budget_now()
+        except (OSError, ValueError, subprocess.SubprocessError) as error:
+            raise StateUnreadable(["the host budget clock cannot be read: %s" % type(error).__name__]) from None
+
+    def _budget_now(self):
+        if sys.platform == "darwin":
+            boot = subprocess.run(["/usr/sbin/sysctl", "-n", "kern.bootsessionuuid"],
+                                  capture_output=True, text=True, timeout=2, check=True).stdout.strip()
+        else:
+            boot = Path("/proc/sys/kernel/random/boot_id").read_text().strip()
+        if not re.fullmatch(r"[0-9A-Fa-f-]{36}", boot):
+            raise StateUnreadable(["the host boot identity cannot be read for change budgets"])
+        descriptor = _lock_descriptor(self.root / ".budget-clock.lock")
+        try:
+            fcntl.flock(descriptor, fcntl.LOCK_EX)
+            path = self.root / "budget-clock.json"
+            anchor = read_json(path)
+            now = time.monotonic()
+            if anchor is not None and (not isinstance(anchor, dict) or set(anchor) != {"boot", "epoch", "monotonic"}
+                                       or not isinstance(anchor["boot"], str) or not re.fullmatch(r"[0-9A-Fa-f-]{36}", anchor["boot"]) or not _number(anchor["epoch"])
+                                       or not _number(anchor["monotonic"])):
+                raise self.unreadable(path)
+            if anchor is None or anchor["boot"] != boot:
+                anchor = {"boot": boot, "epoch": time.time(), "monotonic": now}
+                write_atomic(path, anchor)
+            if now < anchor["monotonic"]:
+                raise StateUnreadable(["the host monotonic clock moved backwards for change budgets"])
+            return anchor["epoch"] + now - anchor["monotonic"]
+        finally:
+            os.close(descriptor)
+
     def check_writable(self) -> None:
         probe = self.root / (".write-probe-%s" % secrets.token_hex(8))
         try:
@@ -150,7 +228,9 @@ class Store:
             raise Rejected(["the journal cannot be written durably: %s" % exc.strerror]) from None
 
     def lock(self, device: str):
-        return DeviceLock(self.locks / ("%s.lock" % device))
+        if not isinstance(device, str) or DEVICE_NAME.fullmatch(device) is None:
+            raise Rejected(["the device name of the journal cannot name a lock"])
+        return DeviceLock(self.locks / ("%s.lock" % device), self._held, device)
 
     def admission(self):
         return AdmissionLock(self.root / ADMISSION_LOCK)
@@ -171,7 +251,7 @@ class Store:
         return document
 
     def request(self, request_id: str):
-        if not isinstance(request_id, str) or not REQUEST_NAME.match(request_id):
+        if not isinstance(request_id, str) or not REQUEST_NAME.fullmatch(request_id):
             return None
         path = self.requests / ("%s.json" % request_id)
         document = self._document(path, REQUEST_FIELDS)
@@ -194,6 +274,29 @@ class Store:
 
     def save(self, record: dict) -> None:
         write_atomic(self.operations / ("%s.json" % record["change_id"]), record)
+
+    def update(self, change_id: str, change):
+        record = self.operation(change_id)
+        if record is None:
+            return None
+        if record["device"] in self._held:
+            return self._updated(change_id, change)
+        with self.lock(record["device"]):
+            return self._updated(change_id, change)
+
+    def _updated(self, change_id: str, change):
+        path = self.operations / ("%s.json" % change_id)
+        with _atomic_lock(self.operations):
+            record, revision = self._operation(path), _revision(path)
+        if record is None:
+            raise self.unreadable(path)
+        if not change(record):
+            return record
+        with _atomic_lock(self.operations):
+            if _revision(path) != revision:
+                raise Rejected(["the journal record %s changed during the update; nothing was saved" % change_id])
+            _write_atomic(path, record)
+        return record
 
     def running(self, device: str) -> list:
         found = []
@@ -267,14 +370,24 @@ class Store:
     def block(self, device: str, change_id: str, reason: str) -> None:
         write_atomic(self.blocks / ("%s.json" % device), {"device": device, "change_id": change_id, "reason": reason})
 
-    def unblock(self, device: str) -> bool:
-        return self._removed(self.blocks / ("%s.json" % device))
+    def unblock(self, device: str, expected) -> bool:
+        path = self.blocks / ("%s.json" % device)
+        with _atomic_lock(self.blocks):
+            current = self._document(path, valid=_block_valid)
+            if current is None:
+                return False
+            if current != expected:
+                raise Rejected(["the block of device %s changed while it was being lifted (now: %s, operation %s);"
+                                " nothing was removed, a person must check the new block"
+                                % (device, current.get("reason"), current.get("change_id") or "none")])
+            return self._removed(path)
 
 
 class DeviceLock:
-    def __init__(self, path: Path):
+    def __init__(self, path: Path, held=None, name=None):
         self.path = path
         self.descriptor = None
+        self.held, self.name = held, name
 
     def __enter__(self):
         self.descriptor = _lock_descriptor(self.path)
@@ -284,9 +397,13 @@ class DeviceLock:
             os.close(self.descriptor)
             self.descriptor = None
             raise Rejected(["another operation holds the device lock"]) from None
+        if self.held is not None:
+            self.held.add(self.name)
         return self
 
     def __exit__(self, *exc_info):
+        if self.held is not None:
+            self.held.discard(self.name)
         if self.descriptor is not None:
             fcntl.flock(self.descriptor, fcntl.LOCK_UN)
             os.close(self.descriptor)

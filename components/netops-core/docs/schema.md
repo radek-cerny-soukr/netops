@@ -4,11 +4,11 @@
 
 Core 0.2.8 supplies the standard-library-only `netops_core.fortios` parser and `netops_core.schema` runtime. Auditor keeps its existing `l1_fortios` import interface through the shared parser. Helper and Admin use the same schema identities and configuration instance traversal.
 
-Operators provide measured libraries separately and pin their bytes. This archive does not contain a complete vendor schema catalogue or the lab measurement/calibration tools.
+Operators supply version-bound schema libraries separately and pin their bytes. This archive contains neither a complete vendor schema catalogue nor schema-generation/calibration utilities.
 
 ## Library contract
 
-`load(path, expected_sha256=...)` reads a bounded regular UTF-8 JSON file, rejects duplicate fields, nonfinite values and invalid metadata, checks the supplied SHA-256, and returns a `Library`. Format 1 requires `platform: "fortios"`, `hardware`, `os_version`, `build` and a `config` mapping of measured paths.
+`load(path, expected_sha256=...)` reads a bounded regular UTF-8 JSON file, rejects duplicate fields, nonfinite values (the literals `NaN`, `Infinity` and `-Infinity`, and a number such as `1e999` that overflows to infinity) and invalid metadata, checks the supplied SHA-256, and returns a `Library`. Format 1 requires `platform: "fortios"`, `hardware`, `os_version`, `build` and a `config` mapping of measured paths.
 
 A node is a `table` or `section`, with `scope`, `available` and `attrs`. Scope and availability may be unknown. Attributes may carry measured types, options, bounds, byte lengths, multiplicity and reference metadata. Unresolved or missing built-in reference measurements remain explicit. Metadata validates the library's representation; it does not prove a vendor measurement was performed correctly.
 
@@ -18,7 +18,7 @@ The `identity` property of `Library` is the exact `(hardware, os_version, build)
 
 An attribute may carry measured visibility `conditions`. Core validates their shape when it loads a library and does not evaluate them. A library with an unknown field, a repeated clause, a dependency cycle or a shape beyond the limits is refused.
 
-- `any_of` holds 1–64 alternative clauses. Optional `measured_on` is a label, `measured_contexts` lists the contexts (`global` or `vdom:<name>`) in which the condition was measured, and `evidence_sha256` names the measurement evidence.
+- `any_of` holds 1–64 alternative clauses. Optional `measured_on` is an evidence label; `measured_contexts` lists the scoped contexts (`global` or `vdom:<name>`) for the condition, and `evidence_sha256` binds the supporting evidence bytes.
 - A local clause tests another attribute of the same object, `{"when": "type", "equals": "dynamic"}`, optionally with the recorded `baseline` and `hidden_by` values.
 - `{"all_of": [...]}` requires all of its 1–16 clauses. Clauses nest at most 8 levels deep and one condition holds at most 256 clauses.
 - A reference clause tests an attribute of the object that a reference attribute of the same object names:
@@ -47,4 +47,4 @@ The parser handles FortiOS escaping, quoted backslashes, multiline values and th
 - Admin additionally requires pinned rollback calibration, grants, independent checks and an on-device safeguard. A new library digest inherits no old write grant. Admin evaluates local and reference conditions against the same pinned snapshot in the exact measured context; an unknown result refuses the change and a satisfied condition grants nothing.
 - Model/licence-specific availability, conditional visibility, reference targets and generated identities require actual measurement. VM evidence is not a grant for physical hardware. Library data and device responses remain untrusted inputs.
 
-See the component READMEs for schema reads, scoped audit and calibrated transaction setup, and [verified support](https://github.com/radek-cerny-soukr/netops/blob/main/docs/verified-support.md#candidate-validation-3-4-october-2026) for the measured scope.
+See the component READMEs for schema reads, scoped audit and calibrated transaction setup, and [verified support](https://github.com/radek-cerny-soukr/netops/blob/main/docs/verified-support.md#fortios-bounds) for the model/build and permission boundaries.

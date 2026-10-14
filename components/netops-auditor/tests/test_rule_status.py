@@ -23,7 +23,7 @@ MEMBERSHIP = ("exos.management.port-policy", "exos.management.port-native")
 
 
 def exos(capsys, tmp_path, text, policy=None, store=None, name="sw.conf"):
-    argv = run_args(write_config(tmp_path, text, name=name), as_json=True, platform="exos", device="sw1", store=store)
+    argv = run_args(write_config(tmp_path, text, name=name), as_json=True, platform="exos", device="sw-example", store=store)
     if policy is not None:
         path = tmp_path / "policy.json"
         path.write_text(json.dumps(dict({"version": 1, "platform": "exos"}, **policy)))
@@ -284,10 +284,10 @@ def test_k6_status_of_a_stored_run_with_an_unevaluated_catalog_is_incomplete(tmp
     from netops_auditor import query
     store = tmp_path / "audit.sqlite"
     exos(capsys, tmp_path, UPM_ACTIVE + UPM_BODY, store=store)
-    code, out, _ = invoke(capsys, ["status", "--tenant", TENANT, "--device", "sw1", "--store", str(store), "--json"])
+    code, out, _ = invoke(capsys, ["status", "--tenant", TENANT, "--device", "sw-example", "--store", str(store), "--json"])
     assert code == 1 and json.loads(out)["state"] == "incomplete"
     with Store(store) as db:
-        status = query.audit_status(db, TENANT, "sw1", now=datetime.now(timezone.utc))
+        status = query.audit_status(db, TENANT, "sw-example", now=datetime.now(timezone.utc))
     assert status["devices"][0]["state"] == "incomplete"
     assert set(status["devices"][0]["rule_status"]) == EXOS_RULES
 

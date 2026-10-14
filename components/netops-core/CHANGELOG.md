@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.2.9 - 2026-10-14
+
+- The audit recorder rolls back failed record writes and keeps subsequent records on separate lines. Interrupted log rotation retains the available history.
+- When an audit-file write reports that it wrote no bytes, Core now fails through its existing error and rollback path instead of retrying forever; positive partial writes still complete.
+- PTY session writes that report no progress now fail through the existing SessionError path rather than retrying indefinitely.
+- Prompt cleaning splits captured answer text only on LF, preserving other line separators and carriage returns in the text. SSH, vault, inventory and remote-path validation also reject additional malformed or unsafe inputs.
+- Hosts supported: Linux.
+- Core audit and prompt documentation now clarify the diagnostic metadata allowlist and the one-shot prompt input boundary.
+- Add regression coverage for parent and child failures during PTY process startup.
+- Clarify diagnostic audit metadata and the supported one-shot prompt input contract.
+- Cover parent, child exec failure, unexpected exec return and PTY fork failure paths with ordinary unit tests.
+- Clarify the expected refusal when a symbolic link replaces the vault path before it is opened.
+
 ## 0.2.8 - 2026-10-11
 
 - Refuse reference visibility clauses whose source or target context disagrees with the measured table scope.
@@ -41,14 +54,14 @@
 - Pin the host key exclusively. The `argv()` of the `ssh`, `sftp` and `session` modules passed only `UserKnownHostsFile` with the pinned line, so OpenSSH still read `/etc/ssh/ssh_known_hosts` and `/etc/ssh/ssh_known_hosts2` beside it and accepted a host key listed there instead of the pin. Each vector now carries `GlobalKnownHostsFile=/dev/null` right after the pin; both options come from the new `known_hosts_options()` of the `ssh` module. The host key probe already set it. A test resolves every built vector (key and password, with and without a legacy profile) through `ssh -G`.
 - Never open the audit log or its lock through a symbolic link. `Recorder` followed a link in place of the log or of `.<log>.lock`, appended to the target of the link and set its mode to 0600. Both are now opened with `O_NOFOLLOW` and must be regular files owned by the user of the process with exactly one hard link, so a second name of another file in place of the log or the lock is refused as well; mode 0600 is set on the open descriptor, the rotation size is read from it, and the log reopened after a rotation is checked the same way. A symbolic or hard link, another file type or another owner raises `AuditPersistenceError` and leaves the target untouched.
 - Never repeat a value that may be a misplaced secret in an error. `Vault.credential()` no longer names the reference it was given (`unknown credential 'x'`): the message says that the reference names no record of the credential store and lists the known names; a caller can name the position with the new keyword `where` (for example `device fw-a: credential`). A vault `login` that starts with `-` or contains `@`, `:`, `/` or whitespace is refused without the value (`user:password` was printed). The inventory reports the type, not the value, of a `credential` that is not a non-empty string, of an `auditor` or `helper` section that is not an object, of a device that is not an object, of `devices` that is not a list and of a document that is not an object; each of them could carry a credential reference or a pasted secret. Device names, addresses, ports and the other scalar fields are still shown.
-- Candidate Core paths were exercised through Helper/Admin on FortiGate-VM64-KVM 7.6.7 build3704 and 8.0.0 build0167 and through Helper on vJunos-switch 26.2R1.7 in early October 2026. Synthetic security regressions establish their tested cases; they do not prove every device or compromised-server path. See [current candidate validation](../../docs/verified-support.md#candidate-validation-3-4-october-2026).
+- Schema identity checks and component enrollment remain bound to their exact model, version and build. FortiOS software-image and virtual Junos scopes do not establish physical forwarding or every compromised-server path. See [generic platform boundaries](https://github.com/radek-cerny-soukr/netops/blob/main/docs/verified-support.md#operator-responsibility).
 - Documentation: distinguish GitHub releases from separately verified PyPI publication instead of assuming that every Core version is available through both channels.
 
 ## 0.2.5 - 2026-09-26
 
-- Scan the host key one key type at a time (`ssh-keyscan -t ed25519`, then `ecdsa`, then `rsa`) and stop at the pinned key. Without `-t`, `ssh-keyscan` opened one connection per key type at once; on IOS-XE 17.18.2 images with five VTY lines the SSH connection that followed was reset, every time through OpenSSH 10.0p2. `ssh-keyscan -t` exits 1 for a type the device lacks, so an answer without a key line moves on to the next type; the attempts share the original timeout. Checked live against FortiOS 7.6.7 and 8.0, ExtremeXOS 33.7.1, cEOS-lab 4.36.1F, vJunos-switch 26.2R1.7 and IOS-XE 17.18.2. `keyscan_argv` takes an optional `key_type`.
+- Scan the host key one type at a time (`ssh-keyscan -t ed25519`, then `ecdsa`, then `rsa`) and stop at the pinned key. Parallel type scans can exceed a device's connection limit. An unavailable type's exit 1/comment-only answer advances to the next type, and all attempts share the original timeout. `keyscan_argv` takes an optional `key_type`.
 - Count a scan answer only when it holds a line that is not a comment. The OpenSSH 10.0p2 `ssh-keyscan` writes its `# <host>:<port> SSH-2.0-...` comment to standard output even when the device has no key of the requested type (9.2p1 wrote it to standard error); taken for an answer with a failing status, it refused IOS-XE and NX-OS devices whose only key is RSA.
-- Add the per-device `legacy_ssh` profile `rsa-sha1-dh14` for classic Cisco IOS, which offers only SHA-1 key exchange (measured on IOSv 15.9(3)M12 and IOSvL2 15.2): the `rsa-sha1` options and exactly `KexAlgorithms=+diffie-hellman-group14-sha1`, for the one device that names it. `netops_core.hostkey.scan(..., legacy=...)` reads the host key of such a device with one unauthenticated `ssh` connection into a private temporary known-hosts file, since `ssh-keyscan` cannot offer a SHA-1 key exchange; the pin check is unchanged.
+- Add the per-device `legacy_ssh` profile `rsa-sha1-dh14` for classic Cisco IOS, which offers only SHA-1 key exchange : the `rsa-sha1` options and exactly `KexAlgorithms=+diffie-hellman-group14-sha1`, for the one device that names it. `netops_core.hostkey.scan(..., legacy=...)` reads the host key of such a device with one unauthenticated `ssh` connection into a private temporary known-hosts file, since `ssh-keyscan` cannot offer a SHA-1 key exchange; the pin check is unchanged.
 - Documentation: the SSH transport describes the one-type-at-a-time scan, the comment line of OpenSSH 10.0p2 and the probe of `rsa-sha1-dh14`.
 
 ## 0.2.4 - 2026-09-24
@@ -179,17 +192,16 @@ source and ships no image; it is standard library only and declares no dependenc
   profile of the SSH transport, asked for the metadata of one remote path. The batch is a single
   `ls -ln` written to standard input, never a `-b` file, because `-b` makes the client append
   `BatchMode=yes` to the `ssh` command line and that would disable the askpass program a password
-  needs (measured 17 September 2026, OpenSSH 9.2p1). A directory answers with a count and never
+  needs (OpenSSH 9.2p1 batch-mode behavior). A directory answers with a count and never
   with the names of its entries, and the timestamp is returned as `modified_ls`, the precision of
   `ls`, not a unix modification time (`docs/sftp.md`).
 - Prompt cleaning: the device prompt removed from a one-shot answer by one rule shared by the
   auditor and the helper. The marker is `#` or `$`, because a FortiOS read-only account answers
-  with `$` (measured 17 September 2026, FortiOS 8.0.0); only the first line and trailing lines
+  with `$` on FortiOS 8.0.0; only the first line and trailing lines
   equal to that prompt are touched (`docs/prompt.md`).
 - Interactive session: the same client on a pseudo-terminal with `expect` and `send`, for devices
   without an exec channel or with a login inside the shell; errors carry counts, never the transcript.
-  Measured against a FortiOS, an ExtremeXOS and a Ruckus Unleashed device (`docs/ssh.md`,
-  `docs/session.md`).
+  The shared exec transport and interactive-session path keep their documented platform and account boundaries (`docs/ssh.md`, `docs/session.md`).
 - Audit record: one JSON line per event, a closed field set including `transport` and `rc`, a
   component name in every record,
   rotation with a fixed number of retained segments, and mode 0600.

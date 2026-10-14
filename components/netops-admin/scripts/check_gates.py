@@ -32,7 +32,7 @@ FILE_RULES = {
             "netops_auditor": frozenset(("collect",)),
         },
     ),
-    "notify.py": (EXECUTION_MODULES | frozenset(("ssl", "urllib.error", "urllib.request")), INPUTS),
+    "notify.py": (EXECUTION_MODULES | frozenset(("ssl", "urllib.error", "urllib.request", "subprocess")), INPUTS),
     "execute.py": (EXECUTION_MODULES, {}),
     "enrollment.py": (EXECUTION_MODULES, {}),
     "exec_fortios.py": (EXECUTION_MODULES, {}),
@@ -43,7 +43,7 @@ FILE_RULES = {
                                          "netops_auditor.state": frozenset(("evaluation_complete",))}),
     "mcp_server.py": (EXECUTION_MODULES | frozenset(("functools", "threading", "typing")),
                       {"fastmcp": frozenset(("FastMCP",)), "fastmcp.exceptions": frozenset(("ToolError",))}),
-    "state.py": (EXECUTION_MODULES | {"math"}, INPUTS),
+    "state.py": (EXECUTION_MODULES | {"math", "subprocess"}, dict(INPUTS, **{"contextlib": frozenset(("contextmanager",))})),
     "audit.py": (EXECUTION_MODULES | {"math"}, INPUTS),
     "config.py": (EXECUTION_MODULES, dict(INPUTS, **{"netops_auditor.management": frozenset(("load_policy",))})),
     "cli.py": (EXECUTION_MODULES, dict(INPUTS, **{"netops_core": frozenset(("schema",))})),
@@ -65,7 +65,7 @@ FILE_RULES = {
 }
 FORBIDDEN_NAMES = frozenset(("eval", "exec", "compile", "__import__", "breakpoint"))
 FORBIDDEN_ATTRIBUTES = frozenset(("system", "popen", "spawnv", "spawnve", "execv", "execve", "fork"))
-DEPENDENCIES = ["netops-auditor==0.2.11", "netops-core==0.2.8"]
+DEPENDENCIES = ["netops-auditor==0.2.12", "netops-core==0.2.9"]
 COMPONENT = "netops-admin"
 PLATFORMS = frozenset(("fortios", "exos"))
 RELEASE_SELECTOR = ("scripts", "create_release_artifacts.py")
@@ -98,7 +98,10 @@ RELEASE_ALLOWED_DOMAINS = ALLOWED_DOMAINS + (
     "sigstore.dev",
 )
 RESERVED_TLDS = frozenset(("example", "invalid", "test", "localhost"))
-ALLOWED_LITERALS = frozenset(("33.7.1.6", "33.6.1.14", "1.3.6.1", "aa:bb:cc:dd:ee:ff"))
+ALLOWED_LITERALS = frozenset((
+    # firmware, BootROM and diagnostics version strings of the golden EXOS captures look like addresses
+    "33.7.1.6", "33.6.1.14", "1.3.6.1", "aa:bb:cc:dd:ee:ff", "1.0.1.9", "2.0.0.6", "255.255.255.255", "31.7.3.37", "32.6.2.68",
+))
 DOCUMENTATION_MAC_PREFIX = "00:00:5e:00:53:"
 
 IPV4_PATTERN = re.compile(

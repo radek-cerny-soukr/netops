@@ -62,7 +62,7 @@ def _section() -> dict:
         "enabled_queries": ["system_status"],
         "read_inventory": {
             "interfaces": [], "services": [],
-            "addresses": ["192.0.2.20", "2001:db8::1"], "switches": ["sw1"],
+            "addresses": ["192.0.2.20", "2001:db8::1"], "switches": ["sw-example"],
         },
         "sftp_roots": ["/safe"],
         "fortios_output_standard_verified": True,
@@ -196,7 +196,7 @@ def check_section_schema_and_consumer_binding(module, directory: Path) -> None:
     proxy = module.Proxy()
     _, section, _ = proxy._target("device-a")
     assert section.egress["tcp_port_ranges"] == [[8000, 8010]]
-    assert section.read_inventory["switches"] == ("sw1",)
+    assert section.read_inventory["switches"] == ("sw-example",)
     assert section.ssh_platform == "fortios"
     assert section.catalog_platform() == "fortinet"
 
@@ -473,7 +473,7 @@ def check_discovery_notifications_and_rate_cost(module, directory: Path) -> None
     scope = emitted[-1]["result"]["structuredContent"]
     assert scope["ssh_platform"] == "fortinet"
     assert scope["egress"] == _egress()
-    assert scope["read_inventory"]["switches"] == ["sw1"]
+    assert scope["read_inventory"]["switches"] == ["sw-example"]
     assert scope["host_key_pinned"] is True
     assert scope["snmp_enrolled"] is True
     assert "https_endpoints" not in scope
@@ -502,8 +502,67 @@ def check_discovery_notifications_and_rate_cost(module, directory: Path) -> None
     for index, (tool, arguments) in enumerate(calls, start=30):
         assert rate_proxy.request(_request(index, tool, arguments)) is not None
     rate = rate_proxy._rate_status("device-a", _section()["rate_limit"])
-    assert rate["used"] == 2
-    assert rate["remaining"] == 28
+    assert rate["used"] == 3
+    assert rate["remaining"] == 27
+
+
+def check_a_continuation_is_free_only_at_an_offset_the_server_issued(
+    module, directory: Path,
+) -> None:
+    _configure(module, directory)
+    proxy = module.Proxy()
+    emitted: list[dict] = []
+    proxy._emit = emitted.append
+    read = {"target": "device-a", "platform": "fortios", "query": "system_status"}
+
+    def used() -> int:
+        return proxy._rate_status("device-a", _section()["rate_limit"])["used"]
+
+    def answer(identifier, next_offset, snapshot="a" * 64) -> None:
+        payload = {"ok": True, "target": "device-a", "offset": 0, "next_offset": next_offset,
+                   "content_sha256": snapshot}
+        proxy.response(json.dumps({"jsonrpc": "2.0", "id": identifier, "result": {
+            "content": [{"type": "text", "text": json.dumps(payload)}],
+            "structuredContent": payload, "isError": False,
+        }}).encode())
+
+    assert proxy.request(_request(1, "ssh_read", {**read, "offset": 0})) is not None
+    assert used() == 1
+    answer(1, 16_000)
+    snapshot_a = {**read, "content_sha256": "a" * 64}
+    assert proxy.request(_request(2, "ssh_read", {**snapshot_a, "offset": 16_000})) is not None
+    assert used() == 1
+    assert proxy.request(_request(3, "ssh_read", {**snapshot_a, "offset": 16_000})) is not None
+    assert used() == 2
+    assert proxy.request(_request(4, "ssh_read", {**snapshot_a, "offset": 1})) is not None
+    assert used() == 3
+    answer(2, None)
+    assert proxy.request(_request(5, "ssh_read", {**snapshot_a, "offset": 32_000})) is not None
+    assert used() == 4
+    assert proxy.request(_request(6, "ssh_read", {**read, "offset": 0})) is not None
+    assert proxy.request(_request(7, "ssh_read", {**read, "offset": 0})) is not None
+    assert used() == 6
+    answer(6, 16_000, "a" * 64)
+    answer(7, 16_000, "b" * 64)
+    for identifier, snapshot in ((8, "c" * 64), (9, "b" * 64), (10, "a" * 64), (11, "a" * 64)):
+        arguments = {**read, "content_sha256": snapshot, "offset": 16_000}
+        assert proxy.request(_request(identifier, "ssh_read", arguments)) is not None
+    assert used() == 8
+    for malformed in ("A" * 64, "a" * 63, 7, None):
+        arguments = {**read, "content_sha256": malformed, "offset": 16_000}
+        assert proxy.request(_request(12, "ssh_read", arguments)) is None
+    assert [item["error"]["data"]["category"] for item in emitted] == ["invalid_params"] * 4
+    emitted.clear()
+    assert used() == 8
+
+    forwarded = sum(
+        proxy.request(_request(100 + index, "ssh_read", {**read, "offset": 1})) is not None
+        for index in range(40)
+    )
+    assert forwarded == 22
+    assert used() == 30
+    refused = [item["error"]["data"]["category"] for item in emitted if "error" in item]
+    assert refused == ["rate_limit"] * 18
 
 
 def check_exact_argument_schema_precedes_auth_rate_and_forward(
@@ -1431,6 +1490,7 @@ def _fake_tools(directory: Path) -> Path:
         path = binaries / name
         path.write_text(source, encoding="utf-8")
         path.chmod(0o755)
+        assert os.access(path, os.X_OK), "fake %s cannot be executed from %s" % (name, binaries)
     return binaries
 
 
@@ -1647,6 +1707,79 @@ def check_server_output_is_never_relayed_unredacted(module) -> None:
     lines = log.getvalue().splitlines()
     assert lines == ["netops_proxy_refused category=server_message"] * len(refused)
     assert to_server == []
+
+
+def _client_strings(value):
+    if isinstance(value, str):
+        yield value
+    elif isinstance(value, dict):
+        for key, child in value.items():
+            yield key
+            yield from _client_strings(child)
+    elif isinstance(value, list):
+        for child in value:
+            yield from _client_strings(child)
+
+
+def check_a_secret_escaped_in_the_text_of_a_result_is_redacted(module) -> None:
+    secrets = ("Comm-0815-x", "Comm\\0815", 'Comm"0815', "Komunita-\u017elu\u0165")
+
+    def unicode_escaped(text: str) -> str:
+        return "".join("\\u%04x" % ord(char) for char in text)
+
+    def answer(identifier, secret: str, encode) -> dict:
+        proxy = module.Proxy()
+        proxy.pending[identifier] = "tools/call"
+        proxy.pending_tools[identifier] = "ssh_read"
+        proxy.pending_deadlines[identifier] = time.monotonic() + 300
+        proxy.response_secrets[identifier] = (DEVICE_SECRET, secret)
+        proxy.session_secrets.update(dict.fromkeys((DEVICE_SECRET, secret)))
+        payload = {
+            "ok": True, "target": "device-a",
+            "untrusted_device_output": "auth failure for '%s' from 192.0.2.9" % secret,
+        }
+        raw = json.dumps({"jsonrpc": "2.0", "id": identifier, "result": {
+            "content": [{"type": "text", "text": encode(payload)}],
+            "structuredContent": payload, "isError": False,
+        }}).encode()
+        with contextlib.redirect_stderr(io.StringIO()):
+            relayed = json.loads(proxy.response(raw))
+        assert proxy.session_open
+        return relayed["result"]
+
+    encoders = (
+        lambda payload: json.dumps(payload, separators=(",", ":"), ensure_ascii=False),
+        lambda payload: json.dumps(payload, separators=(",", ":")),
+        lambda payload: json.dumps(payload, separators=(",", ":")).replace(
+            json.dumps(payload["untrusted_device_output"])[1:-1].split("'")[1],
+            unicode_escaped(payload["untrusted_device_output"].split("'")[1]),
+        ),
+    )
+    for index, secret in enumerate(secrets):
+        for number, encode in enumerate(encoders):
+            result = answer(index * 10 + number, secret, encode)
+            texts = [json.loads(item["text"]) for item in result["content"]]
+            seen = [*_client_strings(texts), *_client_strings(result["structuredContent"])]
+            assert not any(secret in value for value in seen), (secret, number, texts)
+            assert texts[0]["untrusted_device_output"] == (
+                "auth failure for '<REDACTED>' from 192.0.2.9"
+            ), (secret, number, texts)
+            assert result["structuredContent"]["untrusted_device_output"] == (
+                texts[0]["untrusted_device_output"]
+            )
+
+    proxy = module.Proxy()
+    proxy.pending[99] = "tools/call"
+    proxy.pending_tools[99] = "ssh_read"
+    proxy.pending_deadlines[99] = time.monotonic() + 300
+    proxy.session_secrets.update(dict.fromkeys(secrets))
+    clean = {"ok": True, "untrusted_device_output": "a \\ b \" c"}
+    relayed = json.loads(proxy.response(json.dumps({"jsonrpc": "2.0", "id": 99, "result": {
+        "content": [{"type": "text", "text": json.dumps(clean)}],
+        "structuredContent": clean, "isError": False,
+    }}).encode()))
+    text = json.loads(relayed["result"]["content"][0]["text"])
+    assert text["untrusted_device_output"] == clean["untrusted_device_output"]
 
 
 def check_server_requests_to_the_client_are_refused(module) -> None:
@@ -1966,9 +2099,16 @@ def check_an_oversized_client_line_is_refused_whole(module, directory: Path) -> 
     assert [item.get("id") for item in answers[2:]] == [1], answers
 
 
+def _askpass_socket_parent() -> str:
+    parent = tempfile.gettempdir()
+    return parent if len(os.fsencode(parent)) <= 48 else "/tmp"
+
+
 def check_the_proxy_file_runs_as_a_script(module, directory: Path) -> None:
     secret = "askpass-handoff-value"
-    with tempfile.TemporaryDirectory(prefix="netops-helper-test-askpass-", dir="/tmp") as socket_directory:
+    with tempfile.TemporaryDirectory(
+        prefix="netops-helper-test-askpass-", dir=_askpass_socket_parent(),
+    ) as socket_directory:
         name = str(Path(socket_directory) / "socket")
         listener = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         listener.bind(name)
@@ -2413,7 +2553,7 @@ def check_bounded_diagnostic_scope(module):
             raise AssertionError("unenrolled diagnostic request accepted")
 
 
-def main() -> int:
+def main(base: Path | None = None) -> int:
     module = _load_proxy()
     check_bounded_diagnostic_scope(module)
     assert stat.S_IMODE(SCRIPT.stat().st_mode) == 0o755
@@ -2461,13 +2601,14 @@ def main() -> int:
         module.LegacyConfigurationError.category,
     }
     assert len(categories) == 11
-    with tempfile.TemporaryDirectory() as raw:
+    with tempfile.TemporaryDirectory(dir=base) as raw:
         directory = Path(raw)
         check_section_schema_and_consumer_binding(module, directory)
         check_credential_kinds_and_discovery_survive(module, directory)
         check_policy_parity_invalid_corpus(module, directory)
         check_scope_and_no_overinjection(module, directory)
         check_discovery_notifications_and_rate_cost(module, directory)
+        check_a_continuation_is_free_only_at_an_offset_the_server_issued(module, directory)
         check_exact_argument_schema_precedes_auth_rate_and_forward(module, directory)
         check_null_parameters_mean_no_parameters(module, directory)
         check_pre_auth_scope_for_query_slots_paths_and_alias(module, directory)
@@ -2482,6 +2623,7 @@ def main() -> int:
         check_end_to_end_over_a_fake_ssh(module, directory)
         check_a_dead_child_is_reported_while_stdin_stays_open(module, directory)
         check_server_output_is_never_relayed_unredacted(module)
+        check_a_secret_escaped_in_the_text_of_a_result_is_redacted(module)
         check_server_requests_to_the_client_are_refused(module)
         check_client_capabilities_that_invite_server_requests_are_withheld(module)
         check_waiting_requests_are_bounded(module)
@@ -2500,8 +2642,8 @@ def main() -> int:
     return 0
 
 
-def test_dependency_free_proxy_contracts() -> None:
-    assert main() == 0
+def test_dependency_free_proxy_contracts(tmp_path: Path) -> None:
+    assert main(tmp_path) == 0
 
 
 if __name__ == "__main__":

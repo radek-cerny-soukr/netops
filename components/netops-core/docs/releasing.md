@@ -1,8 +1,8 @@
 # Release process
 
 Release tags follow the component scheme `<name>/v<version>`, where `<name>` is the project name
-declared in this component's `pyproject.toml`: this component tags `netops-core/v0.2.8`, and the
-release title is `netops-core 0.2.8`. Tags of another component are never touched by this procedure.
+declared in this component's `pyproject.toml`: this component tags `netops-core/v0.2.9`, and the
+release title is `netops-core 0.2.9`. Tags of another component are never touched by this procedure.
 Publishing a newer version leaves the release page and the tag of earlier versions in place. The canonical origin is
 `https://github.com/radek-cerny-soukr/netops`.
 
@@ -21,7 +21,7 @@ credentials, host keys, or inventory and vault files. The release export is a po
 the component gate also reads the content of every released file and, outside a repository, holds the
 exported tree to exactly the released selection.
 
-## What 0.2.8 releases
+## What 0.2.9 releases
 
 This component releases **from source; it ships no container image**, because it is a library and
 nothing in it runs on its own. The release carries four assets:
@@ -34,8 +34,7 @@ nothing in it runs on its own. The release carries four assets:
 | `netops-core-<version>-release-SHA256SUMS.sigstore.json` | the Sigstore bundle over those checksums |
 
 An image is not planned for a later version either: a component that runs brings its own image and
-takes this library from the tree at build time. The library runs on any Python 3.13 host with nothing
-installed beside the standard library.
+takes this library from the tree at build time. The library runs on any Linux host with Python 3.13 and nothing installed beside the standard library. Linux is the only supported host operating system: the code uses POSIX-only interfaces (`fcntl`, `os.O_NONBLOCK`, `O_NOFOLLOW`), so the console scripts of the auditor, the admin and the helper proxy do not start on Windows.
 
 ### PyPI, a delayed channel
 
@@ -131,4 +130,8 @@ component itself declares none.
 
 After the new release is published and independently verified, update the current-version links in the repository documentation and check every release, tag and download URL against the public release and tag lists. The previous release page, its assets and its tag stay. Removing one is a separate decision that needs explicit authorization for that exact deletion and a local archive of its assets first; other components' releases and tags are never touched.
 
-The 2026-09-20 lock regeneration used Python 3.13.15 and `pip-tools==7.6.1`; the lock header records the command. The matching generator wheel hashes are recorded in the monorepository Helper release procedure.
+The lock-generation toolchain uses Python 3.13.15 and `pip-tools==7.6.1`; the lock header records the command. Matching generator wheel hashes belong to the monorepository Helper release procedure.
+
+## PyPI source distributions and tests
+
+PyPI wheels and source distributions are installation packages. The PyPI sdist is not a standalone pytest test tree: it omits the test-support `conftest.py` and the component's test guard. The Helper sdist also omits `scripts/` and `config/`. Running pytest over an unpacked sdist can therefore fail during collection or lack required test support. Run the documented suite from a repository checkout or the verified GitHub source release archive, with its pinned development dependencies and any required sibling components. The signed GitHub source archive and the PyPI sdist are different artifacts.

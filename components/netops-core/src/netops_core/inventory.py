@@ -3,6 +3,7 @@ from __future__ import annotations
 import ipaddress
 import json
 import re
+import socket
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -142,7 +143,15 @@ def _checked_address(where: str, value):
     labels = value.split(".")
     if labels[-1].isdigit() or any(DNS_LABEL.match(label) is None for label in labels):
         raise _address_refused(where, value)
-    return value
+    try:
+        numeric = socket.inet_ntoa(socket.inet_aton(value))
+    except OSError:
+        return value
+    raise InventoryError(
+        "%s: address must hold the canonical form of the IPv4 literal, got %r, which the resolver"
+        " reads as the address %r and is not a DNS name, expected %r"
+        % (where, value, numeric, numeric)
+    )
 
 
 def _checked_port(where: str, value):

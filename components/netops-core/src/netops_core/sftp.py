@@ -16,7 +16,7 @@ ECHO_PREFIX = "sftp> "
 PROGRESS_PREFIX = "Connected to "
 LISTING_MAX_BYTES = 256 * 1024
 PATH_MAX_CHARS = 2_000
-FORBIDDEN_PATH_MARKS = ('"', "\n", "\r", "\x00")
+FORBIDDEN_PATH_MARKS = ('"', "\\", "\n", "\r", "\x00")
 KIND_FILE = "file"
 KIND_DIRECTORY = "directory"
 KIND_SYMLINK = "symlink"
@@ -65,7 +65,8 @@ def _checked_remote_path(value) -> str:
         )
     if any(mark in path for mark in FORBIDDEN_PATH_MARKS):
         raise SftpError(
-            "remote_path must not carry a quote or a line break: the sftp batch is one line"
+            "remote_path must not carry a quote, a backslash or a line break: the sftp batch is"
+            " one line and the client reads a backslash inside the quotes as an escape"
         )
     if path != path.strip():
         raise SftpError("remote_path must not begin or end with whitespace, got %r" % (value,))
@@ -78,7 +79,7 @@ def argv(host, port, login, known_hosts, *, identity=None, legacy=None) -> list:
     name = ssh_module._checked_host(host)
     number = ssh_module._checked_port(port)
     user = ssh_module._checked_login(login)
-    ssh_module._checked_text("known_hosts", known_hosts)
+    ssh_module._checked_client_path("known_hosts", known_hosts)
     options = ssh_module.OPTIONS if identity is not None else ssh_module.PASSWORD_OPTIONS
     result = [SFTP_BINARY, "-F", CONFIG_FILE]
     for option in options + legacy_module.openssh_options(legacy):
@@ -86,7 +87,7 @@ def argv(host, port, login, known_hosts, *, identity=None, legacy=None) -> list:
     for option in ssh_module.known_hosts_options(known_hosts):
         result.extend(["-o", option])
     if identity is not None:
-        result.extend(["-i", ssh_module._checked_text("identity", identity)])
+        result.extend(["-i", ssh_module._checked_client_path("identity", identity)])
     result.extend(["-P", str(number), "%s@%s" % (user, name)])
     return result
 

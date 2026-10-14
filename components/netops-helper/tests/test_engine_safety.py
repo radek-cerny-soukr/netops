@@ -197,6 +197,25 @@ def test_a_transport_failure_of_the_client_still_refuses(monkeypatch) -> None:
         engine.read_from_device(auth(), "linux", "hostname")
 
 
+def test_a_client_ended_by_a_signal_fails_the_read_without_rc_or_output(monkeypatch) -> None:
+    events: list[str] = []
+
+    def killed(target, platform, command):
+        raise engine.core_ssh.SshError(
+            "ssh to device-a was ended by signal 9 before it finished; what it wrote is not an answer",
+            -9, "partial",
+        )
+
+    monkeypatch.setattr(engine, "read_from_device", killed)
+    monkeypatch.setattr(engine, "record", lambda *args, **kwargs: events.append(kwargs["status"]))
+    engine._SSH_PAGE_CACHE.clear()
+    result = engine.ssh_read(auth(), "fortios", "interface_details", {"interface": "port3"}, 0, 1000)
+    assert result["ok"] is False
+    assert "rc" not in result and "untrusted_device_output" not in result
+    assert not engine._SSH_PAGE_CACHE
+    assert events == ["started", "failed"]
+
+
 def test_the_extreme_exos_read_sends_only_the_query(monkeypatch) -> None:
     captured: list = []
     monkeypatch.setattr(
@@ -275,11 +294,61 @@ def test_ssh_continuation_uses_cache_without_second_login(monkeypatch) -> None:
     first = engine.ssh_read(auth(), "fortios", "interface_details", {"interface": "port3"}, 0, 1000)
     second = engine.ssh_read(
         auth(), "fortios", "interface_details", {"interface": "port3"}, first["next_offset"], 1000,
+        first["content_sha256"],
     )
     assert first["pagination_source"] == "fresh"
     assert second["pagination_source"] == "cached"
     assert second["complete"] is True
     assert len(calls) == 1
+
+
+def test_a_continuation_reads_only_the_snapshot_named_by_its_content_sha256(monkeypatch) -> None:
+    outputs = iter(("A line\n" * 300, "B line\n" * 300))
+    calls: list[str] = []
+    events: list[str] = []
+
+    def fake_read(target, platform, command):
+        calls.append(command)
+        return 0, next(outputs)
+
+    monkeypatch.setattr(engine, "read_from_device", fake_read)
+    monkeypatch.setattr(engine, "record", lambda *args, **kwargs: events.append(kwargs["status"]))
+    engine._SSH_PAGE_CACHE.clear()
+
+    def read(offset: int, snapshot: object = None) -> dict:
+        return engine.ssh_read(
+            auth(), "fortios", "interface_details", {"interface": "port3"}, offset, 1000, snapshot,
+        )
+
+    def refused(offset: int, snapshot: object) -> str:
+        with pytest.raises(ValueError) as caught:
+            read(offset, snapshot)
+        return str(caught.value)
+
+    first_a = read(0)
+    first_b = read(0)
+    assert first_a["content_sha256"] != first_b["content_sha256"]
+    page_a = read(first_a["next_offset"], first_a["content_sha256"])
+    page_b = read(first_b["next_offset"], first_b["content_sha256"])
+    for page, first, other in ((page_a, first_a, "B"), (page_b, first_b, "A")):
+        assert page["pagination_source"] == "cached"
+        assert page["content_sha256"] == first["content_sha256"]
+        assert other not in page["untrusted_device_output"]
+    assert len(calls) == 2
+    assert events == ["started", "ok"] * 4
+    unnamed = "SSH pagination needs the content_sha256 of its first page; restart at offset 0"
+    for snapshot in (None, "", "f" * 63, first_a["content_sha256"].upper(), 0):
+        assert refused(page_a["next_offset"], snapshot) == unnamed
+    expired = "SSH pagination state expired; restart at offset 0"
+    assert refused(page_a["next_offset"], "0" * 64) == expired
+    assert len(calls) == 2 and len(events) == 8
+    last_a = read(page_a["next_offset"], first_a["content_sha256"])
+    assert last_a["complete"] is True and "B" not in last_a["untrusted_device_output"]
+    assert refused(page_a["next_offset"], first_a["content_sha256"]) == expired
+    last_b = read(page_b["next_offset"], first_b["content_sha256"])
+    assert last_b["complete"] is True and "A" not in last_b["untrusted_device_output"]
+    assert not engine._SSH_PAGE_CACHE
+    assert len(calls) == 2 and events == ["started", "ok"] * 6
 
 
 def test_every_device_function_has_audit_wrapper() -> None:

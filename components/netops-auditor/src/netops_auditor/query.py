@@ -6,10 +6,11 @@ from .engine import EVALUATED, NOT_EVALUATED, UNSUPPORTED
 from .findings import SEVERITIES
 from .state import STATE_GONE, STATES, UNEVALUATED_RULES, classify, suppressions_for_device
 from .state import STATE_NOT_EVALUATED, evaluation_complete, last_evaluated, stored_statuses, unevaluated_rules
+from .state import AGE_FRESH, AGE_STALE, age_state
 from .suppressions import MOMENT_FORMAT
 
-STATUS_FRESH = "fresh"
-STATUS_STALE = "stale"
+STATUS_FRESH = AGE_FRESH
+STATUS_STALE = AGE_STALE
 STATUS_NEVER = "never"
 STATUS_INCOMPLETE = "incomplete"
 STATUSES = (STATUS_FRESH, STATUS_STALE, STATUS_NEVER, STATUS_INCOMPLETE)
@@ -325,7 +326,7 @@ def _device_status(store, tenant, device, now, stale_after_hours) -> dict:
     complete = evaluation_complete(stored, statuses)
     return {
         "device": device,
-        "state": (STATUS_STALE if age > stale_after_hours else STATUS_FRESH) if complete else STATUS_INCOMPLETE,
+        "state": age_state(age, stale_after_hours) if complete else STATUS_INCOMPLETE,
         "rule_status": statuses,
         "last_audit": last["started_at"],
         "age_hours": round(age, 2),

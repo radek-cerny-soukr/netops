@@ -15,7 +15,7 @@ document of `netops-core`, file version 2**, and its schema is
 [`../../netops-core/docs/vault.md`](../../netops-core/docs/vault.md). This document ships in the
 `netops-core` archive, not in the auditor archive: that relative path resolves in a repository
 checkout; from a standalone auditor archive the same file is published at
-[`netops-core/v0.2.8`](https://github.com/radek-cerny-soukr/netops/blob/netops-core/v0.2.8/components/netops-core/docs/vault.md).
+[`netops-core/v0.2.9`](https://github.com/radek-cerny-soukr/netops/blob/netops-core/v0.2.9/components/netops-core/docs/vault.md).
 What follows is what the auditor adds to it.
 
 ```json
@@ -35,7 +35,7 @@ What follows is what the auditor adds to it.
 | `credentials` | an object; the key is the record name an inventory entry refers to in `credential` |
 | `credentials.<name>.kind` | one of `password`, `ssh-key`, `api-token`, `snmp-community` |
 | `credentials.<name>.login` | the account name, **required** for `password` and `ssh-key`, **forbidden** for the other two |
-| `credentials.<name>.value` | the secret itself; for `ssh-key` the whole private key text, header line and all, newlines written as `\n` - the example above is a placeholder, and the real shape is in [`../../netops-core/docs/vault.md`](../../netops-core/docs/vault.md) (from a standalone archive, published at [`netops-core/v0.2.8`](https://github.com/radek-cerny-soukr/netops/blob/netops-core/v0.2.8/components/netops-core/docs/vault.md)) |
+| `credentials.<name>.value` | the secret itself; for `ssh-key` the whole private key text, header line and all, newlines written as `\n` - the example above is a placeholder, and the real shape is in [`../../netops-core/docs/vault.md`](../../netops-core/docs/vault.md) (from a standalone archive, published at [`netops-core/v0.2.9`](https://github.com/radek-cerny-soukr/netops/blob/netops-core/v0.2.9/components/netops-core/docs/vault.md)) |
 
 The file is read at mode `0600` or `0400` and at no other mode, and a vault path that is a symbolic
 link is refused before the mode is read.
@@ -77,13 +77,37 @@ agent, and it is started as a module:
 python -m netops_auditor.mcp_server
 ```
 
-It reads the same environment as the command line - the store, the tenant, the catalogue and the
-suppression file - and refuses to start when any of them is missing or of the wrong schema version,
-naming the variable. It needs `fastmcp`, which the auditor does not install itself: the pin lives in
+The required environment variables are `NETOPS_AUDITOR_STORE`, `NETOPS_AUDITOR_TENANT` and
+`NETOPS_AUDITOR_CATALOG`. `NETOPS_AUDITOR_SUPPRESSIONS` is optional; when supplied it must name
+a valid version-2 file bound to that tenant. Missing required variables or invalid supplied
+configuration refuse startup, naming the variable. It needs `fastmcp`, which the auditor does not install itself: the pin lives in
 `requirements-mcp.txt` (`fastmcp==4.0.5`, the version `netops-helper` ships, so both MCP surfaces of
 the family speak one library). Started without it, the module says so in one line and exits with
 status 2 rather than raising an import error. Nothing on this surface writes to a device: the seven
 tools read the store and the catalogue.
+
+## MCP environment
+
+Before launching `python -B -m netops_auditor.mcp_server`, set all three required variables:
+
+| Variable | Value |
+|---|---|
+| `NETOPS_AUDITOR_STORE` | Existing readable SQLite audit store at the current schema version; opened read-only |
+| `NETOPS_AUDITOR_TENANT` | Tenant whose finished audit results the server may read |
+| `NETOPS_AUDITOR_CATALOG` | Catalogue name `fortios` or `exos`, not a filename |
+| `NETOPS_AUDITOR_SUPPRESSIONS` | Optional version-2 suppression file bound to that tenant; unset means no suppressions |
+| `NETOPS_AUDITOR_SCHEMA_REPORTS` | Optional operator manifest for pinned finished schema reports; required only for `schema_report` |
+
+For example, after the CLI has written the store:
+
+```sh
+NETOPS_AUDITOR_STORE=/path/to/audit.sqlite3 \
+NETOPS_AUDITOR_TENANT=demo \
+NETOPS_AUDITOR_CATALOG=fortios \
+python -B -m netops_auditor.mcp_server
+```
+
+The server refuses startup if a required variable is empty, the store cannot be opened read-only at the current schema version, the catalogue is unknown or the supplied suppression file is invalid. It requires the pinned FastMCP runtime. Its seven tools are `audit_status`, `list_rules`, `rule_detail`, `list_findings`, `finding_detail`, `compare` and `schema_report`; none collects a configuration or reaches a device.
 
 ## Suppressions
 
@@ -254,7 +278,7 @@ device, and the `legacy_ssh` exception are in [`inventory.md`](inventory.md); th
 document is in [`../../netops-core/docs/inventory.md`](../../netops-core/docs/inventory.md), which
 ships in the `netops-core` archive, not the auditor archive: from a standalone auditor archive the
 same file is published at
-[`netops-core/v0.2.8`](https://github.com/radek-cerny-soukr/netops/blob/netops-core/v0.2.8/components/netops-core/docs/inventory.md).
+[`netops-core/v0.2.9`](https://github.com/radek-cerny-soukr/netops/blob/netops-core/v0.2.9/components/netops-core/docs/inventory.md).
 
 ## The platform picks the parser and the catalogue
 
@@ -263,8 +287,8 @@ the L1 parser that reads the text and the rule catalogue that is evaluated over 
 
 | `--platform` | what the parser reads | catalogue | rules |
 |---|---|---|---|
-| `fortios` | the tree of `config` / `edit` / `set` / `next` / `end` | `catalog/fortios.json` | 6 |
-| `exos` | the flat list of commands of `show configuration`, one record per command with its line, its module and its tokens | `catalog/exos.json` | 4 |
+| `fortios` | the tree of `config` / `edit` / `set` / `next` / `end` | `catalog/fortios.json` | 25 |
+| `exos` | the flat list of commands of `show configuration`, one record per command with its line, its module and its tokens | `catalog/exos.json` | 9 |
 
 There is no detection: a dump handed to the wrong platform is parsed by the wrong parser, and what
 comes back is findings about commands that are not there rather than an error. The platform of a
@@ -321,7 +345,7 @@ error: suppressions: cannot read suppression file /run/netops/waivers: not a reg
 | `--inventory` | 4 MiB (4194304 bytes) | `netops_core.inventory.INVENTORY_MAX_BYTES` (from netops-core 0.2.6) |
 | `--vault` | 1 MiB (1048576 bytes) | `netops_core.vault.VAULT_MAX_BYTES` (from netops-core 0.2.6) |
 
-The inventory and the vault are read by netops-core; the auditor pins `netops-core==0.2.8`. The limits were introduced in Core 0.2.6 (0.2.5 read them whole).
+The inventory and the vault are read by netops-core; the auditor pins `netops-core==0.2.9`. The limits were introduced in Core 0.2.6 (0.2.5 read them whole).
 
 The output of `merge-sarif` is opened the same way, without blocking, and must be a regular file or
 not exist yet; a pipe nobody reads is refused instead of blocking the command. Every argument must be
@@ -340,6 +364,7 @@ not exist yet. The schema is created and stamped with its version in one write t
 (`BEGIN IMMEDIATE`), so a second process waits for the first and then finds the whole schema; it
 never sees the tables without the version, which it would refuse as schema version 1. Opening a store
 that already holds the whole current schema writes nothing.
+A newly created database file is mode 0600. The auditor does not automatically change permissions on an existing database file.
 
 An SQLite error after the store was opened - another writer that keeps the lock longer than the five
 seconds SQLite waits (`database is locked`), a damaged page (`database disk image is malformed`) -
@@ -350,17 +375,28 @@ traceback:
 error: store audit.sqlite3: database disk image is malformed
 ```
 
+`run` and `collect` write the run, its findings, its rule status, the events of its collection and,
+with `--baseline-accept`, the accepted baseline in one transaction. When that write fails - a store
+error, a lock held past the wait, a refused baseline acceptance - nothing of the run stays in the
+store, and the line ends with `no run was recorded`:
+
+```
+error: store audit.sqlite3: database is locked; no run was recorded
+```
+
 On the MCP surface the same error, an unreadable suppression file and a store that cannot be opened
 are a tool error whose text names the store or the file; the server keeps serving. A tool error
 repeats at most 500 characters of its message, so an oversized argument is not echoed back whole.
 
 ## Exit codes
 
+For a stored device history, the latest audit means the run with the greatest committed run ID, and history is listed by run ID in descending order. The reported rules_version also comes from that latest run ID; wall-clock timestamps do not choose the latest run. Stored channel events are listed in the order they were written as well, newest first. Timestamps are used only to calculate age and to compare the latest run with the `since` boundary of MCP `list_findings` (an older run is never taken instead), and CLI `status` and MCP `audit_status` judge it by the same rule: an age from zero up to the threshold is fresh, a larger one is stale, and a negative age (a future timestamp) is never fresh - it is stale, `status` exits with code 1 and `audit_status` counts the device as stale, however far the clock moves on. An incomplete latest run takes precedence over its age and is reported as incomplete, also with code 1.
+
 | code | when |
 |---|---|
 | `0` | `run` and `collect` finished and every mandatory rule was evaluated; `status` found the last audit fresh |
 | `1` | `status` only: the last audit is older than `--stale-after-hours` (26 by default), or there is none, or the latest audit is incomplete |
-| `2` | the run was refused - a bad argument, an unreadable file, a fail-closed schema, a failed channel, a rule named in `required_rules` that was not evaluated |
+| `2` | the run was refused - a bad argument, an unreadable file, a fail-closed schema, a failed channel, a rule named in `required_rules` that was not evaluated, a `--baseline-accept` of an unevaluated audit, a store that could not take the run; no run is recorded |
 | `3` | `run` and `collect` only: the report was printed (and recorded with `--store`), but at least one mandatory rule was not evaluated - `evaluation_complete` is `false`, see [Rule status](#rule-status) |
 
 **`run` and `collect` return `0` with findings of severity high.** The code says whether the audit
@@ -390,10 +426,12 @@ next to the findings, so that "the rule found nothing" and "the rule could not r
 two different answers:
 
 ```json
+{
 "evaluation_complete": false,
 "rule_status": {
   "exos.management.port-policy": {"status": "not-evaluated", "reason": "unresolved-port-list", "required": false},
   "exos.mgmt.telnet-enabled": {"status": "evaluated", "reason": "", "required": true}
+}
 }
 ```
 
@@ -423,7 +461,11 @@ also carries the older marker `evaluation: "not-evaluated"`, and the run exits w
 management rule that cannot be evaluated refuses the run before the catalogue (`2`), as before.
 
 The earlier findings of a rule that is not evaluated in the latest run are listed in `not_evaluated`,
-never in `gone`, and a suppression of such a rule is not reported as orphaned. The same states are
+never in `gone`, and a suppression of such a rule is not reported as orphaned. This holds for an
+advisory rule as well, whose `not-evaluated` state leaves the run complete: its findings are carried
+from the last complete run that evaluated the rule across the complete runs that did not, so they stay
+in `not_evaluated` for as many such runs as follow, and an absent one becomes `gone` in the first later
+run that evaluates the rule again. The same states are
 recorded in the store (table `rule_status`, written with each run; runs recorded before 0.2.9 carry
 none and are judged by their marker findings alone), and they reach the SARIF run as the device
 properties `rule_status` and `evaluation_complete`, and the read-only MCP surface as `rule_status` of
@@ -458,11 +500,15 @@ section is recognized per platform, and why this is a presence check in which an
 as present, is in [`channels.md`](channels.md).
 
 A FortiOS dump that stops inside a block or inside a quoted value - a `config` or `edit` without its
-`end` or `next`, a quote that is never closed - was cut off on the way, and `collect` reports it the
+`end` or `next`, a quote that is never closed, a last line cut off in the middle of its statement
+such as a bare `set` - was cut off on the way, and `collect` reports it the
 same way: one `<platform>.snapshot.incomplete` finding, the catalogue not evaluated, exit code `3`.
 Its evidence adds `unterminated_line`, the number of the line where the open block or quote starts
 (`missing_count` is then `0` unless a section is missing as well); it still carries no configuration
 text. Before 0.2.9 such a dump ended the run with `error: policy cannot be evaluated (ParseError)`.
+Once the gate has fired the catalogue is not evaluated, so a statement the parser cannot read does
+not refuse the run; a dump that holds every required section and still cannot be parsed ends with
+`cannot parse configuration` (`2`).
 A mandatory management rule of the operator policy still refuses the run (`2`), because a cut-off dump
 evaluates none of them. `run` reads a file it was handed and has no completeness gate; it refuses a
 cut-off file and names the file and the line:
@@ -524,7 +570,8 @@ not findings observed in the latest snapshot. Every finding the two tools return
 `rule_status`, the `status` and `reason` of its rule in the latest run - `not-evaluated` and
 `snapshot-incomplete` for a finding carried across an incomplete snapshot; for a run recorded before
 0.2.9 the state is derived from its marker finding. Baseline acceptance refuses an unevaluated run without
-changing the existing baseline. MCP comparison refuses either unevaluated endpoint. This also
+changing the existing baseline; with `run` or `collect --baseline-accept` the run itself is not
+recorded either (exit code `2`). MCP comparison refuses either unevaluated endpoint. This also
 applies to existing stored runs identified by their incomplete-snapshot or unsupported-scope finding;
 no database migration is needed.
 
@@ -545,3 +592,5 @@ choose, and a rule without a positive and a negative fixture does not enter it -
 The `exos.snmp.default-community` rule now uses a digest of the tokenized community object identity instead of its position in the configuration. Unrelated insertion and reordering preserve its fingerprint. Review a fresh report and recreate affected baseline entries and suppressions after upgrading: version 1 ordinal keys cannot be safely mapped without the original configuration and are not automatically reassigned to new objects.
 
 JSON suppression migration creates its output with owner-only permissions (0600); it never widens the temporary file permissions or replaces an existing destination.
+
+Human-readable finding headers use `fact` and `judgement`. The catalogue, stored data, JSON and MCP `class` values remain `fakt` and `usudek` for compatibility.

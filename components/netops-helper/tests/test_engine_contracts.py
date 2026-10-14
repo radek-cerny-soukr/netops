@@ -25,6 +25,7 @@ from netops_helper.auth import (
     EgressScopeError,
     PolicyScopeError,
     TargetAuth,
+    _normalize_credential,
 )
 from netops_helper.query_catalog import (
     ARISTA_EOS_QUERIES,
@@ -363,6 +364,47 @@ def test_envelope_carries_the_canonical_platform_and_either_credential_kind() ->
         else:
             raise AssertionError(f"unsafe credential envelope was accepted: {tuple(override)}")
 
+
+def test_ssh_key_credentials_accept_complete_private_key_headers() -> None:
+    for label in (
+        "OPENSSH PRIVATE KEY", "RSA PRIVATE KEY", "EC PRIVATE KEY", "DSA PRIVATE KEY",
+        "PRIVATE KEY", "ENCRYPTED PRIVATE KEY",
+    ):
+        for newline in ("\n", "\r\n"):
+            document = f"-----BEGIN {label}-----{newline}" + "fixture-text" * 8
+            assert _normalize_credential("ssh-key", document) == ("ssh-key", document)
+
+
+def test_ssh_key_credentials_refuse_other_document_headers() -> None:
+    for prefix in (
+        "-----BEGIN PUBLIC KEY-----\n",
+        "-----BEGIN CERTIFICATE-----\n",
+        "-----BEGIN \n",
+        "-----BEGIN OPENSSH PRIVATE KEY----- suffix\n",
+        "ordinary text\n",
+    ):
+        document = prefix + "fixture-text" * 8
+        try:
+            _normalize_credential("ssh-key", document)
+        except ValueError:
+            pass
+        else:
+            raise AssertionError("a non-private-key header was accepted")
+
+
+def test_ssh_key_credentials_preserve_utf8_byte_bounds() -> None:
+    header = "-----BEGIN OPENSSH PRIVATE KEY-----\n"
+    for size in (64, 65_536):
+        document = header + "x" * (size - len(header))
+        assert _normalize_credential("ssh-key", document) == ("ssh-key", document)
+    for size in (63, 65_537):
+        document = header + "x" * (size - len(header))
+        try:
+            _normalize_credential("ssh-key", document)
+        except ValueError:
+            pass
+        else:
+            raise AssertionError("an out-of-bounds private-key document was accepted")
 
 def test_query_parameters_do_not_coerce_non_string_values() -> None:
     for platform, query, parameters in (
@@ -968,6 +1010,7 @@ def test_ssh_continuation_cache_uses_absolute_capture_ttl() -> None:
         cache_key = engine._ssh_cache_key(
             target, "fortinet", "interface_details", {"interface": "port3"},
         )
+        cache_key = (*cache_key, first["content_sha256"])
         original_deadline = engine._SSH_PAGE_CACHE[cache_key][0]
         assert original_deadline == clock.now + engine._SSH_CACHE_TTL_SECONDS
 
@@ -979,6 +1022,7 @@ def test_ssh_continuation_cache_uses_absolute_capture_ttl() -> None:
             {"interface": "port3"},
             first["next_offset"],
             1_000,
+            first["content_sha256"],
         )
         assert engine._SSH_PAGE_CACHE[cache_key][0] == original_deadline
         assert first["pagination_source"] == "fresh"
@@ -996,6 +1040,7 @@ def test_ssh_continuation_cache_uses_absolute_capture_ttl() -> None:
                 {"interface": "port3"},
                 second["next_offset"],
                 1_000,
+                first["content_sha256"],
             )
         except ValueError as exc:
             assert str(exc) == "SSH pagination state expired; restart at offset 0"
@@ -1005,11 +1050,97 @@ def test_ssh_continuation_cache_uses_absolute_capture_ttl() -> None:
         assert cache_key not in engine._SSH_PAGE_CACHE
         assert calls == {"connections": 1, "commands": 1}
         assert [event["status"] for event in audit_events] == [
-            "started", "ok", "started", "ok", "started", "failed",
+            "started", "ok", "started", "ok",
         ]
     finally:
         engine._SSH_PAGE_CACHE.clear()
         engine.time = original_time
+        engine.read_from_device = original_connection
+        engine.record = original_record
+        if not engine_was_loaded:
+            sys.modules.pop("netops_helper.engine", None)
+            package = sys.modules.get("netops_helper")
+            if package is not None and getattr(package, "engine", None) is engine:
+                delattr(package, "engine")
+            for name in reversed(injected_module_names):
+                sys.modules.pop(name, None)
+
+
+def test_a_continuation_without_its_snapshot_writes_no_audit_record() -> None:
+    engine_was_loaded = "netops_helper.engine" in sys.modules
+    injected_module_names: list[str] = []
+    if not engine_was_loaded and "icmplib" not in sys.modules:
+        icmplib_stub = types.ModuleType("icmplib")
+        icmplib_stub.ping = lambda *args, **kwargs: None
+        sys.modules["icmplib"] = icmplib_stub
+        injected_module_names.append("icmplib")
+
+    engine = importlib.import_module("netops_helper.engine")
+    target = TargetAuth.decode(
+        "device-a",
+        _context(
+            read_inventory={"interfaces": ["port3"]},
+            fortios_output_standard_verified=True,
+            ssh_platform="fortios",
+            enabled_queries=["interface_details"],
+        ),
+    )
+    reads: list[str] = []
+    audit_events: list[dict[str, object]] = []
+
+    def fake_read(auth: object, platform: str, command: str):
+        reads.append(command)
+        return 0, "x" * 4_000
+
+    def read(offset: int, snapshot: str | None = "0" * 64) -> dict:
+        return engine.ssh_read(
+            target, "fortios", "interface_details", {"interface": "port3"}, offset, 1_000,
+            snapshot,
+        )
+
+    def refused(offset: int, snapshot: str | None = "0" * 64) -> str:
+        try:
+            read(offset, snapshot)
+        except ValueError as exc:
+            return str(exc)
+        raise AssertionError("a continuation without a snapshot was answered")
+
+    original_connection = engine.read_from_device
+    original_record = engine.record
+    engine.read_from_device = fake_read
+    engine.record = lambda event, **fields: audit_events.append(
+        {"event": event, **fields}
+    )
+    engine._SSH_PAGE_CACHE.clear()
+    expired = "SSH pagination state expired; restart at offset 0"
+    try:
+        assert refused(1_000) == expired
+        assert audit_events == [] and reads == []
+        for _ in range(50):
+            assert refused(1_000) == expired
+        assert audit_events == [] and reads == []
+
+        unnamed = "SSH pagination needs the content_sha256 of its first page; restart at offset 0"
+        for snapshot in (None, "", "0" * 63, "A" * 64, 7):
+            assert refused(1_000, snapshot) == unnamed
+        assert audit_events == [] and reads == []
+
+        first = read(0)
+        second = read(first["next_offset"], first["content_sha256"])
+        assert second["pagination_source"] == "cached"
+        assert second["content_sha256"] == first["content_sha256"]
+        assert [event["status"] for event in audit_events] == [
+            "started", "ok", "started", "ok",
+        ]
+        assert audit_events[2]["offset"] == 1_000
+
+        engine._SSH_PAGE_CACHE.clear()
+        for _ in range(50):
+            assert refused(second["next_offset"], first["content_sha256"]) == expired
+        assert len(audit_events) == 4
+        assert len(reads) == 1
+    finally:
+        engine._SSH_PAGE_CACHE.clear()
         engine.read_from_device = original_connection
         engine.record = original_record
         if not engine_was_loaded:
@@ -1322,6 +1453,9 @@ def main() -> int:
     test_envelope_collections_are_canonical_unique_and_control_free()
     test_auth_accepts_every_platform_alias_with_a_known_query()
     test_envelope_carries_the_canonical_platform_and_either_credential_kind()
+    test_ssh_key_credentials_accept_complete_private_key_headers()
+    test_ssh_key_credentials_refuse_other_document_headers()
+    test_ssh_key_credentials_preserve_utf8_byte_bounds()
     test_query_parameters_do_not_coerce_non_string_values()
     test_query_and_egress_capabilities_are_explicit()
     test_catalog_authority_and_platform_aliases_are_exact()
@@ -1336,6 +1470,7 @@ def main() -> int:
     test_vendor_lldp_commands_use_supported_local_read_queries()
     test_phase1_catalog_has_no_configuration_export()
     test_ssh_continuation_cache_uses_absolute_capture_ttl()
+    test_a_continuation_without_its_snapshot_writes_no_audit_record()
     test_phase1_server_and_engine_expose_no_generic_body_reads()
     test_mcp_server_identity_is_the_helper_distribution()
     test_initialize_reports_the_helper_distribution()

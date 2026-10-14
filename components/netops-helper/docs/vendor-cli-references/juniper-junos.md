@@ -52,9 +52,9 @@ The ELS catalogue is an explicit superset of the common catalogue:
 
 These commands must not appear in the common profile merely because a target reports `juniper_junos`.
 
-## Live measurements, 25 September 2026
+## Junos virtual-image compatibility
 
-Both profiles were run query by query through the released helper 0.3.6 and again through the source of helper 0.3.7 deployed as a candidate runner against vJunos-switch 26.2R1.7 (it reports the model `ex9214`), with an account of the built-in login class `read-only` holding an ed25519 key. The per-query tables, the lab and the device configuration are in [Live lab measurements](../../../../docs/lab-measurements-2026-09-25.md#junos-juniper_junos).
+Compatibility is scoped to vJunos-switch 26.2R1.7 and its documented read-only role. LACP, spanning-tree and routing reads depend on the configured features and permissions; a virtual-image profile does not establish behavior for every physical model. See [compatibility boundaries](../../../../docs/compatibility-boundaries.md).
 
 | Profile | Released 0.3.6 | 0.3.7 candidate |
 | --- | --- | --- |

@@ -14,6 +14,7 @@ from typing import Any
 from netops_core.hostkey import HostKeyError, checked_pin
 from netops_core.legacy_ssh import LegacySshError, checked as checked_legacy_ssh
 from netops_core.platforms import PlatformError, normalize as normalize_canonical_platform
+from netops_core.vault import PRIVATE_KEY_HEADER
 
 from .inventory import unique_object
 from .read_policy import (
@@ -53,8 +54,8 @@ class EgressScopeError(PolicyScopeError):
 LEGACY_SSH_PROFILES = ("rsa-sha1", "rsa-sha1-dh14")
 ENVELOPE_VERSION = "0.3.0"
 CREDENTIAL_KINDS = ("password", "ssh-key")
-PRIVATE_KEY_PREFIX = "-----BEGIN "
 _CATALOG_PLATFORMS = {"fortios": "fortinet", "exos": "extreme_exos"}
+ADMIN_BOUNDED_PLATFORMS = frozenset({"ruckus_unleashed"})
 _ENVELOPE_KEYS = {
     "alias",
     "host",
@@ -66,6 +67,7 @@ _ENVELOPE_KEYS = {
     "sftp_roots",
     "read_inventory",
     "account_role",
+    "role_boundary",
     "fortios_output_standard_verified",
     "snmp_community",
     "ssh_platform",
@@ -338,7 +340,7 @@ def _normalize_credential(kind: object, secret: object) -> tuple[str, str]:
     if not isinstance(secret, str) or "\x00" in secret or "\x7f" in secret:
         raise ValueError("secret must be printable text")
     if kind == "ssh-key":
-        if not secret.startswith(PRIVATE_KEY_PREFIX) or not 64 <= len(
+        if PRIVATE_KEY_HEADER.match(secret) is None or not 64 <= len(
             secret.encode("utf-8")
         ) <= 65_536:
             raise ValueError("an ssh-key secret must hold a bounded private key document")
@@ -359,6 +361,7 @@ class TargetAuth:
     sftp_roots: tuple[str, ...] = ()
     read_inventory: dict[str, tuple[str, ...]] = field(default_factory=dict)
     account_role: str = "read-only"
+    role_boundary: str | None = None
     fortios_output_standard_verified: bool = False
     snmp_community: str | None = None
     ssh_platform: str | None = None
@@ -458,6 +461,7 @@ class TargetAuth:
                 sftp_roots=normalized_roots,
                 read_inventory=read_inventory,
                 account_role=account_role,
+                role_boundary=data.get("role_boundary"),
                 fortios_output_standard_verified=verified,
                 snmp_community=snmp_community,
                 ssh_platform=ssh_platform,
@@ -477,8 +481,14 @@ class TargetAuth:
             raise AuthenticationContextError("authentication context has empty required fields")
         if not 1 <= result.port <= 65_535:
             raise AuthenticationContextError("authentication context has invalid port")
-        if result.account_role != "read-only":
-            raise AuthenticationContextError("target is not explicitly enrolled as a read-only account")
+        if (result.account_role, result.role_boundary) != ("read-only", None) and not (
+            result.account_role == "admin-bounded" and result.role_boundary == "catalogue"
+            and result.ssh_platform in ADMIN_BOUNDED_PLATFORMS
+        ):
+            raise AuthenticationContextError(
+                "target is not explicitly enrolled as a read-only account or as an"
+                " admin-bounded account of a platform without one"
+            )
         if (
             result.snmp_community is not None
             and hmac.compare_digest(

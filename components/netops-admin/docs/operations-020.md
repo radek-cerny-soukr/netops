@@ -1,23 +1,25 @@
 # Operations and enrollment
 
-Admin requires enrollment and audits the predicted configuration before each supported operation. Version 0.1.0 was an internal milestone and was never published.
+**Upgrade to 0.2.8:** Admin 0.2.8 changes the profile files and invalidates existing enrollment bindings for every device, including FortiOS and ExtremeXOS. After upgrading, run enrollment again for each device before applying changes. Enrollment uses the change budget.
+
+Admin requires enrollment and audits the predicted configuration before each supported operation.
 
 ## From installation to the first confirmed change
 
-1. Install Core 0.2.8, Auditor 0.2.11 and Admin 0.2.7 as described in [installation](installation.md). Create separate write and check credentials and pin the device SSH host key.
+1. Verify the matching release assets and install Core 0.2.9, Auditor 0.2.12 and Admin 0.2.8 as described in [installation](installation.md). Create separate write and check credentials and pin the device SSH host key.
 2. Configure notification and a working audit exporter. Enrollment requires both. Restrict the device accounts and the admin host network access, and configure protected objects.
 3. Put an operator policy in a local file. Set the device's `audit_policy` to its absolute path in `admin.json`. Requests and MCP tools cannot provide or replace this policy.
 4. Run the appropriate enrollment command with an unused test subnet or VLAN tag:
 
    ```sh
-   netops-admin enroll --config /etc/netops-admin/admin.json --device fw-lab --probe 192.0.2.254/32
-   netops-admin enroll --config /etc/netops-admin/admin.json --device sw-lab --probe 3998
+   netops-admin enroll --config /etc/netops-admin/admin.json --device example-firewall --probe 192.0.2.254/32
+   netops-admin enroll --config /etc/netops-admin/admin.json --device example-switch --probe 3998
    ```
 
    Enrollment creates an unreferenced temporary object, verifies it through the check account, deliberately lets the on-device timer restore the original state, and verifies cleanup and notification. It takes at least the configured safeguard interval. An interrupted or failed run never grants permission to write; investigate, recover if needed, and enroll again.
 5. Before the first change, `netops-admin doctor --config … --device …` lists every condition that is still missing or refused; `netops-admin preview --config … --device … --request …` shows the plan and the reasons `apply` would refuse a request, without changing anything. Submit one request using `apply` or MCP `admin_apply`. Read `result`, `reason`, notification and audit delivery separately. A configuration change marked `confirmed` with `reason: not persisted` requires investigation and blocks further changes. Use `undo` for a confirmed change that should be returned.
 
-Enrollment binds the actual build, pinned device identity, access configuration, account and access-profile fingerprint, operator policy and profile files. Changing these requires another successful test. The enrollment probe namespace `netops-enroll-` is reserved. Enrollment is an operator CLI command, not an MCP tool. FortiOS 7.6.x and EXOS 33.7.x builds still need enrollment individually; FortiOS 8.0.0 is limited to build0167, where the address, address group and DHCP reservation profiles were measured. FortiOS 7.4 and 8.0.1 or later are not supported.
+Enrollment binds the actual build, pinned device identity, access configuration, account and access-profile fingerprint, operator policy and profile files. Changing these requires another successful test. The enrollment probe namespace `netops-enroll-` is reserved in any letter case (`NETOPS-ENROLL-…` too), because the planner compares object names without letter case. Enrollment is an operator CLI command, not an MCP tool. FortiOS 7.6.x and EXOS 33.7.x builds still need enrollment individually; FortiOS 8.0.0 is limited to build0167, where the address, address group and DHCP reservation profiles were measured. FortiOS 7.4 and 8.0.1 or later are not supported.
 
 ## FortiOS command compatibility
 
@@ -25,7 +27,7 @@ The snapshot header selects the actual firmware. A configured `firmware` is an a
 
 | Command family | FortiOS 7.6.x | FortiOS 8.0.0 build0167 |
 |---|---|---|
-| Address `edit`, `set subnet`, `set comment`, `unset comment`, `delete` | Supported; measured on 7.6.7 build3704 | Supported; exact build only |
+| Address `edit`, `set subnet`, `set comment`, `unset comment`, `delete` | Supported on 7.6.7 build3704 | Supported; exact build only |
 | Automation action, one-time scheduled trigger, stitch, readback and removal | Measured timer mechanism | Same measured timer mechanism |
 | Snapshot and object `show`, system status/clock, administrator visibility and session list | Measured check commands | Measured check commands |
 | Static address-group membership | Supported after enrollment | Supported after enrollment; exact build only |
@@ -68,7 +70,7 @@ Group and DHCP profiles are enabled for the measured FortiOS 7.6 family and exac
 
 ## Snapshot comparison boundary
 
-FortiOS can re-encrypt local certificate password/private-key fields on every export ([vendor explanation](https://community.fortinet.com/fortigate-3/technical-tip-constant-changing-of-password-and-encrypted-private-key-value-in-certificate-section-136613)). Lab reads also observed changing encrypted SAE passwords under wireless-controller VAP. The comparison normalizes only ENC payloads in those exact fields, while checking their presence, surrounding configuration and all administrator entries. A change to the plaintext behind these opaque fields cannot be detected from these snapshots. All other encrypted fields remain compared. Do not interpret a matching snapshot as verification of certificate private keys, Wi-Fi secrets or forwarding.
+FortiOS can re-encrypt local certificate password/private-key fields on every export ([vendor explanation](https://community.fortinet.com/fortigate-3/technical-tip-constant-changing-of-password-and-encrypted-private-key-value-in-certificate-section-136613)). Encrypted SAE fields under wireless-controller VAP can change between exports. The comparison normalizes only ENC payloads in those exact fields, while checking their presence, surrounding configuration and all administrator entries. A change to the plaintext behind these opaque fields cannot be detected from these snapshots. All other encrypted fields remain compared. Do not interpret a matching snapshot as verification of certificate private keys, Wi-Fi secrets or forwarding.
 
 ## EXOS timer persistence
 

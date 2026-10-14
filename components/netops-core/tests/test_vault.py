@@ -535,3 +535,160 @@ def test_deep_json_vault_is_a_controlled_error(tmp_path, opening, closing, posit
     path = _write(tmp_path, raw)
     with pytest.raises(vault.VaultError):
         vault.load(path)
+
+
+def _swapping_open(monkeypatch, path, replacement, *, after=False):
+    real_open = os.open
+    swaps = []
+
+    def opened(name, flags, *args, **kwargs):
+        if os.fspath(name) == os.fspath(path) and not swaps:
+            swaps.append(name)
+            if after:
+                descriptor = real_open(name, flags, *args, **kwargs)
+                os.replace(replacement, path)
+                return descriptor
+            os.replace(replacement, path)
+        return real_open(name, flags, *args, **kwargs)
+
+    monkeypatch.setattr(os, "open", opened)
+    return swaps
+
+
+def test_a_loose_file_swapped_in_before_the_open_is_judged_on_the_descriptor(tmp_path, monkeypatch):
+    path = _write(tmp_path, _doc(_entry(value=DUMMY)))
+    loose = _write(tmp_path, _doc(_entry(value=CANARY)), mode=0o644, filename="loose.json")
+    swaps = _swapping_open(monkeypatch, path, loose)
+    with pytest.raises(vault.VaultError) as caught:
+        vault.load(path)
+    assert swaps
+    assert "mode 0644" in str(caught.value)
+    for text in _shown(caught.value):
+        assert CANARY not in text
+
+
+def test_a_strict_file_swapped_in_before_the_open_is_the_one_that_is_read(tmp_path, monkeypatch):
+    path = _write(tmp_path, _doc(_entry(value=DUMMY)))
+    strict = _write(tmp_path, _doc(_entry(value="swapped-strict")), filename="strict.json")
+    swaps = _swapping_open(monkeypatch, path, strict)
+    assert vault.load(path).credential(NAME).use() == "swapped-strict"
+    assert swaps
+
+
+def test_a_vault_replaced_after_the_open_is_refused_and_never_read_from_the_replacement(
+    tmp_path, monkeypatch
+):
+    path = _write(tmp_path, _doc(_entry(value=DUMMY)))
+    loose = _write(tmp_path, _doc(_entry(value=CANARY)), mode=0o644, filename="loose.json")
+    swaps = _swapping_open(monkeypatch, path, loose, after=True)
+    with pytest.raises(vault.VaultError) as caught:
+        vault.load(path)
+    assert swaps
+    assert "0 hard links" in str(caught.value)
+    for text in _shown(caught.value):
+        assert CANARY not in text
+    monkeypatch.undo()
+    with pytest.raises(vault.VaultError, match="mode 0644"):
+        vault.load(path)
+    _write(tmp_path, _doc(_entry(value=DUMMY)))
+    assert vault.load(path).credential(NAME).use() == DUMMY
+
+
+def test_a_vault_with_a_second_hard_link_is_refused_and_loads_once_it_is_gone(tmp_path):
+    path = _write(tmp_path, _doc())
+    second = tmp_path / "second-name.json"
+    os.link(path, second)
+    with pytest.raises(vault.VaultError) as caught:
+        vault.load(path)
+    assert "2 hard links" in str(caught.value)
+    assert str(path) in str(caught.value)
+    second.unlink()
+    assert vault.load(path).names() == (NAME,)
+
+
+def test_a_vault_of_another_user_is_refused(tmp_path, monkeypatch):
+    path = _write(tmp_path, _doc())
+    owner = os.stat(path).st_uid
+    monkeypatch.setattr(os, "geteuid", lambda: owner + 1)
+    with pytest.raises(vault.VaultError) as caught:
+        vault.load(path)
+    assert "belongs to user %d, not to the user %d" % (owner, owner + 1) in str(caught.value)
+    monkeypatch.undo()
+    assert vault.load(path).names() == (NAME,)
+
+
+def test_the_file_is_judged_and_read_without_a_path_lookup_of_its_own(tmp_path, monkeypatch):
+    path = _write(tmp_path, _doc())
+    looked = []
+    monkeypatch.setattr(type(path), "lstat", lambda self, *a, **k: looked.append(self))
+    assert vault.load(path).names() == (NAME,)
+    assert looked == []
+
+
+@pytest.mark.parametrize(
+    "login",
+    [
+        "audit\x0bro", "audit\x0cro", "audit\x1cro", "audit\x1fro", "audit\x85ro",
+        "audit\xa0ro", "audit ro", "audit ro", "audit　ro",
+    ],
+)
+def test_a_login_with_any_whitespace_inside_is_refused(tmp_path, login):
+    path = _write(tmp_path, _doc(_entry(kind="password", login=login)))
+    with pytest.raises(vault.VaultError) as caught:
+        vault.load(path)
+    assert "login must be a plain user name" in str(caught.value)
+    for text in _shown(caught.value):
+        assert CANARY not in text
+
+
+@pytest.mark.parametrize("login", ["audit-ro", "audit.ro_1", "Audit-RO", "audité"])
+def test_a_plain_login_still_loads(tmp_path, login):
+    loaded = vault.load(_write(tmp_path, _doc(_entry(kind="password", login=login))))
+    assert loaded.credential(NAME).login == login
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        "-----BEGIN PUBLIC KEY-----\n%s\n-----END PUBLIC KEY-----\n" % CANARY,
+        "-----BEGIN CERTIFICATE-----\n%s\n-----END CERTIFICATE-----\n" % CANARY,
+        "-----BEGIN SSH2 PUBLIC KEY-----\n%s\n-----END SSH2 PUBLIC KEY-----\n" % CANARY,
+        "-----BEGIN OPENSSH PRIVATE KEY-----%s\n" % CANARY,
+        "-----BEGIN OPENSSH PRIVATE KEY----- \n%s\n" % CANARY,
+        "-----BEGIN openssh PRIVATE KEY-----\n%s\n" % CANARY,
+        "-----BEGIN \n%s\n" % CANARY,
+    ],
+)
+def test_an_ssh_key_whose_first_line_is_not_a_private_key_header_is_refused(tmp_path, value):
+    path = _write(tmp_path, _doc(_entry(kind="ssh-key", login=LOGIN, value=value)))
+    with pytest.raises(vault.VaultError) as caught:
+        vault.load(path)
+    assert "must hold the private key text" in str(caught.value)
+    for text in _shown(caught.value):
+        assert CANARY not in text
+
+
+@pytest.mark.parametrize(
+    "header",
+    [
+        "OPENSSH PRIVATE KEY", "RSA PRIVATE KEY", "EC PRIVATE KEY", "DSA PRIVATE KEY",
+        "PRIVATE KEY", "ENCRYPTED PRIVATE KEY",
+    ],
+)
+@pytest.mark.parametrize("newline", ["\n", "\r\n"])
+def test_every_private_key_header_loads_in_sequence_with_a_refused_public_one(
+    tmp_path, header, newline
+):
+    good = "-----BEGIN %s-----%s%s%s-----END %s-----%s" % (
+        header, newline, CANARY, newline, header, newline,
+    )
+    assert vault.load(
+        _write(tmp_path, _doc(_entry(kind="ssh-key", login=LOGIN, value=good)))
+    ).credential(NAME).use() == good
+    with pytest.raises(vault.VaultError):
+        vault.load(_write(tmp_path, _doc(_entry(
+            kind="ssh-key", login=LOGIN, value=good.replace("PRIVATE", "PUBLIC"),
+        ))))
+    assert vault.load(
+        _write(tmp_path, _doc(_entry(kind="ssh-key", login=LOGIN, value=good)))
+    ).credential(NAME).use() == good

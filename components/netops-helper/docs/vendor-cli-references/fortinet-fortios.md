@@ -61,9 +61,9 @@ The table is the conservative Phase-1 whitelist. A template slot is accepted onl
 | `ips_anomaly_status` | `diagnose ips anomaly status` | none | normal | F-CLI-80 |
 | `av_outbreak_stats` | `diagnose antivirus outbreak-prevention statistics list` | none | normal | F-CLI-80 |
 
-### Audit entries measured on 17 September 2026
+### FortiOS query grammar and permissions
 
-Measured on 17 September 2026 against FortiOS 8.0.0 with a read-only account (a custom access profile with `cli-get`, `cli-show` and `cli-diagnose` enabled and `cli-exec` and `cli-config` disabled), over the exec channel, each of the following answered with exit status 0 and non-empty output except where stated: `ntp_status`, `system_top`, `autoupdate_status`, `autoupdate_versions`, `sslvpn_sessions` (empty, no SSL VPN session was up), `sslvpn_statistics`, `firewall_auth_users`, `ips_filter_status`, `ips_anomaly_status` and `av_outbreak_stats`. Each command is a chapter of the FortiOS 8.0.0 CLI Reference (`diagnose sys ntp status`, `diagnose sys top`, `diagnose autoupdate status`, `diagnose autoupdate versions`, `diagnose vpn ssl list`, `diagnose vpn ssl statistics`, `diagnose firewall auth list`, `diagnose ips filter status`, `diagnose ips anomaly status`, `diagnose antivirus outbreak-prevention statistics list`); the same chapters exist in the 7.6 reference, which was not the measured build.
+The FortiOS 8.0.0 catalogue entries ntp_status, system_top, autoupdate_status, autoupdate_versions, sslvpn_sessions, sslvpn_statistics, firewall_auth_users, ips_filter_status, ips_anomaly_status and av_outbreak_stats use the exact listed vendor CLI grammar. Configure only the permissions required by enabled reads and independently deny full configuration export and mutation. A chapter in another firmware reference does not establish compatibility with that build or account.
 
 `system_top` pins every argument of the documented `diagnose sys top <delay> <lines> <iterations>` grammar. The vendor defaults are a five-second delay, twenty lines and an unlimited iteration count, so the unpinned command is a refresh loop; the template is fixed at `1 5 1`, one snapshot of five lines, and `read_policy` refuses any other `diagnose sys top` form even if it is added to the catalogue.
 
@@ -71,13 +71,13 @@ In the same session `execute dhcp lease-list` was refused with `Unknown action 0
 
 ### SSL VPN queries on models without SSL VPN
 
-Measured on 21 September 2026 against FortiOS 8.0.1: on a FortiGate 60F both `diagnose vpn ssl list` and `diagnose vpn ssl statistics` end with `command parse error`, also for a `super_admin` account, and the configuration has no `config vpn ssl` section at all; on a FortiGate 80F with the same build `diagnose vpn ssl statistics` answers. The [FortiOS 8.0.0 Release Notes](https://docs.fortinet.com/document/fortigate/8.0.0/fortios-release-notes) remove SSL VPN tunnel mode on all models and Agentless VPN, the former SSL VPN web mode, on models with 2 GB of RAM, which include the 60F family; the CLI Reference still lists both commands without that restriction. On such models the helper reports `sslvpn_sessions` and `sslvpn_statistics` as `device_cli_error`. Do not enable the two queries there.
+SSL VPN query availability depends on build, model and feature. The documented FortiOS 8.0.1 60F profile lacks the SSL VPN commands/configuration branch; other models can differ. The [FortiOS 8.0.0 release notes](https://docs.fortinet.com/document/fortigate/8.0.0/fortios-release-notes) define model-specific feature removals. A CLI-reference chapter does not override a feature restriction: do not enable sslvpn_sessions or sslvpn_statistics where the model/build lacks them; unsupported responses remain device_cli_error.
 
 ### Version, model, and feature constraints
 
 - Hardware memory, disk, and NIC output varies by FortiGate model, ASIC, interface type, and VM versus appliance form factor. A documented command can legitimately return unsupported or reduced output.
 - HA, SD-WAN, IPsec, BGP, OSPF, BFD, IPv6, LLDP, and software-switch queries are useful only when the corresponding feature is available and configured. They should not be enabled merely because the platform is FortiOS.
-- VDOM context can change visibility and output. The target account and expected VDOM context must be tested without granting configuration privileges. Measured on 2 October 2026 on FortiGate-VM 8.0.0 build0167 and 7.6.7 build3704 with two VDOMs: an account bound to the `root` VDOM ran the VDOM-level queries, and `autoupdate_status`, `autoupdate_versions`, `disk_status`, `ha_status`, `hardware_memory`, `interface_hardware`, `ntp_status`, `performance` and `session_stats` ended with `command parse error` because they need the global context; without VDOMs (8.0.1 build0245) they answered.
+- VDOM context affects visibility and output. Verify target account and scope without granting configuration privileges. FortiOS 8.0.0 build0167 and 7.6.7 build3704 distinguish VDOM-level reads from global autoupdate_status, autoupdate_versions, disk_status, ha_status, hardware_memory, interface_hardware, ntp_status, performance and session_stats reads. An unavailable scope must be refused rather than used to broaden account privileges.
 - `bridge_mac_table` requires an exact enrolled software-switch name. `interface_details` and `interface_hardware` require an exact enrolled interface name.
 - Fortinet can change output shape between maintenance releases. Consumers must treat output as untrusted text rather than a stable machine API.
 
@@ -93,7 +93,7 @@ These exclusions are capability boundaries, not merely undocumented omissions.
 | Mutation or lifecycle control | `config`, `edit`, `set`, `unset`, `delete`, backup, test, restart, reset, clear, kill, reboot, or shutdown operations | These can change persistent configuration or live state. |
 | Detailed IKE or tunnel listings | `diagnose vpn ike gateway list`, `diagnose vpn tunnel list`, and similarly detailed keying-state dumps | Detailed output can expose sensitive IKE/IPsec keying material and peer state. The bounded `ipsec_summary` and aggregate `ipsec_status` are the Phase-1 boundary. |
 | VDOM enumeration | former `vd_list` candidate | It expands administrative topology exposure and is not needed for the current target-scoped troubleshooting contract. |
-| `execute` branch | `execute dhcp lease-list`, `execute ping` | Actions outside the two exact option state views below are excluded. Measured on 17 September 2026, a read-only access profile with `cli-exec disable` refused `execute dhcp lease-list` with `Unknown action 0`; the DHCP lease list therefore has no Phase-1 source at all. |
+| `execute` branch | `execute dhcp lease-list`, `execute ping` | Actions outside the two exact option-state views below are excluded. An account with `cli-exec disable` refuses `execute dhcp lease-list`; no Phase-1 catalogue source for the DHCP lease list is implied. |
 | Unbounded refresh loops | `diagnose sys top` without the pinned `1 5 1` arguments | The documented default iteration count is unlimited, so the bare command never ends. Only the fixed single-iteration snapshot `system_top` is accepted, and the read policy rejects every other `diagnose sys top` form. |
 | Device log retrieval | arbitrary event, traffic, security, or system log commands | No arbitrary device log scope, filter, time bound, or safe output contract exists in Phase 1. |
 
@@ -171,13 +171,9 @@ Acceptance here describes the code whitelist only. The live-result limitations a
 | `managed_switch_stacking` | `diagnose switch-controller switch-info stacking status {managed_switch}` | `managed_switches.managed_switch_serial` | normal | F-CHEAT-80 |
 | `managed_switch_lldp` | `diagnose switch-controller switch-info lldp neighbors-summary {managed_switch}` | `managed_switches.managed_switch_serial` | high-volume | F-CHEAT-80 |
 
-## Diagnostic state views added 2026-10-04
+## Diagnostic state views
 
-These exact reads were observed through pinned SSH on FortiGate-VM64-KVM
-7.6.7 build3704 and 8.0.0 build0167 in VD1. Configured global/root/VD1 snapshots
-were byte-identical before and after. This native administrator-account
-observation does not establish availability through every restricted read role.
-The candidate Helper requires a separate enabled query for each view.
+The following exact diagnostic-state queries are version-bound to their FortiOS catalogue and FortiGate-VM64-KVM 7.6.7 build3704 or 8.0.0 build0167 scope. Verify the configured account's permission for each query independently; a catalogue entry does not establish availability through every restricted read role. Helper requires a separate enabled query for each view.
 
 | Query name | Exact command template | Inventory slot | Volume | Primary references |
 | --- | --- | --- | --- | --- |
@@ -186,9 +182,7 @@ The candidate Helper requires a separate enabled query for each view.
 | `debug_state` | `diagnose debug info` | none | high-volume | F-DEBUG-80 |
 | `session_filter_state` | `diagnose sys session filter` | none | normal | F-DIAG-SYS-80 |
 
-These state views authorize no option setters, filter setters, debug enable/disable,
-reset, traffic probe, or capture. Bounded recipes remain a separate T-074 requirement.
-
+These state views authorize no option setters, filter setters, debug enable/disable, reset, traffic probe or capture. Bounded recipes remain separately enrolled operations with their own permission and cleanup contracts.
 - F-PING-OPTIONS-76: [FortiOS 7.6.4 CLI Reference: execute ping-options](https://docs.fortinet.com/document/fortigate/7.6.4/cli-reference/221756471/execute-ping-options).
 
 - F-TRACE-OPTIONS-80: [FortiOS 8.0.0 CLI Reference: execute traceroute-options](https://docs.fortinet.com/document/fortigate/8.0.0/cli-reference/113792463/execute-traceroute-options).

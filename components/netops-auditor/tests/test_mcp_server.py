@@ -101,7 +101,7 @@ def audited(tmp_path):
             TENANT, DEVICE, "sha-first", "history/first.conf", RULES_VERSION, first,
             started_at=_moment(now, 50),
         )
-        store.accept_baseline(TENANT, DEVICE, first_run, "radek", "accepted at the first review")
+        store.accept_baseline(TENANT, DEVICE, first_run, "operator", "accepted at the first review")
         second_run = store.record_run(
             TENANT, DEVICE, "sha-second", "history/second.conf", RULES_VERSION, second,
             started_at=_moment(now, 2),
@@ -151,7 +151,7 @@ def suppressed(audited, tmp_path):
                 "device": DEVICE,
                 "object_key": "system dns",
                 "reason": "resolver moves during the next maintenance window",
-                "author": "radek",
+                "author": "operator",
                 "created": "2026-09-01T08:00:00Z",
                 "expires": "2099-01-01T00:00:00Z",
             }
@@ -242,7 +242,7 @@ def test_the_module_imports_no_device_reaching_module_statically():
 
 def test_importing_the_server_loads_no_device_reaching_module():
     result = subprocess.run(
-        [sys.executable, "-c", IMPORT_PROBE, str(COMPONENT_ROOT / "src")],
+        [sys.executable, "-B", "-c", IMPORT_PROBE, str(COMPONENT_ROOT / "src")],
         capture_output=True,
         text=True,
         check=True,
@@ -417,7 +417,7 @@ def test_finding_detail_passes_the_fingerprint_and_returns_what_query_returns(co
     assert detail["tenant"] == TENANT
     assert detail["device"] == DEVICE
     assert detail["run_id"] == configured.second_run
-    assert detail["baseline"]["accepted_by"] == "radek"
+    assert detail["baseline"]["accepted_by"] == "operator"
     assert detail["suppression"] is None
     assert mcp_server.finding_detail(DEVICE, "0" * 64) is None
 
@@ -426,7 +426,7 @@ def test_finding_detail_reports_the_suppression(suppressed):
     detail = mcp_server.finding_detail(DEVICE, suppressed.audited.suppressed_fingerprint)
     assert detail["state"] == STATE_SUPPRESSED
     assert set(detail["suppression"]) == set(query.SUPPRESSION_KEYS)
-    assert detail["suppression"]["author"] == "radek"
+    assert detail["suppression"]["author"] == "operator"
     assert detail["suppression"]["active"] is True
 
 
@@ -639,3 +639,14 @@ def test_schema_report_binds_configured_tenant_and_explicit_page(configured, mon
     monkeypatch.setattr(schema_reports, "read", rejected)
     with pytest.raises(ToolError, match="schema binding refused"):
         mcp_server.schema_report(DEVICE)
+
+
+def test_import_probe_preserves_a_clean_archive(tmp_path, monkeypatch):
+    import shutil
+    copied = tmp_path / "src" / "netops_auditor"
+    shutil.copytree(PACKAGE_ROOT, copied, ignore=shutil.ignore_patterns("__pycache__", "*.pyc"))
+    monkeypatch.setattr(sys.modules[__name__], "COMPONENT_ROOT", tmp_path)
+    monkeypatch.delenv("PYTHONDONTWRITEBYTECODE", raising=False)
+    test_importing_the_server_loads_no_device_reaching_module()
+    assert not list(copied.rglob("*.pyc"))
+    assert not list(copied.rglob("__pycache__"))

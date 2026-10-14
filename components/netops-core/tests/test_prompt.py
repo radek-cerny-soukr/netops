@@ -58,3 +58,30 @@ def test_the_table_names_the_two_measured_platforms_and_their_aliases():
     assert prompt.prefix("fortinet") is prompt.prefix("fortios")
     assert prompt.prefix("extreme_exos") is prompt.prefix("exos")
     assert prompt.prefix("junos") is None
+
+
+MIDDLE_SEPARATORS = ("\r", "\x0b", "\x0c", "\x1c", "\x1d", "\x1e", "\x85", " ", " ")
+
+
+@pytest.mark.parametrize("separator", MIDDLE_SEPARATORS)
+def test_a_line_separator_other_than_newline_inside_a_value_survives(separator):
+    body = 'config system global\n    set post-login-banner "a%sb"\nend\n' % separator
+    assert prompt.cleaned("%s # %s%s #\n" % (NAME, body, NAME), "fortios") == body
+
+
+@pytest.mark.parametrize("ending", ("\r\n", "\n", ""))
+def test_a_crlf_answer_keeps_every_crlf_and_hashes_like_the_same_answer_without_a_prompt(ending):
+    body = 'config firewall address\r\n    edit "net # 42"\r\n    set comment "x\r\ny"\r\nend\r\n'
+    unprompted = prompt.cleaned(body, "fortios")
+    prompted_answer = prompt.cleaned("%s # %s%s #%s" % (NAME, body, NAME, ending), "fortios")
+    assert unprompted == body
+    assert prompted_answer == body
+    assert prompt.cleaned("%s # %s" % (NAME, body), "fortios") == body
+
+
+def test_cleaning_answers_in_sequence_keeps_each_middle_and_the_plain_one_unchanged():
+    plain = "%s # one\n  edit \"net # 42\"\n%s #\n" % (NAME, NAME)
+    crlf = "%s # one\r\n  set comment \"a\x0cb\"\r\n%s #\r\n" % (NAME, NAME)
+    assert prompt.cleaned(plain, "fortios") == 'one\n  edit "net # 42"\n'
+    assert prompt.cleaned(crlf, "fortios") == 'one\r\n  set comment "a\x0cb"\r\n'
+    assert prompt.cleaned(plain, "fortios") == 'one\n  edit "net # 42"\n'

@@ -1,0 +1,105 @@
+{
+  "components": {
+    "netops-admin": {
+      "branches": 62,
+      "covered": 56,
+      "min_percent": 90,
+      "modules": {
+        "netops_admin/audit.py": {
+          "branches": 6,
+          "branches_in_source": 6,
+          "covered": 6,
+          "min_percent": 100
+        },
+        "netops_admin/execute.py": {
+          "branches": 39,
+          "branches_in_source": 39,
+          "covered": 36,
+          "min_percent": 92
+        },
+        "netops_admin/notify.py": {
+          "branches": 3,
+          "branches_in_source": 3,
+          "covered": 2,
+          "min_percent": 66
+        },
+        "netops_admin/state.py": {
+          "branches": 14,
+          "branches_in_source": 14,
+          "covered": 12,
+          "min_percent": 85
+        }
+      }
+    },
+    "netops-auditor": {
+      "branches": 79,
+      "covered": 60,
+      "min_percent": 75,
+      "modules": {
+        "netops_auditor/cli.py": {
+          "branches": 44,
+          "branches_in_source": 44,
+          "covered": 30,
+          "min_percent": 68
+        },
+        "netops_auditor/collect.py": {
+          "branches": 22,
+          "branches_in_source": 22,
+          "covered": 18,
+          "min_percent": 81
+        },
+        "netops_auditor/store.py": {
+          "branches": 13,
+          "branches_in_source": 13,
+          "covered": 12,
+          "min_percent": 92
+        }
+      }
+    },
+    "netops-core": {
+      "branches": 34,
+      "covered": 25,
+      "min_percent": 73,
+      "modules": {
+        "netops_core/audit.py": {
+          "branches": 7,
+          "branches_in_source": 7,
+          "covered": 7,
+          "min_percent": 100
+        },
+        "netops_core/session.py": {
+          "branches": 11,
+          "branches_in_source": 11,
+          "covered": 8,
+          "min_percent": 72
+        },
+        "netops_core/ssh.py": {
+          "branches": 16,
+          "branches_in_source": 16,
+          "covered": 10,
+          "min_percent": 62
+        }
+      }
+    },
+    "netops-helper": {
+      "branches": 91,
+      "covered": 84,
+      "min_percent": 92,
+      "modules": {
+        "netops_helper/engine.py": {
+          "branches": 37,
+          "branches_in_source": 37,
+          "covered": 36,
+          "min_percent": 97
+        },
+        "netops_helper/proxy.py": {
+          "branches": 54,
+          "branches_in_source": 54,
+          "covered": 48,
+          "min_percent": 88
+        }
+      }
+    }
+  },
+  "description": "Floors of scripts/except_branch_coverage.py: per component and module the number of except/else branches of a try statement (branches_in_source counts handlers without a measurable statement too), how many the test suite entered and the measured percentage rounded down; the gate fails below these floors."
+}

@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import importlib.util
 import ipaddress
+import json
+import os
 from pathlib import Path
 import re
 import shutil
@@ -40,9 +42,11 @@ def _fixture(tmp_path: Path) -> Path:
     (root / "docs").mkdir()
     (root / "docs/README.md").write_text("# Documentation map\n", encoding="utf-8")
     (root / "docs/verified-support.md").write_text("# Verified platform support\n", encoding="utf-8")
-    (root / "docs/lab-measurements-2026-09-25.md").write_text("# Live lab measurements\n", encoding="utf-8")
+    (root / "docs/compatibility-boundaries.md").write_text("# Compatibility boundaries\n", encoding="utf-8")
     (root / "scripts").mkdir()
     shutil.copy2(ROOT / "scripts/check_release.py", root / "scripts/check_release.py")
+    (root / "scripts/except_branch_coverage.py").write_text("", encoding="utf-8")
+    (root / "scripts/except_branch_coverage.json").write_text("{}\n", encoding="utf-8")
     (root / "tests").mkdir()
     (root / "tests/test_release_gate.py").write_text("", encoding="utf-8")
     workflows = root / ".github/workflows"
@@ -576,6 +580,389 @@ def test_repository_gate_covers_the_real_tree() -> None:
     assert gate._coverage_errors(ROOT, tracked, gate.component_names(ROOT)) == []
     assert gate._license_errors(ROOT, gate.component_names(ROOT)) == []
     assert gate._workflow_errors(ROOT, gate.component_names(ROOT)) == []
+
+
+
+def _markdown_heading_anchors(text: str) -> set[str]:
+    from html import unescape
+    anchors: set[str] = set()
+    counts: dict[str, int] = {}
+    fence = None
+    for line in text.splitlines():
+        marker = re.match(r"^\s*(`{3,}|~{3,})", line)
+        if marker:
+            token = marker.group(1)
+            if fence is None:
+                fence = token
+            elif token[0] == fence[0] and len(token) >= len(fence):
+                fence = None
+            continue
+        if fence is not None:
+            continue
+        heading = re.match(r"^ {0,3}#{1,6}\s+(.*?)\s*#*\s*$", line)
+        if heading is None:
+            continue
+        label = re.sub(r"!?\[([^\]]+)\]\([^)]*\)", r"\1", heading.group(1))
+        label = unescape(re.sub(r"<[^>]+>", "", label)).lower()
+        slug = re.sub(r"[^\w\- ]", "", label.replace(chr(96), "")).replace(" ", "-")
+        count = counts.get(slug, 0)
+        candidate = slug if count == 0 else f"{slug}-{count}"
+        while candidate in anchors:
+            count += 1
+            candidate = f"{slug}-{count}"
+        counts[slug] = count + 1
+        anchors.add(candidate)
+    return anchors
+
+
+def _assert_markdown_fragment(text: str, fragment: str, where) -> None:
+    from urllib.parse import unquote
+    if fragment:
+        assert unquote(fragment) in _markdown_heading_anchors(text), (where, fragment)
+
+
+def test_documentation_anchors_accept_headings_duplicates_and_encoded_fragments() -> None:
+    text = "# Core `SSH` & TLS\n## Duplicate\n## Duplicate\n## Duplicate-1\n~~~text\n# Hidden\n~~~\n"
+    assert _markdown_heading_anchors(text) == {"core-ssh--tls", "duplicate", "duplicate-1", "duplicate-1-1"}
+    for fragment in ["core-ssh--tls", "duplicate", "duplicate-1", "duplicate-1-1", "%64uplicate"]:
+        _assert_markdown_fragment(text, fragment, "positive fixture")
+    for fragment in ["missing", "hidden", "duplicate-2"]:
+        try:
+            _assert_markdown_fragment(text, fragment, "negative fixture")
+        except AssertionError:
+            pass
+        else:
+            raise AssertionError("missing fragment was accepted: " + fragment)
+
+
+def test_component_archives_have_resolvable_documentation_links() -> None:
+    from urllib.parse import unquote, urlsplit
+    import tomllib
+    with tempfile.TemporaryDirectory() as directory:
+        for component in sorted((ROOT / "components").iterdir()):
+            script = component / "scripts/create_release_artifacts.py"
+            if not script.is_file():
+                continue
+            output = Path(directory) / component.name
+            output.mkdir()
+            completed = subprocess.run([sys.executable, "-B", str(script), "--output", str(output)],
+                                       capture_output=True, text=True)
+            assert completed.returncode == 0, completed.stdout + completed.stderr
+            [archive] = output.iterdir()
+            metadata = tomllib.loads((component / "pyproject.toml").read_text())["project"]
+            homepage = metadata["urls"]["Homepage"].rstrip("/")
+            blob_prefix = homepage + "/blob/"
+            outside_links = 0
+            for document in archive.rglob("*.md"):
+                fence = None
+                for line in document.read_text().splitlines():
+                    marker = re.match(r"^\s*(`{3,}|~{3,})", line)
+                    if marker:
+                        token = marker.group(1)
+                        if fence is None:
+                            fence = token
+                        elif token[0] == fence[0] and len(token) >= len(fence):
+                            fence = None
+                        continue
+                    if fence is not None:
+                        continue
+                    # Keep the brackets around a code-formatted label. Independent
+                    # of the exporter's full-link tokenization.
+                    text = re.sub(r"(`+).*?\1", lambda m: " " * len(m.group(0)), line)
+                    for target in re.findall(r"\]\(([^)\s]+)\)", text):
+                        url = urlsplit(target)
+                        if target.startswith(blob_prefix):
+                            rest = unquote(target[len(blob_prefix):].split("#", 1)[0].split("?", 1)[0])
+                            matched = re.fullmatch(r"(netops-[a-z]+/v[0-9.]+|main|[0-9a-f]{7,40})/(.*)", rest)
+                            assert matched, target
+                            reference, repo_path = matched.groups()
+                            assert (ROOT / repo_path).exists(), (document.relative_to(archive), target)
+                            assert not repo_path.startswith("/") and ".." not in Path(repo_path).parts
+                            has_tag = subprocess.run(["git", "-C", str(ROOT), "rev-parse", "--verify", "--quiet", reference],
+                                                     capture_output=True).returncode == 0
+                            if has_tag:
+                                checked = subprocess.run(["git", "-C", str(ROOT), "cat-file", "-e", reference + ":" + repo_path],
+                                                         capture_output=True)
+                                assert checked.returncode == 0, target
+                            if url.fragment and repo_path.endswith(".md"):
+                                body = subprocess.check_output(
+                                    ["git", "-C", str(ROOT), "show", reference + ":" + repo_path],
+                                    text=True,
+                                ) if has_tag else (ROOT / repo_path).read_text()
+                                _assert_markdown_fragment(body, url.fragment, (document.relative_to(archive), target))
+                            outside_links += 1
+                            continue
+                        if not url.path and not url.scheme and not url.netloc:
+                            _assert_markdown_fragment(document.read_text(), url.fragment, document.relative_to(archive))
+                            continue
+                        if url.scheme or url.netloc:
+                            continue
+                        resolved = (document.parent / unquote(url.path)).resolve()
+                        assert resolved.is_relative_to(archive), (document.relative_to(archive), target)
+                        assert resolved.exists(), (document.relative_to(archive), target)
+                        if url.fragment and resolved.suffix == ".md":
+                            _assert_markdown_fragment(resolved.read_text(), url.fragment, (document.relative_to(archive), target))
+            if component.name != "netops-core":
+                assert outside_links > 0, component.name
+            original = component / "CHANGELOG.md"
+            if "../../docs/" in original.read_text():
+                expected = "/blob/" + metadata["name"] + "/v" + metadata["version"] + "/docs/"
+                assert expected in (archive / "CHANGELOG.md").read_text()
+
+
+def test_documentation_export_rewrites_code_labels_and_preserves_code_examples() -> None:
+    import runpy
+    import tomllib
+    with tempfile.TemporaryDirectory() as directory:
+        source = Path(directory) / "example.md"
+        content = (
+            "[`Core SSH`](../../netops-core/docs/ssh.md?view=plain#host-pinning)\n"
+            "`[example](../../missing.md)`\n"
+            "``[example](../../missing.md)``\n"
+            "~~~text\n[example](../../missing.md)\n~~~\n"
+            "[local](configuration.md)\n"
+            "[Read `Core` SSH](../../netops-core/docs/ssh.md?view=plain#host-pinning)\n"
+            "[`Core` and `SSH`](../../netops-core/docs/ssh.md?view=plain#host-pinning)\n"
+        )
+        source.write_text(content)
+        for component in sorted((ROOT / "components").iterdir()):
+            script = component / "scripts/create_release_artifacts.py"
+            if not script.is_file():
+                continue
+            namespace = runpy.run_path(str(script))
+            result = namespace["_export_documentation_bytes"](source, Path("docs/example.md")).decode()
+            metadata = tomllib.loads((component / "pyproject.toml").read_text())["project"]
+            if component.name == "netops-core":
+                assert result == content
+            else:
+                expected = metadata["urls"]["Homepage"].rstrip("/") + "/blob/" + metadata["name"] + "/v" + metadata["version"] + "/components/netops-core/docs/ssh.md?view=plain#host-pinning"
+                assert result == content.replace("../../netops-core/docs/ssh.md?view=plain#host-pinning", expected)
+
+
+def test_documented_installation_build_copies_exclude_stale_files() -> None:
+    import shlex
+    import os
+
+    checked = 0
+    for guide in sorted((ROOT / "components").glob("*/docs/installation.md")):
+        fence = chr(96) * 3
+        for block in re.findall(fence + r"(?:sh|bash)\n(.*?)\n\s*" + fence, guide.read_text(), re.DOTALL):
+            lines = [line.strip() for line in block.splitlines()]
+            copies = [i for i, line in enumerate(lines) if line.startswith("cp -r ")]
+            if not copies:
+                continue
+            assert len(copies) == 1, guide
+            end = copies[0]
+            starts = [i for i, line in enumerate(lines[:end]) if line.startswith(("mkdir ", "build_dir="))]
+            assert starts, guide
+            preparation = "\n".join(lines[starts[0]:end + 1])
+            install = lines[end + 1]
+            install = re.sub(r'(\(umask 022; )(.+?)( -m pip install )', r'\1"$INSTALL_PROBE"\3', install, count=1)
+            assert "$INSTALL_PROBE" in install, guide
+            sources = shlex.split(lines[end].split("||", 1)[0])[2:-1]
+            assert sources and all(re.fullmatch(r"netops-(?:core|auditor|admin|helper)-[0-9]+\.[0-9]+\.[0-9]+", source) for source in sources), guide
+            assert preparation == (
+                'build_dir=$(mktemp -d ./netops-build.XXXXXXXXXX) || exit 1\n'
+                + 'cp -r ' + ' '.join(sources) + ' "$build_dir/" || exit 1'
+            ), (guide, "unknown preparation command")
+            options = "--no-index --no-deps --no-build-isolation" if "--no-index" in lines[end + 1] else "--no-deps"
+            expected_install = '(umask 022; "$INSTALL_PROBE" -m pip install ' + options + ' ' + ' '.join('"$build_dir/' + source + '"' for source in sources) + ') || exit 1'
+            assert install == expected_install, (guide, "unknown installation command")
+            cleanup_lines = lines[end + 2:]
+            allowed_cleanup = ['rm -rf -- "$build_dir" || exit 1']
+            launcher_check = '"$HOME/.local/share/netops-helper/venv/bin/python" -c \'from os import access,stat,X_OK; from stat import S_ISREG; from sys import argv,exit; valid=all(S_ISREG(stat(p).st_mode) and access(p,X_OK) and not stat(p).st_mode & 0o022 for p in argv[1:]); exit(0 if valid else "Unsafe launcher permissions")\' "$HOME/.local/share/netops-helper/venv/bin/netops-askpass" "$HOME/.local/share/netops-helper/venv/bin/netops-helper-proxy" || exit 1'
+            if guide.parent.parent.name == "netops-helper" and options == "--no-deps":
+                allowed_cleanup.append(launcher_check)
+            assert cleanup_lines == allowed_cleanup, (guide, "unknown cleanup command")
+            cleanup = "\n".join(cleanup_lines)
+            cleanup = cleanup.replace(
+                '"$HOME/.local/share/netops-helper/venv/bin/python" -c ', '"$INSTALL_PROBE" -c ',
+            )
+            with tempfile.TemporaryDirectory() as directory, tempfile.TemporaryDirectory() as outside_directory:
+                sandbox = Path(directory)
+                root = sandbox / "work"
+                root.mkdir()
+                home = sandbox / "home"
+                home.mkdir()
+                temporary = sandbox / "tmp"
+                temporary.mkdir()
+                canary = home / ".local/share/netops-core/canary"
+                canary.parent.mkdir(parents=True)
+                canary.write_text("PRIVATE_TEST_HOME = True\n")
+                outside = Path(outside_directory) / "protected-file"
+                outside.write_text("OUTSIDE_WORK = True\n")
+                for source in sources:
+                    verified = root / source / "src"
+                    verified.mkdir(parents=True)
+                    (verified / "verified.py").write_text("VERIFIED = True\n")
+                    for legacy in ("build", "build-proxy"):
+                        stale = root / legacy / source / "src"
+                        stale.mkdir(parents=True)
+                        (stale / "zz_stale.py").write_text("STALE = True\n")
+                        built = stale.parent / "build/lib"
+                        built.mkdir(parents=True)
+                        (built / "zz_stale_build.py").write_text("STALE = True\n")
+                foreign = root / "netops-build.keep"
+                foreign.mkdir()
+                (foreign / "operator-file").write_text("KEEP = True\n")
+                protected = {path: path.read_bytes() for path in sandbox.rglob("*") if path.is_file()}
+                protected[outside] = outside.read_bytes()
+                probe = root / "install-probe"
+                probe.write_text('#!/bin/sh\nprintf "%s\\n" "$@" > "$NETOPS_INSTALL_ARGUMENTS"\n')
+                probe.chmod(0o700)
+                arguments = root / "install-arguments"
+                environment = {
+                    "PATH": os.defpath, "LC_ALL": "C", "HOME": str(home), "TMPDIR": str(temporary),
+                    "INSTALL_PROBE": str(probe), "NETOPS_INSTALL_ARGUMENTS": str(arguments),
+                    "NETOPS_TEST_OUTSIDE": str(outside),
+                }
+                paths = []
+                for _ in range(2):
+                    result = subprocess.run(
+                        ["sh", "-c", preparation + "\n" + install + '\nprintf "%s\\n" "${build_dir-}"'],
+                        cwd=root, text=True, capture_output=True, env=environment,
+                    )
+                    assert result.returncode == 0, (guide, result.stderr)
+                    path = result.stdout.strip()
+                    assert path, (guide, "installation reuses an unverified build directory")
+                    build = (root / path).resolve()
+                    assert build.is_relative_to(root) and build != root
+                    assert build not in paths, (guide, "installation reused a prior build")
+                    paths.append(build)
+                    argv = arguments.read_text().splitlines()
+                    assert argv[:3] == ["-m", "pip", "install"], argv
+                    installed_sources = [(root / value).resolve() for value in argv[3:] if not value.startswith("-")]
+                    assert installed_sources == [build / source for source in sources], (guide, installed_sources, build)
+                    for source in sources:
+                        copied = build / source
+                        assert sorted(str(f.relative_to(copied)) for f in copied.rglob("*") if f.is_file()) == ["src/verified.py"], guide
+                        assert (copied / "src/verified.py").read_text() == "VERIFIED = True\n"
+                        assert (root / source / "src/verified.py").read_text() == "VERIFIED = True\n"
+                        for legacy in ("build", "build-proxy"):
+                            assert (root / legacy / source / "src/zz_stale.py").is_file()
+                    cleaned = subprocess.run(
+                        ["sh", "-c", cleanup], cwd=root, text=True, capture_output=True,
+                        env=dict(environment, build_dir=path),
+                    )
+                    assert cleaned.returncode == 0, (guide, cleaned.stderr)
+                    assert not build.exists(), (guide, "successful build copy was not removed")
+                    for protected_path, content in protected.items():
+                        assert protected_path.is_file(), (guide, "cleanup removed a protected file", protected_path)
+                        assert protected_path.read_bytes() == content, (guide, "cleanup changed a protected file", protected_path)
+            checked += 1
+    assert checked == 5, checked
+
+
+def test_documented_offline_installation_python_guard() -> None:
+    import shlex
+    import sys
+
+    guide = ROOT / "components/netops-helper/docs/installation.md"
+    marker = "<!-- install-check: skip offline variant; needs build tools carried over from a connected host -->"
+    fence = chr(96) * 3
+    block = re.search(fence + r"sh\n(.*?)\n" + fence, guide.read_text().split(marker, 1)[1], re.DOTALL)
+    assert block, guide
+    tokens = shlex.split(block.group(1).splitlines()[0].strip())
+    assert tokens[:2] == ["python3", "-c"], "offline installation must check Python before creating its environment"
+    assert tokens[3:] == ["||", "exit", "1"], tokens
+    for version, accepted in [((3, 12, 15), False), ((3, 13, 0), True), ((3, 14, 4), True)]:
+        program = "import sys; sys.version_info = " + repr(version) + "; exec(sys.argv[1])"
+        result = subprocess.run([sys.executable, "-c", program, tokens[2]], text=True, capture_output=True)
+        assert (result.returncode == 0) == accepted, (version, result.stderr)
+        if not accepted:
+            assert "Python 3.13 or newer is required" in result.stderr
+
+
+def _load_except_coverage():
+    path = ROOT / "scripts/except_branch_coverage.py"
+    specification = importlib.util.spec_from_file_location("_netops_except_coverage", path)
+    assert specification is not None and specification.loader is not None
+    module = importlib.util.module_from_spec(specification)
+    sys.modules[specification.name] = module
+    specification.loader.exec_module(module)
+    return module
+
+
+def _except_coverage_tools() -> str | None:
+    for name in ("coverage", "pytest"):
+        if importlib.util.find_spec(name) is None:
+            return name
+    return None
+
+
+def test_except_branch_coverage_baseline_follows_the_source() -> None:
+    gate = _load_except_coverage()
+    baseline = json.loads(gate.BASELINE.read_text(encoding="utf-8"))
+    assert sorted(baseline["components"]) == sorted(gate.MODULES)
+    for component, modules in gate.MODULES.items():
+        recorded = baseline["components"][component]
+        assert sorted(recorded["modules"]) == sorted(modules), component
+        for module in modules:
+            source = (ROOT / "components" / component / "src" / module).read_text(encoding="utf-8")
+            found = len(gate.branches_of(source))
+            assert recorded["modules"][module]["branches_in_source"] == found, (
+                "%s/%s has %d except/else branches; measure them and record the floor with "
+                "scripts/except_branch_coverage.py --write-baseline" % (component, module, found)
+            )
+
+
+def test_except_branch_coverage_gate_refuses_a_lower_coverage() -> None:
+    missing = _except_coverage_tools()
+    if missing is not None:
+        print("except_branch_coverage=skipped: %s is not installed" % missing)
+        return
+    gate = _load_except_coverage()
+    with tempfile.TemporaryDirectory() as directory:
+        root = Path(directory)
+        component = root / "components/demo"
+        (component / "src/demo_pkg").mkdir(parents=True)
+        (component / "tests").mkdir()
+        (component / "src/demo_pkg/__init__.py").write_text("", encoding="utf-8")
+        (component / "src/demo_pkg/state.py").write_text(
+            "def load(text):\n"
+            "    try:\n"
+            "        value = int(text)\n"
+            "    except ValueError:\n"
+            "        return None\n"
+            "    except TypeError:\n"
+            "        return -1\n"
+            "    else:\n"
+            "        return value\n",
+            encoding="utf-8",
+        )
+        (component / "tests/test_state.py").write_text(
+            "import sys\n"
+            "from pathlib import Path\n"
+            "sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'src'))\n"
+            "from demo_pkg.state import load\n"
+            "def test_load():\n"
+            "    assert load('1') == 1\n"
+            "    assert load('x') is None\n",
+            encoding="utf-8",
+        )
+        baseline = root / "baseline.json"
+        gate.ROOT = root
+        gate.MODULES = {"demo": ("demo_pkg/state.py",)}
+        assert gate.main(["demo", "--baseline", str(baseline), "--write-baseline"]) == 0
+        recorded = json.loads(baseline.read_text(encoding="utf-8"))["components"]["demo"]
+        assert (recorded["branches"], recorded["covered"], recorded["min_percent"]) == (3, 2, 66)
+        assert gate.main(["demo", "--baseline", str(baseline)]) == 0
+        assert gate.main(["demo", "--baseline", str(baseline), "--min", "67"]) == 1
+        recorded["modules"]["demo_pkg/state.py"]["min_percent"] = 67
+        baseline.write_text(json.dumps({"components": {"demo": recorded}}), encoding="utf-8")
+        assert gate.main(["demo", "--baseline", str(baseline)]) == 1
+        assert gate.main(["demo", "--baseline", str(baseline), "--report-only"]) == 0
+
+
+def test_except_branch_coverage_of_the_components_keeps_its_floor() -> None:
+    missing = _except_coverage_tools()
+    if missing is not None:
+        print("except_branch_coverage=skipped: %s is not installed" % missing)
+        return
+    if os.environ.get("NETOPS_EXCEPT_COVERAGE") != "1":
+        print("except_branch_coverage=skipped: set NETOPS_EXCEPT_COVERAGE=1 to measure the four test suites")
+        return
+    assert _load_except_coverage().main([]) == 0
 
 
 def main() -> int:

@@ -98,6 +98,28 @@ def safeguard_absent(access, record) -> bool:
     return not ({names["profile"], names["timer"]} & listed)
 
 
+def remove_remaining(access, record, spec) -> bool:
+    names = exos.safeguard_names(record["change_id"])
+    try:
+        listed = set(exos.listed_names(access.query(exos.QUERY_PROFILES))) | set(exos.listed_names(access.query(exos.QUERY_TIMERS)))
+        lines = [line for line, name in zip(exos.render_safeguard_removal(record["change_id"]),
+                                            (names["timer"], names["profile"])) if name in listed]
+        if lines:
+            access.apply(lines, spec)
+    except Exception:
+        pass
+    return safeguard_absent(access, record)
+
+
+def safeguard_disarmed(access, record) -> bool:
+    try:
+        timers = access.query(exos.QUERY_TIMERS)
+    except Exception:
+        return False
+    return (exos.upm_listing_complete(timers, "Timers")
+            and exos.safeguard_names(record["change_id"])["timer"] not in exos.listed_names(timers))
+
+
 def safeguard_fired(access, record) -> bool:
     names = exos.safeguard_names(record["change_id"])
     try:
@@ -116,7 +138,12 @@ def persist(access, spec) -> bool:
 
 def observe(access, plan):
     if plan["table"] == "vlan-membership":
-        return membership.shown(access.check_query("show ports %s vlan" % plan["key"]), plan["key"])
+        text = access.check_query("show ports %s vlan" % plan["key"])
+        alias = None
+        if membership.label(text) is not None:
+            port = exos.shown_port(access.check_query("show ports %s information detail" % plan["key"]), plan["key"])
+            alias = (port or {}).get("display-string")
+        return membership.shown(text, plan["key"], alias)
     if plan["table"] == "ports":
         return exos.shown_port(access.check_query("show ports %s information detail" % plan["key"]), plan["key"])
     text = access.check_query("show vlan %s" % plan["key"])

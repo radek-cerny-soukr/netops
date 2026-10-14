@@ -85,6 +85,7 @@ def test_read_query_catalog_exposes_legacy_and_rich_metadata() -> None:
         "parameters",
         "offset",
         "max_bytes",
+        "content_sha256",
         "auth_context",
     ]
     assert "command_template" not in parameter_names

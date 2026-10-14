@@ -21,7 +21,7 @@ URL = re.compile(r"[a-z][a-z0-9+.-]*://[^\s\"]*")
 ABSOLUTE_PATH = re.compile(r"(?<![A-Za-z0-9_.~-])/[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)+")
 WINDOWS_PATH = re.compile(r"[A-Za-z]:\\\\?[A-Za-z0-9_.-]")
 CORE_NAME = "netops-core"
-CORE_VERSION = "0.2.8"
+CORE_VERSION = "0.2.9"
 CORE_REQUIREMENT = "%s==%s" % (CORE_NAME, CORE_VERSION)
 CORE_PURL = "pkg:pypi/%s@%s" % (CORE_NAME, CORE_VERSION)
 SUBPROCESS_TESTS = (
@@ -112,7 +112,7 @@ def test_core_source_layout_accepts_repository_and_pinned_archive(tmp_path, vers
     core = tmp_path / (CORE_NAME + "-" + CORE_VERSION if versioned else CORE_NAME)
     (core / "src/netops_core").mkdir(parents=True)
     (core / "src/netops_core/__init__.py").write_text("")
-    (core / "pyproject.toml").write_text('[project]\nname="netops-core"\nversion="0.2.8"\n')
+    (core / "pyproject.toml").write_text('[project]\nname="netops-core"\nversion="0.2.9"\n')
     assert _core_tree(tmp_path) == core
     (core / "pyproject.toml").write_text('[project]\nname="netops-core"\nversion="0.0.1"\n')
     with pytest.raises(AssertionError):

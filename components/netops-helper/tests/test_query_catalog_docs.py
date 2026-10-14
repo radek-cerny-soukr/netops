@@ -4,7 +4,10 @@ from copy import deepcopy
 import importlib.util
 import json
 from pathlib import Path
+import stat
 import tempfile
+from types import SimpleNamespace
+from unittest.mock import patch
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -192,6 +195,74 @@ def test_manual_document_edit_is_rejected() -> None:
     )
 
 
+def test_atomic_writer_creates_a_regular_document() -> None:
+    with tempfile.TemporaryDirectory() as temporary:
+        output = Path(temporary) / "docs" / "catalog.md"
+        RENDERER._write_atomic(output, "catalog\n")
+        assert output.read_text(encoding="utf-8") == "catalog\n"
+        assert stat.S_IMODE(output.stat().st_mode) == 0o644
+        assert list(output.parent.iterdir()) == [output]
+
+
+def test_atomic_writer_replaces_a_regular_document() -> None:
+    with tempfile.TemporaryDirectory() as temporary:
+        output = Path(temporary) / "catalog.md"
+        output.write_text("previous\n", encoding="utf-8")
+        RENDERER._write_atomic(output, "current\n")
+        assert output.read_text(encoding="utf-8") == "current\n"
+        assert stat.S_IMODE(output.stat().st_mode) == 0o644
+        assert list(output.parent.iterdir()) == [output]
+
+
+def test_atomic_writer_rejects_a_nonregular_output() -> None:
+    with tempfile.TemporaryDirectory() as temporary:
+        output = Path(temporary) / "catalog.md"
+        output.write_text("previous\n", encoding="utf-8")
+        original_stat = RENDERER.os.stat
+        for mode in (stat.S_IFDIR, stat.S_IFIFO, stat.S_IFSOCK):
+            def checked_stat(candidate, *args, **kwargs):
+                if Path(candidate) == output:
+                    return SimpleNamespace(st_mode=mode)
+                return original_stat(candidate, *args, **kwargs)
+
+            with patch.object(RENDERER.os, "stat", side_effect=checked_stat):
+                with patch.object(RENDERER.os, "replace") as replace:
+                    try:
+                        RENDERER._write_atomic(output, "current\n")
+                    except RENDERER.RegistryError as exc:
+                        assert str(exc) == "output must be absent or a regular file"
+                    else:
+                        raise AssertionError("nonregular output was accepted")
+                    replace.assert_not_called()
+            assert output.read_text(encoding="utf-8") == "previous\n"
+            assert list(output.parent.iterdir()) == [output]
+
+
+def test_atomic_writer_preserves_a_target_when_stat_fails() -> None:
+    with tempfile.TemporaryDirectory() as temporary:
+        output = Path(temporary) / "catalog.md"
+        output.write_text("previous\n", encoding="utf-8")
+        original_stat = RENDERER.os.stat
+        failure = PermissionError("metadata unavailable")
+
+        def checked_stat(candidate, *args, **kwargs):
+            if Path(candidate) == output:
+                raise failure
+            return original_stat(candidate, *args, **kwargs)
+
+        with patch.object(RENDERER.os, "stat", side_effect=checked_stat):
+            with patch.object(RENDERER.os, "replace") as replace:
+                try:
+                    RENDERER._write_atomic(output, "current\n")
+                except PermissionError as exc:
+                    assert exc is failure
+                else:
+                    raise AssertionError("stat failure was suppressed")
+                replace.assert_not_called()
+        assert output.read_text(encoding="utf-8") == "previous\n"
+        assert list(output.parent.iterdir()) == [output]
+
+
 def main() -> int:
     test_registry_has_exact_profile_and_composite_keysets()
     test_generated_document_is_byte_for_byte_current()
@@ -200,6 +271,10 @@ def main() -> int:
     test_unknown_missing_and_duplicate_source_ids_are_rejected()
     test_duplicate_json_keys_and_unofficial_urls_are_rejected()
     test_manual_document_edit_is_rejected()
+    test_atomic_writer_creates_a_regular_document()
+    test_atomic_writer_replaces_a_regular_document()
+    test_atomic_writer_rejects_a_nonregular_output()
+    test_atomic_writer_preserves_a_target_when_stat_fails()
     print("query_catalog_docs_tests=passed")
     return 0
 

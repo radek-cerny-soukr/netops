@@ -30,7 +30,17 @@ def queued(destination: str, ctl: str, run=subprocess.run) -> int:
     return sum(counts)
 
 
+def _refuse_special_file(path: Path) -> None:
+    try:
+        mode = os.lstat(path).st_mode
+    except FileNotFoundError:
+        return
+    if not (stat.S_ISREG(mode) or stat.S_ISLNK(mode)):
+        raise ValueError("%s exists and is a special file" % path.name)
+
+
 def _replace(path: Path, text: str) -> None:
+    _refuse_special_file(path)
     temporary = path.with_name(".%s.%s.tmp" % (path.name, secrets.token_hex(8)))
     descriptor = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o640)
     try:
@@ -71,6 +81,7 @@ def write_status(output: Path, pending: int, now: float, audit_file: str | None 
             _replace(since_file, "%.3f" % since)
         age = max(0.0, now - since)
     else:
+        _refuse_special_file(since_file)
         since_file.unlink(missing_ok=True)
         age = 0.0
     document = {"updated_at": now, "pending": pending, "oldest_pending_age_seconds": round(age, 1)}

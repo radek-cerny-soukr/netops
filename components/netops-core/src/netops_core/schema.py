@@ -5,6 +5,7 @@ import copy
 import hashlib
 import ipaddress
 import json
+import math
 import re
 import uuid
 
@@ -444,10 +445,17 @@ class Library:
         return result
 
 
+def _finite(text):
+    value = float(text)
+    if not math.isfinite(value):
+        raise SchemaError("nonfinite schema value")
+    return value
+
+
 def load(path, expected_sha256=None):
     try:
         raw = read_regular(path, MAX_BYTES)
-        document = json.loads(raw.decode("utf-8"), object_pairs_hook=_unique,
+        document = json.loads(raw.decode("utf-8"), object_pairs_hook=_unique, parse_float=_finite,
                               parse_constant=lambda _: (_ for _ in ()).throw(SchemaError("nonfinite schema value")))
         digest = hashlib.sha256(raw).hexdigest()
         if expected_sha256 is not None and digest != expected_sha256:

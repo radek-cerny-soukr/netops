@@ -189,3 +189,31 @@ def test_valid_unresolved_reference_metadata_is_preserved(value):
     ref=data["config"]["system sdwan health-check sla"]["attrs"]["members"]["ref"]
     ref["unresolved"]=value;ref["builtin_values_not_captured"]=False
     assert Library(data).node("system sdwan health-check sla")["attrs"]["members"]["ref"]==ref
+
+
+@pytest.mark.parametrize("literal", ["1e999", "-1e999", "1E400", "1.5e309", "-2.0E+999"])
+def test_a_number_that_overflows_to_infinity_is_a_nonfinite_value(tmp_path, literal):
+    data = document()
+    data["config"]["system sdwan health-check sla"]["attrs"]["server"]["default"] = "__N__"
+    raw = json.dumps(data).replace('"__N__"', literal).encode()
+    file = tmp_path / "schema.json"
+    file.write_bytes(raw)
+    with pytest.raises(SchemaError, match="nonfinite schema value"):
+        load(file, hashlib.sha256(raw).hexdigest())
+
+
+@pytest.mark.parametrize("literal", ["1e308", "-1.5e-400", "0.5", "123456789012345678901234567890"])
+def test_finite_numbers_still_load_in_sequence_with_a_refused_one(tmp_path, literal):
+    data = document()
+    file = tmp_path / "schema.json"
+    for value, refused in ((literal, False), ("1e999", True), (literal, False)):
+        data["config"]["system sdwan health-check sla"]["attrs"]["server"]["default"] = "__N__"
+        raw = json.dumps(data).replace('"__N__"', value).encode()
+        file.write_bytes(raw)
+        if refused:
+            with pytest.raises(SchemaError):
+                load(file)
+        else:
+            assert load(file, hashlib.sha256(raw).hexdigest()).node(
+                "system sdwan health-check sla"
+            )["attrs"]["server"]["default"] == json.loads(value)

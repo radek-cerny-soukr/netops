@@ -38,6 +38,33 @@ def parse_snapshot(text: str):
         raise SnapshotRejected(["snapshot does not parse: %s" % exc], SNAPSHOT_UNREADABLE) from None
 
 
+def _repetitions(text: str) -> dict:
+    found, stack, entries, attributes = {}, [()], set(), set()
+    for number, raw in l1_fortios.logical_lines(text):
+        line = raw.strip()
+        if not line or line.startswith("#"):
+            continue
+        tokens = l1_fortios.tokenize(line)
+        if not tokens:
+            continue
+        command = tokens[0]
+        if command == "config":
+            stack.append(stack[-1] + (" ".join(tokens[1:]),))
+        elif command == "edit":
+            path = stack[-1] + (tokens[1] if len(tokens) > 1 else "",)
+            if path in entries:
+                found.setdefault(path, []).append("line %d: repeated edit" % number)
+            entries.add(path)
+            stack.append(path)
+        elif command in ("set", "unset") and len(tokens) > 1:
+            if (stack[-1], tokens[1]) in attributes:
+                found.setdefault(stack[-1], []).append("line %d: repeated %s" % (number, tokens[1]))
+            attributes.add((stack[-1], tokens[1]))
+        elif command in ("next", "end") and len(stack) > 1:
+            stack.pop()
+    return found
+
+
 class Snapshot:
     def __init__(self, text: str, firmware: str | None = None):
         first = text.lstrip("﻿").split("\n", 1)[0].strip()
@@ -53,6 +80,8 @@ class Snapshot:
             raise SnapshotRejected(["snapshot has VDOMs enabled; only single-VDOM configurations are evaluated"],
                                    SNAPSHOT_SCOPE_UNSUPPORTED)
         self.root = parse_snapshot(text)
+        self._text = text
+        self._repeated = None
         present = [name for name in MULTI_VDOM_SECTIONS if name in self.root.sub]
         if present:
             raise SnapshotRejected(["snapshot holds %s sections that this profile does not evaluate" % ", ".join(present)],
@@ -89,6 +118,9 @@ class Snapshot:
         if entry.sub or entry.entries:
             unsupported.append("nested configuration")
         unsupported.extend("unset %s" % name for name, attr in entry.attrs.items() if attr.unset)
+        if self._repeated is None:
+            self._repeated = _repetitions(self._text)
+        unsupported.extend(self._repeated.get(entry.path, ()))
         return attributes, unsupported
 
     def references(self, table: str, key: str) -> list:
@@ -275,13 +307,15 @@ def render_safeguard(change_id: str, inverse: list, fire_at: str) -> list:
     return lines
 
 
-def render_safeguard_removal(change_id: str) -> list:
+SAFEGUARD_PARTS = ("stitch", "trigger", "action")
+
+
+def render_safeguard_removal(change_id: str, parts=SAFEGUARD_PARTS) -> list:
     names = safeguard_names(change_id)
-    return [
-        "config system automation-stitch", 'delete "%s"' % names["stitch"], "end",
-        "config system automation-trigger", 'delete "%s"' % names["trigger"], "end",
-        "config system automation-action", 'delete "%s"' % names["action"], "end",
-    ]
+    lines = []
+    for part in parts:
+        lines.extend(("config system automation-%s" % part, 'delete "%s"' % names[part], "end"))
+    return lines
 
 
 def safeguard_queries(change_id: str) -> dict:
@@ -325,8 +359,15 @@ def safeguard_state(change_id: str, answers: dict, inverse: list, fire_at: str) 
     return problems
 
 
+def _answers_not_found(text: str) -> bool:
+    try:
+        return any(line.strip() == NOT_FOUND for _number, line in l1_fortios.logical_lines(text))
+    except l1_fortios.ParseError:
+        return False
+
+
 def _entry_absent(text: str, section: str, name: str) -> bool:
-    if any(line.strip() == NOT_FOUND for line in text.splitlines()):
+    if _answers_not_found(text):
         return True
     try:
         root = l1_fortios.parse(text)
@@ -402,8 +443,9 @@ def admin_fingerprint(text: str, snapshot_text=None, immutable_profiles=()) -> s
 
 
 def cli_error(text: str):
+    answer = text.split("\n", 1)[1] if "\n" in text else ""
     for marker in ERROR_MARKERS:
-        if marker in text:
+        if marker in answer:
             return marker
     return None
 
@@ -425,7 +467,7 @@ def shown_object(text: str, table: str, key: str):
         section = server.section("reserved-address")
         entry = None if section is None else section.entries.get(rid)
         return None if entry is None else {name: attr.value() for name, attr in entry.attrs.items() if not attr.unset}
-    if NOT_FOUND in text:
+    if _answers_not_found(text):
         return None
     start = text.find("config %s" % table)
     if start < 0:

@@ -42,9 +42,12 @@ SSH_TIMEOUT_SECONDS = 120.0
 
 
 class CollectError(Exception):
-    def __init__(self, message: str, event=None):
+    def __init__(self, message: str, event=None, events=None):
         super().__init__(message)
         self.event = event
+        if events is None:
+            events = () if event is None else (event,)
+        self.events = tuple(events)
 
 
 class ResponseTooLarge(Exception):
@@ -486,6 +489,7 @@ class _Step:
     command: str
     field: str = ""
     expect: str = ""
+    known: tuple = ()
     remedy: str = ""
     snapshot: bool = False
     prompt: bool = False
@@ -497,6 +501,7 @@ SSH_STEPS = {
             command="get system console",
             field="output",
             expect="standard",
+            known=("more",),
             remedy="set console output to standard first",
             prompt=True,
         ),
@@ -523,6 +528,13 @@ def _checked_platform(value) -> tuple:
             "platform must be one of %s, got %r" % (", ".join(SSH_PLATFORMS), value)
         )
     return steps
+
+
+def _described(value, known) -> str:
+    if value in known:
+        return repr(value)
+    raw = value.encode("utf-8", "replace")
+    return "an unrecognized value (%d bytes, sha256 %s)" % (len(raw), hashlib.sha256(raw).hexdigest()[:16])
 
 
 def _field(text, name):
@@ -626,50 +638,62 @@ def collect_ssh(
     events, payload, taken, marked = [], b"", None, False
     for step in steps:
         request = "%s %s" % (source, _checked_command(step.command))
-        data, event = _ssh_step(
-            device,
-            request,
-            step.command,
-            address,
-            port,
-            login,
-            credential,
-            host_key_line,
-            profile,
-            seconds,
-            clock,
-            step.snapshot,
-            run,
-        )
-        events.append(event)
+        try:
+            data, event = _ssh_step(
+                device,
+                request,
+                step.command,
+                address,
+                port,
+                login,
+                credential,
+                host_key_line,
+                profile,
+                seconds,
+                clock,
+                step.snapshot,
+                run,
+            )
+        except CollectError as error:
+            raise CollectError(str(error), error.event, tuple(events) + (error.event,)) from None
         if step.field:
             answer = data.decode("utf-8", "replace")
             if step.prompt:
                 answer = prompt.cleaned(answer, platform)
             seen = _field(answer, step.field)
+            refused = replace(event, outcome=OUTCOME_FAILED)
             if seen is None:
                 raise CollectError(
                     "cannot read %s of %s from %r" % (step.field, source, step.command),
-                    replace(event, outcome=OUTCOME_FAILED),
+                    refused,
+                    tuple(events) + (refused,),
                 )
             if seen != step.expect:
                 raise CollectError(
-                    "%s reports %s %r instead of %r; the auditor does not change device"
-                    " configuration - %s" % (source, step.field, seen, step.expect, step.remedy),
-                    replace(event, outcome=OUTCOME_FAILED),
+                    "%s reports %s %s instead of %r; the auditor does not change device"
+                    " configuration - %s"
+                    % (source, step.field, _described(seen, step.known), step.expect, step.remedy),
+                    refused,
+                    tuple(events) + (refused,),
                 )
+        events.append(event)
         if step.snapshot:
             payload, taken, marked = data, event, step.prompt
     if taken is None:
-        raise CollectError("platform %r has no step that takes a snapshot" % (platform,), failed())
+        marker = failed()
+        raise CollectError(
+            "platform %r has no step that takes a snapshot" % (platform,), marker, tuple(events) + (marker,)
+        )
     try:
         text = payload.decode("utf-8")
         if marked:
             text = prompt.cleaned(text, platform)
     except UnicodeDecodeError as error:
+        refused = replace(taken, outcome=OUTCOME_FAILED)
         raise CollectError(
             "snapshot is not valid UTF-8 (%s): %s" % (source, error.reason),
-            replace(taken, outcome=OUTCOME_FAILED),
+            refused,
+            tuple(refused if item is taken else item for item in events),
         )
     body = text.encode("utf-8")
     snapshot = Snapshot(
@@ -745,7 +769,10 @@ def unterminated_line(text, platform):
     except l1_fortios.TruncatedError as error:
         return error.line
     except l1_fortios.ParseError:
-        return None
+        head, newline, _ = text.rpartition("\n")
+        if not newline or text.endswith("\n"):
+            return None
+        return unterminated_line(head + newline, platform)
     return None
 
 

@@ -100,3 +100,42 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+
+
+PEM_BODY = "MIIBOgIBAAJBAKj34GkxFhD90vcNLYLInFEX6Ppy1tPf9Cnzj4p4WGeKLs1Pt8Qu\nKUpRKfFLfRYC9AIKjbJTWit+CqvjWYzvQwECAwEAAQ==\n"
+PEM_FORMS = {
+    "rsa": "RSA PRIVATE KEY", "ec": "EC PRIVATE KEY", "openssh": "OPENSSH PRIVATE KEY",
+    "pkcs8": "PRIVATE KEY", "pkcs8-encrypted": "ENCRYPTED PRIVATE KEY",
+    "dsa": "DSA PRIVATE KEY", "pgp": "PGP PRIVATE KEY BLOCK",
+}
+
+
+def test_every_private_key_pem_form_is_redacted_by_server_and_proxy() -> None:
+    from netops_helper.proxy_sanitize import sanitize_text
+
+    public = "-----BEGIN PUBLIC KEY-----\n" + PEM_BODY + "-----END PUBLIC KEY-----"
+    certificate = "-----BEGIN CERTIFICATE-----\n" + PEM_BODY + "-----END CERTIFICATE-----"
+    for clean in (redact, sanitize_text):
+        assert clean("before\n" + public + "\nafter") == "before\n" + public + "\nafter"
+        assert clean(certificate) == certificate
+        for name, label in sorted(PEM_FORMS.items()):
+            document = f"-----BEGIN {label}-----\n{PEM_BODY}-----END {label}-----"
+            cleaned = clean(f"key {name}:\n{document}\nshow done")
+            assert cleaned == f"key {name}:\n<PRIVATE-KEY-REDACTED>\nshow done", (clean, name)
+        for name, label in sorted(PEM_FORMS.items()):
+            truncated = clean(f"key {name}:\n-----BEGIN {label}-----\n{PEM_BODY[:40]}")
+            assert truncated == f"key {name}:\n<PRIVATE-KEY-REDACTED>", (clean, name)
+        assert clean("before\n" + public + "\nafter") == "before\n" + public + "\nafter"
+
+
+def test_secret_length_threshold_is_three_utf8_bytes() -> None:
+    from netops_helper.proxy_sanitize import sanitize_text
+
+    for clean in (redact, sanitize_text):
+        assert clean("device says abc here", ["abc"]) == "device says <REDACTED> here"
+        for secret in ("žž", "éé", "ž1", "€"):
+            cleaned = clean(f"device says {secret} here", [secret])
+            assert cleaned == "device says <REDACTED> here", (clean, secret)
+        for short in ("ab", "ž", "7"):
+            assert clean(f"device says {short} here", [short]) == f"device says {short} here"
+        assert clean("device says abc here", ["abc"]) == "device says <REDACTED> here"

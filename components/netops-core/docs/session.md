@@ -62,13 +62,6 @@ accident. The rule that governs `said` on the other transport - the other side's
 operator reading it by hand and is never put into a report, a log line or a prompt on its own -
 holds for anything a caller keeps out of a transcript itself (`docs/ssh.md`).
 
-## Measured against
+## Platform contract
 
-Recorded 16 September 2026 with this code, one device per platform, from a host with OpenSSH 9.2:
-
-| device | authentication | `legacy_ssh` | result |
-|---|---|---|---|
-| Ruckus Unleashed access point (Dropbear, offers only `ssh-rsa`) | password, asked for again inside the shell | `rsa-sha1` | `Please login:` answered, `Password` answered, prompt `ruckus>` reached, `enable`, `show sysinfo` returned 724 bytes; the login phase (104 bytes) was discarded |
-
-The prompt for the second password is the word `Password`, not `password :` as older notes on that
-platform say - match on `assword` and read the index, not on an exact prompt.
+Ruckus Unleashed uses an interactive session and may request a second password inside the shell. The session discards authentication-phase transcript data and returns only the selected command answer. Password-prompt handling matches the documented `assword` suffix and prompt index rather than assuming one capitalization or exact surrounding punctuation. The credential's device privileges remain governed by the component's explicit role boundary; a console prompt does not establish a read-only account.

@@ -26,6 +26,7 @@ import re
 import resource
 import shutil
 import signal
+import stat
 import subprocess
 import sys
 import tempfile
@@ -1350,6 +1351,19 @@ def test_export_status_survives_every_broken_answer_of_syslog_ng(tmp_path, capsy
     clean(failures)
 
 
+REPLACED_SPECIAL_FILES = ("fifo",)
+
+
+@pytest.mark.parametrize("place", ["output", "pending-since"])
+def test_export_status_does_not_replace_a_fifo(tmp_path, capsys, place):
+    ctl = _ctl(tmp_path, QUEUE % 3 if place == "pending-since" else QUEUE % 0)
+    output = tmp_path / "status.json"
+    target = output if place == "output" else output.with_name(output.name + ".pending-since")
+    os.mkfifo(target)
+    export_outcome(capsys, ["--destination", DESTINATION, "--output", str(output), "--ctl", ctl])
+    assert stat.S_ISFIFO(os.lstat(target).st_mode)
+
+
 def test_export_status_survives_a_broken_pending_since_file(tmp_path, capsys):
     ctl = _ctl(tmp_path, QUEUE % 3)
     valid = "%.3f" % time.time()
@@ -1359,7 +1373,7 @@ def test_export_status_survives_a_broken_pending_since_file(tmp_path, capsys):
         "future": "%.3f" % (time.time() + 10 ** 9), "negative": "-1", "underscore": "1_000", "hex": "0x10",
     }.items()})
     failures = {}
-    for index, name in enumerate(list(shapes) + list(PLACED)):
+    for index, name in enumerate(list(shapes) + [name for name in PLACED if name not in REPLACED_SPECIAL_FILES]):
         output = tmp_path / ("status-%d.json" % index)
         since = output.with_name(output.name + ".pending-since")
         if name in shapes:
@@ -1376,7 +1390,7 @@ def test_export_status_survives_a_broken_pending_since_file(tmp_path, capsys):
 def test_export_status_survives_every_broken_output_path(tmp_path, capsys):
     ctl = _ctl(tmp_path, QUEUE % 0)
     shapes = {name: path for name, path in path_shapes(tmp_path, b"{}").items() if not name.startswith("device")
-              and name not in ("symlink-zero",)}
+              and name not in ("symlink-zero",) and name not in REPLACED_SPECIAL_FILES}
     shapes["nul-in-path"] = nul_path(tmp_path)
     shapes["long-name"] = str(tmp_path / ("x" * 300))
     failures = {}

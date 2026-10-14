@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import errno
 import json
+import os
+import re
 import stat
 from dataclasses import InitVar, dataclass
 from pathlib import Path
@@ -16,6 +19,8 @@ ENTRY_FIELDS = ("kind", "login", "value")
 REQUIRED_ENTRY_FIELDS = ("kind", "value")
 ALLOWED_MODES = (0o600, 0o400)
 PRIVATE_KEY_PREFIX = "-----BEGIN "
+PRIVATE_KEY_HEADER = re.compile(r"-----BEGIN (?:[A-Z0-9]+ )*PRIVATE KEY-----\r?\n")
+PRIVATE_KEY_HEADER_TEXT = "-----BEGIN ... PRIVATE KEY-----"
 LOGIN_MARKS = ("@", ":", "/", " ", "\t", "\n", "\r")
 HIDDEN = "<hidden credential value>"
 
@@ -58,7 +63,11 @@ def _checked_login(name, kind: str, value):
             "credential %r: login must be a non-empty string, got %s" % (name, type(value).__name__)
         )
     login = value.strip()
-    if login.startswith("-") or any(mark in login for mark in LOGIN_MARKS):
+    if (
+        login.startswith("-")
+        or any(mark in login for mark in LOGIN_MARKS)
+        or any(character.isspace() for character in login)
+    ):
         raise VaultError(
             "credential %r: login must be a plain user name that does not start with - and holds"
             " no @, :, / or whitespace anywhere; the value is not repeated, it may hold a misplaced"
@@ -89,10 +98,11 @@ class Credential:
                 "credential %r: value must be a non-empty string, got %s"
                 % (self.name, type(value).__name__)
             )
-        if self.kind == "ssh-key" and not value.startswith(PRIVATE_KEY_PREFIX):
+        if self.kind == "ssh-key" and PRIVATE_KEY_HEADER.match(value) is None:
             raise VaultError(
-                "credential %r: value of kind %s must hold the private key text and start with %r"
-                % (self.name, self.kind, PRIVATE_KEY_PREFIX)
+                "credential %r: value of kind %s must hold the private key text and start with"
+                " the header line %r; a public key, a certificate or a path is not a private key"
+                % (self.name, self.kind, PRIVATE_KEY_HEADER_TEXT)
             )
         object.__setattr__(self, "_secret", _Secret(value))
 
@@ -126,38 +136,49 @@ class Vault:
         return "Vault(path=%s, names=(%s))" % (self._path, ", ".join(self.names()))
 
 
-def _checked_file(path: Path) -> None:
-    try:
-        status = path.lstat()
-    except FileNotFoundError:
-        raise VaultError("vault file %s does not exist" % path) from None
-    except OSError as error:
-        raise VaultError("cannot stat vault file %s: %s" % (path, error.strerror)) from None
-    except ValueError:
-        raise VaultError("vault file path holds a NUL character") from None
-    if stat.S_ISLNK(status.st_mode):
-        raise VaultError(
-            "vault file %s is a symbolic link, the vault must be a regular file whose mode this"
-            " process can judge, a link hands that decision to its target" % path
-        )
-    if not stat.S_ISREG(status.st_mode):
-        raise VaultError("vault file %s must be a regular file" % path)
-    mode = stat.S_IMODE(status.st_mode)
-    if mode not in ALLOWED_MODES:
-        raise VaultError(
-            "vault file %s has mode 0%o, must be one of: %s"
-            % (path, mode, ", ".join("0%o" % allowed for allowed in ALLOWED_MODES))
-        )
+def _judge(path: Path):
+    def judge(status) -> None:
+        if status.st_uid != os.geteuid():
+            raise VaultError(
+                "vault file %s belongs to user %d, not to the user %d of this process"
+                % (path, status.st_uid, os.geteuid())
+            )
+        if status.st_nlink != 1:
+            raise VaultError(
+                "vault file %s has %d hard links; the vault must be the only name of its file"
+                % (path, status.st_nlink)
+            )
+        mode = stat.S_IMODE(status.st_mode)
+        if mode not in ALLOWED_MODES:
+            raise VaultError(
+                "vault file %s has mode 0%o, must be one of: %s"
+                % (path, mode, ", ".join("0%o" % allowed for allowed in ALLOWED_MODES))
+            )
+
+    return judge
 
 
 def _raw(path: Path) -> str:
+    if "\x00" in str(path):
+        raise VaultError("vault file path holds a NUL character")
     try:
-        return read_regular(path, VAULT_MAX_BYTES, follow=False).decode("utf-8")
+        return read_regular(path, VAULT_MAX_BYTES, follow=False, judge=_judge(path)).decode(
+            "utf-8"
+        )
     except UnicodeDecodeError:
         raise VaultError("vault file %s is not valid UTF-8" % path) from None
+    except FileNotFoundError:
+        raise VaultError("vault file %s does not exist" % path) from None
     except InputError as error:
+        if str(error) == "not a regular file":
+            raise VaultError("vault file %s must be a regular file" % path) from None
         raise VaultError("cannot read vault file %s: %s" % (path, error)) from None
     except OSError as error:
+        if error.errno == errno.ELOOP and os.path.islink(path):
+            raise VaultError(
+                "vault file %s is a symbolic link, the vault must be a regular file whose mode this"
+                " process can judge, a link hands that decision to its target" % path
+            ) from None
         raise VaultError("cannot read vault file %s: %s" % (path, error.strerror)) from None
 
 
@@ -256,7 +277,6 @@ def load(path, *, names=None) -> Vault:
         names = frozenset(names)
     location = Path(path)
     try:
-        _checked_file(location)
         document = _document(location, _raw(location))
         credentials = [
             _credential(location, name, document["credentials"][name])

@@ -1,6 +1,10 @@
 from __future__ import annotations
 
 import re
+import json
+import os
+import subprocess
+import sys
 import ssl
 import urllib.error
 import urllib.request
@@ -73,9 +77,34 @@ class NtfyNotifier:
             "%s/%s" % (self.server, topic), data=body.encode("utf-8"), method="POST",
             headers={"Title": title, "Priority": PRIORITIES.get(record.get("result"), "4"), "Tags": "netops"},
         )
+        payload = {"url": request.full_url, "body": body, "title": title,
+                   "priority": PRIORITIES.get(record.get("result"), "4"),
+                   "timeout": self.timeout_seconds, "strict": self.x509_strict}
+        environment = {"PATH": os.defpath, "PYTHONDONTWRITEBYTECODE": "1",
+                       "PYTHONPATH": os.pathsep.join(str(path) for path in sys.path if path)}
+        for name in ("SSL_CERT_FILE", "SSL_CERT_DIR", "HTTP_PROXY", "http_proxy", "HTTPS_PROXY", "https_proxy",
+                     "ALL_PROXY", "all_proxy", "NO_PROXY", "no_proxy"):
+            if name in os.environ:
+                environment[name] = os.environ[name]
+        worker = "import json,sys; from netops_admin.notify import _send; sys.stdout.write(_send(json.load(sys.stdin)))"
         try:
-            opener = urllib.request.build_opener(urllib.request.HTTPSHandler(context=self._context()), _Unredirected)
-            with opener.open(request, timeout=self.timeout_seconds) as answer:
-                return "sent" if 200 <= answer.status < 300 and answer.url == request.full_url else "failed"
-        except (urllib.error.URLError, OSError, ValueError):
+            answer = subprocess.run([sys.executable, "-B", "-c", worker],
+                                    input=json.dumps(payload).encode("utf-8"), capture_output=True,
+                                    timeout=self.timeout_seconds, env=environment, check=False)
+        except (OSError, ValueError, subprocess.TimeoutExpired):
             return "failed"
+        return "sent" if answer.returncode == 0 and answer.stdout == b"sent" else "failed"
+
+
+def _send(payload) -> str:
+    request = urllib.request.Request(payload["url"], data=payload["body"].encode("utf-8"), method="POST",
+                                     headers={"Title": payload["title"], "Priority": payload["priority"], "Tags": "netops"})
+    context = ssl.create_default_context()
+    if not payload["strict"]:
+        context.verify_flags &= ~ssl.VERIFY_X509_STRICT
+    try:
+        opener = urllib.request.build_opener(urllib.request.HTTPSHandler(context=context), _Unredirected)
+        with opener.open(request, timeout=payload["timeout"]) as answer:
+            return "sent" if 200 <= answer.status < 300 and answer.url == request.full_url else "failed"
+    except (urllib.error.URLError, OSError, ValueError):
+        return "failed"

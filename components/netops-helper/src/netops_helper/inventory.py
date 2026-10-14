@@ -30,6 +30,7 @@ SECTION_FIELDS = (
     "rate_limit",
     "egress",
     "snmp_credential",
+    "role_boundary",
 )
 REQUIRED_SECTION_FIELDS = (
     "account_role", "ssh_platform", "enabled_queries", "egress",
@@ -55,6 +56,9 @@ EGRESS_POLICY_FIELDS = (
     "lan_cidrs",
 )
 ACCOUNT_ROLE = "read-only"
+ADMIN_BOUNDED_ROLE = "admin-bounded"
+CATALOGUE_ROLE_BOUNDARY = "catalogue"
+PLATFORMS_WITHOUT_READ_ONLY_ROLE = frozenset({"ruckus_unleashed"})
 CATALOG_PLATFORMS = {"fortios": "fortinet", "exos": "extreme_exos"}
 CREDENTIAL_KINDS = ("password", "ssh-key")
 SNMP_CREDENTIAL_KIND = "snmp-community"
@@ -119,6 +123,7 @@ class HelperSection:
     rate_limit: dict
     egress: dict
     snmp_credential: str | None
+    role_boundary: str | None = None
 
     def catalog_platform(self) -> str | None:
         return catalog_platform(self.ssh_platform)
@@ -490,6 +495,30 @@ def _checked_derived_port(
             )
 
 
+def _checked_role_boundary(
+    where: str, role: str, platform: str | None, item: dict,
+) -> str | None:
+    if role == ACCOUNT_ROLE:
+        if "role_boundary" in item:
+            raise RoleError(
+                "%s: role_boundary belongs only to account_role %r" % (where, ADMIN_BOUNDED_ROLE)
+            )
+        return None
+    if item.get("role_boundary") != CATALOGUE_ROLE_BOUNDARY:
+        raise RoleError(
+            "%s: account_role %r requires role_boundary %r, got %r"
+            % (where, ADMIN_BOUNDED_ROLE, CATALOGUE_ROLE_BOUNDARY, item.get("role_boundary"))
+        )
+    if platform not in PLATFORMS_WITHOUT_READ_ONLY_ROLE:
+        raise RoleError(
+            "%s: account_role %r is accepted only for an ssh_platform without a read-only"
+            " account (%s); use %r, got ssh_platform %r"
+            % (where, ADMIN_BOUNDED_ROLE, ", ".join(sorted(PLATFORMS_WITHOUT_READ_ONLY_ROLE)),
+               ACCOUNT_ROLE, platform)
+        )
+    return CATALOGUE_ROLE_BOUNDARY
+
+
 def section(entry: Device, kinds: dict | None = None) -> HelperSection:
     where = "device %s: helper section" % entry.name
     item = entry.helper
@@ -501,12 +530,14 @@ def section(entry: Device, kinds: dict | None = None) -> HelperSection:
     unknown = sorted(set(item) - set(SECTION_FIELDS))
     if unknown:
         raise InventoryError("%s: unknown fields: %s" % (where, ", ".join(unknown)))
-    if item["account_role"] != ACCOUNT_ROLE:
+    role = item["account_role"]
+    if role != ACCOUNT_ROLE and role != ADMIN_BOUNDED_ROLE:
         raise RoleError(
             "%s: account_role must be %r, an account the operator has not declared"
-            " read-only is refused, got %r" % (where, ACCOUNT_ROLE, item["account_role"])
+            " read-only is refused, got %r" % (where, ACCOUNT_ROLE, role)
         )
     platform = _checked_platform(where, item["ssh_platform"])
+    boundary = _checked_role_boundary(where, role, platform, item)
     queries = _checked_queries(where, platform, item["enabled_queries"])
     read_inventory = _checked_read_inventory(where, item.get("read_inventory", {}))
     try:
@@ -528,7 +559,8 @@ def section(entry: Device, kinds: dict | None = None) -> HelperSection:
     roots = _checked_roots(where, item.get("sftp_roots", []))
     _checked_derived_port(where, entry, platform, queries, roots, egress)
     return HelperSection(
-        account_role=ACCOUNT_ROLE,
+        account_role=role,
+        role_boundary=boundary,
         ssh_platform=platform,
         enabled_queries=queries,
         read_inventory=read_inventory,

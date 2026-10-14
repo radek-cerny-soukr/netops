@@ -83,6 +83,28 @@ def safeguard_absent(access, record) -> bool:
         return False
 
 
+def remove_remaining(access, record, spec) -> bool:
+    names = fortios.safeguard_names(record["change_id"])
+    try:
+        answers = _answers(access, record["change_id"])
+        parts = [part for part in fortios.SAFEGUARD_PARTS
+                 if not fortios._entry_absent(answers[part], "system automation-" + part, names[part])]
+        if parts:
+            access.apply(fortios.render_safeguard_removal(record["change_id"], parts), spec)
+    except Exception:
+        pass
+    return safeguard_absent(access, record)
+
+
+def safeguard_disarmed(access, record) -> bool:
+    names = fortios.safeguard_names(record["change_id"])
+    try:
+        answer = access.query(fortios.safeguard_queries(record["change_id"])["stitch"])
+        return fortios._entry_absent(answer, "system automation-stitch", names["stitch"])
+    except Exception:
+        return False
+
+
 def safeguard_fired(access, record) -> bool:
     return True
 

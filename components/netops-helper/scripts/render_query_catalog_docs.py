@@ -9,6 +9,7 @@ import json
 import os
 from pathlib import Path, PurePosixPath
 import re
+import stat
 import sys
 import tempfile
 from typing import Any, Mapping
@@ -43,7 +44,7 @@ SOURCE_ID_RE = re.compile(r"[A-Z][A-Z0-9-]{2,63}\Z")
 VERIFIED_DATE_RE = re.compile(r"[0-9]{4}-[0-9]{2}-[0-9]{2}\Z")
 PROJECT_NOTE = "Project contract; upstream source audit pending."
 LOGIN_NOTE = (
-    "Vendor guide behind a support login; syntax verified on a device 2026-09-16."
+    "Vendor guide behind a support login; documented command syntax; verify exact firmware and account permissions."
 )
 LOGIN_ACCESS = "login_required"
 
@@ -306,11 +307,10 @@ def _source_cell(registry: Mapping[str, Any], composite: str) -> str:
     if record["source_type"] == "vendor_login_required":
         return "<br>".join(
             _text(
-                "%s - %s (behind a vendor login; syntax verified on a device %s)"
+                "%s - %s (behind a vendor login; documented command syntax; verify exact firmware and account permissions)"
                 % (
                     source_id,
                     registry["sources"][source_id]["title"],
-                    registry["sources"][source_id]["verified_on_device"],
                 )
             )
             for source_id in record["source_ids"]
@@ -380,6 +380,15 @@ def validate_document(
         raise RegistryError("generated query catalog differs from runtime authority or registry")
 
 
+def _require_replaceable(path: Path) -> None:
+    try:
+        mode = os.stat(path).st_mode
+    except FileNotFoundError:
+        return
+    if not stat.S_ISREG(mode):
+        raise RegistryError("output must be absent or a regular file")
+
+
 def _write_atomic(path: Path, content: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     descriptor, temporary = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
@@ -389,6 +398,7 @@ def _write_atomic(path: Path, content: str) -> None:
             handle.flush()
             os.fsync(handle.fileno())
         os.chmod(temporary, 0o644)
+        _require_replaceable(path)
         os.replace(temporary, path)
     finally:
         if os.path.exists(temporary):

@@ -211,7 +211,13 @@ def json_shapes(document):
     return shapes
 
 
-def path_shapes(directory, valid, mode=0o644):
+def path_shapes(directory, valid, mode=0o644, linked_devices=False):
+    """Hostile path shapes; linked_devices=True names the devices through links in the directory.
+
+    A writer creates siblings (a lock file, a temporary file) next to its target, so a writer
+    test that is handed /dev/null itself would create them in /dev; the links keep the
+    device as the target and every sibling inside the test directory.
+    """
     root = Path(tempfile.mkdtemp(prefix="paths-", dir=str(directory)))
     target = root / "valid"
     target.write_bytes(valid)
@@ -240,6 +246,10 @@ def path_shapes(directory, valid, mode=0o644):
         "device-zero": Path("/dev/zero"),
         "name-too-long": root / ("x" * 5000),
     })
+    if linked_devices:
+        for name, device in (("device-null", os.devnull), ("device-zero", "/dev/zero")):
+            (root / name).symlink_to(device)
+            shapes[name] = root / name
     result = {name: str(path) for name, path in shapes.items()}
     result["nul-in-name"] = str(root / "a") + "\x00b"
     return result
@@ -420,7 +430,7 @@ def _deep(depth):
 def test_audit_recorder_raises_only_audit_errors(tmp_path):
     refusals = (audit.AuditFieldError, audit.AuditPersistenceError)
     failures = {}
-    for name, path in path_shapes(tmp_path, b"").items():
+    for name, path in path_shapes(tmp_path, b"", linked_devices=True).items():
         found = library(lambda: audit.Recorder(path, "helper").record("probe", status="ok"), refusals)
         if found:
             failures["path " + name] = found

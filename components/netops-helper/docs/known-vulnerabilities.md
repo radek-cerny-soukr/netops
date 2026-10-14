@@ -13,6 +13,14 @@ For 0.3.8, the release assets identify the exact final image digest and its Gryp
 
 The ignore rule of CVE-2026-60002 names the package version: a build that installs any other `openssh-client` version is no longer covered by it, and an active Critical match then blocks the release until the new package is reviewed. The other active High, Medium and Low matches are distribution packages labelled `wont-fix` or `not-fixed`; they are listed in the Grype report of each image and are not reviewed one by one here.
 
+## Helper 0.3.11 risk review scope
+
+Application fixes in 0.3.11 do not establish fixes for dependency vulnerabilities. Each ARM64 or AMD64 image needs its own image digest, image SBOM and complete vulnerability report; its release notes must bind the risk review to those exact assets. Package versions and active/ignored matches come from that image's reports, not from a source-version string or an earlier image.
+
+The [existing OpenSSH exception](#existing-openssh-exception) remains a package-version-specific review rule. It applies to a 0.3.11 image only when that image's SBOM and risk review satisfy the exact rule; this section adds no ignore rule and widens no exception. Review the [remaining Python findings](#remaining-python-findings) against the actual image packages and current upstream status. A dependency correction is established only by the corresponding fixed package/runtime and supporting exact-image evidence.
+
+Earlier image reports keep their own version/digest scope and do not supply 0.3.11 scan counts. The [release checks](#release-checks) require the exact new reports and disclosure of allowed unresolved findings. This source section states review requirements and does not claim a zero-finding image, a scan pass, a newly fixed CVE or an available published image.
+
 ## Helper 0.3.10 fix release
 
 This release removes the EXOS `sharing` query, bounds what the proxy reads from the server and adds a Linux AMD64 image beside the ARM64 image. It keeps the digest-pinned Python 3.14.8 base and the runtime lock of 0.3.9. Each image needs its own fresh build, image SBOM and full Grype scan; the release notes bind both exact image digests and their counts. Earlier scans remain historical evidence.
@@ -25,13 +33,13 @@ This release changes installation documentation, archive tests and version pins.
 
 At the 6 October 2026 review, the [Debian tracker](https://security-tracker.debian.org/tracker/CVE-2026-60002) still marks trixie openssh-client 1:10.0p1-7+deb13u4 as vulnerable with no-dsa. The existing package-version-specific CVE-2026-60002 exception applies to 0.3.9 only if its actual SBOM has that exact version; no ignore rule is added or widened. The unresolved Python findings below remain explicit, including the still-open [3.14 TemporaryDirectory backport](https://github.com/python/cpython/pull/158430).
 
-## Helper 0.3.8 candidate scan
+## Helper 0.3.8 runtime baseline
 
 Helper 0.3.8 updates the official digest-pinned slim-trixie ARM64 base to Python 3.14.8 and its locked PyJWT dependency to 2.15.0. The image still applies available Debian upgrades before installing openssh-client. No vulnerability ignore rule is added or widened.
 
 Python 3.14.8 fixes CVE-2026-17084, CVE-2026-19672, CVE-2026-15806 and CVE-2026-15310, according to the [Python release announcement](https://www.python.org/downloads/release/python-3148/). PyJWT 2.15.0 fixes the pre-verification recursive-payload exception described in [GHSA-42vr-xj54-vc7v](https://github.com/advisories/GHSA-42vr-xj54-vc7v). The isolated reproducer returns RecursionError on 2.14.0 and DecodeError on 2.15.0.
 
-The final image is built and scanned from the signed release commit. Its image SBOM and full Grype JSON are authoritative for installed package versions, active matches and ignored matches. Review the digest and severity counts in the release notes against those exact assets; reports of earlier 0.3.8 candidates are historical evidence.
+The final image is built and scanned from the signed release commit. Its image SBOM and full Grype JSON are authoritative for installed package versions, active matches and ignored matches. Review the digest and severity counts in the release notes against those exact assets; an image assessment applies only to its recorded digest and date.
 
 Package matches are not a count of distinct flaws or proven exploitable paths. The existing package-version-specific Critical exception remains explicit. Active High, Medium and Low distribution findings remain visible even when the release policy permits them.
 
@@ -43,7 +51,7 @@ Sources: [CPython issue and correction](https://github.com/python/cpython/issues
 
 ### Remaining Python findings
 
-The 3.14.8 candidate retains these Python matches; none is claimed fixed or ignored:
+The dated Python 3.14.8 review lists these Python matches; none is claimed fixed or ignored:
 
 - CVE-2026-87910: the tarfile link-fallback correction for 3.14 merged on 1 October, after the 3.14.8 release. [3.14 backport](https://github.com/python/cpython/pull/157307).
 - CVE-2025-15367: poplib control-character handling; upstream did not backport the behavior change to this branch. [Correction](https://github.com/python/cpython/pull/143924).
@@ -75,4 +83,4 @@ Sources: [forwarding policy finding](https://security-tracker.debian.org/tracker
 
 Every build must scan its exact image with a current valid vulnerability database and retain both active and ignored matches. Active Critical findings block the release. Each ignored Critical finding requires an applied rule and an explicit risk review, recorded in the [exception record](#exception-record) with the digest of the released image. High and Medium findings remain disclosed even when policy allows the release. Remove an exception only after verifying the corresponding package is fixed; neither a renamed image nor a source-version string is sufficient evidence.
 
-Helper 0.3.3 and the earlier 0.3.4 candidate had 51 active High matches, and 0.3.6 had 50 on 21 September; the same packages now match 51 with a newer database. Historical reports describe their images on their date. Repeat the scan and review for every rebuilt image.
+Image reports apply only to their recorded package inventory, database and date. Repeat the scan and risk review for every rebuilt image.

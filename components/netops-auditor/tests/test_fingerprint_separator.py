@@ -68,6 +68,17 @@ def _digest(path):
     return hashlib.sha256(Path(path).read_bytes()).hexdigest()
 
 
+def _tables(path):
+    connection = sqlite3.connect(str(path))
+    connection.row_factory = sqlite3.Row
+    try:
+        names = [row[0] for row in connection.execute("SELECT name FROM sqlite_master WHERE type = 'table'")]
+        return {name: [dict(row) for row in connection.execute("SELECT * FROM %s ORDER BY rowid" % name)]
+                for name in names}
+    finally:
+        connection.close()
+
+
 def _written(path, document):
     path.write_text(document if isinstance(document, str) else json.dumps(document), encoding="utf-8")
     return path
@@ -332,11 +343,15 @@ def test_a_configuration_whose_finding_object_holds_the_separator_is_refused(wor
 def test_collect_refuses_a_snapshot_whose_finding_object_holds_the_separator(world, capsys):
     (config,), _keywords, where = _object_cases(world.directory)["fortios"]
     path = _written(world.directory / "object-inventory.json", {"version": 2, "devices": [_device(DEVICE, config)]})
-    before = _digest(world.store)
+    before = _tables(world.store)
     code, out, err = _cli(capsys, "collect", "--inventory", path, "--device", DEVICE, "--tenant", TENANT,
                           "--store", world.store)
     assert (code, out, err) == (2, "", "error: cannot parse configuration: %s: object_key %s\n" % (where, REFUSAL))
-    assert _digest(world.store) == before
+    after = _tables(world.store)
+    added = after.pop("channel_events")[len(before.pop("channel_events")):]
+    assert after == before
+    assert [(row["run_id"], row["channel"], row["request"], row["outcome"]) for row in added] == [
+        (None, "file", str(config), "ok")]
 
 
 def test_the_separator_outside_every_finding_object_still_audits(world, capsys):

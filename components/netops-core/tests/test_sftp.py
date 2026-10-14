@@ -325,3 +325,17 @@ def test_the_argument_vector_is_available_on_its_own():
     assert line[:3] == [SFTP_BINARY, "-F", CONFIG_FILE]
     assert "-i" in line and line[line.index("-i") + 1] == "/tmp/identity"
     assert line[-1] == "%s@%s" % (LOGIN, HOST)
+
+
+@pytest.mark.parametrize("remote_path", ("/safe/a\\b", "/safe/a\\\\b", "/safe/end\\", "/safe/\\*"))
+def test_a_path_with_a_backslash_is_refused_before_the_client_in_sequence_with_plain_ones(
+    remote_path,
+):
+    run = FakeRun()
+    assert call(run).kind == "file"
+    with pytest.raises(SftpError) as caught:
+        call(run, remote_path=remote_path)
+    assert "backslash" in str(caught.value)
+    assert len(run.calls) == 1
+    assert call(run).kind == "file"
+    assert len(run.calls) == 2

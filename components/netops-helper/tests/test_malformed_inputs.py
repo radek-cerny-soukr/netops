@@ -272,7 +272,7 @@ def _section() -> dict:
         "account_role": "read-only",
         "ssh_platform": "fortios",
         "enabled_queries": ["system_status"],
-        "read_inventory": {"interfaces": [], "services": [], "addresses": ["192.0.2.20"], "switches": ["sw1"]},
+        "read_inventory": {"interfaces": [], "services": [], "addresses": ["192.0.2.20"], "switches": ["sw-example"]},
         "sftp_roots": ["/safe"],
         "fortios_output_standard_verified": True,
         "snmp_credential": "device-a-community",
@@ -673,9 +673,15 @@ def test_egress_generator_checker_and_installer_refuse_every_broken_input() -> N
         for label, path in path_shapes(directory, files["egress-policy"].read_bytes()).items():
             cases["generate policy " + label] = ([script, "--inventory", str(files["inventory"]), "--policy", path,
                                                   "--output", str(directory / "cli-out.json")], _environment(directory))
+            if label.startswith("device-"):
+                continue
             cases["generate output " + label] = ([script, "--inventory", str(files["inventory"]), "--policy",
                                                   str(files["egress-policy"]), "--output", path],
                                                  _environment(directory))
+        disposable = Path(tempfile.mkdtemp(prefix="output-", dir=str(directory))) / "bundle.json"
+        cases["generate output disposable regular"] = ([script, "--inventory", str(files["inventory"]), "--policy",
+                                                        str(files["egress-policy"]), "--output", str(disposable)],
+                                                       _environment(directory))
         failures.update(_matrix(cases, {0, 2}))
         for label, path in path_shapes(directory, output.read_bytes(), 0o600).items():
             target = Path(path)

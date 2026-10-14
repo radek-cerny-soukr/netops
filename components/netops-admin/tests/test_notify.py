@@ -39,9 +39,9 @@ def test_notifier_reports_failure_without_raising(tmp_path, monkeypatch):
     topic.write_text("NTFY_TOPIC=abcdefgh_12345\n")
 
     def unreachable(*args, **kwargs):
-        raise urllib.error.URLError("down")
+        raise notify.subprocess.TimeoutExpired(["fixture-worker"], 1)
 
-    monkeypatch.setattr(notify.urllib.request, "build_opener", unreachable)
+    monkeypatch.setattr(notify.subprocess, "run", unreachable)
     sender = notify.NtfyNotifier("https://ntfy.example", str(topic), 1, x509_strict=False)
     assert sender({"device": "lab", "result": "confirmed"}) == "failed"
     assert not (sender._context().verify_flags & notify.ssl.VERIFY_X509_STRICT)

@@ -1,6 +1,8 @@
 import hashlib
 import json
 import os
+from types import SimpleNamespace
+from unittest.mock import Mock
 import sqlite3
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -261,7 +263,7 @@ def rule_version(rule_id):
     return {item["id"]: item["version"] for item in document["rules"]}[rule_id]
 
 
-def suppression(rule_id, object_key, expires, reason="ticket NET-1", author="radek", device=DEVICE, tenant=TENANT):
+def suppression(rule_id, object_key, expires, reason="ticket NET-1", author="operator", device=DEVICE, tenant=TENANT):
     version = rule_version(rule_id)
     return {
         "fingerprint": fingerprint_of(rule_id, version, tenant, device, object_key),
@@ -292,7 +294,7 @@ def write_v1_suppressions(directory, items, name="v1.json"):
     return path
 
 
-def v1_suppression(rule_id, object_key, expires, reason="ticket NET-1", author="radek", device=DEVICE):
+def v1_suppression(rule_id, object_key, expires, reason="ticket NET-1", author="operator", device=DEVICE):
     version = rule_version(rule_id)
     return {
         "fingerprint": fingerprint_v1(rule_id, version, device, object_key),
@@ -363,7 +365,7 @@ def test_open_known_stays_visible_and_apart_from_suppressed(tmp_path, capsys):
     path = write_config(tmp_path, dirty_text())
     database = tmp_path / "audit.sqlite"
     first_code, first_out, first_err = invoke(
-        capsys, full_args(path, store=database, as_json=True, accept=("radek", "prevzato pri nasazeni"))
+        capsys, full_args(path, store=database, as_json=True, accept=("operator", "prevzato pri nasazeni"))
     )
     assert first_code == 0
     first = json.loads(first_out)
@@ -399,19 +401,19 @@ def test_finding_entries_carry_the_state_key(tmp_path, capsys):
 def test_baseline_accept_records_who_and_why(tmp_path, capsys):
     path = write_config(tmp_path, dirty_text())
     database = tmp_path / "audit.sqlite"
-    code, out, _ = invoke(capsys, full_args(path, store=database, as_json=True, accept=("radek", "prevzato")))
+    code, out, _ = invoke(capsys, full_args(path, store=database, as_json=True, accept=("operator", "prevzato")))
     assert code == 0
     report = json.loads(out)
     with Store(database) as store:
         entries = store.baseline_entries(TENANT, DEVICE)
     assert [item["fingerprint"] for item in entries] == [item["fingerprint"] for item in report["findings"]]
-    assert {item["accepted_by"] for item in entries} == {"radek"}
+    assert {item["accepted_by"] for item in entries} == {"operator"}
     assert {item["note"] for item in entries} == {"prevzato"}
 
 
 def test_baseline_accept_without_store_is_an_error(tmp_path, capsys):
     path = write_config(tmp_path, dirty_text())
-    code, out, err = invoke(capsys, full_args(path, accept=("radek", "prevzato")))
+    code, out, err = invoke(capsys, full_args(path, accept=("operator", "prevzato")))
     assert code == 2
     assert out == ""
     assert err.startswith("error: ")
@@ -420,7 +422,7 @@ def test_baseline_accept_without_store_is_an_error(tmp_path, capsys):
 def test_baseline_accept_without_author_or_note_is_an_error(tmp_path, capsys):
     path = write_config(tmp_path, dirty_text())
     database = tmp_path / "audit.sqlite"
-    for extra in (["--accepted-by", "radek"], ["--note", "prevzato"], []):
+    for extra in (["--accepted-by", "operator"], ["--note", "prevzato"], []):
         argv = run_args(path, store=database) + ["--baseline-accept"] + extra
         code, out, err = invoke(capsys, argv)
         assert code == 2
@@ -431,7 +433,7 @@ def test_baseline_accept_without_author_or_note_is_an_error(tmp_path, capsys):
 
 def test_author_and_note_without_baseline_accept_are_an_error(tmp_path, capsys):
     path = write_config(tmp_path, dirty_text())
-    argv = run_args(path) + ["--accepted-by", "radek", "--note", "prevzato"]
+    argv = run_args(path) + ["--accepted-by", "operator", "--note", "prevzato"]
     code, out, err = invoke(capsys, argv)
     assert code == 2
     assert out == ""
@@ -572,7 +574,7 @@ def test_a_suppression_file_bound_to_the_running_tenant_works_with_no_notice(tmp
 def test_orphaned_and_expired_suppressions_are_named_in_the_report(tmp_path, capsys):
     path = write_config(tmp_path, dirty_text())
     orphan = suppression(UTM_RULE, ABSENT_OBJECT, FUTURE, reason="ticket NET-2", author="petr")
-    stale = suppression(WAN_RULE, WAN_OBJECT, EXPIRED, reason="ticket NET-3", author="radek")
+    stale = suppression(WAN_RULE, WAN_OBJECT, EXPIRED, reason="ticket NET-3", author="operator")
     waivers = write_suppressions(tmp_path, [orphan, stale])
     code, out, _ = invoke(capsys, full_args(path, as_json=True, suppressions=waivers))
     text_code, text_out, _ = invoke(capsys, full_args(path, suppressions=waivers))
@@ -614,14 +616,14 @@ def test_states_and_suppressions_do_not_carry_the_configuration(tmp_path, capsys
     waivers = write_suppressions(
         tmp_path,
         [
-            suppression(WAN_RULE, WAN_OBJECT, FUTURE, reason="ticket NET-1", author="radek"),
+            suppression(WAN_RULE, WAN_OBJECT, FUTURE, reason="ticket NET-1", author="operator"),
             suppression(UTM_RULE, ABSENT_OBJECT, EXPIRED, reason="ticket NET-2", author="petr"),
         ],
     )
     json_store = tmp_path / "json.sqlite"
     text_store = tmp_path / "text.sqlite"
-    invoke(capsys, full_args(dirty, store=json_store, as_json=True, accept=("radek", "prevzato")))
-    invoke(capsys, full_args(dirty, store=text_store, accept=("radek", "prevzato")))
+    invoke(capsys, full_args(dirty, store=json_store, as_json=True, accept=("operator", "prevzato")))
+    invoke(capsys, full_args(dirty, store=text_store, accept=("operator", "prevzato")))
     known_json = invoke(capsys, full_args(dirty, store=json_store, as_json=True, suppressions=waivers))
     known_text = invoke(capsys, full_args(dirty, store=text_store, suppressions=waivers))
     gone_json = invoke(capsys, full_args(clean, store=json_store, as_json=True, suppressions=waivers))
@@ -1642,7 +1644,7 @@ def test_collect_baseline_accept_records_who_and_why(tmp_path, capsys):
         inventory_path,
         as_json=True,
         store=database,
-        accept=("radek", "ticket NET-2"),
+        accept=("operator", "ticket NET-2"),
     )
     assert code == 0
     assert "baseline: accepted" in err
@@ -1650,14 +1652,14 @@ def test_collect_baseline_accept_records_who_and_why(tmp_path, capsys):
     with Store(database) as store:
         entries = store.baseline_entries(TENANT, DEVICE)
     assert entries
-    assert {item["accepted_by"] for item in entries} == {"radek"}
+    assert {item["accepted_by"] for item in entries} == {"operator"}
     assert {item["note"] for item in entries} == {"ticket NET-2"}
 
 
 def test_collect_baseline_accept_without_store_is_an_error(tmp_path, capsys):
     path = write_config(tmp_path, clean_text())
     inventory_path = file_inventory(tmp_path, path)
-    code, out, err = gather(capsys, inventory_path, accept=("radek", "ticket NET-2"))
+    code, out, err = gather(capsys, inventory_path, accept=("operator", "ticket NET-2"))
     assert code == 2
     assert out == ""
     assert err.startswith("error: ")
@@ -2114,3 +2116,84 @@ def test_merge_sarif_refuses_foreign_or_inconsistent_input(tmp_path, capsys):
         assert code == cli.EXIT_ERROR, name
         assert message in err, (name, err)
         assert not output.exists(), name
+
+
+@pytest.mark.parametrize("stored,label", [("fakt", "fact"), ("usudek", "judgement")])
+def test_human_finding_class_is_english_without_changing_json(stored, label):
+    item = {"severity": "high", "rule_id": "rule", "class": stored,
+            "object_key": "object", "section": "section", "line": 1,
+            "fingerprint": "fingerprint", "evidence": {}}
+    rendered = "\n".join(cli._finding_lines(item))
+    assert "(" + label + ")" in rendered
+    assert "(" + stored + ")" not in rendered
+    assert json.loads(cli._render(item, True, cli._finding_lines))["class"] == stored
+
+def _write_os_proxy():
+    return SimpleNamespace(**{
+        **vars(os),
+        "write": Mock(wraps=os.write),
+        "fsync": Mock(wraps=os.fsync),
+        "ftruncate": Mock(wraps=os.ftruncate),
+        "close": Mock(wraps=os.close),
+    })
+
+
+@pytest.mark.parametrize("data", [b"", b"new output"])
+def test_write_regular_completes_positive_partial_writes(tmp_path, monkeypatch, data):
+    path = tmp_path / "output.json"
+    path.write_bytes(b"old output")
+    real_write = os.write
+    calls = []
+
+    def write(fd, view):
+        calls.append(bytes(view))
+        return real_write(fd, view[:3])
+
+    proxy = _write_os_proxy()
+    proxy.write.side_effect = write
+    monkeypatch.setattr(cli, "os", proxy)
+    cli._write_regular(path, data)
+    assert calls == [data[offset:] for offset in range(0, len(data), 3)]
+    assert path.read_bytes() == data
+    proxy.close.assert_called_once()
+    proxy.ftruncate.assert_called_once_with(proxy.close.call_args.args[0], 0)
+
+
+@pytest.mark.parametrize("progress", [0, -1])
+@pytest.mark.parametrize("partial", [False, True])
+def test_write_regular_refuses_nonpositive_write_and_closes(tmp_path, monkeypatch, progress, partial):
+    path = tmp_path / "output.json"
+    path.write_bytes(b"old output")
+    data = b"new output"
+    real_write = os.write
+    calls = []
+
+    def write(fd, view):
+        calls.append(bytes(view))
+        if partial and len(calls) == 1:
+            return real_write(fd, view[:3])
+        if len(calls) == 1 + int(partial):
+            return progress
+        raise AssertionError("write retried after no progress")
+
+    proxy = _write_os_proxy()
+    proxy.write.side_effect = write
+    monkeypatch.setattr(cli, "os", proxy)
+    with pytest.raises(OSError, match="^short write to the output file$"):
+        cli._write_regular(path, data)
+    assert calls == ([data, data[3:]] if partial else [data])
+    assert path.read_bytes() == (data[:3] if partial else b"")
+    proxy.close.assert_called_once()
+
+
+def test_write_regular_preserves_io_error_and_closes(tmp_path, monkeypatch):
+    path = tmp_path / "output.json"
+    error = OSError("storage unavailable")
+    proxy = _write_os_proxy()
+    proxy.write.side_effect = error
+    monkeypatch.setattr(cli, "os", proxy)
+    with pytest.raises(OSError) as caught:
+        cli._write_regular(path, b"new output")
+    assert caught.value is error
+    assert path.read_bytes() == b""
+    proxy.close.assert_called_once()

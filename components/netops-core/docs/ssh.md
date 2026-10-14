@@ -39,16 +39,7 @@ with `SshError` naming the credential kind and the two that can be used.
 
 ### Where the askpass program comes from
 
-The client **executes** the askpass program, so it must live on a filesystem that allows execution.
-By default the program is the small script `<workspace>/askpass`, written with mode 0700 next to the
-secret. That is right on an ordinary host and wrong in a hardened container: the helper's Compose
-file mounts `/tmp` and `/run` `noexec`, the workspace is created under `/tmp`, and a program written
-there cannot be executed at all. Measured on 19 September 2026 in a Helper image built the way the
-published one is, with the same `noexec` `/tmp` and `/run` mounts its `compose.yaml` declares (that
-release, its tag and its image download have since been removed): an
-execute-permission check on the written script answers false and `execve` fails with `EACCES`, while
-a program outside those mounts runs and reads a file inside them without trouble - `noexec` stops
-execution, not reading.
+The client executes the askpass program, so that program must reside on a filesystem that permits execution. By default `<workspace>/askpass` is written with mode 0700 next to the secret. If the temporary filesystem is mounted `noexec`, executing that script fails with `EACCES`; `noexec` does not prevent reading a file stored there. A separately installed program on an executable filesystem can read the private secret in that workspace.
 
 A deployment that mounts its temporary directory `noexec` therefore ships the program elsewhere and
 names it in `NETOPS_ASKPASS_PROGRAM`. There are two ways to have it. Installing the distribution
@@ -108,6 +99,15 @@ either. Nothing of the answer changes: the status, the output and the moments of
 ones the client produced, and when the group is already empty, which is the ordinary case, the sweep
 is a single system call. The interactive session closes the same way (`docs/session.md`).
 
+The reading does not wait for the streams to close once the client itself has ended. A process the
+client started inherits its standard output and standard error, and as long as it holds them they
+never reach end of file - `sleep 30 &` in a shell, or the `ssh` that `sftp` runs. The runner watches
+the client through a process file descriptor (`os.pidfd_open`): when the client has ended, what is
+already waiting in the two pipes is read, without waiting for more, and the reading stops; the client
+is reaped and its group is swept as above. So such a process neither turns a finished call into a
+timeout nor adds anything it writes later to the answer. Where a process file descriptor cannot be
+opened, the reading falls back to waiting for end of file under the same deadline.
+
 `capture_max_bytes` defaults to `CAPTURE_MAX_BYTES`, which is the budget of a configuration-sized
 answer, not of a diagnostic one. A caller that knows it asks for little passes a smaller number, and
 a caller that reads a whole configuration keeps the default; the helper additionally refuses an
@@ -132,19 +132,9 @@ host key answer is a handful of lines, never a configuration. A peer that keeps 
 budget is killed and the scan is refused with `SshError`, the same as an oversized command answer;
 the `run=` argument stays the seam the tests use.
 
-The scan asks for one key type at a time - `ed25519`, then `ecdsa`, then `rsa` - with `ssh-keyscan -t`,
-and stops at the first line that matches the pin. Without `-t`, `ssh-keyscan` opens one connection per
-key type at once; measured on 25 September 2026 against IOS-XE 17.18.2 images with five VTY lines,
-those sessions were still closing when the real connection arrived and it was reset (`Connection
-refused`), on every call through an OpenSSH 10.0p2 client and on one call in five through OpenSSH
-9.2p1. One type at a time never opens more than one connection to the device and, on a device whose
-pinned key is ed25519, opens exactly one. `ssh-keyscan` exits 1 when the device has no key of the
-requested type, and the OpenSSH 10.0p2 client still writes its `# <host>:<port> SSH-2.0-...`
-comment line to standard output in that case (9.2p1 wrote it to standard error). An answer counts
-only when it holds at least one line that is not a comment; one that is empty or holds only comment
-lines moves on to the next type, whatever the status. An answer with a key line and a status other
-than 0 is still refused. All attempts share the one timeout:
-the first gets all of it, a later one only what is left, and none starts with less than a second.
+The scan requests one host-key type at a time — `ed25519`, then `ecdsa`, then `rsa` — with `ssh-keyscan -t`, and stops at the pinned key. Asking for multiple types at once opens multiple connections and can exceed a device's terminal-session limit. Sequential requests bound that load to one connection at a time.
+
+`ssh-keyscan` exits1 when a requested type is unavailable. An answer containing only comment lines does not establish a key, whether the client writes those comments to standard output or standard error. An empty or comment-only answer advances to the next type; an answer with a key line and a nonzero status is refused. OpenSSH 10.0p2 and 9.2p1 differ in where they write the comment, so parsing is based on a non-comment key line rather than comment placement. Attempts share one timeout: later attempts receive only the remaining time and none starts with less than one second.
 
 For a device whose inventory entry carries `legacy_ssh: "rsa-sha1-dh14"` the scan cannot use
 `ssh-keyscan`, which offers no SHA-1 key exchange and has no option to add one. `scan(...,
@@ -152,8 +142,7 @@ legacy="rsa-sha1-dh14")` instead runs one `ssh` with every authentication method
 login `netops-hostkey`, `StrictHostKeyChecking=accept-new` into a known-hosts file inside a private
 temporary directory, and the profile's options; the connection ends at authentication, the file then
 holds the key the device offered, and the same pin comparison decides. The directory is removed before
-the scan returns. Measured on 25 September 2026: IOSv 15.9(3)M12 and IOSvL2 15.2 offered only
-`ssh-rsa` over `diffie-hellman-group14-sha1`, and the probe returned the pinned key.
+the scan returns. IOSv 15.9(3)M12 and IOSvL2 15.2 profiles can require `ssh-rsa` with `diffie-hellman-group14-sha1`; the explicitly selected legacy profile does not change the pinned-key comparison.
 
 ## The workspace
 
@@ -164,7 +153,16 @@ stands for a file that is not locked yet; the descriptor is not inherited by the
 directory then holds the `known_hosts` file, and the identity or the secret and the askpass script.
 It is removed in a `finally` block, so it is gone after the call whether the command succeeded,
 failed, timed out, or raised; the lock is released only after the removal.
-`netops_core.sftp.stat` and `netops_core.session.Session` create, lock and remove their workspaces
+The paths of the `known_hosts` file and of the identity reach the client inside its options, and
+OpenSSH rewrites such a path before it opens it: it expands `%` tokens (`%h` is the host) and
+`${VARIABLE}` in `UserKnownHostsFile` and in an identity given with `-i`, splits `UserKnownHostsFile`
+on whitespace into several files, and reads quotes and backslashes in an option value. `-i` cannot even
+be escaped: the client checks the literal path before it expands it. So `argv()` of this module, of
+`sftp` and of `session`, `known_hosts_options()` and the legacy host key probe refuse a path that holds
+`%`, `$`, a quote, a backslash, whitespace or a control character with `SshError` (`HostKeyError` for
+the probe) naming the path and `TMPDIR`; such a path can only come from the temporary directory, and
+the call is refused before the client is started instead of reading a different file than the one the
+workspace holds. `netops_core.sftp.stat` and `netops_core.session.Session` create, lock and remove their workspaces
 through the same functions. A session holds its lock from opening until `close()` has removed its
 directory, so the workspace of an open session - or of one that is never closed, until its process
 ends - counts as running.
@@ -222,7 +220,11 @@ by a marker in `said`, not an echo of what the device wrote.
 The exit status separates two different events. The OpenSSH client reports its own failure - it could
 not connect, could not authenticate, could not negotiate - as 255 (`CLIENT_FAILURE_CODE`); every other
 code is the status the remote command itself ended with. So 255 and a timeout are refusals, and any
-other code is a `Result` carrying `rc` and everything the command wrote. The transport does not judge
+other code is a `Result` carrying `rc` and everything the command wrote. A negative status is not a
+code at all: it is how a client ended by a signal is reported (`-9` after `SIGKILL`, for example by the
+out-of-memory killer), and what such a client wrote is cut off wherever the signal found it. It is a
+failure of the client like 255, refused with `SshError` whose `rc` is the negative status and whose
+message names the signal; nothing it wrote is returned. The transport does not judge
 a command's own status: whether a non-zero `rc` is an error is a decision of the caller, who knows
 what it asked for. The auditor refuses a snapshot unless `rc` is 0; the helper returns the output and
 reports `rc`.
@@ -234,7 +236,9 @@ reports `rc`.
 | the client does not finish in `timeout_seconds` | `SshError` naming the host and the timeout; the client and the group it leads are stopped and reaped first |
 | the client writes more than `capture_max_bytes` on standard output | `SshError` naming the budget; the client and the group it leads are stopped and no partial answer is returned |
 | `capture_max_bytes` is not a whole number of at least 1 | `SshError` naming the value |
+| the path of the known hosts file or of the identity holds `%`, `$`, a quote, a backslash, whitespace or a control character (a `TMPDIR` the client would rewrite) | `SshError` naming the path and `TMPDIR`, before the client starts |
 | exit status 255, or a status that is not a whole number | `SshError` carrying `rc` and `said`, whose message names a reason from `REASONS` and not the client's words |
+| a negative status: the client was ended by a signal | `SshError` carrying the negative `rc` and `said`, whose message names the signal; the partial output is not returned |
 | exit status 255, no `legacy_ssh` profile, and `said` mentions a failed negotiation | `SshError` with the remedy: the exception is written per device as `legacy_ssh`, the profile list is closed, and there is no global switch |
 
 The remedy appears only when no profile was named. A device that already carries an exception and
@@ -257,32 +261,10 @@ without an owner file and one whose `.owner` is a symbolic link are left alone. 
 run for `netops_core.sftp.stat` and for an open `netops_core.session.Session`, and no workspace or
 open descriptor outlives a finished or refused call of any of the three.
 
-## Measured against
+## Platform contracts
 
-Recorded 16 September 2026 with this code, from a host with OpenSSH 9.2, one command per call, the
-host key pinned from a prior `ssh-keyscan`. Each row is one real device.
+Host-key algorithms, authentication methods and permitted legacy profiles are platform-specific. FortiOS, ExtremeXOS, Arista EOS, Cisco IOS/IOS-XE and Junos retain their exact documented version and account boundaries; transport support does not authorize device changes. Select a legacy profile only for the exact device that requires it. Ruckus Unleashed uses the documented [interactive session](session.md) path instead of an exec channel.
 
-| platform | authentication | `legacy_ssh` | result |
-|---|---|---|---|
-| FortiOS 8.0.0 (offers ed25519, ecdsa and rsa host keys) | `ssh-key` | `null` | `get system status`, rc 0, 1576 bytes |
-| FortiOS 8.0.0 | `password` through askpass | `null` | `get system status`, rc 0, 1576 bytes |
-| ExtremeXOS 33.7 (offers only `ssh-rsa`) | `ssh-key` | `null` | refused before the credential was used: `Unable to negotiate ... no matching host key type found. Their offer: ssh-rsa`, rc 255, with the remedy naming `legacy_ssh` |
-| ExtremeXOS 33.7 | `ssh-key` | `rsa-sha1` | `show version`, rc 0, 443 bytes |
-| ExtremeXOS 33.7 | `password` through askpass | `rsa-sha1` | `show version`, rc 0, 443 bytes, byte-identical to the key run |
+Exit status 255 is a transport refusal. Other command statuses remain a `Result` with their output, rather than being discarded as transport errors. An ExtremeXOS command can return status250 with complete output; the caller must distinguish a command status, a device CLI error and the completeness of the returned answer. Neither a nonzero status nor a complete answer alone establishes semantic success.
 
-Recorded 25 September 2026 with the one-type-at-a-time host key scan, from a host with OpenSSH
-9.2p1: the scan found the pinned key on FortiOS 7.6.7 and 8.0 (ed25519, one connection), ExtremeXOS
-33.7.1 (`ssh-rsa`, three connections), cEOS-lab 4.36.1F and vJunos-switch 26.2R1.7 (ed25519) and
-IOS-XE 17.18.2 (RSA only, three connections), and the following `ssh` to the two IOS-XE images was
-accepted on every one of the 54 calls that reached them.
-
-After every call the workspace directory was gone and the password file handed to the run had been
-removed by the caller. The Ruckus access point has no exec channel and is measured in
-[`session.md`](session.md).
-
-Recorded 17 September 2026 with this code against an ExtremeXOS 33.7.1 switch: four of the read
-commands the helper catalogue holds for that platform end with exit status 250 and still write their
-full answer to standard output - a port detail of 2344 bytes, an empty IPv6 route summary of 168
-bytes, an IPv6 neighbour lookup of 613 bytes ending in `Error: IPv6 subnet not on an interface`, and a
-link-aggregation summary of 941 bytes. That is why a status other than 255 is a `Result` and not a
-refusal: treating every non-zero status as a failed call would have thrown four working answers away.
+Credentials and temporary workspaces keep the cleanup and interrupted-call boundaries documented above. [Generic platform boundaries](../../../docs/verified-support.md#operator-responsibility) and [compatibility evidence limits](../../../docs/compatibility-boundaries.md#catalogue-and-parser-coverage) describe the scope without deployment identities or execution logs.

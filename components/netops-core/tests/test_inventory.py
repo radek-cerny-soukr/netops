@@ -793,3 +793,36 @@ def test_deep_json_inventory_is_a_controlled_error(tmp_path, opening, closing, p
     path = write_raw(tmp_path, raw)
     with pytest.raises(InventoryError):
         load(path)
+
+
+@pytest.mark.parametrize(
+    "address,numeric",
+    (
+        ("0xc000020a", "192.0.2.10"),
+        ("192.0.2.0xa", "192.0.2.10"),
+        ("0xc0.0.2.0xa", "192.0.2.10"),
+        ("192.0.0x20a", "192.0.2.10"),
+        ("0300.0.2.0xa", "192.0.2.10"),
+        ("0xc0.0x0.0x2.0xa", "192.0.2.10"),
+    ),
+)
+def test_a_numeric_ipv4_form_is_not_a_dns_name(tmp_path, address, numeric):
+    path = write(tmp_path, [item(address=address)])
+    with pytest.raises(InventoryError) as caught:
+        load(path)
+    message = str(caught.value)
+    assert "address must hold the canonical form of the IPv4 literal" in message
+    assert repr(address) in message
+    assert repr(numeric) in message
+
+
+@pytest.mark.parametrize(
+    "address", ("fw-0x1.example.invalid", "0xfw.example.invalid", "a0x1", "x0c000020a", "0x-a")
+)
+def test_a_dns_name_that_only_looks_hexadecimal_still_loads_in_sequence_with_a_refusal(
+    tmp_path, address
+):
+    assert load(write(tmp_path, [item(address=address)]))[0].address == address
+    with pytest.raises(InventoryError, match="canonical form"):
+        load(write(tmp_path, [item(address="0xc000020a")]))
+    assert load(write(tmp_path, [item(address=ADDRESS)]))[0].address == ADDRESS

@@ -10,7 +10,7 @@ the cleaned answers of its check account with its prediction.
 A device with an exec channel can answer a single command with its own prompt printed into the
 output: glued to the front of the first line, and once more at the end as a line of its own.
 
-**Measured on 17 September 2026, FortiOS 8.0.0, one command per connection:**
+**FortiOS 8.0.0 one-command exec-channel prompt shapes:**
 
 | account | first line begins with | last line |
 |---|---|---|
@@ -20,8 +20,7 @@ output: glued to the front of the first line, and once more at the end as a line
 The marker is the shell convention: `#` for the privileged account, `$` for the unprivileged one. A
 prompt with a virtual domain (`<hostname> (global) # `) is the same shape with a longer name.
 
-**Measured the same day, ExtremeXOS:** the exec channel prints no prompt at all (0 occurrences in the
-dump), so cleaning is a no-op there and stays declared only so the two platforms share one path.
+An ExtremeXOS exec answer with no prompt requires no cleaning. The shared platform rule preserves an answer without a supported prompt prefix unchanged.
 
 ## The rule
 
@@ -36,6 +35,23 @@ dump), so cleaning is a no-op there and stays declared only so the two platforms
 - keeps a trailing newline if the answer had one.
 - **never touches the middle.** A `#` or `$` inside a value (`edit "net # 42"`, a comment line, a
   password prompt inside a transcript) survives byte for byte, because the cleaner never looks there.
+
+A line is what lies between two `\n` characters and nothing else. A carriage return, a vertical tab,
+a form feed, `\x1c`-`\x1e`, NEL (`\x85`) or U+2028/U+2029 inside the answer is content: a CRLF answer
+keeps every CRLF, including the one in front of a removed trailing prompt, and a value that holds such
+a character comes back unchanged. The cleaned answer of a device that prints a prompt is therefore the
+same text, and has the same SHA-256, as the answer of an account that prints none. A trailing line is
+compared with the marker after stripping its trailing whitespace, so `<hostname> #\r` counts as the
+prompt; the line and its own `\n` are what is removed.
+
+This rule assumes a complete exec answer with the device prompt at the beginning of
+the first LF-delimited line and, if repeated, on its own final line. A carriage return
+embedded inside the hostname or prompt prefix, or terminal output that rewrites the
+first line using a bare CR, is outside this input contract. The cleaner does not emulate
+a terminal cursor or reconstruct overwritten text. Such a prefix is not a supported
+prompt shape; it does not change the preservation guarantee for CR inside the answer
+following a valid prompt, or for CRLF line endings. Interactive terminal transcripts
+are handled by the session driver rather than this cleaner.
 
 Anchoring on the prompt found at the beginning is the point: a configuration line that happens to
 carry `#` must not be at risk, and by construction it cannot be.

@@ -167,13 +167,13 @@ def test_evidence_survives_diacritics_quotes_and_scalars():
     assert stored["hits"] == 0
 
 
-def test_last_run_and_history_are_ordered_newest_first():
+def test_last_run_and_history_are_ordered_by_commit_sequence():
     with Store(":memory:") as store:
         old = record(store, started_at="2026-09-01T05:00:00Z")
         newest = record(store, started_at="2026-09-11T05:00:00Z")
         middle = record(store, started_at="2026-09-05T05:00:00Z")
-        assert store.last_run(TENANT, DEVICE)["id"] == newest
-        assert tuple(run["id"] for run in store.runs_for_device(TENANT, DEVICE)) == (newest, middle, old)
+        assert store.last_run(TENANT, DEVICE)["id"] == middle
+        assert tuple(run["id"] for run in store.runs_for_device(TENANT, DEVICE)) == (middle, newest, old)
 
 
 def test_unknown_device_has_no_history():
@@ -312,7 +312,7 @@ BASELINE_SCHEMA = (
     "run_id",
 )
 
-ACCEPTED_BY = "radek"
+ACCEPTED_BY = "operator"
 NOTE = "znamy stav, resime pozdeji"
 
 INSERT_BASELINE = (
@@ -1018,7 +1018,7 @@ def test_channel_events_order_is_newest_first_and_deterministic():
         store.record_channel_events(TENANT, DEVICE, batch)
         first = tuple(item["request"] for item in store.channel_events(TENANT, DEVICE))
         second = tuple(item["request"] for item in store.channel_events(TENANT, DEVICE))
-    assert first == ("fourth", "second", "third", "first")
+    assert first == ("fourth", "third", "second", "first")
     assert first == second
 
 
@@ -1103,7 +1103,7 @@ def version_one_store(tmp_path, name="v1.sqlite3"):
             item = make_finding(tenant=tenant)
             second = make_finding(rule_id="L1-002", object_key="firewall policy/2", tenant=tenant)
             run_id = record(store, (item, second), tenant=tenant)
-            store.accept_baseline(tenant, DEVICE, run_id, "radek", "prevzato")
+            store.accept_baseline(tenant, DEVICE, run_id, "operator", "prevzato")
     return downgraded(path)
 
 

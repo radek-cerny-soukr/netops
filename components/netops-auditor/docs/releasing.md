@@ -2,7 +2,7 @@
 
 Release tags follow the component scheme `<name>/v<version>`, where `<name>` is the project name
 declared in this component's `pyproject.toml`: this component tags
-`netops-auditor/v0.2.11`, and the release title is `netops-auditor 0.2.11`. Tags of another component
+`netops-auditor/v0.2.12`, and the release title is `netops-auditor 0.2.12`. Tags of another component
 are never touched by this procedure. Publishing a newer version leaves the release page and the tag
 of earlier versions in place. The canonical origin is
 `https://github.com/radek-cerny-soukr/netops`.
@@ -26,7 +26,7 @@ credentials, host keys, or inventory and vault files. The release export is a po
 the component gate also reads the content of every released file and, outside a
 repository, holds the exported tree to exactly the released selection.
 
-## What 0.2.11 releases
+## What 0.2.12 releases
 
 This component releases **from source; it ships no container image**. The release carries four assets:
 
@@ -38,7 +38,7 @@ This component releases **from source; it ships no container image**. The releas
 | `netops-auditor-<version>-release-SHA256SUMS.sigstore.json` | the Sigstore bundle over those checksums |
 
 An image, and the three assets that come with one, are planned for a later version. Until then the
-component runs on any Python 3.13 host, installed from the unpacked, verified release archives.
+component runs on any Linux host with Python 3.13, installed from the unpacked, verified release archives; Linux is the only supported host operating system (see `components/netops-core/docs/releasing.md`).
 
 ### PyPI, a delayed channel
 
@@ -55,11 +55,10 @@ uploaded again.
 ### It needs `netops-core` beside it
 
 The auditor reads the inventory, the credential store, the host key trust and the SSH
-transport from `netops-core`, and `pyproject.toml` pins it as `netops-core==0.2.8`.
-From PyPI, where both are uploaded, `pip install netops-auditor==0.2.11` resolves that pin and installs the
-core with it. From the release archives **the operator installs the `netops-core` source archive of exactly that
-version next to the auditor**, as the [installation guide](installation.md) does: download `netops-core-0.2.8-source.tar.gz` with the release
-`SHA256SUMS` and its Sigstore bundle from the `netops-core` 0.2.8 page of the
+transport from `netops-core`, and `pyproject.toml` pins it as `netops-core==0.2.9`.
+After separate PyPI publication, and only when both exact versions are available there, `pip install netops-auditor==0.2.12` resolves that pin and installs Core with it. From the release archives **the operator installs the `netops-core` source archive of exactly that
+version next to the auditor**, as the [installation guide](installation.md) does: download `netops-core-0.2.9-source.tar.gz` with the release
+`SHA256SUMS` and its Sigstore bundle from the `netops-core` 0.2.9 page of the
 [releases](https://github.com/radek-cerny-soukr/netops/releases), verify the bundle with `cosign` and
 the archive against `SHA256SUMS` as
 [Verifying a release](https://github.com/radek-cerny-soukr/netops/blob/main/docs/README.md#verifying-a-release)
@@ -70,7 +69,7 @@ this repository the archive is the tree, so the tests and the CI job take the co
 `fastmcp` is needed solely for the MCP surface.
 
 Either way works, and both are covered by the CI job. Installing the two unpacked directories into
-one environment - `(umask 022; python -m pip install ./netops-core-0.2.8 ./netops-auditor-0.2.11)` from the directory that holds them; a path without a `/` would be looked up on the package index - puts
+one environment - `(umask 022; python -m pip install ./netops-core-0.2.9 ./netops-auditor-0.2.12)` from the directory that holds them; a path without a `/` would be looked up on the package index - puts
 the rule catalogues inside the installed package and puts the command `netops-auditor` on the path,
 which is the name every message and every example in these documents uses. Running from the unpacked
 tree with `src` on `PYTHONPATH` and `python -m netops_auditor` is the same program.
@@ -100,9 +99,9 @@ The current published release is linked from the [repository release table](http
    ```
 
    Run source tests beside exactly one Core tree: `../netops-core` in the monorepository or
-   `../netops-core-0.2.8` after unpacking the pinned release archive. The supply-chain tests verify
+   `../netops-core-0.2.9` after unpacking the pinned release archive. The supply-chain tests verify
    its package identity and exact version in both layouts. For the archive layout, set
-   `PYTHONPATH="src:../netops-core-0.2.8/src"`; no rename or symlink is needed. The GitHub Action
+   `PYTHONPATH="src:../netops-core-0.2.9/src"`; no rename or symlink is needed. The GitHub Action
    keeps the monorepository layout provided by the checkout.
 
    The export destination must not already exist. Run the gate once more **inside** the export; away
@@ -151,3 +150,7 @@ SBOM does not reproduce is not released.
 After the new release is published and independently verified, update the current-version links in the repository documentation and check every release, tag and download URL against the public release and tag lists. The previous release page, its assets and its tag stay. Removing one is a separate decision that needs explicit authorization for that exact deletion and a local archive of its assets first; other components' releases and tags are never touched.
 
 The 2026-09-20 lock regeneration used Python 3.13.15 and `pip-tools==7.6.1`; the lock header records the command. The matching generator wheel hashes are recorded in the monorepository Helper release procedure.
+
+## PyPI source distributions and tests
+
+PyPI wheels and source distributions are installation packages. The PyPI sdist is not a standalone pytest test tree: it omits the test-support `conftest.py` and the component's test guard. The Helper sdist also omits `scripts/` and `config/`. Running pytest over an unpacked sdist can therefore fail during collection or lack required test support. Run the documented suite from a repository checkout or the verified GitHub source release archive, with its pinned development dependencies and any required sibling components. The signed GitHub source archive and the PyPI sdist are different artifacts.

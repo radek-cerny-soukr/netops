@@ -19,7 +19,7 @@ except ModuleNotFoundError:
 
 from netops_admin import __version__, execute
 from netops_admin.cli import build_runtime
-from netops_admin.config import load_config
+from netops_admin.config import load_config, summary as configuration_summary
 from netops_admin.errors import Rejected
 from netops_admin.request import parse_request
 
@@ -158,8 +158,9 @@ def admin_status(change_id: str | None = None, request_id: str | None = None) ->
         change_id = None if known is None else known["change_id"]
     record = runtime.store.operation(change_id) if change_id else None
     if record is None:
-        return {"result": "unknown-operation", "reasons": ["no operation matches"]}
-    return summary(execute.refresh_delivery(runtime, record))
+        return {"result": "unknown-operation", "reasons": ["no operation matches"],
+                "configuration": configuration_summary(runtime.config)}
+    return dict(summary(execute.refresh_delivery(runtime, record)), configuration=configuration_summary(runtime.config))
 
 
 @mcp.tool(

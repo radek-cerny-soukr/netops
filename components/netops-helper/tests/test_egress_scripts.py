@@ -3,6 +3,7 @@ from __future__ import annotations
 import importlib.util
 import ipaddress
 import json
+import os
 from pathlib import Path
 import stat
 import subprocess
@@ -495,6 +496,89 @@ class GeneratorTests(unittest.TestCase):
             )
             with self.assertRaises(generator.EgressContractError):
                 generator.generate(inventory_path, policy_path, inventory_path)
+
+    def test_generate_refuses_a_special_file_at_the_output_and_leaves_it(self) -> None:
+        document, policy = fixture()
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            inventory_path = write_inventory(document, root)
+            policy_path = root / "egress-policy.json"
+            policy_path.write_text(json.dumps(policy), encoding="utf-8")
+            fifo = root / "fifo"
+            os.mkfifo(fifo, 0o666)
+            linked_fifo = root / "linked-fifo"
+            os.mkfifo(linked_fifo, 0o666)
+            link = root / "link-to-fifo"
+            link.symlink_to(linked_fifo)
+            folder = root / "folder"
+            folder.mkdir()
+            before = sorted(path.name for path in root.iterdir())
+            for output_path in (fifo, link, folder):
+                with self.assertRaisesRegex(
+                    generator.EgressContractError, "output must be absent or a regular file",
+                ):
+                    generator.generate(inventory_path, policy_path, output_path)
+            self.assertTrue(stat.S_ISFIFO(os.lstat(fifo).st_mode))
+            self.assertTrue(link.is_symlink())
+            self.assertTrue(stat.S_ISFIFO(os.lstat(linked_fifo).st_mode))
+            self.assertEqual(list(folder.iterdir()), [])
+            completed = subprocess.run(
+                [sys.executable, "-B", str(GENERATOR_PATH),
+                 "--inventory", str(inventory_path),
+                 "--policy", str(policy_path), "--output", str(fifo)],
+                text=True,
+                capture_output=True,
+                check=False,
+                timeout=60,
+            )
+            self.assertEqual(completed.returncode, 2)
+            self.assertEqual(completed.stdout, "")
+            self.assertEqual(
+                completed.stderr,
+                "egress_generation=failed reason=output must be absent or a regular file\n",
+            )
+            self.assertTrue(stat.S_ISFIFO(os.lstat(fifo).st_mode))
+            self.assertEqual(sorted(path.name for path in root.iterdir()), before)
+            output_path = root / "egress.json"
+            output_path.write_text("old", encoding="utf-8")
+            generator.generate(inventory_path, policy_path, output_path)
+            self.assertTrue(stat.S_ISREG(os.lstat(output_path).st_mode))
+            checker.validate_bundle(json.loads(output_path.read_text(encoding="utf-8")))
+
+    def test_inventory_digest_refuses_a_special_file_without_reading_it(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            fifo = root / "fifo"
+            os.mkfifo(fifo, 0o666)
+            regular = root / "inventory.json"
+            regular.write_bytes(b"{}")
+            probe = (
+                "import importlib.util, sys\n"
+                "spec = importlib.util.spec_from_file_location('generator', sys.argv[1])\n"
+                "module = importlib.util.module_from_spec(spec)\n"
+                "spec.loader.exec_module(module)\n"
+                "for path in sys.argv[2:]:\n"
+                "    try:\n"
+                "        print(module.inventory_digest(module.Path(path)))\n"
+                "    except module.EgressContractError as exc:\n"
+                "        print('refused', exc)\n"
+            )
+            completed = subprocess.run(
+                [sys.executable, "-B", "-c", probe, str(GENERATOR_PATH), str(regular), str(fifo)],
+                text=True,
+                capture_output=True,
+                check=False,
+                timeout=20,
+            )
+            self.assertEqual(completed.returncode, 0, completed.stderr)
+            self.assertEqual(
+                completed.stdout.splitlines(),
+                [
+                    "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+                    "refused inventory file is unavailable",
+                ],
+            )
+            self.assertTrue(stat.S_ISFIFO(os.lstat(fifo).st_mode))
 
     def test_cli_failure_never_prints_input_values(self) -> None:
         document, policy = fixture()

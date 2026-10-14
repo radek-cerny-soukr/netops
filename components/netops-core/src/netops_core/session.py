@@ -27,7 +27,7 @@ def argv(host, port, login, known_hosts, *, identity=None, legacy=None) -> list:
     name = ssh_module._checked_host(host)
     number = ssh_module._checked_port(port)
     user = ssh_module._checked_login(login)
-    ssh_module._checked_text("known_hosts", known_hosts)
+    ssh_module._checked_client_path("known_hosts", known_hosts)
     options = ssh_module.OPTIONS if identity is not None else ssh_module.PASSWORD_OPTIONS
     line = [ssh_module.SSH_BINARY, "-F", ssh_module.CONFIG_FILE, TTY_OPTION]
     for option in options + legacy_module.openssh_options(legacy):
@@ -35,7 +35,7 @@ def argv(host, port, login, known_hosts, *, identity=None, legacy=None) -> list:
     for option in ssh_module.known_hosts_options(known_hosts):
         line.extend(["-o", option])
     if identity is not None:
-        line.extend(["-i", ssh_module._checked_text("identity", identity)])
+        line.extend(["-i", ssh_module._checked_client_path("identity", identity)])
     line.extend(["-p", str(number), "%s@%s" % (user, name)])
     return line
 
@@ -267,6 +267,8 @@ class Session:
         try:
             while data:
                 written = os.write(self._fd, data)
+                if written <= 0:
+                    raise OSError("short write to the session")
                 data = data[written:]
         except OSError as error:
             raise SessionError(

@@ -1,28 +1,11 @@
-# Admin 0.2.0 review and validation
+# Admin profile compatibility review
 
-Review date: 24 September 2026. Scope: request parsing, planning and inverses, enrollment and identity, predicted/observed audit, rollback confirmation and recovery, notification/export, and source distribution.
+The profile contracts cover bounded address, address-group, DHCP-reservation and ExtremeXOS port operations with a separately enrolled check account and an on-device inverse. A successful configuration comparison is not proof of packet forwarding, lease acquisition or every licensed feature.
 
-## Corrections made
+- FortiOS 7.6.7 build3704 is an explicit profile boundary.
+- FortiOS 8.0.0 build0167 support is scoped to the documented operation; Admin 0.2.5 introduced address-group and DHCP-reservation support for that exact build.
+- ExtremeXOS 33.7.1.6 and the documented virtual-image profile have separate model, permission and persistence boundaries.
+- Every deployment must complete enrollment for its exact model and build. Unknown firmware, unavailable check reads and uncalibrated inverses do not inherit support.
+- Interruption and unrelated configuration changes can leave a device blocked and require recovery or manual review. A matching encrypted snapshot cannot establish the plaintext of opaque certificate or wireless fields.
 
-- Audit the complete prediction before any safeguard installation; require the management checks needed by the selected operation and an explicit EXOS port VLAN allowlist.
-- Compare configuration outside the target across the parsed snapshot, preserve ordering outside known unordered tables, and exclude only the current safeguard from the comparison.
-- Bind FortiOS account identity to referenced access-profile permissions, not just administrator entries. A changed profile invalidates enrollment and the stored account baseline.
-- Verify cleanup and saving after rollback; save when recovering an interrupted confirmation and block further changes if saving fails.
-- Record notification transport exceptions durably. Reject NaN, infinity, future timestamps and invalid queue counts in exporter status.
-- Match identifiers to the entire input, bound list-valued requests, and summarize address/MAC and long member changes in exported audit events.
-- Require persistent UPM execution and attempt all inverse commands after a partial write; verify the persistable snapshot as well as the live port.
-- Handle measured EXOS output: the separate Untagged header, grouping syntax, and ambiguous missing-VLAN diagnostics. Ambiguous absence requires a complete VLAN inventory.
-- Normalize only the measured opaque ciphertext fields described in [operations](operations-020.md#snapshot-comparison-boundary); retain structure and administrator comparison.
-- Isolate Auditor histories across operator policies so removing a policy cannot resolve its old findings; detect group cycles with a linear graph traversal.
-
-## Validation
-
-The source suites passed 313 Admin tests and 1,127 Auditor tests before packaging. These include independent device models for each new operation and inverse, rejected requests before a write, unavailable checks, actual simulated timer execution, interrupted recovery and failed saving.
-
-Live validation on FortiGate 60F / FortiOS 7.6.7 build3704 exercised enrollment, address create/cleanup, static group member removal and undo, DHCP reservation create/update/delete and undo, and on-device timer return after deliberate check-read loss for groups and reservations. The test addresses were not leased; temporary network permissions were separately approved and restored afterwards. Configuration returned to the pre-series state under the documented ciphertext comparison boundary.
-
-Live regression on FortiGate 80F / FortiOS 8.0.0 build0167 exercised enrollment with real timed rollback, address create/update/unset-comment/delete and undo, then actual timer return for update, delete and create after deliberate check-read loss. Separate temporary key accounts were restricted to the test host; they and their profiles were removed afterwards. The privileged configuration comparison returned to the original baseline under the documented ciphertext boundary. Ten additional execution tests prove that unsupported group/DHCP operations, mismatched configured firmware and unmeasured 8.0 builds cannot send mutation commands.
-
-EXOS validation used an unused physical port on X440-G2 / 33.7.1.6: enrollment, tagged add/remove and undo, native move and undo, then combined membership rollback with persistent UPM mode after deliberate check-read loss. The test VLANs were removed and the complete switch configuration returned byte for byte. The final measurement record is summarized in the repository's [verified support](../../../docs/verified-support.md).
-
-Configuration verification is not packet forwarding, a DHCP lease acquisition, or proof of all builds in a firmware family. Every device/build must pass its own enrollment. FortiOS 8.0.0 build0167 was regressed above for the address profile; at this review the new group/DHCP profiles did not claim 8.0.0 support. On 29 September 2026 both were measured on a lab FortiGate 60F with 8.0.0 build0167, including the return by the on-device stitch, and the unreleased 0.2.5 enables them for that build only; see [verified support](../../../docs/verified-support.md#admin-025-development-branch-29-september-2026) and [execution](execution.md#measured-on-fortios-800-build0167-address-group-and-dhcp-reservation).
+See [compatibility boundaries](../../../docs/compatibility-boundaries.md), [execution contracts](execution.md) and [operation scope](operations-020.md).

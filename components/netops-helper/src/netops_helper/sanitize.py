@@ -43,8 +43,8 @@ PRESHARED_SECRET = re.compile(
 SHADOW_HASH = re.compile(r"(?m)^([^:\r\n]+:)(?:[!*][^:\r\n]*|\$[^:\r\n]+)(?=:)")
 FORTI_ENC = re.compile(r"\bENC\s+\S+")
 PRIVATE_PEM = re.compile(
-    r"-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----.*?"
-    r"-----END (?:RSA |EC |OPENSSH )?PRIVATE KEY-----",
+    r"-----BEGIN (?:[A-Z0-9]+ )*PRIVATE KEY(?: BLOCK)?-----.*?"
+    r"(?:-----END (?:[A-Z0-9]+ )*PRIVATE KEY(?: BLOCK)?-----|\Z)",
     re.DOTALL,
 )
 
@@ -60,7 +60,7 @@ def _replace_bare(match: re.Match[str]) -> str:
 def redact(text: object, secrets: Iterable[str] = (), limit: int | None = None) -> str:
     """Remove explicit credentials and key material while preserving diagnostic context."""
     value = str(text)
-    for secret in sorted({str(item) for item in secrets if len(str(item)) >= 3}, key=len, reverse=True):
+    for secret in sorted({str(item) for item in secrets if len(str(item).encode("utf-8")) >= 3}, key=len, reverse=True):
         value = value.replace(secret, "<REDACTED>")
     value = PRIVATE_PEM.sub("<PRIVATE-KEY-REDACTED>", value)
     value = FORTI_ENC.sub("ENC <REDACTED>", value)

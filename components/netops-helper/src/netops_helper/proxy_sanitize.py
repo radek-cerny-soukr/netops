@@ -3,14 +3,15 @@
 from __future__ import annotations
 
 from collections.abc import Iterable
+import json
 import re
 from typing import Any
 
 
 FORTI_ENC = re.compile(r"\bENC\s+\S+")
 PRIVATE_PEM = re.compile(
-    r"-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----.*?"
-    r"-----END (?:RSA |EC |OPENSSH )?PRIVATE KEY-----",
+    r"-----BEGIN (?:[A-Z0-9]+ )*PRIVATE KEY(?: BLOCK)?-----.*?"
+    r"(?:-----END (?:[A-Z0-9]+ )*PRIVATE KEY(?: BLOCK)?-----|\Z)",
     re.DOTALL,
 )
 CISCO_SECRET = re.compile(
@@ -45,7 +46,12 @@ SENSITIVE_KEYS = {
 
 def _normalize_secrets(secrets: Iterable[object]) -> tuple[str, ...]:
     values = {str(value) for value in secrets if len(str(value).encode("utf-8")) >= 3}
-    return tuple(sorted(values, key=len, reverse=True))
+    forms = {
+        form for value in values for form in (
+            value, json.dumps(value)[1:-1], json.dumps(value, ensure_ascii=False)[1:-1],
+        )
+    }
+    return tuple(sorted(forms, key=len, reverse=True))
 
 
 def sanitize_text(value: str, secrets: Iterable[object] = ()) -> str:
@@ -77,6 +83,9 @@ def sanitize_object(value: Any, secrets: Iterable[object] = ()) -> Any:
     def walk(item: Any) -> Any:
         if isinstance(item, str):
             return sanitize_text(item, normalized)
+        if isinstance(item, (int, float)) and not isinstance(item, bool):
+            number = json.dumps(item)
+            return "<REDACTED>" if any(secret in number for secret in normalized) else item
         if isinstance(item, list):
             return [walk(child) for child in item]
         if isinstance(item, dict):

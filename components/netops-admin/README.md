@@ -1,10 +1,23 @@
 # netops-admin
 
+This source tree contains netops-admin/v0.2.8. Its metadata pins netops-core==0.2.9. It also pins netops-auditor==0.2.12.
+
 Bounded, reversible changes to network devices: a single-object profile request or a calibrated FortiOS schema transaction of up to 32 operations, planned from a fresh snapshot and executed behind a rollback safeguard on the device itself.
 
-This source tree targets `netops-admin/v0.2.7` (2026-10-11); it pins `netops-auditor==0.2.11` and `netops-core==0.2.8`. The current release of every component is linked from the [repository release table](https://github.com/radek-cerny-soukr/netops/blob/main/README.md#components). **Install from the release assets:** the [installation guide](https://github.com/radek-cerny-soukr/netops/blob/main/components/netops-admin/docs/installation.md) downloads the source archives of this component and of the pinned `netops-auditor` and `netops-core` from their release pages and verifies them against the release `SHA256SUMS` and its Sigstore bundle. `netops-admin` 0.2.7 has a separate PyPI publication step after GitHub; check exact-version index availability before choosing that installation channel. Version 0.1.0 was an unpublished internal milestone.
+Published release context (11 October 2026): the published release is `netops-admin/v0.2.7` (2026-10-11); it pins `netops-auditor version 0.2.11` and `netops-core version 0.2.8`. The current release of every component is linked from the [repository release table](https://github.com/radek-cerny-soukr/netops/blob/main/README.md#components). **Install from the release assets:** the [installation guide](https://github.com/radek-cerny-soukr/netops/blob/main/components/netops-admin/docs/installation.md) downloads the source archives of this component and of the pinned `netops-auditor` and `netops-core` from their release pages and verifies them against the release `SHA256SUMS` and its Sigstore bundle. `netops-admin` 0.2.7 has a separate PyPI publication step after GitHub; check exact-version index availability before choosing that installation channel. Version 0.1.0 was an unpublished internal milestone.
 
 [Start here: enrollment, policies and the new operations](https://github.com/radek-cerny-soukr/netops/blob/main/components/netops-admin/docs/operations-020.md).
+
+## Fixes in 0.2.8
+
+- Safeguard expiry uses one elapsed-time deadline; recovery and unblock preserve the device state and block identity they read.
+- Journaled request identifiers remain consumed after interruption, and delivery updates preserve concurrent operation state.
+- ExtremeXOS prompt and port-membership handling preserves the selected port identity when a display description is present.
+- Audit appends roll back partial or zero-progress writes and refuse substituted links; state initialization coordinates through its lock and rejects a symbolic-link state directory.
+- Export status refuses special output targets. The optional audit-file binding setting defaults to false and can require status to name the configured audit file.
+- Host change budgets use monotonic time within a boot, with the documented compatibility fallback and reboot boundary.
+
+Before starting this version, stop older Admin processes sharing its state directory; mixed-version concurrency is unsupported. See the [changelog](CHANGELOG.md), [execution limits](docs/execution.md) and [configuration contract](docs/installation.md#configuration-file).
 
 ## Fixes in 0.2.7
 
@@ -25,7 +38,7 @@ Installation creates its own writable destination, stops failed shell steps, fix
 - Serialize journal/export writes, carry complete audit rule states into confirmation and report blocked confirmations with exit code 6.
 - Read the EXOS port inventory to handle never-configured ports in implicit `Default`; preserve secret separation and classify postcheck failures.
 
-The six profile APIs remain available. Schema transactions need separate operator libraries and exact rollback calibration; a new digest inherits no grants. See [schema transaction planning](#schema-transaction-planning), [execution](docs/execution.md), [current candidate validation](https://github.com/radek-cerny-soukr/netops/blob/main/docs/verified-support.md#candidate-validation-3-4-october-2026) and the [issue resolution table](https://github.com/radek-cerny-soukr/netops/blob/main/docs/README.md#github-issue-resolution).
+The six profile APIs remain available. Schema transactions need separate operator libraries and exact rollback calibration; a new digest inherits no grants. See [schema transaction planning](#schema-transaction-planning), [execution](docs/execution.md), [Compatibility boundaries](https://github.com/radek-cerny-soukr/netops/blob/main/docs/verified-support.md) and the [issue resolution table](https://github.com/radek-cerny-soukr/netops/blob/main/docs/README.md#github-issue-resolution).
 
 ## What it does
 
@@ -60,7 +73,7 @@ Exit codes: `0` plan printed, snapshot matches, change confirmed, or preview or 
 | ExtremeXOS | `ports` | 33.7.x, 33.6.1.14 | update | `display-string` | UPM timer |
 | ExtremeXOS | `vlan-membership` | 33.7.x, 33.6.1.14 | update | `tagged` list, `untagged` VLAN | UPM timer |
 
-Every device and build requires a successful operator enrollment before writing, and an upgrade that changes a profile file, as 0.2.5 did, needs a new enrollment of every device. The new FortiOS profiles were measured on 7.6.7 build3704 and, from 0.2.5, the address group and DHCP reservation profiles on 8.0.0 build0167; EXOS profiles on 33.7.1.6 (Extreme X440-G2) and, from 0.2.4, on 33.6.1.14, the EXOS-VM image. The earlier 29 September 0.2.5 candidate was run live on a FortiGate 60F with FortiOS 8.0.0 build0167 (address group and DHCP reservation writes, `undo`, returns by the stitch, and a change by another administrator before and after the removal of the safeguard), on EXOS-VM 33.6.1.14 and on X440-G2 hardware with 33.7.1.6 (changes by someone else in the confirmation windows, the exit code `6` of `apply`, the port list read from the switch), and with the audit exporter started with `--audit-file`. See [verified support](https://github.com/radek-cerny-soukr/netops/blob/main/docs/verified-support.md#admin-025-validation-29-september-2026).
+Every device and build requires successful operator enrollment before writing; a changed profile requires renewed enrollment. Compatibility is bounded to the documented FortiOS 7.6.7 build3704 and FortiOS 8.0.0 build0167 operations, and to the documented ExtremeXOS 33.7.1.6 and 33.6.1.14 profiles. Address-group and DHCP-reservation support does not extend to unlisted builds. Configuration confirmation, recovery after interruption, unrelated changes and persistence have separate outcomes. See [compatibility boundaries](../../docs/compatibility-boundaries.md).
 
 ## Example
 
@@ -78,7 +91,7 @@ Every device and build requires a successful operator enrollment before writing,
 
 ```sh
 netops-admin plan --platform fortios --snapshot before.conf --request request.json > plan.json
-netops-admin apply --config admin.json --device fw-lab --request request.json
+netops-admin apply --config admin.json --device example-firewall --request request.json
 netops-admin undo --config admin.json --change-id <change_id> --reason "what was investigated"
 ```
 
@@ -94,7 +107,7 @@ An ExtremeXOS configuration does not state its firmware, so `plan` needs `--firm
 - Profile requests use fixed schemas. Schema transactions use operator pinned libraries and measured rollback grants. Enrollment tests the rollback path on each build inside the permitted family; it does not prove every possible configuration combination.
 - The audit log records the lengths of the reason and of the user request, never their text: it proves that a request was made and what was changed, not what the person wrote.
 - The notification carries the result, the operation and the number of differences, not the differences themselves.
-- The tool does not restrict its own network egress; the admin host has to be limited by the deployment.
+- The tool does not enforce outbound network restrictions itself; the deployment must restrict the Admin host.
 - Another administrator logged in to the device is recorded and notified, not refused.
 - The branch that refuses to confirm when too little time is left before the safeguard fires is covered by tests only.
 
@@ -224,3 +237,7 @@ UUID or ignoring an existing object's UUID. Risk classes A, B and C all require
 the timed safeguard and independent readback.
 
 FortiOS change values and inverse commands containing automation placeholders (`%%...%%`) are refused because the timed action can expand them. They cannot be treated as literal rollback data. [Fortinet describes the substitution behavior](https://community.fortinet.com/fortigate-3/technical-tip-automated-configuration-backups-with-variable-names-based-on-the-date-108146).
+
+## PyPI source distributions and tests
+
+PyPI wheels and source distributions are installation packages. The PyPI sdist is not a standalone pytest test tree: it omits the test-support `conftest.py` and the component's test guard. The Helper sdist also omits `scripts/` and `config/`. Running pytest over an unpacked sdist can therefore fail during collection or lack required test support. Run the documented suite from a repository checkout or the verified GitHub source release archive, with its pinned development dependencies and any required sibling components. The signed GitHub source archive and the PyPI sdist are different artifacts.

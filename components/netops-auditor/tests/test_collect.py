@@ -859,16 +859,17 @@ def test_rest_refuses_a_host_that_is_not_a_bare_host(host):
 
 
 @pytest.mark.parametrize(
-    "opener",
+    "opener_factory",
     (
-        FakeOpener(),
-        FakeOpener(fingerprint=OTHER_PIN),
-        FakeOpener(status=500),
-        FakeOpener(error=TimeoutError("timed out")),
-        FakeOpener(body=b"\xff\xfe"),
+        lambda: FakeOpener(),
+        lambda: FakeOpener(fingerprint=OTHER_PIN),
+        lambda: FakeOpener(status=500),
+        lambda: FakeOpener(error=TimeoutError("timed out")),
+        lambda: FakeOpener(body=b"\xff\xfe"),
     ),
 )
-def test_rest_closes_the_connection_on_every_path(opener):
+def test_rest_closes_the_connection_on_every_path(opener_factory):
+    opener = opener_factory()
     try:
         rest_call(opener, fingerprint=PIN)
     except CollectError:
@@ -1191,15 +1192,16 @@ def test_ssh_console_answer_without_the_output_field_stops_the_collection():
 
 
 @pytest.mark.parametrize(
-    "runner",
+    "runner_factory",
     (
-        FakeRunner(console_code=1),
-        FakeRunner(console="not bytes"),
-        FakeRunner(console_error=subprocess.TimeoutExpired(["ssh"], 1)),
-        FakeRunner(console_error=OSError("ssh binary not found")),
+        lambda: FakeRunner(console_code=1),
+        lambda: FakeRunner(console="not bytes"),
+        lambda: FakeRunner(console_error=subprocess.TimeoutExpired(["ssh"], 1)),
+        lambda: FakeRunner(console_error=OSError("ssh binary not found")),
     ),
 )
-def test_ssh_preflight_failure_fails_with_an_event(runner):
+def test_ssh_preflight_failure_fails_with_an_event(runner_factory):
+    runner = runner_factory()
     error = ssh_failure(runner)
     assert error.event is not None
     assert error.event.outcome == "failed"

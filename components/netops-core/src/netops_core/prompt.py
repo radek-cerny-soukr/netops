@@ -31,9 +31,12 @@ def cleaned(text, platform) -> str:
     if found is None:
         return text
     marker = found.group(1)
-    lines = text.splitlines()
+    lines = text.split("\n")
+    ending = ""
+    if lines[-1] == "":
+        lines.pop()
+        ending = "\n"
     lines[0] = lines[0][len(marker):]
-    ending = "\n" if text.endswith("\n") else ""
     bare = marker.rstrip()
     while lines and lines[-1].rstrip() == bare:
         lines.pop()

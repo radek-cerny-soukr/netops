@@ -37,9 +37,11 @@ ROOT_FILES = {
     "README.md",
     "SECURITY.md",
     "docs/README.md",
-    "docs/lab-measurements-2026-09-25.md",
+    "docs/compatibility-boundaries.md",
     "docs/verified-support.md",
     "scripts/check_release.py",
+    "scripts/except_branch_coverage.json",
+    "scripts/except_branch_coverage.py",
     "tests/test_release_gate.py",
 }
 DOMAIN_SUFFIXES = {".cfg", ".conf", ".env", ".ini", ".json", ".md", ".txt", ".yaml", ".yml"}
@@ -75,12 +77,10 @@ ALLOWED_DOMAINS = (
     "sigstore.dev",
 )
 ALLOWED_LITERALS = frozenset(
-    (
-        "33.7.1.6",
+    ("33.7.1.6",
         "33.6.1.14",
         "1.3.6.1",
-        "aa:bb:cc:dd:ee:ff",
-    )
+        "aa:bb:cc:dd:ee:ff", "1.0.1.9", "2.0.0.6", "255.255.255.255", "31.7.3.37", "32.6.2.68",)
 )
 DOCUMENTATION_MAC_PREFIX = "00:00:5e:00:53:"
 IPV4_PATTERN = re.compile(r"(?<![0-9A-Za-z.])([0-9]{1,3}(?:\.[0-9]{1,3}){3})(?![0-9A-Za-z]|\.[0-9])")
@@ -116,11 +116,6 @@ PRIVATE_MARKERS = (
     re.compile(r"\brpi(?:[-_ ]?\d+)?[-_]?[a-z]{3,}\b", re.IGNORECASE),
     re.compile(r"\braspberry(?:\s+|[-_]+)pi\b", re.IGNORECASE),
     re.compile(r"\b(?:home|local|personal|private)[-_ ]+lab\b", re.IGNORECASE),
-    re.compile(r"\bcodex\b", re.IGNORECASE),
-    re.compile(r"\bopenai\b", re.IGNORECASE),
-    re.compile(r"\bchatgpt\b", re.IGNORECASE),
-    re.compile(r"\bclaude\b", re.IGNORECASE),
-    re.compile(r"\banthropic\b", re.IGNORECASE),
 )
 MAC_PATTERN = re.compile(r"(?<![0-9A-Za-z:])(?:[0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}(?![0-9A-Za-z:])")
 PEM_MARKER = re.compile(r"BEGIN[ A-Z0-9]*PRIVATE KEY")

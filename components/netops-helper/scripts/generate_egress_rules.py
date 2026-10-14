@@ -9,6 +9,7 @@ import ipaddress
 import json
 import os
 from pathlib import Path
+import stat
 import tempfile
 from typing import Any
 import sys
@@ -70,8 +71,8 @@ def _load_object(path: Path) -> dict[str, Any]:
 
 def inventory_digest(path: Path) -> str:
     try:
-        return hashlib.sha256(path.read_bytes()).hexdigest()
-    except OSError as exc:
+        return hashlib.sha256(read_regular(path, JSON_INPUT_MAX_BYTES)).hexdigest()
+    except (OSError, InputError) as exc:
         raise EgressContractError("inventory file is unavailable") from exc
 
 
@@ -395,6 +396,15 @@ def build_bundle(
     }
 
 
+def _require_replaceable(destination: Path) -> None:
+    try:
+        mode = os.stat(destination).st_mode
+    except FileNotFoundError:
+        return
+    if not stat.S_ISREG(mode):
+        raise EgressContractError("output must be absent or a regular file")
+
+
 def write_bundle(path: Path, bundle: dict[str, Any]) -> None:
     resolved_parent = path.parent.resolve(strict=True)
     destination = resolved_parent / path.name
@@ -408,6 +418,7 @@ def write_bundle(path: Path, bundle: dict[str, Any]) -> None:
             handle.write(payload)
             handle.flush()
             os.fsync(handle.fileno())
+        _require_replaceable(destination)
         os.replace(temporary, destination)
         os.chmod(destination, 0o600)
         directory_fd = os.open(resolved_parent, os.O_RDONLY)

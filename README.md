@@ -4,18 +4,22 @@
 
 ## Why netops
 
-- **No raw commands.** The agent chooses a named query and its parameters; it never writes a command line. Every device is reached with an account the device itself keeps read-only.
+- **No raw commands.** The agent chooses a named query and its parameters; it never writes a command line. Targets use device-enforced read-only accounts, with the documented [Ruckus Unleashed exception](components/netops-helper/docs/read-only-accounts.md#ruckus-unleashed).
 - **Changes that undo themselves.** Before it writes, `netops-admin` arms a rollback on the device (a FortiOS automation stitch or an ExtremeXOS Universal Port Manager timer). Only when a separate check account confirms the predicted result is the rollback disarmed; otherwise the device restores the previous state on its own.
 - **Useful without AI.** `netops-auditor` checks FortiGate and ExtremeXOS configurations from a file, straight from the device or in GitHub Actions with SARIF code scanning. Twelve FortiOS rules are hardening checks mapped to the CIS FortiGate 7.4.x Benchmark, and reports never quote the configuration.
 - **Verifiable releases.** Every release carries a source archive, an SBOM, a checksum manifest and a Sigstore signature; Helper server images come with their SBOM and Grype report.
-- **Measured, not assumed.** Reads, audits and changes were run on physical FortiGate 60F and 80F and Extreme X435 and X440 switches; Arista, Cisco and Juniper reads on virtual images. Every result and every gap is in [What has been tested](#what-has-been-tested).
+- **Explicit platform boundaries.** Platform, model, firmware and account requirements are documented under [Platform compatibility](#platform-compatibility). A query catalogue does not establish support for every deployment.
 
-## What's new — 11 October 2026
+## What's new - 14 October 2026
+
+This source tree contains Core 0.2.9, Auditor 0.2.12, Admin 0.2.8 and Helper 0.3.11. Helper's Ruckus Unleashed enrollment uses the explicit administrator-bounded role and catalogue boundary. Admin's optional strict audit-file binding setting defaults to false and, when enabled, requires export status to identify the configured audit file. These contracts do not extend device-account privileges or compatibility beyond their documented scope.
+
+## What's new - 11 October 2026 (previous release)
 
 Core 0.2.8, Auditor 0.2.11, Admin 0.2.7 and Helper 0.3.10 fix the points of the follow-up audit in [GitHub issue #4](docs/README.md#issue-4).
 
 - **Helper on Linux AMD64.** Next to the ARM64 image, a server image built and self-tested natively on an AMD64 builder.
-- **Safer ExtremeXOS rollbacks.** Admin removes a safeguard only with proof from `show upm timers` that its own timer has fired; checked live on an X435 with the switch clock set 300 seconds forward and back.
+- **Safer ExtremeXOS rollbacks.** Admin requires proof from the complete listing for its own timer before confirming return. Missing or incomplete proof leaves the operation unknown and the device blocked.
 - **One change at a time.** Processes that share a state directory admit operations one at a time, so the daily budget and request IDs hold across devices; notifications no longer follow redirects.
 - **Quiet start.** The MCP servers of Auditor, Admin and Helper no longer ask PyPI for a newer FastMCP when they start.
 - **Breaking change in Helper 0.3.10:** the EXOS query `sharing` (`show sharing`) is removed because of inconsistent completion status (STATUS=-6 / SSH250 with a complete table). Remove `sharing` from `enabled_queries` before upgrading. [Reason and upgrade migration](components/netops-helper/docs/vendor-cli-references/extreme-switch-engine.md#unsupported-show-sharing).
@@ -27,8 +31,10 @@ Release notes: [Core 0.2.8](https://github.com/radek-cerny-soukr/netops/releases
 | You want to | Use | What it takes |
 |---|---|---|
 | Check a FortiGate or ExtremeXOS configuration for known problems | [`netops-auditor`](components/netops-auditor/) | Python 3.13 and a configuration file; no device access for a first try |
-| Let an AI agent troubleshoot the network without being able to change it | [`netops-helper`](components/netops-helper/) | A read-only account on each device, a Docker host, and an MCP client |
+| Give an AI agent bounded, named network troubleshooting | [`netops-helper`](components/netops-helper/) | Device-enforced read-only accounts; for Ruckus Unleashed, an administrator account explicitly declared `admin-bounded` with `role_boundary: "catalogue"` under the [Ruckus privilege exception](components/netops-helper/docs/read-only-accounts.md#ruckus-unleashed); a Linux Docker host and an MCP client |
 | Let an agent make small changes that roll themselves back unless the result is confirmed | [`netops-admin`](components/netops-admin/) | A dedicated write account and a check account per device, a one-time enrollment test on each device and firmware build, and the auditor |
+
+**Host operating system.** NetOps runs on Linux only. Windows is not a supported host: the components rely on POSIX interfaces and their console scripts fail to start there. macOS is not a supported deployment target either; where [the record below](#test-resource-limits) mentions macOS, it is a client machine on which the native test suites were exercised, not a host the components are released for.
 
 ### Try the auditor in one minute
 
@@ -48,7 +54,7 @@ On your own device, save the output of `show` on a FortiGate (or `show configura
 
 ### Audit configuration backups in CI
 
-If your configuration backups live in a Git repository, the auditor runs as a GitHub Action with no device, credential or network access and uploads its findings to code scanning as SARIF:
+If your configuration backups live in a Git repository, the auditor runs as a GitHub Action with no device access or device credentials. The audit logic runs locally over the files; Python setup, action downloads and SARIF upload need network access. It uploads its findings to code scanning as SARIF:
 
 ```yaml
 - id: audit
@@ -66,7 +72,7 @@ The workflow needs `security-events: write`. Inputs, outputs and the SARIF mappi
 
 ### An agent with bounded reads and diagnostics
 
-[`netops-helper`](components/netops-helper/) is an MCP server with a fixed catalogue of named queries, optional measured FortiOS configuration-path reads and separately enrolled bounded diagnostic recipes. The agent chooses a query and its parameters; it supplies no raw command line or persistent configuration-write tool. Optional recipes can change temporary diagnostic state and must verify cleanup. The server runs in an isolated container on a runner host that the client reaches over pinned SSH, host-side egress rules are applied before the container starts, and every device is reached with an account the device itself keeps read-only. Setup is nine steps: [installation](components/netops-helper/docs/installation.md).
+[`netops-helper`](components/netops-helper/) is an MCP server with a fixed catalogue of named queries, optional measured FortiOS configuration-path reads and separately enrolled bounded diagnostic recipes. The agent chooses a query and its parameters; it supplies no raw command line or persistent configuration-write tool. Optional recipes can change temporary diagnostic state and must verify cleanup. The server runs in an isolated container on a runner host that the client reaches over pinned SSH, host-side egress rules are applied before the container starts, and targets use device-enforced read-only accounts, with the documented [Ruckus Unleashed 200.13 exception](components/netops-helper/docs/read-only-accounts.md#ruckus-unleashed). Setup is nine steps: [installation](components/netops-helper/docs/installation.md).
 
 ### An agent that can change a little, and undo it
 
@@ -74,60 +80,55 @@ The workflow needs `security-events: write`. Inputs, outputs and the SARIF mappi
 
 ## Components
 
+The table identifies this source tree's component tags and version dates. Install only from the corresponding release assets after verifying their checksums and provenance; a source version or tag name alone does not verify an artifact.
+
+| Component | Version tag | Version date |
+|---|---|---|
+| netops-core | `netops-core/v0.2.9` | 2026-10-14 |
+| netops-auditor | `netops-auditor/v0.2.12` | 2026-10-14 |
+| netops-admin | `netops-admin/v0.2.8` | 2026-10-14 |
+| netops-helper | `netops-helper/v0.3.11` | 2026-10-14 |
+
+### Published releases - 11 October 2026
+
 | Component | What it does | Released |
 |---|---|---|
 | [`netops-auditor`](components/netops-auditor/) | Configuration audit; collects the configuration from the device itself or reads a file | [`netops-auditor/v0.2.11`](https://github.com/radek-cerny-soukr/netops/releases/tag/netops-auditor%2Fv0.2.11) (2026-10-11) |
-| [`netops-helper`](components/netops-helper/) | Read-only MCP server for bounded network troubleshooting | [`netops-helper/v0.3.10`](https://github.com/radek-cerny-soukr/netops/releases/tag/netops-helper%2Fv0.3.10) (2026-10-11) |
+| [`netops-helper`](components/netops-helper/) | Bounded troubleshooting MCP server; installed client command: `netops-helper-proxy` | [`netops-helper/v0.3.10`](https://github.com/radek-cerny-soukr/netops/releases/tag/netops-helper%2Fv0.3.10) (2026-10-11) |
 | [`netops-admin`](components/netops-admin/) | Bounded device changes, mandatory rollback enrollment and predicted/observed audit | [`netops-admin/v0.2.7`](https://github.com/radek-cerny-soukr/netops/releases/tag/netops-admin%2Fv0.2.7) (2026-10-11) |
 | [`netops-core`](components/netops-core/) | Shared access layer the other components build on: inventory, credential store, host key trust, SSH transport, audit records | [`netops-core/v0.2.8`](https://github.com/radek-cerny-soukr/netops/releases/tag/netops-core%2Fv0.2.8) (2026-10-11) |
 
 Every release carries a source archive, an SBOM, a checksum manifest and a Sigstore signature; install from those assets after [verifying them](docs/README.md#verifying-a-release). The release page is authoritative. Third-party directories, mirrors and hosted deployments of these servers (for example automated MCP catalogues that index this repository) are neither endorsed nor verified by this project; the only verified sources are the GitHub release pages with their Sigstore signatures and, as a secondary channel, PyPI. PyPI is a delayed, secondary channel: publication is a separate workflow after GitHub and does not install the Helper server; check exact-version availability before using the index. On 11 October 2026 PyPI carries the current releases: `netops-core` 0.2.8, `netops-auditor` 0.2.11, `netops-admin` 0.2.7 and the `netops-helper` 0.3.10 client proxy. Earlier versions keep their release pages and tags; the table above links the current one. How releases are cut and signed, and what the repository gate enforces, is in the [documentation map](docs/README.md#releases).
 
-## What has been tested
+## Platform compatibility
 
-Inventory reviewed on 10 October 2026. The dates in the rows are the measurement dates, not a claim that every target was retested for the latest release. Physical hardware, virtual machines and container images are identified separately. Cisco, Arista and Juniper measurements below used virtual images; physical-device validation remains outstanding. Virtual images are used when physical hardware is unavailable, and their results do not establish hardware, ASIC, sensor or every forwarding-path behavior. The table retains dated September measurements and the explicitly scoped later validation below. The per-query and per-scenario detail, including every refusal and failure, is in [verified platform support](docs/verified-support.md) and [live lab measurements](docs/lab-measurements-2026-09-25.md).
+NetOps documents version-specific platform contracts, account privileges and execution limits in [verified platform support](docs/verified-support.md) and [compatibility boundaries](docs/compatibility-boundaries.md). A catalogue entry or a software-image result does not establish support for every device model, firmware build, hardware forwarding path or account policy. Enroll and verify each deployment against its exact platform and build before use.
 
-| Platform and build | Device | `netops-helper` (reads) | `netops-auditor` | `netops-admin` (writes) |
-|---|---|---|---|---|
-| FortiOS 8.0.0 build0167 | FortiGate 60F and 80F (physical hardware) | 40 catalogue queries under a read-only profile, 17 Sep | `ssh` collection from both, `fortios-rest` from the 80F, 12–20 Sep | address table: create, update, delete, `undo` and return by the on-device stitch, over the command line and MCP, 23, 24 and 28 Sep; on the 60F, with 0.2.5 address group member and DHCP reservation with `undo` and stitch return, and a change by someone else during the confirmation, 29 Sep |
-| FortiOS 7.6.7 build3704 | FortiGate 60F (physical hardware) | 45 queries with released 0.3.7: 43 exit 0, 2 `device_cli_error`, 26 Sep | - | address, address group member and DHCP reservation with `undo` and stitch return, 24 Sep; address and group again with 0.2.3, 26 Sep |
-| ExtremeXOS 33.7.1.6 | Extreme X440-G2-12p (physical hardware, two units in the September record) | 47 queries under a user-level account, 17–18 Sep; SNMPv2c, 20 Sep | collection and rules, 20 Sep; again with 0.2.8, 26 Sep | VLAN, port display string and port VLAN membership with `undo` and UPM timer return, 23–24 Sep (0.2.0); `doctor` and `preview` with 0.2.3, 26 Sep; with 0.2.5 port display string and `undo`, changes by someone else before the confirmation and during the save, the port list, 29 Sep |
-| ExtremeXOS 33.6.1.14 | EXOS-VM (virtual machine) | 49 queries with released 0.3.7: 40 exit 0, 6 exit 250 with a complete answer, 3 `device_cli_error`, 26 Sep | collection, one finding, 25 Sep | the same three profiles with 0.2.4: command line and MCP, `undo`, timer return and refusals, 28 Sep; with 0.2.5 changes by someone else in all three confirmation windows, `recover` after a killed process, the port list, 29 Sep |
-| FortiOS 7.6.7 build3704 and 8.0.0 build0167 | FortiGate-VM64-KVM (virtual machines) | bounded recipes and exact-bound schema reads, 3–4 Oct | scoped schema reports, 3–4 Oct | calibrated schema apply/undo/timer and interruption cases, 3–4 Oct; [scope and limits](docs/verified-support.md#candidate-validation-3-4-october-2026); not physical 60F/80F qualification |
-| ExtremeXOS 33.7.1.6-patch1-11 | Extreme X435-8P-4S and X440-G2-12p-10G4 (physical hardware) | representative `version`/`ports` reads on X435 and the `sharing` exclusion; `version`, `ports` and `switch` on X440 from a clean amd64 installation, 10 Oct; not a full new catalogue pass | collection and run on X440 from a clean amd64 installation, 10 Oct | candidate Admin 0.2.7: measured UPM listings and device-clock behavior on both; live apply/undo and clock-jump/missing-timer cases on X435, 9 Oct; enrollment, apply/undo and audit export on X440 from a clean amd64 installation, 10 Oct; [exact scope](docs/verified-support.md#physical-exos-follow-up-9-october-2026), [clean installation](docs/verified-support.md#clean-installation-acceptance-10-october-2026) |
-| Arista EOS 4.36.1F | cEOS-lab (container) and vEOS-lab (virtual machine) | 33 queries with released 0.3.7, 26 Sep; with the 0.3.7 candidate, traffic, VLAN and trunk isolation, inter-VLAN routing, DHCP, LLDP, restart persistence and an SSH outage checked against the helper's answers, 25 Sep; with the 0.3.8 candidate, `lacp_peer_interface` on a member and on a port channel, 29 Sep | - | - |
-| Cisco NX-OS 9.3(12) | Nexus 9300v and 9500v (virtual machines) | 30 queries with released 0.3.7 (9500v 30 exit 0; 9300v 29 exit 0, `lldp_neighbors` exit 244), 26 Sep; with the candidate, cross-host traffic, trunk failure and recovery, and LLDP through the 9300v, 25 Sep | - | - |
-| Cisco IOS-XE 17.18.2 | IOL router and IOL L2 (virtual software images) | 27 queries with released 0.3.7: 21 and 26 exit 0, the rest `device_cli_error`, 26 Sep | - | - |
-| Cisco IOS 15.9(3)M12 and IOS 15.2(20200924) | IOSv and IOSvL2 (virtual machines) | 27 queries with released 0.3.7: 19 and 26 exit 0, the rest `device_cli_error`, 26 Sep | - | - |
-| Junos 26.2R1.7 | vJunos-switch (virtual machine; its reported model is not physical EX/QFX hardware) | released 0.3.7: `juniper_junos` 25 exit 0 of 25, `juniper_junos_els` 28 exit 0 and 1 `device_cli_error` of 29, 26 Sep | - | - |
-| Linux kernel 6.12; distribution/version not recorded | ARM host, armv6l; hardware model not recorded | `kernel` and `hostname` live, 20 Sep; the rest wire-simulated | - | - |
-| Ruckus Unleashed 200.13; full build not recorded | one physical access point; hardware model not recorded | wire mechanics live, 16 Sep; the platform cannot have a read-only account | - | - |
+| Platform family | Helper | Auditor | Admin |
+|---|---|---|---|
+| FortiOS | Bounded catalogue and schema reads under the documented account policy | SSH configuration collection and the documented REST channel | Enrolled address, address-group, DHCP-reservation and explicitly bounded schema operations |
+| ExtremeXOS | Bounded catalogue reads; platform-specific diagnostic exclusions apply | SSH configuration collection and configuration rules | Enrolled VLAN, port display-string and port-membership profiles |
+| Arista EOS, Cisco IOS/IOS-XE/NX-OS, Junos | Platform-specific read catalogues; software-image coverage does not qualify physical forwarding hardware | Only explicitly documented collector channels | No Admin execution support is inferred from read or timer behavior |
+| Linux | Documented read and diagnostic paths; distribution and architecture limits apply | Only explicitly documented collector channels | No device-change support is inferred |
+| Ruckus Unleashed | Explicit administrator-bounded role and catalogue boundary; the catalogue does not reduce device-account privileges | Only explicitly documented collector channels | No device-change support is inferred |
 
-The detailed support record is authoritative for dates, tested component versions, accounts and limits. Update it and this summary after live measurements and review both before each release; see [keeping the record current](docs/verified-support.md#keeping-the-record-current). An unrecorded model, full firmware build or Linux distribution is stated as unknown rather than inferred.
+### Clock and rollback limits
 
-### Device clock movement, 11 October 2026
+A safeguard's scheduling behavior is platform-specific. Admin requires its own safeguard proof before confirming return; missing or unverified proof leaves the operation unknown and the device blocked. FortiOS one-shot safeguards follow the device clock, and a safeguard not loaded before a forward jump may fail to return the change. ExtremeXOS confirmation uses its own timer identity and complete listings. Host-side elapsed budgets use monotonic time within a boot; this does not provide trusted elapsed time across reboot.
 
-- FortiGate 60F (physical hardware), FortiOS 8.0.0 build0167 and 7.6.7 build3704, with Admin 0.2.7: the `once` automation stitch of the safeguard follows the device clock. A clock set forward past the planned second fires it at once and the admin ends `reverted`; a clock set back delays it and the admin waits by the device clock; a clock set forward past the planned second before `autod` has loaded the stitch leaves the change on the device as `revert-failed` with the device blocked, as does a safeguard removed by hand.
-- Native one-shot return timers of the other virtual images, which the admin does not support: NX-OS 9.3(12), Junos 26.2R1.7 and FortiOS 8.0.1 build0245 follow the device clock; Cisco IOS 15.9(3)M12, IOS-XE 17.18.2 and Arista EOS 4.36.1F ran their interval in real time; EXOS-VM 33.6.1.14 behaves as the physical ExtremeXOS switches did.
+### Verification boundaries
 
-See [device clock movement and one-shot timers](docs/verified-support.md#device-clock-movement-and-one-shot-timers-11-october-2026).
-
-### New candidate validation, 3–4 October 2026
-
-- FortiGate-VM64-KVM 7.6.7 build3704 and 8.0.0 build0167: exact-bound schema reads, nested/conditional/reference measurements, scoped Auditor reports, the first calibrated Admin schema wave and five bounded Helper recipes with interruption and cleanup checks.
-- EXOS-VM and retained ExtremeXOS evidence: command-tree validation and default-port fixes. Changed save/confirmation paths retain their individual measured and synthetic boundaries.
-- vJunos-switch 26.2R1.7/cEOS: LACP/MSTP scenarios; actual Helper/Core Junos reads during OSPF/eBGP state and route failure/recovery against FRR 11. These runs do not measure a physical forwarding plane, preferred BGP forwarding or every convergence condition.
-
-See [current candidate validation](docs/verified-support.md#candidate-validation-3-4-october-2026) and [GitHub issue resolution](docs/README.md#github-issue-resolution).
-
-Current gaps: full signed-installation/runtime qualification on macOS and Linux amd64 for these releases; physical 60F/FortiSwitch/FortiAP schema/recipe validation; physical Arista, Juniper or Cisco platforms; NX-OS 10.x; Junos routing hardware; AAA/TACACS+ command authorization; failed-save behavior on EXOS hardware and complete forwarding/convergence coverage. Separate measurements on physical FortiGate-60F, FortiOS 8.0.0 build0167, qualified the SD-WAN neighbor key as a reference to BGP neighbors or neighbor groups, and its health-check field as a reference to SD-WAN health checks. These schema measurements do not automatically update the schema libraries an operator pins, the write grants or the platform qualification of these releases; the releases ship no schema library. The SLA health-check key was measured separately on physical FortiOS 8.0.0 build0167; this does not qualify other model/build combinations. VM libraries grant no physical-model write support. Earlier hardware measurements remain historical evidence for their named versions.
-
+Read results, configuration checks, synthetic tests and software-image scenarios establish different scopes. They do not prove hardware forwarding, DHCP lease acquisition, sensor behavior, every convergence condition, AAA/TACACS+ policy, complete corpus coverage or production exploitability. Account privilege, egress, safeguard behavior and the exact model/build must satisfy the component's deployment contract independently.
 
 ## Test resource limits
 
-The malformed-input suites ship their own standard-library test guard with each component. On Linux, the guards retain the address-space limit and wall-clock timer. On Darwin, in-process calls use an independent supervisor that reads resident memory through Apple's `proc_pidinfo` API every 10 ms and terminates an over-budget test process. Subprocess probes are sampled every 20 ms and are terminated on excess memory or observation failure. Brief memory overshoot between samples remains possible. Supervisor readiness is checked before the guarded call and its control pipe closes at cleanup.
+The repository and GitHub source release archives ship each component's malformed-input suites and standard-library test guard. PyPI source distributions omit test support and are not standalone pytest trees; see [the distribution boundary](components/netops-core/docs/releasing.md#pypi-source-distributions-and-tests). On Linux, the guards retain the address-space limit and wall-clock timer. On Darwin, in-process calls use an independent supervisor that reads resident memory through Apple's `proc_pidinfo` API every 10 ms and terminates an over-budget test process. Subprocess probes are sampled every 20 ms and are terminated on excess memory or observation failure. Brief memory overshoot between samples remains possible. Supervisor readiness is checked before the guarded call and its control pipe closes at cleanup.
 
-Each component includes negative tests for memory exhaustion, timeouts, normal return values, and signal-handler restoration. The measured native macOS client paths and their Linux runner boundary are listed in [verified support](docs/verified-support.md#native-client-qualification-7-october-2026). This is not a complete signed macOS installation qualification.
+Each component includes negative tests for memory exhaustion, timeouts, normal return values and signal-handler restoration. Test-guard behavior on another platform does not extend deployment support beyond the documented [Linux host requirements](docs/verified-support.md#host-operating-system).
+
+## How this project is built
+
+NetOps is developed by its author with two AI coding agents, Claude Code (Anthropic) and Codex (OpenAI). The agents write code, tests and documentation, run the acceptance and red-team passes against each other’s work, and record the limits of what was actually measured. The author decides what is built, reviews the result, and signs and publishes every release; nothing in the verified-support record is inferred.
 
 ## Security
 

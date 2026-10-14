@@ -39,9 +39,7 @@ by `ssh._prepared`. There is no `ControlMaster` and no `ControlPath`.
 
 ## The batch goes on standard input, and why
 
-**Measured on 17 September 2026** with OpenSSH 9.2p1, by running `/usr/bin/sftp` with `-S` pointing
-at a script that writes its own argument vector to a file. `sftp` is a facade: it builds an `ssh`
-command line and runs it. With `-b`:
+OpenSSH 9.2p1 `sftp` builds an `ssh` command line and runs it. With `-b`, it adds `BatchMode=yes` even when `BatchMode=no` was supplied:
 
 ```
 -oForwardX11 no
@@ -81,8 +79,7 @@ fails. Both are handled below.
 
 OpenSSH `sftp` has no `stat` command, so the batch is `ls -ln <path>` in double quotes: `-l` for the
 long form, `-n` for numeric owner and group, so no name from the device's user database is printed or
-resolved. Measured against a server that speaks SFTP version 3, the answers look like this (`rc` is
-the exit status of `sftp`, not of the command):
+resolved. SFTP version 3 answers have the following shapes (`rc` is the exit status of `sftp`, not of the command):
 
 ```
 # a file                                          rc 0
@@ -141,8 +138,11 @@ it. A real `mtime` needs a protocol-level `stat`, which this client does not exp
 ## The path
 
 The batch is line-oriented and the path is quoted in it, so the path is checked before it is written:
-absolute, at most 2000 characters, no `..` component, no `"`, no newline, no carriage return, no NUL,
-and no leading or trailing whitespace. A caller that has its own allowlist - the helper checks the
+absolute, at most 2000 characters, no `..` component, no `"`, no backslash, no newline, no carriage
+return, no NUL, and no leading or trailing whitespace. The backslash is refused because the client
+reads it inside the double quotes as an escape: measured with OpenSSH 10.2p1 `sftp` against its own
+`sftp-server`, `ls -ln "/safe/a\b"` listed a different name than the file `/safe/a\b`, and the call
+answered "a directory with one entry" for a regular file. A name with a backslash cannot be asked for. A caller that has its own allowlist - the helper checks the
 path against the enrolled roots first - runs both checks, in that order.
 
 Inside the double quotes the client does **not** expand a glob: measured, `ls -ln "/safe/*"` asked the
@@ -170,12 +170,7 @@ server for the literal name `/safe/*` and answered `Can't ls: "/safe/\*" not fou
 `sftp` is a facade over `ssh`, so a device that offers only `ssh-rsa` fails the same way and the same
 remedy is produced from `ssh.NEGOTIATION_MARKER` and `ssh.LEGACY_REMEDY`.
 
-But a **measured fact from 13 September 2026** limits it: against an old switch the device closed the
-connection before the client had evaluated the offer. Then standard error carries no `no matching`
-marker, and all that is left is the generic failure - `Connection closed by <host> port 22`, exit
-status 255, no algorithm named. What an operator sees is an opaque connection failure, and the fix is
-the same one: name `legacy_ssh` for that one device in its inventory entry. `ssh_read` against the
-same device usually names it explicitly, so the exec channel is the better place to ask.
+A legacy server can close the connection before the client evaluates its algorithm offer. Standard error may then contain no `no matching` marker, only `Connection closed by <host> port 22` and status 255. This is an opaque connection refusal; the algorithm is not inferred from it. Configure the documented `legacy_ssh` profile for the exact device only when its required algorithms are known. The exec-channel refusal may provide a more specific negotiation reason.
 
 ## Testing it
 

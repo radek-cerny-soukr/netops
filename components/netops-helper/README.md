@@ -1,6 +1,8 @@
 # NetOps Helper
 
-The current release is `netops-helper/v0.3.10` (2026-10-11), which pins `netops-core==0.2.8` and vendors `src/netops_core` inside its own release archive. The [repository release table](https://github.com/radek-cerny-soukr/netops/blob/main/README.md#components) links the current release of every component.
+This source tree contains netops-helper/v0.3.11. Its metadata pins netops-core==0.2.9.
+
+Published release context (11 October 2026): the current published release is `netops-helper/v0.3.10` (2026-10-11), which pins `netops-core version 0.2.8` and vendors `src/netops_core` inside its own release archive. The [repository release table](https://github.com/radek-cerny-soukr/netops/blob/main/README.md#components) links the current release of every component.
 
 **Install from the release assets.** The [installation guide](https://github.com/radek-cerny-soukr/netops/blob/main/components/netops-helper/docs/installation.md) downloads the source archives of this component and of the pinned `netops-core` from their release pages and verifies them against the release `SHA256SUMS` and its Sigstore bundle; the server runs as a container image built from that archive, or loaded from the published OCI archive, on a separate runner host. **`netops-helper` has a separate PyPI publication step after GitHub**; check exact-version index availability before choosing that installation channel. The package is prepared as the client side only: once uploaded, installing the package with pip would put only the stdio proxy `netops-helper-proxy` that an MCP client launches on the host, with the pinned `netops-core`, never the server.
 
@@ -11,6 +13,17 @@ NetOps Helper provides bounded MCP troubleshooting reads, optional measured Fort
 Operators address explicitly enrolled devices by name. A local stdio proxy validates the device's `helper` section of the shared inventory, injects that one device's credential after the MCP client boundary, transports the request over SSH to a host-key-pinned runner, and invokes an isolated container there. Device output keeps identifiers needed for correlation while recognized secrets are removed on a best-effort basis.
 
 This is a self-hosted community project for experienced operators and security reviewers. It is not an enterprise orchestrator, a replacement for device-side authorization, or proof that a diagnostic conclusion is correct.
+
+## Fixes in 0.3.11
+
+- Device-output trust markers are overwritten as untrusted in returned response representations, and redaction covers escaped values in JSON text.
+- The proxy bounds its credential-store precheck to Core's size limit and refuses oversized input before loading it.
+- Documentation and egress generators refuse special output targets; egress generation also rejects special inventory-digest input files.
+- Helper packaging leaves Core's shared files owned by the Core package, so removing Helper does not remove an independently installed Core.
+- Ruckus Unleashed uses its explicit administrator-bounded role and catalogue boundary; the catalogue does not reduce device-account privileges.
+- A closed client output pipe is handled quietly while other output errors remain visible and transport shutdown still runs.
+
+See the [changelog](CHANGELOG.md), [role boundaries](docs/read-only-accounts.md#ruckus-unleashed) and [dependency risk record](docs/known-vulnerabilities.md#helper-0311-risk-review-scope).
 
 ## Fixes in 0.3.10
 
@@ -33,7 +46,7 @@ Installation stops failed shell steps and provides a safe proxy venv; archive te
 - Egress bundle schema 4 with a host INPUT guard; regenerate older bundles and measure it on the deployment host.
 - Python 3.14.8 and locked PyJWT 2.15.0; archive installation stops on failed signature or checksum verification.
 
-See the [issue resolution table](https://github.com/radek-cerny-soukr/netops/blob/main/docs/README.md#github-issue-resolution), [tool reference](docs/tools.md), [security model](docs/security-model.md), [candidate validation](https://github.com/radek-cerny-soukr/netops/blob/main/docs/verified-support.md#candidate-validation-3-4-october-2026) and [known vulnerabilities](docs/known-vulnerabilities.md). Known OpenSSH and remaining Python findings are disclosed, not claimed fixed.
+See the [issue resolution table](https://github.com/radek-cerny-soukr/netops/blob/main/docs/README.md#github-issue-resolution), [tool reference](docs/tools.md), [security model](docs/security-model.md), [Compatibility boundaries](https://github.com/radek-cerny-soukr/netops/blob/main/docs/verified-support.md) and [known vulnerabilities](docs/known-vulnerabilities.md). Known OpenSSH and remaining Python findings are disclosed, not claimed fixed.
 
 ## Architecture
 
@@ -48,12 +61,14 @@ dedicated read-only agent/session
 
 The required order of controls is:
 
-1. read-only accounts enforced by each target platform;
+1. read-only accounts enforced by each target platform, subject to the Ruckus Unleashed exception below;
 2. an exact `helper` section per device for named queries, inventories, metadata/listing roots, and network egress;
 3. host-side egress rules applied before the container starts;
 4. best-effort response redaction and explicit byte pagination;
 5. per-device rate limiting and bounded SSH continuation caching;
 6. a server without persistent configuration-write tools; optional diagnostic recipes have bounded temporary runtime effects and verified cleanup.
+
+Ruckus Unleashed 200.13 is the measured exception: it has one administrator identity and no measured read-only role. Its limited named `show` catalogue does not make the account read-only. Enroll it only when full device privilege is acceptable, using `account_role: "admin-bounded"`, `role_boundary: "catalogue"` and `ssh_platform: "ruckus_unleashed"`. This is a local catalogue boundary, not remote read-only enforcement; metadata preserves the declared role. See [Ruckus account limits](docs/read-only-accounts.md#ruckus-unleashed).
 
 ## Capabilities
 
@@ -87,7 +102,7 @@ The measured extension is described under [Measured FortiOS configuration object
 - The helper exposes no listening port; MCP uses SSH-tunneled stdio.
 - The container runs non-root with a read-only root filesystem, no Linux capabilities, `no-new-privileges`, resource limits, and no Docker socket.
 - The Compose file mounts `/tmp` and `/run` `noexec`, so the image installs a packaged askpass program at a dedicated executable path (`/usr/local/bin/netops-askpass`, outside those mounts) and points `NETOPS_ASKPASS_PROGRAM` at it; without it, password authentication would have nowhere it is allowed to execute an askpass helper.
-- Every device must declare `account_role: "read-only"` in its helper section; verify actual device-side permissions over the same access path. Snapshot collection and temporary diagnostic controls require separate permission checks before enrollment; the declaration is not proof of those permissions.
+- Every device must declare `account_role: "read-only"` in its helper section; verify actual device-side permissions over the same access path. A platform that has no read-only account (today only `ruckus_unleashed`) is declared `account_role: "admin-bounded"` with `role_boundary: "catalogue"` instead; see [Read-only accounts](https://github.com/radek-cerny-soukr/netops/blob/main/components/netops-helper/docs/read-only-accounts.md). Snapshot collection and temporary diagnostic controls require separate permission checks before enrollment; the declaration is not proof of those permissions.
 - Every request is checked against the exact helper section and per-tool egress scope before a credential is forwarded.
 - No platform in the query catalogue sends a paging preamble any more; `ssh_read` sends exactly the one reviewed command and nothing else. FortiOS sessions still require preverified `output standard`, because FortiOS itself pages and the helper never writes into device configuration to turn that off.
 - SSH-family reads inherit `netops-core`'s bounded receive: a device that keeps sending past the capture budget is killed and the call is refused with nothing of what it sent returned. This runs ahead of, and independently from, the helper's own later 2 MB snapshot cap on the decoded output.
@@ -96,7 +111,7 @@ The measured extension is described under [Measured FortiOS configuration object
 - The client supplies query names and typed parameters, never raw commands.
 - Inventory-bound slots prevent device output from becoming a new command argument or expanding target scope.
 - IP, IPv6, MAC, hostname, username, email, and serial values remain visible because troubleshooting requires correlation.
-- Injected credentials and recognized secret forms are redacted on a best-effort basis; policy and remote permissions must keep secret-bearing data out of scope.
+- Injected credentials and recognized secret forms are redacted on a best-effort basis; the proxy removes the session's credentials and communities from the structured part and, after decoding its JSON, from the text part of every answer alike, in values, object keys and JSON numbers. What is matched is listed in [Tools](docs/tools.md) under sanitization. Policy and remote permissions must keep secret-bearing data out of scope.
 - Every device response is marked as untrusted data and must run in a dedicated read-only agent/session.
 - Proxy and transport failures are reported by a fixed classified category (for example `ssh_host_key`, `auth_material`, `rate_limit`) and a fixed public message, never the device's or the SSH client's own words; raw stderr is sanitized before use and never relayed.
 - Recognized CLI refusals of FortiOS, EXOS, Cisco IOS, IOS-XE and NX-OS, Arista EOS and Junos return `ok: false` with `device_cli_error`, even when SSH returns zero; valid EXOS output with status 250 remains available. See [SSH results](https://github.com/radek-cerny-soukr/netops/blob/main/components/netops-helper/docs/tools.md#pagination-and-snapshots).
@@ -196,3 +211,7 @@ Known credential attributes and authentication secrets are redacted. The tool re
 ### Optional bounded FortiOS diagnostics
 
 fortios_diagnostics provides separately enrolled ping, traceroute, ICMP header capture, filtered sessions and flow recipes with time/count/output limits and verified cleanup. It requires exact measured VM hardware/build, a server-owned schema registry and independent scope grants. See [tool reference](docs/tools.md#bounded-fortios-diagnostics) for the VDOM check, shared debug timer and remaining measurement limits.
+
+## PyPI source distributions and tests
+
+PyPI wheels and source distributions are installation packages. The PyPI sdist is not a standalone pytest test tree: it omits the test-support `conftest.py` and the component's test guard. The Helper sdist also omits `scripts/` and `config/`. Running pytest over an unpacked sdist can therefore fail during collection or lack required test support. Run the documented suite from a repository checkout or the verified GitHub source release archive, with its pinned development dependencies and any required sibling components. The signed GitHub source archive and the PyPI sdist are different artifacts.

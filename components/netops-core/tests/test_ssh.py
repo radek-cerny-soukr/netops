@@ -486,3 +486,90 @@ def test_an_exit_status_that_is_not_a_whole_number_is_refused(code):
             run=lambda call, **kwargs: Answer(),
         )
     assert "failed with exit code" in str(caught.value)
+
+
+@pytest.mark.parametrize(
+    "login", ["ro\x0buser", "ro\x0cuser", "ro\x1fuser", "ro\x85user", "ro\xa0user", "ro　user"]
+)
+def test_argv_refuses_a_login_with_any_whitespace_and_keeps_a_plain_one(login):
+    with pytest.raises(SshError, match="login must be a plain user name"):
+        argv(HOST, PORT, login, "/w/known_hosts", COMMAND, identity="/w/identity")
+    assert argv(HOST, PORT, LOGIN, "/w/known_hosts", COMMAND, identity="/w/identity")[-2] == (
+        "%s@%s" % (LOGIN, HOST)
+    )
+
+
+@pytest.mark.parametrize("code", (-9, -15, -1, -6))
+def test_a_client_ended_by_a_signal_is_a_refusal_and_its_output_is_not_returned(code):
+    error = failure(FakeRun(returncode=code, stdout=EXOS_DETAIL, stderr=b"partial"))
+    assert "was ended by signal %d" % -code in str(error)
+    assert "partial" not in str(error)
+    assert error.rc == code
+    assert error.said == "partial"
+
+
+def test_signal_refusals_and_remote_statuses_in_sequence_keep_their_own_verdicts():
+    key = key_credential()
+    assert run_command(
+        HOST, PORT, LOGIN, key, HOST_KEY_LINE, COMMAND, run=FakeRun(returncode=0)
+    ).rc == 0
+    with pytest.raises(SshError, match="ended by signal 9"):
+        run_command(HOST, PORT, LOGIN, key, HOST_KEY_LINE, COMMAND, run=FakeRun(returncode=-9))
+    assert run_command(
+        HOST, PORT, LOGIN, key, HOST_KEY_LINE, COMMAND,
+        run=FakeRun(returncode=250, stdout=EXOS_DETAIL),
+    ).stdout == EXOS_DETAIL
+    with pytest.raises(SshError, match="failed with exit code 255"):
+        run_command(HOST, PORT, LOGIN, key, HOST_KEY_LINE, COMMAND, run=FakeRun(returncode=255))
+
+
+OPENSSH_REWRITTEN_DIRECTORIES = (
+    "/srv/t%h", "/srv/t%%", "/srv/t${HOME}", "/srv/t$HOME", "/srv/my tmp", "/srv/tab\there",
+    '/srv/q"x', "/srv/a'b", "/srv/b\\s",
+)
+
+
+@pytest.mark.parametrize("directory", OPENSSH_REWRITTEN_DIRECTORIES)
+def test_a_client_path_that_openssh_would_rewrite_is_refused_naming_tmpdir(directory):
+    from netops_core import hostkey, session, sftp
+    from netops_core.ssh import known_hosts_options
+
+    known_hosts = directory + "/netops-core-x/known_hosts"
+    identity = directory + "/netops-core-x/identity"
+    builders = (
+        lambda: argv(HOST, PORT, LOGIN, known_hosts, COMMAND, identity="/w/identity"),
+        lambda: argv(HOST, PORT, LOGIN, "/w/known_hosts", COMMAND, identity=identity),
+        lambda: sftp.argv(HOST, PORT, LOGIN, known_hosts, identity="/w/identity"),
+        lambda: sftp.argv(HOST, PORT, LOGIN, "/w/known_hosts", identity=identity),
+        lambda: session.argv(HOST, PORT, LOGIN, known_hosts, identity="/w/identity"),
+        lambda: session.argv(HOST, PORT, LOGIN, "/w/known_hosts", identity=identity),
+        lambda: known_hosts_options(known_hosts),
+    )
+    for build in builders:
+        with pytest.raises(SshError, match="TMPDIR"):
+            build()
+    with pytest.raises(hostkey.HostKeyError, match="TMPDIR"):
+        hostkey.probe_argv(HOST, PORT, 5, known_hosts, "rsa-sha1-dh14")
+    line = argv(HOST, PORT, LOGIN, "/w/netops-core-x/known_hosts", COMMAND, identity="/w/identity")
+    assert "UserKnownHostsFile=/w/netops-core-x/known_hosts" in line
+
+
+def test_a_temporary_directory_with_a_percent_sign_is_refused_before_the_client_runs(
+    tmp_path, monkeypatch
+):
+    import tempfile
+
+    odd = tmp_path / "t%h"
+    odd.mkdir()
+    plain = tmp_path / "plain"
+    plain.mkdir()
+    monkeypatch.setattr(tempfile, "tempdir", str(odd))
+    run = FakeRun()
+    with pytest.raises(SshError, match="TMPDIR"):
+        run_command(HOST, PORT, LOGIN, key_credential(), HOST_KEY_LINE, COMMAND, run=run)
+    assert run.calls == []
+    assert list(odd.iterdir()) == []
+    monkeypatch.setattr(tempfile, "tempdir", str(plain))
+    assert run_command(HOST, PORT, LOGIN, key_credential(), HOST_KEY_LINE, COMMAND, run=run).rc == 0
+    assert len(run.calls) == 1
+    assert list(plain.iterdir()) == []

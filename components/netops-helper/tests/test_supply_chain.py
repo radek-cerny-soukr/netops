@@ -12,6 +12,7 @@ import stat
 import subprocess
 import sys
 import tempfile
+import tomllib
 
 
 ROOT = Path(__file__).parents[1]
@@ -40,16 +41,81 @@ def test_sbom_contains_all_direct_dependencies() -> None:
     document = json.loads((ROOT / "sbom.cdx.json").read_text())
     root = document["metadata"]["component"]
     dependency = next(item for item in document["dependencies"] if item["ref"] == root["bom-ref"])
-    direct = {
-        re.split(r"[<=>!~\[]", line.strip(), maxsplit=1)[0].replace("_", "-").lower()
-        for line in (ROOT / "requirements.txt").read_text().splitlines()
-        if line.strip() and not line.lstrip().startswith("#")
-    }
-    components = {
-        item["bom-ref"]: item["name"].replace("_", "-").lower()
-        for item in document["components"]
-    }
-    assert {components[reference] for reference in dependency["dependsOn"]} == direct
+    project = tomllib.loads((ROOT / "pyproject.toml").read_text())["project"]
+    pins = dict(entry.split("==", 1) for entry in project["dependencies"])
+    components = {item["bom-ref"]: item for item in document["components"]}
+    assert {components[reference]["name"] for reference in dependency["dependsOn"]} == set(pins)
+    locked = {line.split("==", 1)[0]: line.split("==", 1)[1].split()[0] for line in (ROOT / "requirements.lock").read_text().splitlines() if re.match(r"^[A-Za-z0-9._-]+==", line)}
+    for reference in dependency["dependsOn"]:
+        item = components[reference]
+        assert item["version"] == pins[item["name"]]
+        if item["name"].startswith("netops-"):
+            assert item["purl"] == reference == f"pkg:pypi/{item['name']}@{item['version']}"
+            assert item["scope"] == "required" and item["type"] == "library"
+        else:
+            assert item["version"] == locked[item["name"]]
+
+
+def _sbom_generator():
+    specification = importlib.util.spec_from_file_location("helper_sbom_generator", ROOT / "scripts/generate_sbom.py")
+    module = importlib.util.module_from_spec(specification)
+    specification.loader.exec_module(module)
+    return module
+
+
+def test_sbom_generator_adds_core_and_preserves_the_external_graph() -> None:
+    generator = _sbom_generator()
+    project = tomllib.loads((ROOT / "pyproject.toml").read_text())["project"]
+    document = json.loads((ROOT / "sbom.cdx.json").read_text())
+    core = "pkg:pypi/netops-core@0.2.9"
+    document["components"] = [item for item in document["components"] if item["bom-ref"] != core]
+    document["dependencies"] = [item for item in document["dependencies"] if item["ref"] != core]
+    root = document["metadata"]["component"]["bom-ref"]
+    next(item for item in document["dependencies"] if item["ref"] == root)["dependsOn"].remove(core)
+    before_components = {item["bom-ref"]: json.dumps(item, sort_keys=True) for item in document["components"]}
+    before_graph = {item["ref"]: json.dumps(item, sort_keys=True) for item in document["dependencies"] if item["ref"] != root}
+    generator.connect_dependencies(document, project)
+    assert {item["bom-ref"]: json.dumps(item, sort_keys=True) for item in document["components"] if item["bom-ref"] != core} == before_components
+    assert {item["ref"]: json.dumps(item, sort_keys=True) for item in document["dependencies"] if item["ref"] not in (root, core)} == before_graph
+    assert next(item for item in document["dependencies"] if item["ref"] == core) == {"ref": core, "dependsOn": []}
+    assert core in next(item for item in document["dependencies"] if item["ref"] == root)["dependsOn"]
+    once = json.dumps(document, sort_keys=True)
+    generator.connect_dependencies(document, project)
+    assert json.dumps(document, sort_keys=True) == once
+
+
+def test_sbom_generator_uses_the_declared_internal_pin_and_normalizes_names() -> None:
+    components = _sbom_generator().required_components({"dependencies": ["NetOps_Core==0.2.99"]})
+    assert components == [{
+        "bom-ref": "pkg:pypi/netops-core@0.2.99", "name": "netops-core",
+        "version": "0.2.99", "purl": "pkg:pypi/netops-core@0.2.99",
+        "scope": "required", "type": "library",
+    }]
+
+
+def test_sbom_generator_refuses_unpinned_and_duplicate_dependencies() -> None:
+    generator = _sbom_generator()
+    for entries in (["netops-core"], ["netops-core>=0.2.9"], ["netops-core=="], ["netops-core==0.2.9", "netops_core==0.2.9"]):
+        try:
+            generator.required_components({"dependencies": entries})
+        except RuntimeError:
+            pass
+        else:
+            raise AssertionError("invalid declared dependency was accepted")
+
+
+def test_sbom_generator_refuses_a_direct_version_mismatch() -> None:
+    generator = _sbom_generator()
+    project = tomllib.loads((ROOT / "pyproject.toml").read_text())["project"]
+    document = json.loads((ROOT / "sbom.cdx.json").read_text())
+    next(item for item in document["components"] if item["name"] == "fastmcp")["version"] = "9.9.9"
+    try:
+        generator.connect_dependencies(document, project)
+    except RuntimeError as error:
+        assert "version does not match" in str(error)
+    else:
+        raise AssertionError("direct dependency version drift was accepted")
+
 
 
 def test_release_license_is_mit() -> None:
@@ -212,7 +278,7 @@ def test_release_tools_are_pinned() -> None:
         line.strip() for line in (ROOT / "requirements-release.in").read_text().splitlines()
         if line.strip() and not line.lstrip().startswith("#")
     }
-    assert lines == {"-r requirements.txt", "cyclonedx-bom==7.4.0", "pytest==9.1.1"}
+    assert lines == {"-r requirements.txt", "cyclonedx-bom==7.4.0", "pytest==9.1.1", "pytest-socket==0.8.1"}
 
 
 def _load_module(name: str, path: Path):
@@ -302,7 +368,7 @@ def test_version_invariant_rejects_changed_pyproject(tmp_path: Path) -> None:
     root = _version_fixture(tmp_path)
     _replace_exact(
         root / "pyproject.toml",
-        "version = \"0.3.10\"",
+        "version = \"0.3.11\"",
         "version = \"not-a-release\"",
     )
     errors = _load_release_module("check_public_release")._version_invariant_errors(root)
@@ -315,7 +381,7 @@ def test_version_invariant_rejects_changed_package_version(tmp_path: Path) -> No
     root = _version_fixture(tmp_path)
     _replace_exact(
         root / "src/netops_helper/__init__.py",
-        "__version__ = \"0.3.10\"",
+        "__version__ = \"0.3.11\"",
         "__version__ = \"9.9.9\"",
     )
     errors = _load_release_module("check_public_release")._version_invariant_errors(root)
@@ -368,7 +434,7 @@ def test_version_invariant_rejects_changed_compose_image(tmp_path: Path) -> None
     root = _version_fixture(tmp_path)
     _replace_exact(
         root / "compose.yaml",
-        "image: local/netops-helper:0.3.10",
+        "image: local/netops-helper:0.3.11",
         "image: local/netops-helper:9.9.9",
     )
     errors = _load_release_module("check_public_release")._version_invariant_errors(root)
@@ -525,7 +591,7 @@ def test_public_allowlist_contains_all_0_2_contracts() -> None:
     manifest = ROOT / "release-manifest.json"
     if manifest.is_file():
         assert selected == set(json.loads(manifest.read_text(encoding="utf-8"))["files"])
-    assert exporter.VERSION == "0.3.10"
+    assert exporter.VERSION == "0.3.11"
     assert required_tests <= exporter.TESTS
     assert required_tests <= gate.REQUIRED_RELEASE_PATHS
     assert dependency_free_required <= dependency_free_tests
@@ -593,7 +659,7 @@ def _public_source_fixture(tmp_path: Path) -> Path:
         check=True,
         text=True,
     )
-    exported = output / "netops-helper-0.3.10"
+    exported = output / "netops-helper-0.3.11"
     manifest = json.loads(
         (exported / "release-manifest.json").read_text(encoding="utf-8")
     )
@@ -791,7 +857,7 @@ def test_release_selection_rejects_unsafe_entries(tmp_path: Path) -> None:
 
 def test_release_export_preserves_existing_destination(tmp_path: Path) -> None:
     output = tmp_path / "existing-output"
-    destination = output / "netops-helper-0.3.10"
+    destination = output / "netops-helper-0.3.11"
     destination.mkdir(parents=True)
     marker = destination / "marker"
     marker_bytes = SELECTION_MARKER.encode("utf-8")
@@ -840,7 +906,7 @@ def test_release_export_rejects_symlinked_output(tmp_path: Path) -> None:
     parent_link.symlink_to(actual, target_is_directory=True)
 
     cases = {
-        "direct": (direct_link, actual / "netops-helper-0.3.10"),
+        "direct": (direct_link, actual / "netops-helper-0.3.11"),
         "parent": (
             parent_link / "nested-output",
             actual / "nested-output",
@@ -886,7 +952,7 @@ def test_release_gate_rejects_missing_vendor_contract(tmp_path: Path) -> None:
         ],
         check=True,
     )
-    exported = output / "netops-helper-0.3.10"
+    exported = output / "netops-helper-0.3.11"
     (exported / "release-manifest.json").unlink()
     gate = _load_release_module("check_public_release")
 
@@ -1010,7 +1076,7 @@ def test_release_tree_integrity_fails_closed(tmp_path: Path) -> None:
         ],
         check=True,
     )
-    exported = output / "netops-helper-0.3.10"
+    exported = output / "netops-helper-0.3.11"
     gate = _load_release_module("check_public_release")
     assert gate._release_tree_integrity_errors(exported) == []
 
@@ -1309,7 +1375,7 @@ def test_public_export_contains_no_python_bytecode(tmp_path: Path) -> None:
         ],
         check=True,
     )
-    exported = tmp_path / "netops-helper-0.3.10"
+    exported = tmp_path / "netops-helper-0.3.11"
     assert not [path for path in exported.rglob("*") if "__pycache__" in path.parts]
     assert not list(exported.rglob("*.pyc"))
     assert not list(exported.rglob("*.pyo"))
@@ -1356,7 +1422,7 @@ def test_release_export_compose_builds_from_archive_root(tmp_path: Path) -> None
         ],
         check=True,
     )
-    exported = output / "netops-helper-0.3.10"
+    exported = output / "netops-helper-0.3.11"
     compose_text = (exported / "compose.yaml").read_text(encoding="utf-8")
     assert "      context: .\n" in compose_text
     assert "../.." not in compose_text
@@ -1378,7 +1444,7 @@ def test_release_export_keeps_askpass_executable(tmp_path: Path) -> None:
         ],
         check=True,
     )
-    exported = output / "netops-helper-0.3.10"
+    exported = output / "netops-helper-0.3.11"
     askpass_mode = stat.S_IMODE(
         (exported / "src/netops_core/askpass.py").stat().st_mode
     )
@@ -1575,6 +1641,39 @@ def test_export_fixtures_do_not_share_mutable_files(tmp_path: Path) -> None:
         assert (second / relative).read_bytes() == original
 
 
+def test_installed_helper_does_not_own_core_files() -> None:
+    python = os.environ.get("NETOPS_INSTALLED_HELPER_PYTHON")
+    if not python:
+        import pytest
+        pytest.skip("requires the installed proxy environment")
+    program = """
+import importlib.metadata as metadata
+import json
+from pathlib import Path
+result = {}
+for name in ("netops-core", "netops-helper"):
+    distribution = metadata.distribution(name)
+    files = list(distribution.files or ())
+    result[name] = {
+        "files": [str(path) for path in files],
+        "paths": [str(Path(distribution.locate_file(path)).resolve()) for path in files],
+    }
+print(json.dumps(result))
+"""
+    completed = subprocess.run(
+        [python, "-I", "-B", "-c", program],
+        text=True, capture_output=True, check=True,
+    )
+    distributions = json.loads(completed.stdout)
+    core = distributions["netops-core"]
+    helper = distributions["netops-helper"]
+    assert "netops_core/ssh.py" in core["files"]
+    assert "netops_helper/proxy.py" in helper["files"]
+    assert not set(core["paths"]) & set(helper["paths"]), "installed distributions share file ownership"
+    assert not any(path.startswith("netops_core/") for path in helper["files"])
+    assert all(Path(path).is_file() for path in core["paths"] if path.endswith(".py"))
+
+
 def main() -> int:
     test_the_exporter_marks_exactly_the_programs_the_tree_marks()
     with tempfile.TemporaryDirectory(prefix="netops-pinned-core-fixture-") as directory:
@@ -1583,6 +1682,10 @@ def main() -> int:
     test_installation_stops_on_every_unpack_or_checksum_failure()
     test_runtime_inputs_and_install_metadata_agree()
     test_sbom_contains_all_direct_dependencies()
+    test_sbom_generator_adds_core_and_preserves_the_external_graph()
+    test_sbom_generator_uses_the_declared_internal_pin_and_normalizes_names()
+    test_sbom_generator_refuses_unpinned_and_duplicate_dependencies()
+    test_sbom_generator_refuses_a_direct_version_mismatch()
     test_release_license_is_mit()
     test_healthcheck_uses_system_trust_without_private_ca_name()
     test_healthcheck_fails_closed_under_python_optimize()
@@ -1656,6 +1759,7 @@ def main() -> int:
         test_release_export_compose_builds_from_archive_root(
             temporary / "compose-build-root"
         )
+        test_release_export_root_mode_is_independent_of_private_umask(temporary / "private-umask")
         test_release_export_keeps_askpass_executable(
             temporary / "compose-build-modes"
         )
@@ -1669,6 +1773,21 @@ def main() -> int:
     test_gate_flags_credential_shaped_and_private_network_markers()
     print("supply_chain_contract_tests=passed")
     return 0
+
+
+
+
+def test_release_export_root_mode_is_independent_of_private_umask(tmp_path: Path) -> None:
+    import os
+    source = _source_fixture_for_export(tmp_path)
+    output = tmp_path / "private-umask-output"
+    subprocess.run([sys.executable, "-B", str(source / "scripts/create_release_artifacts.py"),
+                    "--output", str(output)], check=True, capture_output=True,
+                   preexec_fn=lambda: os.umask(0o077))
+    exported = output / "netops-helper-0.3.11"
+    directories = [exported] + sorted(path for path in exported.rglob("*") if path.is_dir())
+    assert len(directories) > 1
+    assert all(stat.S_IMODE(path.stat().st_mode) == 0o755 for path in directories), [(str(path.relative_to(exported)), oct(stat.S_IMODE(path.stat().st_mode))) for path in directories]
 
 
 if __name__ == "__main__":

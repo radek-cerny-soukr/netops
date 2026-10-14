@@ -26,7 +26,7 @@ from .findings import Finding, FingerprintError, checked_component
 from .inputs import InputError, read_regular
 from .state import STATE_GONE, STATE_NEW, STATE_OPEN_KNOWN, STATE_SUPPRESSED, classify
 from .state import STATE_NOT_EVALUATED, evaluation_complete, last_evaluated, stored_statuses
-from .state import suppressions_for_device
+from .state import AGE_FRESH, AGE_STALE, age_state, suppressions_for_device
 from .store import Store, StoreError
 from .store import migrate as migrate_store
 from .suppressions import MOMENT_FORMAT, SuppressionError, load_for_tenant
@@ -63,8 +63,8 @@ GONE_KEYS = ("rule_id", "severity", "object_key", "fingerprint")
 
 SUPPRESSION_KEYS = ("rule_id", "object_key", "fingerprint", "author", "expires", "reason")
 
-STATUS_FRESH = "fresh"
-STATUS_STALE = "stale"
+STATUS_FRESH = AGE_FRESH
+STATUS_STALE = AGE_STALE
 STATUS_NEVER = "never"
 
 DEFAULT_STALE_AFTER_HOURS = 26.0
@@ -298,6 +298,21 @@ def _database_failure(path, error) -> Failure:
     return Failure("store %s: %s" % (path, error))
 
 
+def _unrecorded(path, error) -> Failure:
+    if isinstance(error, StoreError):
+        return Failure("store: %s; no run was recorded" % error)
+    return Failure("%s; no run was recorded" % _database_failure(path, error))
+
+
+def _written(store, path, args, arguments, options) -> tuple:
+    try:
+        if args.baseline_accept:
+            return store.record_accepted_run(*arguments, args.accepted_by, args.note, **options)
+        return store.record_run(*arguments, **options), None
+    except (StoreError, sqlite3.Error) as error:
+        raise _unrecorded(path, error) from None
+
+
 def _previous(store, tenant: str, device: str) -> tuple:
     return last_evaluated(store, tenant, store.runs_for_device(tenant, device))[1]
 
@@ -321,26 +336,17 @@ def _record(args, digest: str, rules_version: str, findings, rule_status) -> tup
     seen = {}
     try:
         with Store(path) as store:
-            run_id = store.record_run(
-                args.tenant,
-                args.device,
-                digest,
-                args.config,
-                rules_version,
-                findings,
-                rule_status=rule_status,
-                admit=_policy_scope(rules_version),
-                observe=_history(store, args.tenant, args.device, seen),
-            )
-            accepted = None
-            if args.baseline_accept:
-                accepted = store.accept_baseline(
-                    args.tenant,
-                    args.device,
-                    run_id,
-                    args.accepted_by,
-                    args.note,
-                )
+            accepted = _written(
+                store,
+                path,
+                args,
+                (args.tenant, args.device, digest, args.config, rules_version, findings),
+                dict(
+                    rule_status=rule_status,
+                    admit=_policy_scope(rules_version),
+                    observe=_history(store, args.tenant, args.device, seen),
+                ),
+            )[1]
     except StoreError as error:
         raise Failure("store: %s" % error)
     except sqlite3.Error as error:
@@ -425,7 +431,7 @@ def _finding_lines(item) -> list:
     evidence = item["evidence"]
     lines = [
         "",
-        "[%s] %s (%s)" % (item["severity"], item["rule_id"], item["class"]),
+        "[%s] %s (%s)" % (item["severity"], item["rule_id"], {"fakt": "fact", "usudek": "judgement"}.get(item["class"], item["class"])),
         "  object: %s" % item["object_key"],
         "  section: %s" % item["section"],
         "  line: %d" % item["line"],
@@ -637,7 +643,7 @@ def _status_report(args, last, now: datetime) -> dict:
     age = (now - _moment(last["started_at"])).total_seconds() / 3600.0
     report["last_audit"] = last["started_at"]
     report["age_hours"] = round(age, 2)
-    report["state"] = STATUS_STALE if age > args.stale_after_hours else STATUS_FRESH
+    report["state"] = age_state(age, args.stale_after_hours)
     return report
 
 
@@ -764,8 +770,7 @@ def _collected(args, record, section, credential) -> tuple:
     try:
         return _gathered(record, section, credential, args.max_response_bytes)
     except collect.CollectError as error:
-        events = () if error.event is None else (error.event,)
-        raise Failure("channel %s: %s%s" % (section.channel, error, _traced(args, record, events)))
+        raise Failure("channel %s: %s%s" % (section.channel, error, _traced(args, record, error.events)))
 
 
 def _completeness(tenant, record, section, snapshot):
@@ -793,28 +798,22 @@ def _completeness(tenant, record, section, snapshot):
     )
 
 
-def _recorded(args, record, snapshot, rules_version, findings, events, rule_status) -> tuple:
+def _recorded(args, record, snapshot, rules_version, findings, events, rule_status, seen) -> tuple:
     path = _store_path(args.store, False)
-    seen = {}
     try:
         with Store(path) as store:
-            run_id = store.record_run(
-                args.tenant,
-                record.name,
-                snapshot.sha256,
-                snapshot.source,
-                rules_version,
-                findings,
-                rule_status=rule_status,
-                admit=_policy_scope(rules_version),
-                observe=_history(store, args.tenant, record.name, seen),
+            seen["run_id"], accepted = _written(
+                store,
+                path,
+                args,
+                (args.tenant, record.name, snapshot.sha256, snapshot.source, rules_version, findings),
+                dict(
+                    rule_status=rule_status,
+                    admit=_policy_scope(rules_version),
+                    observe=_history(store, args.tenant, record.name, seen),
+                    events=events,
+                ),
             )
-            store.record_channel_events(args.tenant, record.name, events, run_id=run_id)
-            accepted = None
-            if args.baseline_accept:
-                accepted = store.accept_baseline(
-                    args.tenant, record.name, run_id, args.accepted_by, args.note
-                )
     except StoreError as error:
         raise Failure("store: %s" % error)
     except sqlite3.Error as error:
@@ -843,20 +842,26 @@ def _command_collect(args) -> int:
     suppression_items = suppressions_for_device(_load_suppressions(args.suppressions, args.tenant), record.name)
     credential = _credential(record, section, args.vault)
     snapshot, events = _collected(args, record, section, credential)
-    gate = _completeness(args.tenant, record, section, snapshot)
-    policy, coverage = _policy(args, platform, snapshot.text, snapshot.source, gate is not None)
-    if policy:
-        rules_version += ":" + management.policy_digest(policy)
-    if gate is not None:
-        findings, states = (gate,), {rule.id: (NOT_EVALUATED, COMPLETENESS_REASON) for rule in rules}
-    else:
-        findings, states = _audit(platform, snapshot.text, args.tenant, record.name, rules, policy)
-    rule_status = _rule_status(platform, rules, states, policy)
-    previous, baseline, accepted = (), frozenset(), None
-    if args.store:
-        previous, baseline, accepted = _recorded(
-            args, record, snapshot, rules_version, findings, events, rule_status
-        )
+    seen = {}
+    try:
+        gate = _completeness(args.tenant, record, section, snapshot)
+        policy, coverage = _policy(args, platform, snapshot.text, snapshot.source, gate is not None)
+        if policy:
+            rules_version += ":" + management.policy_digest(policy)
+        if gate is not None:
+            findings, states = (gate,), {rule.id: (NOT_EVALUATED, COMPLETENESS_REASON) for rule in rules}
+        else:
+            findings, states = _audit(platform, snapshot.text, args.tenant, record.name, rules, policy)
+        rule_status = _rule_status(platform, rules, states, policy)
+        previous, baseline, accepted = (), frozenset(), None
+        if args.store:
+            previous, baseline, accepted = _recorded(
+                args, record, snapshot, rules_version, findings, events, rule_status, seen
+            )
+    except Failure as error:
+        if "run_id" in seen:
+            raise
+        raise Failure("%s%s" % (error, _traced(args, record, events))) from None
     result = classify(findings, baseline, suppression_items, previous, datetime.now(timezone.utc), rule_status)
     report = _report(
         args.tenant, record.name, platform, snapshot.sha256, rules_version, findings, result, rule_status
@@ -889,7 +894,10 @@ def _write_regular(path, data: bytes) -> None:
         os.ftruncate(descriptor, 0)
         view = memoryview(data)
         while view:
-            view = view[os.write(descriptor, view):]
+            written = os.write(descriptor, view)
+            if written <= 0:
+                raise OSError("short write to the output file")
+            view = view[written:]
     finally:
         os.close(descriptor)
 
@@ -962,12 +970,10 @@ def _policy(args, platform, text, source, incomplete=False):
         raise Failure("policy %s cannot be loaded: %s" % (path, exc)) from None
     try:
         tree = PLATFORMS[platform][1].parse(text)
-    except l1_fortios.TruncatedError as exc:
+    except PARSE_ERRORS as exc:
         if not incomplete:
             raise Failure("cannot parse configuration %s: %s" % (source, exc)) from None
         tree = None
-    except PARSE_ERRORS as exc:
-        raise Failure("cannot parse configuration %s: %s" % (source, exc)) from None
     try:
         coverage = (management.coverage(platform, tree, policy) if tree is not None
                     else dict.fromkeys(management.RULES[platform], "not-evaluated"))

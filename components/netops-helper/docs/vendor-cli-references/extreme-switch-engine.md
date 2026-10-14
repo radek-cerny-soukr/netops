@@ -95,11 +95,11 @@ Every `{interface}` slot is exactly one enrolled physical-port token. The conser
 
 Each decimal component is canonical, non-zero, and bounded to three digits. Ranges, lists, `all`, tags, wildcards, whitespace, extra CLI tokens, mixed separators, and three-component slash forms are rejected. The official `configure system ports notation [slot:port | slot/port]` command documents the optional standalone notation only; that mutating command is not present in the Phase-1 catalog.
 
-### Audit entries measured on 17 September 2026
+### ExtremeXOS 33.7.1 query grammar
 
-Measured on 17 September 2026 against ExtremeXOS 33.7.1 with a read-only account (a user-level account over the exec channel with the `legacy_ssh: rsa-sha1` exception), each of the following answered with exit status 0: `stacking`, `stacking_support`, `inline_power`, `access_list_counters` (empty, no access list was configured), `qos_profiles`, `licenses`, `ntp`, `sntp_client`, `sessions`, `elrp`, `mcast_cache_summary`, `mirror`, `edp_neighbors` and `stp_detail`. Each is a chapter of the v33.7.1 Command References: `show stacking`, `show stacking-support`, `show inline-power`, `show access-list counter`, `show qosprofile`, `show licenses`, `show ntp`, `show sntp-client`, `show session`, `show elrp`, `show mirror`, `show edp` and `show stpd`; `mcast_cache_summary` is the `{summary}` instance of the documented `show mcast {ipv4 | ipv6} cache ... {summary}` grammar, and `stp_detail` the `detail` instance of `show stpd {stpd_name | detail}`.
+The ExtremeXOS 33.7.1 read profile uses exact documented grammar for stacking, stacking_support, inline_power, access_list_counters, qos_profiles, licenses, ntp, sntp_client, sessions, elrp, mcast_cache_summary, mirror, edp_neighbors and stp_detail. Account permissions and feature availability must be validated for the enrolled build; catalogue presence is not an authorization grant.
 
-`inline_power_port` follows the documented `show inline-power info {detail} ports {port_list}` grammar with one enrolled port in the slot. `show inline-power info ports all` was refused on 33.7.1 with `%% Unrecognized command` because `all` is not an enrolled port token; the slotted form was measured on 18 September 2026 against ExtremeXOS 33.7.1 with a user-level account through `ssh_read` (exit status 0, 195 bytes for one enrolled port).
+`inline_power_port` follows `show inline-power info {detail} ports {port_list}` with one enrolled port. The `all` token is not an enrolled single-port value and is refused; verify the exact build and account permission for that slotted query.
 
 Measured refusals from the same session, recorded as facts rather than candidates:
 
@@ -108,11 +108,11 @@ Measured refusals from the same session, recorded as facts rather than candidate
 - `show ip-security dhcp-snooping entries` is answered with `%% Incomplete command`; the binding database can only be asked for one VLAN, and Phase 1 has no VLAN inventory type.
 - `show log configuration` is outside the boundary as configuration and log content, and was not run.
 
-### EXOS-VM 33.6.1.14, measured on 25 September 2026
+### EXOS-VM 33.6.1.14 compatibility
 
-The 49-query catalogue was also run query by query against the EXOS-VM virtual switch, ExtremeXOS 33.6.1.14, with a user-level account holding an RSA key and `legacy_ssh: "rsa-sha1"`, through the released helper 0.3.6 and again through the source of helper 0.3.7 deployed as a candidate runner, with the same result: 40 answered with exit status 0; 7 with exit status 250 and a complete answer (`interface_details`, `vlan_details`, `ipv6_neighbor_address`, `route_summary`, `ipv6_route_summary`, `sharing`, `stacking`); and 2 were `device_cli_error` with exit status 254. The per-query table is in [Live lab measurements](../../../../docs/lab-measurements-2026-09-25.md#extremexos-on-exos-vm-extreme_exos).
+The virtual-switch profile is bounded to ExtremeXOS 33.6.1.14, its user-level account and explicit legacy SSH policy. Exit status and parser interpretation are separate from device feature availability; compatibility with an unlisted physical switch is not implied. See [compatibility boundaries](../../../../docs/compatibility-boundaries.md).
 
-Two answers differ from the X440-G2 hardware measured on 17 September 2026 and belong to the virtual switch: `show qosprofile` answers `%% Incomplete command` and `show stacking-support` `%% Unrecognized command`, where 33.7.1 on hardware answered both with exit status 0. `show stacking` answers `Method is not implemented on this platform.` with exit status 250. Helper 0.3.6 returned that text as a successful read with the status; from 0.3.7 it is `device_cli_error`.
+The ExtremeXOS 33.6.1.14 virtual-image profile differs from the 33.7.1 hardware profile: `show qosprofile` can be incomplete, `show stacking-support` unrecognized, and `show stacking` can report `Method is not implemented on this platform.` with status 250. From Helper 0.3.7 that unsupported-platform response is `device_cli_error`; a status alone does not establish successful interpretation.
 
 ### Version, model, and feature constraints
 

@@ -89,6 +89,7 @@ jobs:
           python -m venv "$venv"
           "$venv/bin/python" -m pip install --quiet "$core" "$source"
           "$venv/bin/netops-helper-proxy" --help > /dev/null
+          NETOPS_INSTALLED_HELPER_PYTHON="$venv/bin/python" python -m pytest -q tests/test_supply_chain.py -k installed_helper_does_not_own_core_files
           home="$RUNNER_TEMP/netops-helper-config"
           rm -rf "$home"
           mkdir -p "$home/netops-helper"

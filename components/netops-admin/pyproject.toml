@@ -4,13 +4,13 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "netops-admin"
-version = "0.2.7"
+version = "0.2.8"
 description = "Bounded, reversible network device changes behind an on-device rollback safeguard"
 readme = { file = "README.md", content-type = "text/markdown" }
 license = "MIT"
 license-files = ["LICENSE"]
 requires-python = ">=3.13"
-dependencies = ["netops-auditor==0.2.11", "netops-core==0.2.8"]
+dependencies = ["netops-auditor==0.2.12", "netops-core==0.2.9"]
 
 classifiers = [
   "Development Status :: 4 - Beta",

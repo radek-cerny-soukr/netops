@@ -9,6 +9,7 @@ from conftest import request_bytes
 from netops_admin import profiles
 from netops_admin.errors import Rejected
 from netops_admin.request import MAX_REQUEST_BYTES, parse_request
+from netops_admin.state import Store
 
 
 def test_valid_request_parses():
@@ -100,3 +101,29 @@ def test_profile_validation_is_strict(mutate, fragment):
     with pytest.raises(profiles.ProfileError) as caught:
         profiles.parse_profile(data)
     assert fragment in str(caught.value)
+
+
+@pytest.mark.parametrize("request_id", ["request1\n", "request1\r", "short", "r" * 65, None])
+def test_store_request_refuses_an_invalid_id_before_read(tmp_path, monkeypatch, request_id):
+    store = Store(tmp_path / "state")
+
+    def unexpected_read(*args):
+        raise AssertionError("invalid request ID reached document lookup")
+
+    monkeypatch.setattr(store, "_document", unexpected_read)
+    assert store.request(request_id) is None
+
+
+@pytest.mark.parametrize("request_id", ["request1", "Req_.:-1", "r" * 64])
+def test_store_request_preserves_a_valid_id_and_fingerprint(tmp_path, request_id):
+    request = parse_request(request_bytes(device="fw-1", request_id=request_id))
+    fingerprint = request.fingerprint()
+    store = Store(tmp_path / "state")
+    store.remember_request(request_id, "a" * 32, fingerprint, "fw-1")
+    assert store.request(request_id) == {
+        "request_id": request_id,
+        "change_id": "a" * 32,
+        "request_sha256": fingerprint,
+        "device": "fw-1",
+    }
+    assert parse_request(request_bytes(device="fw-1", request_id=request_id)).fingerprint() == fingerprint

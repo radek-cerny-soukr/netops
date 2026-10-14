@@ -56,6 +56,13 @@ MANIFEST_FIELDS = {
     "files",
 }
 REQUIRED_RELEASE_PATHS = {
+    "tests/test_t127_contracts.py",
+    "tests/test_mutation_helper_engine.py",
+    "tests/test_mutation_helper_proxy_arguments.py",
+    "tests/test_mutation_helper_proxy_messages.py",
+    "tests/test_mutation_helper_proxy_sanitize.py",
+    "tests/test_error_branches_helper_engine.py",
+    "tests/test_error_branches_helper_proxy.py",
     "src/netops_helper/schema_read.py", "tests/test_schema_read.py",
     "tests/test_fortios_diagnostics.py",
     "docs/query-catalog.md",
@@ -73,8 +80,11 @@ REQUIRED_RELEASE_PATHS = {
     "tests/test_ftp_wire_safety.py",
     "tests/test_secret_canaries.py",
     "tests/test_cli_errors.py",
+    "tests/test_cli_closed_output.py",
+    "tests/test_proxy_vault_size.py",
     "tests/test_malformed_inputs.py",
     "tests/_test_guard.py", "tests/test_resource_limits.py",
+    "tests/_sandbox_guard.py", "tests/test_sandbox_guard.py",
     "tests/test_runtime_tar_safety.py",
     "tests/test_connection_pacing.py",
     "tests/test_policy_parity.py",
@@ -1263,6 +1273,7 @@ def check(root: Path = ROOT) -> list[str]:
         "-r requirements.txt",
         "cyclonedx-bom==7.4.0",
         "pytest==9.1.1",
+        "pytest-socket==0.8.1",
     }
     if release_input != expected_release_input:
         errors.append("requirements-release.in is not the reviewed release tool set")

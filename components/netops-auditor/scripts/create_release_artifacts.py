@@ -173,6 +173,50 @@ def digest(path: Path) -> str:
     return hashlib.sha256(_read_regular_bytes(path)).hexdigest()
 
 
+def _export_documentation_bytes(source: Path, relative: Path) -> bytes:
+    data = _read_regular_bytes(source)
+    if relative.suffix != ".md":
+        return data
+    import posixpath
+    from urllib.parse import quote, unquote, urlsplit
+    project = tomllib.loads(_read_regular_bytes(ROOT / "pyproject.toml").decode("utf-8"))["project"]
+    component = "components/" + project["name"] + "/"
+    prefix = project["urls"]["Homepage"].rstrip("/") + "/blob/" + project["name"] + "/v" + project["version"] + "/"
+    pattern = re.compile(r"(!?\[[^\]\n]*\]\()([^\s)]+)(\))|(?P<ticks>`+).*?(?P=ticks)")
+
+    def replace(match: re.Match[str]) -> str:
+        if match.group(1) is None:
+            return match.group(0)
+        target = urlsplit(match.group(2))
+        if target.scheme or target.netloc or not target.path or target.path.startswith("/"):
+            return match.group(0)
+        path = posixpath.normpath(component + relative.parent.as_posix() + "/" + unquote(target.path))
+        if path.startswith(component):
+            return match.group(0)
+        if path == ".." or path.startswith("../"):
+            raise ReleaseSelectionError("documentation link leaves the repository")
+        suffix = ("?" + target.query if target.query else "") + ("#" + target.fragment if target.fragment else "")
+        return match.group(1) + prefix + quote(path, safe="/") + suffix + match.group(3)
+
+    result: list[str] = []
+    fence: str | None = None
+    for line in data.decode("utf-8").splitlines(keepends=True):
+        marker = re.match(r"^\s*(`{3,}|~{3,})", line)
+        if marker:
+            token = marker.group(1)
+            if fence is None:
+                fence = token
+            elif token[0] == fence[0] and len(token) >= len(fence):
+                fence = None
+            result.append(line)
+            continue
+        if fence is not None:
+            result.append(line)
+            continue
+        result.append(pattern.sub(replace, line))
+    return "".join(result).encode("utf-8")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--output", type=Path, default=ROOT / "dist")
@@ -207,9 +251,9 @@ def main() -> int:
             relative = source.relative_to(ROOT)
             target = destination / relative
             target.parent.mkdir(parents=True, exist_ok=True)
-            target.write_bytes(_read_regular_bytes(source))
+            target.write_bytes(_export_documentation_bytes(source, relative))
             target.chmod(0o755 if relative.as_posix() in EXECUTABLE else 0o644)
-    except (OSError, ReleaseSelectionError):
+    except (OSError, ReleaseSelectionError, UnicodeError, ValueError):
         print("release_export=failed detail=component source copy rejected", file=sys.stderr)
         return 1
 

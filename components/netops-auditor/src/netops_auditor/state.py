@@ -12,6 +12,9 @@ STATE_NOT_EVALUATED = "not-evaluated"
 
 STATES = (STATE_NEW, STATE_OPEN_KNOWN, STATE_SUPPRESSED, STATE_GONE)
 
+AGE_FRESH = "fresh"
+AGE_STALE = "stale"
+
 
 @dataclass(frozen=True)
 class GoneFinding:
@@ -57,12 +60,33 @@ def stored_statuses(store, tenant, run_id) -> dict:
     return {} if reader is None else reader(tenant, run_id)
 
 
+def age_state(age_hours, stale_after_hours) -> str:
+    return AGE_FRESH if 0 <= age_hours <= stale_after_hours else AGE_STALE
+
+
 def last_evaluated(store, tenant, runs) -> tuple:
-    for run in runs:
+    runs = tuple(runs)
+    for index, run in enumerate(runs):
         findings = store.findings_for_run(tenant, run["id"])
-        if evaluation_complete(findings, stored_statuses(store, tenant, run["id"])):
-            return run, findings
+        statuses = stored_statuses(store, tenant, run["id"])
+        if evaluation_complete(findings, statuses):
+            carried = _carried(store, tenant, runs[index + 1:], unevaluated_rules(statuses))
+            return run, tuple(findings) + carried
     return None, ()
+
+
+def _carried(store, tenant, runs, skipped) -> tuple:
+    carried = []
+    for run in runs:
+        if not skipped:
+            break
+        findings = store.findings_for_run(tenant, run["id"])
+        statuses = stored_statuses(store, tenant, run["id"])
+        if not evaluation_complete(findings, statuses):
+            continue
+        carried.extend(item for item in findings if item["rule_id"] in skipped)
+        skipped = skipped & unevaluated_rules(statuses)
+    return tuple(carried)
 
 
 def _today(findings) -> frozenset:

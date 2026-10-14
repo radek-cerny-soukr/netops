@@ -172,8 +172,11 @@ def test_engine_refuses_before_snapshot_and_paginates_without_another_connection
         with patch.dict(os.environ,{"NETOPS_SCHEMA_REGISTRY":str(path)}),patch.object(engine,"read_from_device",read),patch.object(engine,"record",lambda *a,**kw:events.append(kw)):
             result=engine.schema_read(auth(),"firewall address","get",None,None,0,1000)
             assert result["ok"] and result["next_offset"]
-            second=engine.schema_read(auth(),"firewall address","get",None,None,result["next_offset"],1000)
-            assert second["pagination_source"]=="cached"
+            for snapshot in (None,"0"*64):
+                must_fail(engine.schema_read,auth(),"firewall address","get",None,None,result["next_offset"],1000,snapshot)
+            assert calls==["get system status","show full-configuration"] and len(events)==2
+            second=engine.schema_read(auth(),"firewall address","get",None,None,result["next_offset"],1000,result["content_sha256"])
+            assert second["pagination_source"]=="cached" and second["content_sha256"]==result["content_sha256"]
             assert calls==["get system status","show full-configuration"]
             assert [e["status"] for e in events]==["started","ok","started","ok"]
             calls.clear()

@@ -74,7 +74,10 @@ def helper_status() -> dict[str, Any]:
         "phase": 1,
         "transport": "SSH-tunneled stdio; no listening port",
         "credentials": "per-call ephemeral injection; never persisted by the server",
-        "account_boundary": "each target must be enrolled with an externally enforced read-only account",
+        "account_boundary": (
+            "each target must be enrolled with an externally enforced read-only account,"
+            " or as admin-bounded with a catalogue boundary on a platform that has none"
+        ),
         "device_output_trust": "untrusted",
         "write_tools": [],
         "capabilities": [
@@ -145,11 +148,13 @@ def ssh_read(
     parameters: dict[str, str] | None = None,
     offset: int = 0,
     max_bytes: int = 16_000,
+    content_sha256: str | None = None,
     auth_context: str = "",
 ) -> dict[str, Any]:
     """Run one typed, inventory-bound query and return one explicit output page."""
     return engine_ssh_read(
         _auth(target, auth_context), platform, query, parameters, offset, max_bytes,
+        content_sha256,
     )
 
 
@@ -168,10 +173,10 @@ def fortios_diagnostics(
 def schema_read(
     target: str, path: str, view: str = "show", vdom: str | None = None,
     owners: list[str] | None = None, offset: int = 0, max_bytes: int = 16_000,
-    auth_context: str = "",
+    content_sha256: str | None = None, auth_context: str = "",
 ) -> dict[str, Any]:
     """Read one enrolled measured configuration path with exact live firmware binding."""
-    return engine_schema_read(_auth(target,auth_context),path,view,vdom,owners,offset,max_bytes)
+    return engine_schema_read(_auth(target,auth_context),path,view,vdom,owners,offset,max_bytes,content_sha256)
 
 
 @mcp.tool

@@ -2,7 +2,7 @@
 
 Release tags follow the component scheme `<name>/v<version>`, where `<name>` is the project name
 declared in this component's `pyproject.toml`: this component tags
-`netops-admin/v0.2.7`, and the release title is `netops-admin 0.2.7`. Tags of another component
+`netops-admin/v0.2.8`, and the release title is `netops-admin 0.2.8`. Tags of another component
 are never touched by this procedure. Publishing a newer version leaves the release page and the tag
 of earlier versions in place. The canonical origin is
 `https://github.com/radek-cerny-soukr/netops`.
@@ -26,7 +26,7 @@ credentials, host keys, or inventory and vault files. The release export is a po
 the component gate also reads the content of every released file and, outside a
 repository, holds the exported tree to exactly the released selection.
 
-## What 0.2.7 releases
+## What 0.2.8 releases
 
 This component releases **from source; it ships no container image**. The release carries four assets:
 
@@ -38,7 +38,7 @@ This component releases **from source; it ships no container image**. The releas
 | `netops-admin-<version>-release-SHA256SUMS.sigstore.json` | the Sigstore bundle over those checksums |
 
 An image, and the three assets that come with one, are planned for a later version. Until then the
-component runs on any Python 3.13 host, installed from the unpacked, verified release archives.
+component runs on any Linux host with Python 3.13, installed from the unpacked, verified release archives; Linux is the only supported host operating system (see `components/netops-core/docs/releasing.md`).
 
 ### PyPI, a delayed channel
 
@@ -55,7 +55,7 @@ stays authoritative. On 11 October 2026 PyPI carries `netops-admin` 0.2.7 with t
 
 ### It needs `netops-core` and `netops-auditor` beside it
 
-The admin reads the credential store, the host key trust, the SSH transport and the interactive session from `netops-core`, and the configuration parsers and the snapshot collector from `netops-auditor`; `pyproject.toml` pins them as `netops-core==0.2.8` and `netops-auditor==0.2.11`. From PyPI, where the three are uploaded, `pip install netops-admin==0.2.7` resolves those pins. From the release archives **the operator installs the source archives of exactly those versions next to the admin**, each verified against its release `SHA256SUMS` and Sigstore bundle; [installation.md](installation.md) gives the commands. In this repository the archives are the tree, so the tests take the components from `../netops-core/src` and `../netops-auditor/src` through `[tool.pytest.ini_options] pythonpath`. `fastmcp` is needed solely for the MCP surface.
+The admin reads the credential store, the host key trust, the SSH transport and the interactive session from `netops-core`, and the configuration parsers and the snapshot collector from `netops-auditor`; `pyproject.toml` pins them as `netops-core==0.2.9` and `netops-auditor==0.2.12`. After separate PyPI publication, and only when all three exact versions are available there, `pip install netops-admin==0.2.8` resolves those pins. From the release archives **the operator installs the source archives of exactly those versions next to the admin**, each verified against its release `SHA256SUMS` and Sigstore bundle; [installation.md](installation.md) gives the commands. In this repository the archives are the tree, so the tests take the components from `../netops-core/src` and `../netops-auditor/src` through `[tool.pytest.ini_options] pythonpath`. `fastmcp` is needed solely for the MCP surface.
 
 ## Procedure
 
@@ -131,4 +131,8 @@ SBOM does not reproduce is not released.
 
 After the new release is published and independently verified, update the current-version links in the repository documentation and check every release, tag and download URL against the public release and tag lists. The previous release page, its assets and its tag stay. Removing one is a separate decision that needs explicit authorization for that exact deletion and a local archive of its assets first; other components' releases and tags are never touched.
 
-`requirements-release.in` of this component is byte-identical to the one of `netops-auditor` 0.2.11, and `requirements-release.lock` is that component's lock of 2026-09-20 (Python 3.13.15, `pip-tools==7.6.1`; the lock header records the command). A regeneration of either lock changes both files in the same commit.
+`requirements-release.in` of this component is byte-identical to the one of `netops-auditor` 0.2.12, and `requirements-release.lock` is that component's lock of 2026-09-20 (Python 3.13.15, `pip-tools==7.6.1`; the lock header records the command). A regeneration of either lock changes both files in the same commit.
+
+## PyPI source distributions and tests
+
+PyPI wheels and source distributions are installation packages. The PyPI sdist is not a standalone pytest test tree: it omits the test-support `conftest.py` and the component's test guard. The Helper sdist also omits `scripts/` and `config/`. Running pytest over an unpacked sdist can therefore fail during collection or lack required test support. Run the documented suite from a repository checkout or the verified GitHub source release archive, with its pinned development dependencies and any required sibling components. The signed GitHub source archive and the PyPI sdist are different artifacts.

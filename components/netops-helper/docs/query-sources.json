@@ -61,7 +61,7 @@
       "vendor": "Ruckus",
       "baseline": "Unleashed 200.13",
       "reference_document": "docs/vendor-cli-references/ruckus-unleashed.md",
-      "source_note": "Vendor guide behind a support login; syntax verified on a device 2026-09-16."
+      "source_note": "Vendor guide behind a support login; documented command syntax; verify exact firmware and account permissions."
     }
   },
   "sources": {
@@ -3301,7 +3301,7 @@
       "source_ids": [
         "R-CLI-UNLEASHED-200-13"
       ],
-      "source_note": "Vendor guide behind a support login; syntax verified on a device 2026-09-16."
+      "source_note": "Vendor guide behind a support login; documented command syntax; verify exact firmware and account permissions."
     },
     "ruckus_unleashed/ethernet_info": {
       "profile": "ruckus_unleashed",
@@ -3310,7 +3310,7 @@
       "source_ids": [
         "R-CLI-UNLEASHED-200-13"
       ],
-      "source_note": "Vendor guide behind a support login; syntax verified on a device 2026-09-16."
+      "source_note": "Vendor guide behind a support login; documented command syntax; verify exact firmware and account permissions."
     },
     "ruckus_unleashed/system_info": {
       "profile": "ruckus_unleashed",
@@ -3319,7 +3319,7 @@
       "source_ids": [
         "R-CLI-UNLEASHED-200-13"
       ],
-      "source_note": "Vendor guide behind a support login; syntax verified on a device 2026-09-16."
+      "source_note": "Vendor guide behind a support login; documented command syntax; verify exact firmware and account permissions."
     },
     "ruckus_unleashed/wlans": {
       "profile": "ruckus_unleashed",
@@ -3328,7 +3328,7 @@
       "source_ids": [
         "R-CLI-UNLEASHED-200-13"
       ],
-      "source_note": "Vendor guide behind a support login; syntax verified on a device 2026-09-16."
+      "source_note": "Vendor guide behind a support login; documented command syntax; verify exact firmware and account permissions."
     }
   }
 }

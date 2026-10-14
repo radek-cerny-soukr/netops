@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import datetime
+import fcntl
 import json
 import math
 import os
@@ -15,7 +16,8 @@ from netops_core.inputs import InputError, read_regular
 
 MAX_EVENT_BYTES = 8192
 EXPORT_STATUS_MAX_BYTES = 64 * 1024
-AUDIT_FLAGS = os.O_WRONLY | os.O_APPEND | os.O_CREAT | os.O_NONBLOCK | os.O_CLOEXEC
+UNNAMED_REFUSED = "export status does not name the audit file (export_status_require_audit_file is enabled)"
+AUDIT_FLAGS = os.O_RDWR | os.O_APPEND | os.O_CREAT | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC
 AUDIT_FILE_MODE = 0o640
 SAFE_TEXT = re.compile(r"^[\x20-\x7e]{0,200}$")
 EVENT_FIELDS = {
@@ -74,10 +76,24 @@ class AuditLog:
         self.path = Path(path)
 
     def _open(self) -> int:
-        descriptor = os.open(self.path, AUDIT_FLAGS, AUDIT_FILE_MODE)
-        if not stat.S_ISREG(os.fstat(descriptor).st_mode):
+        try:
+            descriptor = os.open(self.path, AUDIT_FLAGS, AUDIT_FILE_MODE)
+        except OSError:
+            if self.path.is_symlink():
+                raise OSError("the audit log is a symbolic link") from None
+            raise
+        try:
+            status = os.fstat(descriptor)
+            if not stat.S_ISREG(status.st_mode):
+                raise OSError("the audit log is not a regular file")
+            if status.st_uid != os.geteuid():
+                raise OSError("the audit log belongs to another user")
+            if status.st_nlink != 1:
+                raise OSError("the audit log has more than one name")
+            os.fchmod(descriptor, AUDIT_FILE_MODE)
+        except BaseException:
             os.close(descriptor)
-            raise OSError("the audit log is not a regular file")
+            raise
         return descriptor
 
     def check_writable(self) -> None:
@@ -85,7 +101,6 @@ class AuditLog:
             self.path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
             descriptor = self._open()
             try:
-                os.fchmod(descriptor, AUDIT_FILE_MODE)
                 os.fsync(descriptor)
             finally:
                 os.close(descriptor)
@@ -104,11 +119,21 @@ class AuditLog:
             raise ValueError("audit event is larger than %d bytes" % MAX_EVENT_BYTES)
         descriptor = self._open()
         try:
-            os.fchmod(descriptor, AUDIT_FILE_MODE)
-            written = os.write(descriptor, line)
-            if written != len(line):
-                raise OSError("short write to the audit log")
-            os.fsync(descriptor)
+            fcntl.flock(descriptor, fcntl.LOCK_EX)
+            start = os.fstat(descriptor).st_size
+            if start and os.pread(descriptor, 1, start - 1) != b"\n":
+                line = b"\n" + line
+            try:
+                written = 0
+                while written < len(line):
+                    progress = os.write(descriptor, line[written:])
+                    if progress < 1:
+                        raise OSError("short write to the audit log")
+                    written += progress
+                os.fsync(descriptor)
+            except BaseException:
+                os.ftruncate(descriptor, start)
+                raise
         finally:
             os.close(descriptor)
         return document
@@ -128,7 +153,7 @@ def export_updated_at(status_file):
     return updated if math.isfinite(updated) else None
 
 
-def export_state(status_file, limits: dict, clock=time.time, audit_file=None) -> tuple:
+def export_state(status_file, limits: dict, clock=time.time, audit_file=None, require_audit_file=False) -> tuple:
     if status_file is None:
         return "not-configured", None
     try:
@@ -146,6 +171,8 @@ def export_state(status_file, limits: dict, clock=time.time, audit_file=None) ->
         return "blocked", "export status cannot be read"
     if audit_file is not None and covered is not None and os.path.normpath(covered) != os.path.normpath(audit_file):
         return "blocked", "the export status covers another audit file"
+    if require_audit_file and covered is None:
+        return "blocked", UNNAMED_REFUSED
     if clock() - updated > limits["export_status_max_age_seconds"]:
         return "blocked", "export status is stale"
     if pending > limits["export_max_pending"]:

@@ -223,7 +223,7 @@ def test_foreign_admin_sessions_are_recorded_and_notified(tmp_path):
     from netops_admin import notify
 
     device = FakeFortiOS()
-    device.foreign_session_users = ["ai-login", "admin"]
+    device.foreign_session_users = ["svc-operator", "admin"]
     record = execute.apply(make_runtime(tmp_path, device), "lab", request())
     assert record["result"] == "confirmed" and record["foreign_sessions"] == 2
     assert "other administrator sessions were active: 2" in notify.message(record)[1]
@@ -234,7 +234,7 @@ def test_foreign_admin_sessions_are_recorded_and_notified(tmp_path):
 
 def test_exos_sessions_other_than_the_own_are_counted(tmp_path):
     device = FakeExos()
-    device.foreign_session_users = ["ai-login"]
+    device.foreign_session_users = ["svc-operator"]
     record = execute.apply(make_exos_runtime(tmp_path, device), "sw", exos_request())
     assert record["foreign_sessions"] == 1
 
@@ -251,7 +251,7 @@ def test_session_lists_as_the_devices_print_them():
     exos_list = ("                                                                    CLI \n"
                  "    #       Login Time               User     Type    Auth          Auth Location\n"
                  "=======================================================================================\n"
-                 " 470        Wed Sep 23 10:11:01 2026 ai-login ssh2    sshKey        dis  192.0.2.8  \n"
+                 " 470        Wed Sep 23 10:11:01 2026 svc-o .. ssh2    sshKey        dis  192.0.2.8  \n"
                  "*753        Wed Sep 23 17:18:01 2026 netop .. ssh2    sshKey        dis  192.0.2.9  \n")
     assert exos.foreign_sessions(exos_list) == 1
     with pytest.raises(Rejected):

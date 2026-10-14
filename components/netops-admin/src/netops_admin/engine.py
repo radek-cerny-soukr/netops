@@ -165,7 +165,7 @@ def build_plan(platform: str, snapshot_raw: bytes, request, firmware: str | None
         snapshot.inventory = frozenset(ports)
     profile = find_profile(platform, request.table, snapshot.firmware)
     key, op = request.key, request.op
-    if key.startswith("netops-enroll-") and not enrollment_probe:
+    if key.casefold().startswith("netops-enroll-") and not enrollment_probe:
         raise Rejected(["the enrollment object namespace is reserved"])
     checks = ["firmware %s is measured for this profile" % snapshot.firmware]
     if op not in profile.ops:

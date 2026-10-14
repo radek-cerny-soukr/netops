@@ -143,29 +143,69 @@ class Recorder:
             "%s.%d" % (self._path.name, index)
         )
 
-    def _open_log(self, incoming_bytes) -> int:
-        descriptor = _owned_descriptor(self._path, os.O_WRONLY | os.O_APPEND)
+    def _open_log(self, encoded) -> tuple[int, int, bytes]:
+        descriptor = _owned_descriptor(self._path, os.O_RDWR | os.O_APPEND)
+        try:
+            current = os.fstat(descriptor).st_size
+            if current and os.pread(descriptor, 1, current - 1) != b"\n":
+                encoded = b"\n" + encoded
+        except BaseException:
+            os.close(descriptor)
+            raise
+        if current + len(encoded) <= self._segment_bytes:
+            return descriptor, current, encoded
+        os.close(descriptor)
+        self._rotate()
+        descriptor = _owned_descriptor(self._path, os.O_RDWR | os.O_APPEND)
         try:
             current = os.fstat(descriptor).st_size
         except BaseException:
             os.close(descriptor)
             raise
-        if current + incoming_bytes <= self._segment_bytes:
-            return descriptor
-        os.close(descriptor)
-        self._rotate()
-        return _owned_descriptor(self._path, os.O_WRONLY | os.O_APPEND)
+        return descriptor, current, encoded.removeprefix(b"\n")
+
+    @staticmethod
+    def _append(descriptor, start, encoded) -> None:
+        try:
+            written = 0
+            while written < len(encoded):
+                count = os.write(descriptor, encoded[written:])
+                if count <= 0:
+                    raise OSError("short write to the audit log")
+                written += count
+            os.fsync(descriptor)
+        except BaseException:
+            os.ftruncate(descriptor, start)
+            raise
 
     def _rotate(self) -> None:
-        self._segment(self._retained_segments - 1).unlink(missing_ok=True)
-        for index in range(self._retained_segments - 2, 0, -1):
-            source = self._segment(index)
-            if source.exists():
-                os.replace(source, self._segment(index + 1))
-        if self._retained_segments > 1:
-            os.replace(self._path, self._segment(1))
-        else:
+        if self._retained_segments == 1:
             self._path.unlink(missing_ok=True)
+            self._synced_directory()
+            return
+        oldest = self._retained_segments - 1
+        free = next(
+            (
+                index
+                for index in range(1, oldest + 1)
+                if not os.path.lexists(self._segment(index))
+            ),
+            None,
+        )
+        if free is None:
+            os.unlink(self._segment(oldest))
+            free = oldest
+        for index in range(free - 1, 0, -1):
+            os.replace(self._segment(index), self._segment(index + 1))
+        os.replace(self._path, self._segment(1))
+        self._synced_directory()
+
+    def _synced_directory(self) -> None:
+        descriptor = os.open(self._path.parent, os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC)
+        try:
+            os.fsync(descriptor)
+        finally:
+            os.close(descriptor)
 
     def _checked_fields(self, event, fields) -> dict:
         if not isinstance(event, str) or not event.strip():
@@ -217,11 +257,11 @@ class Recorder:
             with self._lock:
                 self._path.parent.mkdir(parents=True, exist_ok=True)
                 with self._exclusive():
-                    descriptor = self._open_log(len(encoded))
-                    with os.fdopen(descriptor, "ab") as handle:
-                        handle.write(encoded)
-                        handle.flush()
-                        os.fsync(handle.fileno())
+                    descriptor, start, data = self._open_log(encoded)
+                    try:
+                        self._append(descriptor, start, data)
+                    finally:
+                        os.close(descriptor)
         except (OSError, ValueError) as error:
             raise AuditPersistenceError(
                 "cannot write the audit record of %r to %s: %s" % (event, self._path, error)

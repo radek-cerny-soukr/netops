@@ -4,7 +4,7 @@ from netops_admin import execute,state
 from netops_admin.errors import Rejected,BudgetExhausted
 
 def runtime(records,hour=12,day=75):
-    store=SimpleNamespace(rejections_since=lambda _:0,records=lambda:records)
+    store=SimpleNamespace(rejections_since=lambda _:0,records=lambda:records,budget_now=lambda:execute.time.time())
     limits={"rejections_per_hour":30,"journal_records":20000,"changes_per_device_per_hour":hour,"changes_per_day":day}
     return SimpleNamespace(store=store,config=SimpleNamespace(limits=limits))
 

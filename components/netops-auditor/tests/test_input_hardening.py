@@ -123,7 +123,7 @@ def test_i3_backslash_at_the_end_of_a_quoted_value(tmp_path, capsys):
 def test_a2_vlan_tag_that_is_not_an_ascii_number_is_outside_the_policy(tmp_path, capsys):
     text = 'create vlan "v10"\nconfigure vlan v10 tag \u00b2\ncreate vlan "v20"\nconfigure vlan v20 tag 20\n'
     policy = write_policy(tmp_path, {"version": 1, "platform": "exos", "vlan_tags": [[1, 100]]})
-    argv = run_args(write_config(tmp_path, text), as_json=True, platform="exos", device="sw1") + ["--policy", str(policy)]
+    argv = run_args(write_config(tmp_path, text), as_json=True, platform="exos", device="sw-example") + ["--policy", str(policy)]
     code, report, err = run_json(capsys, argv)
     assert (code, err) == (0, "")
     found = [item["object_key"] for item in report["findings"] if item["rule_id"] == VLAN_POLICY_RULE]

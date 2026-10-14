@@ -27,6 +27,10 @@ HOST_KEY_PIN = fingerprint_of(b64encode(b"portable-contract-host-key").decode("a
 SOURCE_PATH = os.pathsep.join(
     (str(ROOT / "src"), str(ROOT.parent / "netops-core" / "src"))
 )
+PYTEST_ONLY_TESTS = (
+    "tests/test_cli_closed_output.py",
+    "tests/test_proxy_vault_size.py",
+)
 DEPENDENCY_FREE_TESTS = (
     "tests/test_engine_contracts.py",
     "tests/test_schema_read.py",
@@ -203,7 +207,15 @@ def _run_dependency_free_files() -> None:
             )
 
 
+def _check_pytest_contract_files() -> None:
+    for relative in PYTEST_ONLY_TESTS:
+        if not (ROOT / relative).is_file():
+            raise AssertionError(f"pytest-only contract is missing: {relative}")
+    print("pytest_contract_files=present execution=requires_full_pytest")
+
+
 def main() -> int:
+    _check_pytest_contract_files()
     _run_core_contracts()
     _run_dependency_free_files()
     print("security_unit_tests=passed")

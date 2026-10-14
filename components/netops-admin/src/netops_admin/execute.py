@@ -9,7 +9,7 @@ from netops_admin import audit, audit_gate, engine, exec_exos, exec_fortios, pre
 from netops_admin.schema_request import Transaction
 from netops_admin.blocking import BLOCKING_REASONS, BLOCKING_RESULTS, blocks
 from netops_admin.config import SAFEGUARD_MAX_SECONDS
-from netops_admin.errors import BudgetExhausted, Rejected, SnapshotRejected, shown
+from netops_admin.errors import BudgetExhausted, Rejected, SnapshotRejected, StateUnreadable, shown
 from netops_admin.profiles import find_profile
 from netops_admin.request import parse_request
 from netops_admin.state import Store
@@ -18,7 +18,8 @@ EXPIRY_GRACE_SECONDS = 20
 EXPIRY_POLL_SECONDS = 10
 EXPIRY_WAIT_SLACK_SECONDS = 60
 EXPIRY_WAIT_LIMIT_SECONDS = SAFEGUARD_MAX_SECONDS + EXPIRY_GRACE_SECONDS + EXPIRY_WAIT_SLACK_SECONDS
-UNDELIVERED = ("pending", "failed")
+READ_FLOOR_SECONDS = 1.0
+UNDELIVERED = ("pending", "failed", "sending")
 ADAPTERS = {"fortios": exec_fortios, "exos": exec_exos}
 FIRE_AT_FORMAT = "%Y-%m-%d %H:%M:%S"
 HOUR = 3600
@@ -56,14 +57,18 @@ def _step(runtime, record, name, detail=None):
     runtime.audit.event("step", change_id=record["change_id"], device=record["device"], step=name, detail=detail)
 
 
+def export_state(config) -> tuple:
+    return audit.export_state(config.export_status_file, config.limits, audit_file=config.audit_file,
+                              require_audit_file=config.export_status_require_audit_file)
+
+
 def _finish(runtime, record, result, reason=None, differences=None):
     record["status"] = "finished"
     record["finished_at_epoch"] = time.time()
     record["result"] = result
     record["reason"] = reason
     record["differences"] = differences or []
-    state, _why = audit.export_state(runtime.config.export_status_file, runtime.config.limits,
-                                     audit_file=runtime.config.audit_file)
+    state, _why = export_state(runtime.config)
     record["audit_delivery"] = "pending" if state in ("acknowledged", "pending") else state
     record["notification"] = "pending" if runtime.notifier is not None else "not-configured"
     if blocks(result, reason):
@@ -80,15 +85,27 @@ def _finish(runtime, record, result, reason=None, differences=None):
     return record
 
 
+def _note_notification(runtime, record, value) -> None:
+    def change(current):
+        current["notification"] = value
+        return True
+
+    runtime.store.update(record["change_id"], change)
+    record["notification"] = value
+
+
 def _deliver_notification(runtime, record) -> None:
+    previous = record.get("notification")
+    if previous in UNDELIVERED:
+        _note_notification(runtime, record, "sending")
     try:
         result = runtime.notifier(record)
     except Exception:
         result = "failed"
-    record["notification"] = result if result in ("sent", "failed") else "failed"
-    runtime.store.save(record)
+    outcome = result if result in ("sent", "failed") else "failed"
+    _note_notification(runtime, record, "waived" if outcome == "failed" and previous == "waived" else outcome)
     runtime.audit.event("delivery", change_id=record["change_id"], device=record["device"],
-                        notification=record["notification"], audit_delivery=record.get("audit_delivery"))
+                        notification=outcome, audit_delivery=record.get("audit_delivery"))
 
 
 def notify_retry(runtime, change_id: str) -> dict:
@@ -98,50 +115,94 @@ def notify_retry(runtime, change_id: str) -> dict:
         raise Rejected(["no finished operation matches"])
     if runtime.notifier is None:
         raise Rejected(["notification is not configured"])
-    if record.get("notification") != "sent":
-        _deliver_notification(runtime, record)
+    with runtime.store.lock(record["device"]):
+        record = runtime.store.operation(change_id)
+        if record.get("notification") != "sent":
+            _deliver_notification(runtime, record)
     return record
 
 
 def refresh_delivery(runtime, record) -> dict:
     if record.get("status") != "finished" or record.get("audit_delivery") != "pending":
         return record
-    state, _why = audit.export_state(runtime.config.export_status_file, runtime.config.limits,
-                                     audit_file=runtime.config.audit_file)
+    state, _why = export_state(runtime.config)
     status_time = audit.export_updated_at(runtime.config.export_status_file)
     finished_at = record.get("finished_at_epoch")
-    if state == "acknowledged" and status_time is not None and finished_at is not None and status_time > finished_at:
-        record["audit_delivery"] = "acknowledged"
-        runtime.store.save(record)
-        runtime.audit.event("delivery", change_id=record["change_id"], device=record["device"],
-                            notification=record.get("notification"), audit_delivery="acknowledged")
-    return record
+    if not (state == "acknowledged" and status_time is not None and finished_at is not None and status_time > finished_at):
+        return record
+    acknowledged = []
+
+    def acknowledge(current):
+        if (current.get("status") != "finished" or current.get("audit_delivery") != "pending"
+                or current.get("finished_at_epoch") != finished_at):
+            return False
+        current["audit_delivery"] = "acknowledged"
+        acknowledged.append(True)
+        return True
+
+    try:
+        saved = runtime.store.update(record["change_id"], acknowledge)
+    except StateUnreadable:
+        raise
+    except Rejected:
+        return record
+    if acknowledged:
+        runtime.audit.event("delivery", change_id=saved["change_id"], device=saved["device"],
+                            notification=saved.get("notification"), audit_delivery="acknowledged")
+    return saved
+
+
+class _Deadline:
+    def __init__(self, runtime, seconds, expired):
+        self.runtime, self.expired = runtime, expired
+        self.end, self.unslept = runtime.monotonic() + seconds, seconds
+
+    def left(self) -> float:
+        return min(self.end - self.runtime.monotonic(), self.unslept)
+
+    def tighten(self, end, expired) -> None:
+        self.end, self.expired = min(self.end, end), expired
+
+    def read(self, access, query, *arguments):
+        if self.left() < 0:
+            raise Rejected([self.expired])
+        limited = hasattr(access, "read_seconds")
+        if limited:
+            previous, access.read_seconds = access.read_seconds, max(self.left(), READ_FLOOR_SECONDS)
+        try:
+            answer = query(access, *arguments)
+        finally:
+            if limited:
+                access.read_seconds = previous
+        if self.left() < 0:
+            raise Rejected([self.expired])
+        return answer
+
+    def pause(self, wanted) -> None:
+        left = self.left()
+        if left <= 0:
+            raise Rejected([self.expired])
+        pause = min(max(min(wanted, left), 1), EXPIRY_POLL_SECONDS)
+        self.runtime.sleep(pause)
+        self.unslept -= pause
 
 
 def _wait_for_expiry(runtime, adapter, access, record, due) -> None:
-    fire_at, started, waited = _fire_at(record), runtime.monotonic(), 0
-    while waited <= EXPIRY_WAIT_LIMIT_SECONDS:
-        now = adapter.clock(access)
-        remaining = (fire_at - now).total_seconds() + EXPIRY_GRACE_SECONDS
+    fire_at = _fire_at(record)
+    deadline = _Deadline(runtime, EXPIRY_WAIT_LIMIT_SECONDS, "the safeguard did not expire within the wait limit")
+    while True:
+        remaining = (fire_at - deadline.read(access, adapter.clock)).total_seconds() + EXPIRY_GRACE_SECONDS
         if remaining <= 0:
-            limit = max(runtime.monotonic(), due + EXPIRY_GRACE_SECONDS) + EXPIRY_WAIT_SLACK_SECONDS
-            return _wait_for_proof(runtime, adapter, access, record, waited,
-                                   min(limit, started + EXPIRY_WAIT_LIMIT_SECONDS))
-        pause = min(max(remaining, 1), EXPIRY_POLL_SECONDS)
-        runtime.sleep(pause)
-        waited += pause
-    raise Rejected(["the safeguard did not expire within the wait limit"])
+            deadline.tighten(max(runtime.monotonic(), due + EXPIRY_GRACE_SECONDS) + EXPIRY_WAIT_SLACK_SECONDS,
+                             "the safeguard was not seen fired within the wait limit")
+            return _wait_for_proof(runtime, adapter, access, record, deadline)
+        deadline.pause(remaining)
 
 
-def _wait_for_proof(runtime, adapter, access, record, waited, limit) -> None:
+def _wait_for_proof(runtime, adapter, access, record, deadline) -> None:
     pending = False
-    while not adapter.safeguard_fired(access, record):
-        remaining = limit - runtime.monotonic()
-        if remaining <= 0 or waited > EXPIRY_WAIT_LIMIT_SECONDS:
-            raise Rejected(["the safeguard was not seen fired within the wait limit"])
-        pause = min(max(remaining, 1), EXPIRY_POLL_SECONDS)
-        runtime.sleep(pause)
-        waited += pause
+    while not deadline.read(access, adapter.safeguard_fired, record):
+        deadline.pause(deadline.left())
         pending = True
     if pending:
         runtime.sleep(EXPIRY_GRACE_SECONDS)
@@ -196,15 +257,15 @@ def _block_accounts(runtime, device) -> None:
 def _budgets(runtime, device, changes=1) -> None:
     if type(changes) is not int or not 1 <= changes <= 32:
         raise Rejected(["the transaction change count must be in 1..32"])
-    limits, now = runtime.config.limits, time.time()
+    limits, now = runtime.config.limits, runtime.store.budget_now()
     if runtime.store.rejections_since(now - HOUR) >= limits["rejections_per_hour"]:
         raise BudgetExhausted(["the budget of rejected requests for this hour is exhausted"])
     records = runtime.store.records()
     if len(records) >= limits["journal_records"]:
         raise BudgetExhausted(["the journal holds its maximum number of operations; archive it before new changes"])
     counted = [record for record in records if "safeguard" in record or record.get("status") == "running"]
-    started = [(record.get("created_at_epoch") or 0, record.get("budget_changes", 1)) for record in counted]
-    mine = [(record.get("created_at_epoch") or 0, record.get("budget_changes", 1)) for record in counted
+    started = [(record.get("budget_at_epoch", record.get("created_at_epoch")) or 0, record.get("budget_changes", 1)) for record in counted]
+    mine = [(record.get("budget_at_epoch", record.get("created_at_epoch")) or 0, record.get("budget_changes", 1)) for record in counted
             if record.get("device") == device.name]
     if sum(weight for moment, weight in mine if moment >= now - HOUR) + changes > limits["changes_per_device_per_hour"]:
         raise BudgetExhausted(["the budget of changes on this device for this hour is exhausted"])
@@ -214,7 +275,7 @@ def _budgets(runtime, device, changes=1) -> None:
 
 def _count_rejection(runtime) -> None:
     try:
-        runtime.store.note_rejection(time.time())
+        runtime.store.note_rejection(runtime.store.budget_now())
     except (OSError, Rejected):
         pass
 
@@ -241,13 +302,21 @@ def _target(runtime, device_name: str, request):
 def _known(runtime, device, request):
     known = runtime.store.request(request.request_id)
     if known is None:
-        return None
+        return _journaled(runtime, device, request)
     if known["request_sha256"] != request.fingerprint() or known["device"] != device.name:
         raise Rejected([REUSED_REQUEST])
     record = runtime.store.operation(known["change_id"])
     if record is None:
         raise runtime.store.unreadable(runtime.store.operations / ("%s.json" % known["change_id"]))
     return record
+
+
+def _journaled(runtime, device, request):
+    found = [record for record in runtime.store.records() if record.get("request_id") == request.request_id]
+    if any(record.get("request_sha256") != request.fingerprint() or record.get("device") != device.name
+           for record in found):
+        raise Rejected([REUSED_REQUEST])
+    return found[0] if found else None
 
 
 def preview(runtime, device_name: str, request) -> dict:
@@ -315,7 +384,7 @@ def _prepared(runtime, device, adapter, request, expected_before, enrolling, mis
         raise Rejected(["an unfinished operation exists on this device; run recover first"])
     runtime.store.check_writable()
     runtime.audit.check_writable()
-    export, why = audit.export_state(config.export_status_file, config.limits, audit_file=config.audit_file)
+    export, why = export_state(config)
     if export == "blocked":
         raise Rejected(["audit export is blocked: %s" % why])
     known = runtime.store.baseline(device.name)
@@ -384,6 +453,9 @@ def _prepared(runtime, device, adapter, request, expected_before, enrolling, mis
                         % type(exc).__name__]) from None
     try:
         seen = engine.observed_state(plan, adapter.observe(access, plan))
+    except Rejected as exc:
+        raise Rejected(["the check account answer about the object before the change was refused: %s"
+                        % "; ".join(exc.reasons)]) from None
     except Exception as exc:
         raise Rejected(["the check account could not read the object before the change (%s)"
                         % type(exc).__name__]) from None
@@ -408,7 +480,7 @@ def _apply(runtime, device_name: str, request, expected_before, enrolling=False)
         record = {
             "change_id": change_id, "request_id": request.request_id, "request_sha256": fingerprint,
             "device": device.name, "status": "running", "result": None, "hostname": hostname,
-            "plan": plan, "steps": [], "created_at": audit.now_utc(), "created_at_epoch": time.time(),
+            "plan": plan, "steps": [], "created_at": audit.now_utc(), "created_at_epoch": time.time(), "budget_at_epoch": runtime.store.budget_now(),
             "kind": "enrollment" if enrolling else "change",
             "budget_changes": len(request.operations) if isinstance(request, Transaction) else 1,
             "audit_before": audit_before, "audit_policy": policy, "audit_coverage": coverage, "accounts": accounts,
@@ -542,14 +614,16 @@ def _execute(runtime, adapter, access, record, plan, device) -> dict:
         _step(runtime, record, "confirm_skipped", "too close to the safeguard")
         return _settle_after_expiry(runtime, access, record, plan, "no time left to confirm", due)
     try:
-        final = engine.verify(plan, access.snapshot().encode("utf-8"), expect="after")
+        last = access.snapshot().encode("utf-8")
+        final = engine.verify(plan, last, expect="after")
     except Exception as exc:
         _step(runtime, record, "final_check_failed", type(exc).__name__)
         return _settle_after_expiry(runtime, access, record, plan, "final check unavailable", due)
     if final["result"] != "match":
         _step(runtime, record, "final_check_failed", "%d differences" % len(final["differences"]))
         record["final_check_differences"] = final["differences"]
-        return _settle_after_expiry(runtime, access, record, plan, "foreign change", due)
+        fired = "safeguard fired during confirmation" if _returned(plan, last) else "foreign change"
+        return _settle_after_expiry(runtime, access, record, plan, fired, due)
     _step(runtime, record, "confirm_start")
     if not adapter.remove_safeguard(access, record, spec):
         _step(runtime, record, "confirm_unverified")
@@ -562,11 +636,7 @@ def _execute(runtime, adapter, access, record, plan, device) -> dict:
         return _finish(runtime, record, "unknown", "final check unavailable")
     if removed["result"] != "match":
         _step(runtime, record, "removal_check_failed", "%d differences" % len(removed["differences"]))
-        try:
-            returned = engine.verify(plan, text, expect="before")["result"] == "match"
-        except Exception:
-            returned = False
-        if returned:
+        if _returned(plan, text):
             return _finish(runtime, record, "reverted", "safeguard fired during confirmation")
         return _finish(runtime, record, "unknown", "foreign change after the safeguard was removed",
                        removed["differences"])
@@ -582,6 +652,13 @@ def _execute(runtime, adapter, access, record, plan, device) -> dict:
             _step(runtime, record, "saved_check_failed", "%d differences" % len(saved["differences"]))
             return _finish(runtime, record, "confirmed", "foreign change during save", saved["differences"])
     return _finish(runtime, record, "confirmed")
+
+
+def _returned(plan, text) -> bool:
+    try:
+        return engine.verify(plan, text, expect="before")["result"] == "match"
+    except Exception:
+        return False
 
 
 def _stored_plan(runtime, record) -> dict:
@@ -655,9 +732,17 @@ def recover(runtime, device_name: str) -> list:
                 continue
             try:
                 present = not adapter.safeguard_absent(access, record)
+                disarmed = present and adapter.safeguard_disarmed(access, record)
             except Exception:
                 settled.append(_finish(runtime, record, "unknown", "interrupted; safeguard state unreadable"))
                 continue
+            if disarmed:
+                if not adapter.remove_remaining(access, record, _spec(record)):
+                    _step(runtime, record, "safeguard_removal_unverified")
+                    settled.append(_finish(runtime, record, "unknown", "safeguard cleanup unverified"))
+                    continue
+                _step(runtime, record, "safeguard_removed")
+                present = False
             if present:
                 settled.append(_settle_after_expiry(runtime, access, record, plan, "interrupted",
                                                     runtime.monotonic() + device.safeguard_seconds))
@@ -677,6 +762,9 @@ def recover(runtime, device_name: str) -> list:
             elif is_before:
                 saved = _persist(runtime, adapter, access, record)
                 settled.append(_finish(runtime, record, "reverted", "interrupted" if saved else "not persisted"))
+            elif is_after:
+                settled.append(_finish(runtime, record, "unknown",
+                                       "interrupted; device state matches the after side but confirm_start is missing"))
             else:
                 settled.append(_finish(runtime, record, "unknown", "interrupted; state matches neither side"))
     return settled
@@ -686,18 +774,31 @@ def unblock(runtime, device_name: str, reason: str) -> bool:
     if device_name not in runtime.config.devices:
         raise Rejected(["device %s is not configured" % shown(device_name)])
     runtime.audit.check_writable()
-    blocked = runtime.store.blocked(device_name)
-    removed = runtime.store.unblock(device_name)
-    if removed:
-        runtime.store.clear_baseline(device_name)
-        runtime.audit.event("administrative", device=device_name, action="unblock",
-                            reason_characters=len(reason), change_id=(blocked or {}).get("change_id"))
-    waived = 0
-    for change_id in _undelivered(runtime, device_name):
-        record = runtime.store.operation(change_id)
-        record["notification"] = "waived"
-        runtime.store.save(record)
-        runtime.audit.event("administrative", device=device_name, action="notification waived",
-                            reason_characters=len(reason), change_id=change_id)
-        waived += 1
+    with runtime.store.lock(device_name):
+        blocked = runtime.store.blocked(device_name)
+        removed = blocked is not None and runtime.store.unblock(device_name, blocked)
+        if removed:
+            runtime.store.clear_baseline(device_name)
+            runtime.audit.event("administrative", device=device_name, action="unblock",
+                                reason_characters=len(reason), change_id=blocked.get("change_id"))
+        waived = 0
+        for change_id in _undelivered(runtime, device_name):
+            if _waived(runtime, change_id):
+                runtime.audit.event("administrative", device=device_name, action="notification waived",
+                                    reason_characters=len(reason), change_id=change_id)
+                waived += 1
     return removed or waived > 0
+
+
+def _waived(runtime, change_id: str) -> bool:
+    changed = []
+
+    def waive(current):
+        if current.get("notification") not in UNDELIVERED:
+            return False
+        current["notification"] = "waived"
+        changed.append(True)
+        return True
+
+    runtime.store.update(change_id, waive)
+    return bool(changed)
