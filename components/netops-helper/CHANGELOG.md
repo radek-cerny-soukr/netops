@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.3.11 - unreleased
+## 0.3.11 - 2026-10-14
 
 - SSH-key authentication uses Core's private-key header-line recognition and retains the existing document size limits.
 - The query-catalog documentation generator refuses a non-regular output target before replacing generated documentation.
