@@ -51,7 +51,7 @@ tag names the version in `pyproject.toml`, builds both files with hash-pinned bu
 publishing, so no upload token is stored anywhere: optionally to TestPyPI, or directly to PyPI after the GitHub release and required approval. The two files are not assets of the release page and are not covered by its
 Sigstore bundle; the upload carries its own provenance attestation. A version already on PyPI is never
 uploaded again. The upload is not part of the release run and can lag behind the release page, which
-stays authoritative. On 11 October 2026 PyPI carries `netops-admin` 0.2.7 with the pinned `netops-auditor` 0.2.11 and `netops-core` 0.2.8.
+stays authoritative. On 14 October 2026 PyPI carries `netops-admin` 0.2.8 with the pinned `netops-auditor` 0.2.12 and `netops-core` 0.2.9.
 
 ### It needs `netops-core` and `netops-auditor` beside it
 

@@ -2,7 +2,7 @@
 
 This source tree contains netops-helper/v0.3.11. Its metadata pins netops-core==0.2.9.
 
-Published release context (11 October 2026): the current published release is `netops-helper/v0.3.10` (2026-10-11), which pins `netops-core version 0.2.8` and vendors `src/netops_core` inside its own release archive. The [repository release table](https://github.com/radek-cerny-soukr/netops/blob/main/README.md#components) links the current release of every component.
+Published release context (14 October 2026): the current published release is `netops-helper/v0.3.11` (2026-10-14), which pins `netops-core version 0.2.9` and vendors `src/netops_core` inside its own release archive. The [repository release table](https://github.com/radek-cerny-soukr/netops/blob/main/README.md#components) links the current release of every component.
 
 **Install from the release assets.** The [installation guide](https://github.com/radek-cerny-soukr/netops/blob/main/components/netops-helper/docs/installation.md) downloads the source archives of this component and of the pinned `netops-core` from their release pages and verifies them against the release `SHA256SUMS` and its Sigstore bundle; the server runs as a container image built from that archive, or loaded from the published OCI archive, on a separate runner host. **`netops-helper` has a separate PyPI publication step after GitHub**; check exact-version index availability before choosing that installation channel. The package is prepared as the client side only: once uploaded, installing the package with pip would put only the stdio proxy `netops-helper-proxy` that an MCP client launches on the host, with the pinned `netops-core`, never the server.
 
