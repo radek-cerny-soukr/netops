@@ -1,3 +1,1 @@
-"""NetOps Helper package."""
-
-__version__ = "0.3.12"
+from netops import __version__

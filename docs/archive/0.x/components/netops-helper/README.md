@@ -1,0 +1,229 @@
+# NetOps Helper
+
+This source tree contains netops-helper/v0.3.12. Its metadata pins netops-core==0.2.9.
+
+Published release context (14 October 2026): the current published release is `netops-helper/v0.3.12` (2026-10-14), which pins `netops-core version 0.2.9` and vendors `src/netops_core` inside its own release archive. The [repository release table](https://github.com/radek-cerny-soukr/netops/blob/main/README.md#components) links the current release of every component.
+
+**Install from the release assets.** The [installation guide](https://github.com/radek-cerny-soukr/netops/blob/main/components/netops-helper/docs/installation.md) downloads the source archives of this component and of the pinned `netops-core` from their release pages and verifies them against the release `SHA256SUMS` and its Sigstore bundle; the server runs as a container image built from that archive, or loaded from the published OCI archive, on a separate runner host. **`netops-helper` has a separate PyPI publication step after GitHub**; check exact-version index availability before choosing that installation channel. The package is prepared as the client side only: once uploaded, installing the package with pip would put only the stdio proxy `netops-helper-proxy` that an MCP client launches on the host, with the pinned `netops-core`, never the server.
+
+**Breaking change in 0.3.10:** the EXOS query `sharing` (`show sharing`) is removed, because on VM and physical platforms it returns a complete table with native STATUS=-6 and SSH exit status 250. Remove `sharing` from the `enabled_queries` of every EXOS device before upgrading; the proxy refuses a device that still names it. See [the restriction](docs/vendor-cli-references/extreme-switch-engine.md#unsupported-show-sharing).
+
+NetOps Helper provides bounded MCP troubleshooting reads, optional measured FortiOS configuration-path reads and separately enrolled finite diagnostic recipes. Ordinary named queries expose no arbitrary CLI or configuration export. `schema_read` reads a full snapshot in memory and returns only enrolled, redacted attributes. `fortios_diagnostics` can change temporary diagnostic options/debug state and must verify cleanup; it does not change persistent configuration. Both extensions require explicit grants, exact live identity and independent server-owned schema binding.
+
+Operators address explicitly enrolled devices by name. A local stdio proxy validates the device's `helper` section of the shared inventory, injects that one device's credential after the MCP client boundary, transports the request over SSH to a host-key-pinned runner, and invokes an isolated container there. Device output keeps identifiers needed for correlation while recognized secrets are removed on a best-effort basis.
+
+This is a self-hosted community project for experienced operators and security reviewers. It is not an enterprise orchestrator, a replacement for device-side authorization, or proof that a diagnostic conclusion is correct.
+
+## Fixes in 0.3.12
+
+- The installation guide documents [upgrading from an earlier release](docs/installation.md#upgrade-from-an-earlier-release). In 0.3.11 it had none: section 4 run in the new archive directory while the previous release's container existed stopped with `Conflict. The container name "/netops-helper" is already in use`, and the block still ended with exit status 0, without a new container.
+- `compose.yaml` names the Compose project `netops-helper` and declares the state volume `netops-helper-state` as external; section 4 creates it with `docker volume create`, which keeps an existing volume and its data. Up to 0.3.11 the project was named after the archive directory, so after an upgrade every Compose command warned that the volume had been created for another project. The volume, network and container names are unchanged.
+- The shell blocks of installation sections 4 to 7 end at the first failing command.
+- The deployment validation of [installation section 9](docs/installation.md#9-validate-the-deployment) passes in the published source archive. In 0.3.11 the archive's vendor-reference test rejected the link to this repository that the release exporter writes into the exported documentation.
+- The vendor-reference test accepts, besides vendor documentation, only canonical links to this repository at the tag of this release; other repositories, refs and versions are still refused.
+- A regression test exports the release archive and runs that test inside the export.
+
+Application code, the runtime lock and the vendored Core are those of 0.3.11. See the [changelog](CHANGELOG.md).
+
+## Fixes in 0.3.11
+
+- Device-output trust markers are overwritten as untrusted in returned response representations, and redaction covers escaped values in JSON text.
+- The proxy bounds its credential-store precheck to Core's size limit and refuses oversized input before loading it.
+- Documentation and egress generators refuse special output targets; egress generation also rejects special inventory-digest input files.
+- Helper packaging leaves Core's shared files owned by the Core package, so removing Helper does not remove an independently installed Core.
+- Ruckus Unleashed uses its explicit administrator-bounded role and catalogue boundary; the catalogue does not reduce device-account privileges.
+- A closed client output pipe is handled quietly while other output errors remain visible and transport shutdown still runs.
+
+See the [changelog](CHANGELOG.md), [role boundaries](docs/read-only-accounts.md#ruckus-unleashed) and [dependency risk record](docs/known-vulnerabilities.md#helper-0311-risk-review-scope).
+
+## Fixes in 0.3.10
+
+- The proxy reads at most 32 MiB and one byte of a server line, and the SSH standard error in pieces of at most 64 KiB, keeping its first 64 KiB; a longer server line ends the session through a controlled path. Point 4 of [issue #4](https://github.com/radek-cerny-soukr/netops/issues/4).
+- The malformed-input test leaves closing the server's standard input to `communicate()`; closing it first failed on Python 3.13.0 to 3.13.9. With `NETOPS_REQUIRE_RUNTIME_TESTS=1` the test fails instead of passing when FastMCP or icmplib is missing. Point 6 of the same issue.
+- The runner password handoff of the proxy works on macOS too, through a private socket with a check of the connecting user.
+- From 0.3.10 each release carries a Linux AMD64 image beside the ARM64 image; see [Requirements](#requirements).
+
+See the [changelog](CHANGELOG.md), which also describes the removal of `sharing`, and the [issue resolution table](https://github.com/radek-cerny-soukr/netops/blob/main/docs/README.md#issue-4).
+
+## Installation fixes in 0.3.9
+
+Installation stops failed shell steps and provides a safe proxy venv; archive tests run with the shipped vendored Core layout and isolated export fixtures. See the [changelog](CHANGELOG.md) and installation/release instructions for the exact procedure.
+
+## New in 0.3.8
+
+- Optional `schema_read` and bounded `fortios_diagnostics`, with separate path/address/interface/context grants.
+- FTPS exact leaf pinning on both control and data channels before listing bytes are read; an aggregate FTP control-response budget.
+- Fail-closed proxy response handling/redaction, bounded pending requests and deadlines, and correct application MCP version.
+- Egress bundle schema 4 with a host INPUT guard; regenerate older bundles and measure it on the deployment host.
+- Python 3.14.8 and locked PyJWT 2.15.0; archive installation stops on failed signature or checksum verification.
+
+See the [issue resolution table](https://github.com/radek-cerny-soukr/netops/blob/main/docs/README.md#github-issue-resolution), [tool reference](docs/tools.md), [security model](docs/security-model.md), [Compatibility boundaries](https://github.com/radek-cerny-soukr/netops/blob/main/docs/verified-support.md) and [known vulnerabilities](docs/known-vulnerabilities.md). Known OpenSSH and remaining Python findings are disclosed, not claimed fixed.
+
+## Architecture
+
+```text
+dedicated read-only agent/session
+  -> local stdio proxy: device discovery, section/egress checks, credential injection
+  -> pinned SSH transport (`ssh -T`; runner password or key from the credential store)
+  -> fixed `docker exec -i netops-helper python -m netops_helper.server`
+  -> isolated phase-1 read-only MCP server
+  -> device account with externally enforced read-only permissions
+```
+
+The required order of controls is:
+
+1. read-only accounts enforced by each target platform, subject to the Ruckus Unleashed exception below;
+2. an exact `helper` section per device for named queries, inventories, metadata/listing roots, and network egress;
+3. host-side egress rules applied before the container starts;
+4. best-effort response redaction and explicit byte pagination;
+5. per-device rate limiting and bounded SSH continuation caching;
+6. a server without persistent configuration-write tools; optional diagnostic recipes have bounded temporary runtime effects and verified cleanup.
+
+Ruckus Unleashed 200.13 is the measured exception: it has one administrator identity and no measured read-only role. Its limited named `show` catalogue does not make the account read-only. Enroll it only when full device privilege is acceptable, using `account_role: "admin-bounded"`, `role_boundary: "catalogue"` and `ssh_platform: "ruckus_unleashed"`. This is a local catalogue boundary, not remote read-only enforcement; metadata preserves the declared role. See [Ruckus account limits](docs/read-only-accounts.md#ruckus-unleashed).
+
+## Capabilities
+
+The remote FastMCP server registers exactly 12 tools: two control-plane tools and ten device tools. The local proxy adds `target_scope`, so a client sees exactly 13 tools: three control-plane tools and ten device tools.
+
+- Device discovery through `helper_status` and enrolled-scope inspection through `target_scope`.
+- DNS, TCP, ICMP, and certificate-verifying TLS diagnostics.
+- Named SSH troubleshooting queries for FortiOS, Extreme Switch Engine, Cisco IOS, IOS-XE and NX-OS, Arista EOS, Junos, Linux, and Ruckus Unleashed.
+- Opt-in ARP/neighbor, MAC/FDB, and LLDP/CDP queries where a reviewed platform command exists.
+- Typed parameters selected from per-device interface, service, address, software-switch, VLAN, managed-switch and certificate inventories.
+- Opt-in VLAN detail, DHCP snooping, certificate metadata and managed-switch status, PoE, MAC, stacking and LLDP through the FortiGate controller; see [measured limits](https://github.com/radek-cerny-soukr/netops/blob/main/components/netops-helper/docs/configuration.md#scoped-diagnostic-queries).
+- SNMPv2c GET with a dedicated community record that is never the device secret.
+- SFTP metadata under per-device non-root paths; no remote file body download.
+- FTPS directory listing and explicitly acknowledged read-only plain FTP listing.
+- Explicit pagination metadata and a stable content digest for long SSH output.
+
+`target_scope` does not return the device address, the login, any credential name, the secret, the community, or the host key pin. It intentionally returns enrolled inventories, SFTP metadata/listing roots, and egress addresses; this can reveal target addressing and other operational topology. Treat it as credential-free but environment-sensitive data.
+
+See [Tool reference](https://github.com/radek-cerny-soukr/netops/blob/main/components/netops-helper/docs/tools.md), [Read-only accounts](https://github.com/radek-cerny-soukr/netops/blob/main/components/netops-helper/docs/read-only-accounts.md), [Configuration](https://github.com/radek-cerny-soukr/netops/blob/main/components/netops-helper/docs/configuration.md), [Onboarding](https://github.com/radek-cerny-soukr/netops/blob/main/components/netops-helper/docs/onboarding.md), and [Installation](https://github.com/radek-cerny-soukr/netops/blob/main/components/netops-helper/docs/installation.md).
+
+## Deliberate non-capabilities
+
+The ordinary SSH catalogue has no configuration-export query. Optional `schema_read` collects a full snapshot in memory and returns only explicitly granted measured paths, with known credential attributes redacted. There is no whole-snapshot export, generic HTTP body or remote file-content tool. Persistent configuration writes, uploads, deletion, restart/reboot, software installation, arbitrary shell, raw CLI input and autonomous target expansion remain outside the interface. Bounded diagnostics may set temporary options/debug state; explicit grants and verified cleanup are part of that separate boundary.
+
+There is no general device-log browser. The only deliberately log-oriented query is the fixed, opt-in, one-hour Linux service journal query. Some fixed status/history diagnostics may contain event-like output, but the client cannot select arbitrary device logs, time ranges, filters, or files.
+
+The measured extension is described under [Measured FortiOS configuration objects](#measured-fortios-configuration-objects). Its explicit grants do not enable a whole-snapshot export or a generic body-read escape hatch.
+
+## Security properties
+
+- The helper exposes no listening port; MCP uses SSH-tunneled stdio.
+- The container runs non-root with a read-only root filesystem, no Linux capabilities, `no-new-privileges`, resource limits, and no Docker socket.
+- The Compose file mounts `/tmp` and `/run` `noexec`, so the image installs a packaged askpass program at a dedicated executable path (`/usr/local/bin/netops-askpass`, outside those mounts) and points `NETOPS_ASKPASS_PROGRAM` at it; without it, password authentication would have nowhere it is allowed to execute an askpass helper.
+- Every device must declare `account_role: "read-only"` in its helper section; verify actual device-side permissions over the same access path. A platform that has no read-only account (today only `ruckus_unleashed`) is declared `account_role: "admin-bounded"` with `role_boundary: "catalogue"` instead; see [Read-only accounts](https://github.com/radek-cerny-soukr/netops/blob/main/components/netops-helper/docs/read-only-accounts.md). Snapshot collection and temporary diagnostic controls require separate permission checks before enrollment; the declaration is not proof of those permissions.
+- Every request is checked against the exact helper section and per-tool egress scope before a credential is forwarded.
+- No platform in the query catalogue sends a paging preamble any more; `ssh_read` sends exactly the one reviewed command and nothing else. FortiOS sessions still require preverified `output standard`, because FortiOS itself pages and the helper never writes into device configuration to turn that off.
+- SSH-family reads inherit `netops-core`'s bounded receive: a device that keeps sending past the capture budget is killed and the call is refused with nothing of what it sent returned. This runs ahead of, and independently from, the helper's own later 2 MB snapshot cap on the decoded output.
+- SSH and SFTP refuse the `ssh-rsa` host key algorithm and SHA-1 key exchange for every device. A device which offers only `ssh-rsa` needs the named per-device exception `legacy_ssh: "rsa-sha1"` in its inventory entry, and a classic Cisco IOS device which also offers only SHA-1 key exchange needs `legacy_ssh: "rsa-sha1-dh14"`; there is no global switch and no algorithm list in configuration. See [Legacy SSH algorithms](https://github.com/radek-cerny-soukr/netops/blob/main/components/netops-helper/docs/configuration.md#legacy-ssh-algorithms).
+- Host key trust is a pin in the inventory, verified on the server before any credential is used, and the runner is pinned the same way; there is no `known_hosts` file and no first-use acceptance.
+- The client supplies query names and typed parameters, never raw commands.
+- Inventory-bound slots prevent device output from becoming a new command argument or expanding target scope.
+- IP, IPv6, MAC, hostname, username, email, and serial values remain visible because troubleshooting requires correlation.
+- Injected credentials and recognized secret forms are redacted on a best-effort basis; the proxy removes the session's credentials and communities from the structured part and, after decoding its JSON, from the text part of every answer alike, in values, object keys and JSON numbers. What is matched is listed in [Tools](docs/tools.md) under sanitization. Policy and remote permissions must keep secret-bearing data out of scope.
+- Every device response is marked as untrusted data and must run in a dedicated read-only agent/session.
+- Proxy and transport failures are reported by a fixed classified category (for example `ssh_host_key`, `auth_material`, `rate_limit`) and a fixed public message, never the device's or the SSH client's own words; raw stderr is sanitized before use and never relayed.
+- Recognized CLI refusals of FortiOS, EXOS, Cisco IOS, IOS-XE and NX-OS, Arista EOS and Junos return `ok: false` with `device_cli_error`, even when SSH returns zero; valid EXOS output with status 250 remains available. See [SSH results](https://github.com/radek-cerny-soukr/netops/blob/main/components/netops-helper/docs/tools.md#pagination-and-snapshots).
+- Mandatory audit writes a durable `started` record before a device operation and a terminal record afterward; interrupted attempts can remain visibly incomplete.
+- Audit JSONL contains allowlisted metadata only and rotates into five 2 MB segments.
+
+Read [Security model](https://github.com/radek-cerny-soukr/netops/blob/main/components/netops-helper/docs/security-model.md), [Egress control](https://github.com/radek-cerny-soukr/netops/blob/main/components/netops-helper/docs/egress-control.md), [Security policy](https://github.com/radek-cerny-soukr/netops/blob/main/SECURITY.md), and the release-specific [known vulnerability findings](https://github.com/radek-cerny-soukr/netops/blob/main/components/netops-helper/docs/known-vulnerabilities.md) before deployment.
+
+**This release ships Debian trixie's `openssh-client` with one Critical finding Debian marks wont-fix (CVE-2026-60002; fixed upstream in OpenSSH 10.4, which trixie does not ship), the only entry the release gate ignores in this image.** It is a reviewed, dated exception, not a fix; the [findings document](https://github.com/radek-cerny-soukr/netops/blob/main/components/netops-helper/docs/known-vulnerabilities.md) says what it exposes, what contains it, what to do if that is not acceptable, and why two further `openssh-client` entries the scanner reports as High are `sshd` code this image does not carry.
+
+## Requirements
+
+- A Linux ARM64 or AMD64 runner with Docker Engine and Compose v2. This release carries, beside the ARM64 image, the separate AMD64 assets `netops-helper-0.3.12-linux-amd64.oci.tar`, `netops-helper-0.3.12-linux-amd64-image-digest.txt`, `netops-helper-0.3.12-linux-amd64-image.cdx.json` and `netops-helper-0.3.12-linux-amd64-grype.json`, listed in the same `release-SHA256SUMS` that the one Sigstore bundle of the release signs; verify and load them as the [installation guide](https://github.com/radek-cerny-soukr/netops/blob/main/components/netops-helper/docs/installation.md#4-build-and-create-stopped-docker-resources) describes.
+- A local MCP client host with Python 3.13+, OpenSSH, and the host key fingerprints of the runner and of every device.
+- Dedicated device identities whose persistent configuration-write restrictions are enforced on the targets; validate each optional schema/diagnostic permission separately.
+- A local inventory, credential store, egress policy, and runner file that are never shipped with the source or container image.
+- A dedicated agent/session without shell, write-capable file, deployment, or mutating MCP tools.
+- An out-of-band recovery path while applying host firewall rules.
+
+## Quick start
+
+This sequence deliberately creates the Compose network and container in a stopped state. Do not start the helper until the generated egress contract has been reviewed, applied, and checked. To upgrade an existing installation, follow [Upgrade from an earlier release](https://github.com/radek-cerny-soukr/netops/blob/main/components/netops-helper/docs/installation.md#upgrade-from-an-earlier-release) instead.
+
+1. Download and verify the same release on the proxy host and the runner, as in [Installation](https://github.com/radek-cerny-soukr/netops/blob/main/components/netops-helper/docs/installation.md#2-install-the-shared-access-layer-on-the-proxy-host).
+2. Create dedicated target accounts and independently test both allowed reads and denied configuration, export, maintenance, and shell actions. Follow [Read-only accounts](https://github.com/radek-cerny-soukr/netops/blob/main/components/netops-helper/docs/read-only-accounts.md).
+3. Create the four operator files: `vault.json` with mode `600`, `inventory.json` with one entry per device, `egress-policy.json`, and `runner.json`. Follow [the four operator files](https://github.com/radek-cerny-soukr/netops/blob/main/components/netops-helper/docs/configuration.md#the-four-operator-files) and [credentials and protocol use](https://github.com/radek-cerny-soukr/netops/blob/main/components/netops-helper/docs/configuration.md#credentials-and-protocol-use). Name a separate `snmp_credential` only for devices that need SNMP. Write the host key fingerprint of the runner and of every device into those files. Then run `python3 scripts/check_operator_config.py`, a read-only preflight validator that reads only those four files and never contacts a device or opens a network connection, to validate all four before continuing - see [Onboarding](https://github.com/radek-cerny-soukr/netops/blob/main/components/netops-helper/docs/onboarding.md) for the guided walkthrough of this whole sequence and for migrating an older configuration.
+4. On the runner, build the image and create the network and container without starting the service:
+
+   ```bash
+   docker compose build --pull=false || exit 1
+   docker volume create netops-helper-state || exit 1
+   docker compose up --no-start --no-build || exit 1
+   docker compose ps --all || exit 1
+   docker network inspect netops-helper || exit 1
+   ```
+
+5. On the proxy host, generate a mode-`600`, secret-free but topology-sensitive bundle from file paths:
+
+   ```bash
+   python3 -B scripts/generate_egress_rules.py \
+     --inventory /path/to/inventory.json \
+     --policy /path/to/egress-policy.json \
+     --output /restricted/path/netops-helper-egress.json || exit 1
+   ```
+
+6. Transfer the bundle through a host-key-verified channel if proxy and runner differ. On the runner, compare its SHA-256 digest with the sender, inspect its manifest and rules, retain out-of-band recovery, then explicitly apply and check it:
+
+   ```bash
+   sudo python3 -B scripts/apply_egress_rules.py \
+     --bundle /restricted/path/netops-helper-egress.json --apply || exit 1
+   sudo python3 -B scripts/check_egress_rules.py \
+     --expected /restricted/path/netops-helper-egress.json || exit 1
+   ```
+
+   Continue only after `egress_apply=ok` and `egress_check=ok`. The bundle also installs the host INPUT guard; before relying on it, run the live checks in [Egress control](https://github.com/radek-cerny-soukr/netops/blob/main/components/netops-helper/docs/egress-control.md#host-input-guard), among them that the runner's own services time out from the container through every runner address.
+
+7. Start the already-created service and confirm its state:
+
+   ```bash
+   docker compose start || exit 1
+   docker compose ps || exit 1
+   ```
+
+8. Configure the proxy as a stdio MCP server in a dedicated read-only profile of any compatible client: the command `netops-helper-proxy` when the component is installed, or `python3 -B` with the absolute path to `scripts/remote_mcp_proxy.py` when it is run from an unpacked archive. The proxy needs `netops_core` and `netops_helper` on its path; see [Installation](https://github.com/radek-cerny-soukr/netops/blob/main/components/netops-helper/docs/installation.md#2-install-the-shared-access-layer-on-the-proxy-host). Start a fresh session, call `helper_status`, inspect `target_scope` for one listed device, and test one harmless enrolled query against a controlled test target.
+
+A device credential reuses its login and secret across SSH, SFTP, FTPS, and plain FTP; plain FTP transmits them without encryption. SNMPv2c sends its separate community in plaintext at the protocol layer. The stock image validates public trust; `tls_probe` and system-trust FTPS will normally reject private-CA or self-signed devices until a private image contains an independently verified trust anchor and the device certificate has a matching SAN. Follow the [credential](https://github.com/radek-cerny-soukr/netops/blob/main/components/netops-helper/docs/configuration.md#credentials-and-protocol-use) and [private CA and FTPS pin](https://github.com/radek-cerny-soukr/netops/blob/main/components/netops-helper/docs/configuration.md#private-tls-and-ftps-ca-san-and-pins) procedures; verification must not be disabled.
+
+The Compose network has `internal: false` so diagnostics can reach targets. Bundle schema 4 installs one IPv4 iptables ruleset: a DOCKER-USER chain for traffic forwarded from the bridge, and a guard as the first `INPUT` rule that accepts only `RELATED,ESTABLISHED` packets from the bridge and drops every new connection to the runner itself. A schema 3 bundle of 0.3.7 or earlier, which has no INPUT guard, is refused as `bundle_schema_outdated`; regenerate it. IPv6 is disabled on this Docker network with `enable_ipv6: false`; no ip6tables protection is claimed. DNS that the Docker daemon forwards for the container leaves from the host's own network stack, which neither chain sees. Treat egress as constrained only after the live checks in [Egress control](https://github.com/radek-cerny-soukr/netops/blob/main/components/netops-helper/docs/egress-control.md).
+
+## Development
+
+Use Python 3.14.8 to match the shipped container and Helper CI, install the locked dependencies and pytest in a maintained development environment, then run:
+
+```bash
+python -m pytest -q
+PYTHONPATH=src:../netops-core/src python tests/run_tests.py
+python scripts/check_public_release.py
+```
+
+The base image is digest-pinned and runtime dependencies are hash-locked, but the image is not fully reproducible: the one distribution package it installs, `openssh-client`, is deliberately left unpinned so a rebuild keeps receiving its security updates - see [Reproducibility of the image](https://github.com/radek-cerny-soukr/netops/blob/main/components/netops-helper/docs/releasing.md#reproducibility-of-the-image). Release metadata includes CycloneDX SBOM data. A clean test run is necessary but not sufficient; review the source diff, effective target permissions, complete vulnerability report, license inventory, egress behavior on the actual ARM64 runner, and residual risks.
+
+## License
+
+MIT. See [LICENSE](https://github.com/radek-cerny-soukr/netops/blob/main/components/netops-helper/LICENSE).
+
+## Measured FortiOS configuration objects
+
+The optional schema_read tool reads one measured configuration path. Its show view renders the selected object's configured attributes; its get view returns structured attributes from the live full-configuration snapshot. Neither view infers defaults or collects runtime state outside that snapshot. VDOM names and all parent table keys remain separate; optional vdom and owners selectors narrow the result. Device data remains explicitly untrusted and paginated.
+
+Enable it only for a target enrolled with an externally enforced read-only account. Add exact paths to helper.read_inventory.schema_paths (up to 4096 unique paths, at most 128 characters each) and enable system_status. The client proxy checks that grant. The server also requires NETOPS_SCHEMA_REGISTRY, pointing to an operator-managed format-1 JSON file:
+
+    {"format":1,"targets":{"example-device":{"schema":"libraries/example.json","sha256":"REPLACE_WITH_SHA256","host_key_fingerprint":"REPLACE_WITH_HOST_KEY_PIN"}}}
+
+Schema filenames are relative to the registry and cannot traverse to a parent directory. Keep the registry and libraries read-only in the server deployment. This is additional operator-managed configuration; the default deployment has no schema grants. The registry pins both the library content and the target SSH host key. Each fresh read verifies get system status against the library's exact hardware model, version and build before reading the configuration. A mismatch, absent grant, invalid registry or truncated snapshot refuses the operation.
+
+Known credential attributes and authentication secrets are redacted. The tool reads a complete snapshot in memory but returns only the enrolled path's own attributes, excluding child objects. It does not persist the snapshot. Pagination uses the existing bounded short-lived memory cache and audit preflight/completion.
+
+### Optional bounded FortiOS diagnostics
+
+fortios_diagnostics provides separately enrolled ping, traceroute, ICMP header capture, filtered sessions and flow recipes with time/count/output limits and verified cleanup. It requires exact measured VM hardware/build, a server-owned schema registry and independent scope grants. See [tool reference](docs/tools.md#bounded-fortios-diagnostics) for the VDOM check, shared debug timer and remaining measurement limits.
+
+## PyPI source distributions and tests
+
+PyPI wheels and source distributions are installation packages. The PyPI sdist is not a standalone pytest test tree: it omits the test-support `conftest.py` and the component's test guard. The Helper sdist also omits `scripts/` and `config/`. Running pytest over an unpacked sdist can therefore fail during collection or lack required test support. Run the documented suite from a repository checkout or the verified GitHub source release archive, with its pinned development dependencies and any required sibling components. The signed GitHub source archive and the PyPI sdist are different artifacts.

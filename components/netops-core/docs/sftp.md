@@ -11,9 +11,7 @@ SFTP was placed here when two components of the family were expected to need it 
 path, with the same client and the same hardening:
 
 - the **helper** reads metadata of an enrolled path (`sftp_stat`), read-only;
-- the **admin** was planned to replace a configuration file atomically, which is a `put` of one file.
-  The released `netops-admin` changes one object per request through the device CLI and does not use
-  SFTP.
+- the **admin** changes one object per request through the device CLI and does not use SFTP.
 
 A transport shared across components is a core concern, exactly like the exec channel. Putting it here
 also means there is one place where the client call, the credential handling and the workspace are
@@ -35,7 +33,7 @@ binary, `-P` instead of `-p` for the port, and no remote command at the end. Eve
 shared code, not a copy: the hardening options come from `ssh.OPTIONS` / `ssh.PASSWORD_OPTIONS`, the
 options of a legacy profile are appended **after** them, `UserKnownHostsFile` points inside the
 workspace of this one call with `GlobalKnownHostsFile=/dev/null` beside it (`ssh.known_hosts_options`), and the workspace, the askpass script and the identity file are prepared
-by `ssh._prepared`. There is no `ControlMaster` and no `ControlPath`.
+by `ssh._prepared`. Connection multiplexing is disabled (`ControlMaster=no`, `ControlPath=none`).
 
 ## The batch goes on standard input, and why
 

@@ -15,7 +15,7 @@ PRIVATE_PEM = re.compile(
     re.DOTALL,
 )
 CISCO_SECRET = re.compile(
-    r"(?im)^(\s*(?:enable\s+)?(?:secret|password)(?:\s+\d+)?\s+)\S+"
+    r"(?im)^([^\S\n]*(?:enable\s+)?(?:secret|password)(?:\s+\d+)?\s+)\S+"
 )
 SHADOW_HASH = re.compile(r"(?m)^([^:\r\n]+:)(?:[!*][^:\r\n]*|\$[^:\r\n]+)(?=:)")
 LABELED_COMMUNITY = re.compile(

@@ -1,1 +1,1 @@
-__version__ = "0.2.12"
+from netops import __version__

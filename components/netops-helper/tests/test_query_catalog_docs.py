@@ -11,7 +11,7 @@ from unittest.mock import patch
 
 
 ROOT = Path(__file__).resolve().parents[1]
-SCRIPT = ROOT / "scripts/render_query_catalog_docs.py"
+SCRIPT = ROOT / "tests/support/render_query_catalog_docs.py"
 
 
 def _load_renderer():

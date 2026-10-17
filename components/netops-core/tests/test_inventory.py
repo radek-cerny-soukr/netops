@@ -26,7 +26,7 @@ PLATFORM = "fortios"
 ADDRESS = "192.0.2.10"
 OTHER_ADDRESS = "192.0.2.20"
 PORT = 22
-ROLE = "perimetr"
+ROLE = "perimeter"
 CREDENTIAL = "fw-a-ro"
 PIN = "SHA256:" + "A" * 43
 OTHER_PIN = "SHA256:" + "B" * 43
@@ -41,7 +41,7 @@ EXAMPLE = {
             "platform": "fortios",
             "address": ADDRESS,
             "port": 22,
-            "role": "perimetr",
+            "role": "perimeter",
             "credential": CREDENTIAL,
             "host_key_fingerprint": PIN,
             "legacy_ssh": None,
@@ -53,7 +53,7 @@ EXAMPLE = {
             "platform": "exos",
             "address": OTHER_ADDRESS,
             "port": 22,
-            "role": "interni",
+            "role": "internal",
             "credential": "sw-a-ro",
             "host_key_fingerprint": OTHER_PIN,
             "legacy_ssh": "rsa-sha1",
@@ -216,7 +216,7 @@ def test_example_document_from_the_specification_loads(tmp_path):
     assert loaded[0].platform == "fortios"
     assert loaded[0].address == ADDRESS
     assert loaded[0].port == 22
-    assert loaded[0].role == "perimetr"
+    assert loaded[0].role == "perimeter"
     assert loaded[0].credential == CREDENTIAL
     assert loaded[0].host_key_fingerprint == PIN
     assert loaded[0].legacy_ssh is None
@@ -359,11 +359,11 @@ def test_every_role_from_the_enum_loads(tmp_path, role):
 
 
 @pytest.mark.parametrize(
-    "role", ("dmz", "Perimetr", "perimetr ", " lab", "internal", "perimetr/lab") + NOT_TEXT
+    "role", ("dmz", "Perimetr", "perimeter ", " lab", "unsupported-role", "perimeter/lab") + NOT_TEXT
 )
 def test_role_must_come_from_the_enum(tmp_path, role):
     path = write(tmp_path, [item(role=role)])
-    with pytest.raises(InventoryError, match="role must be one of perimetr, interni, lab"):
+    with pytest.raises(InventoryError, match="role must be one of perimeter, internal, lab"):
         load(path)
 
 

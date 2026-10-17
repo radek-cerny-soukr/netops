@@ -1,6 +1,6 @@
 # Read-only target accounts
 
-NetOps Helper phase 1 assumes that every target account is prevented from mutating the target by authorization enforced on the target or its external AAA service. Client validation, named templates, redaction, and egress rules are additional containment. They are not substitutes for device-side permissions.
+The NetOps Helper engine assumes that every target account is prevented from mutating the target by authorization enforced on the target or its external AAA service. Client validation, named templates, redaction, and egress rules are additional containment. They are not substitutes for device-side permissions.
 
 No universal vendor configuration recipe is provided here. Role names, privilege semantics, command authorization, and inherited permissions vary by platform, release, feature license, VDOM/virtual system, and AAA backend. Build the role from current vendor guidance, review the effective rules, and test the exact deployed path.
 
@@ -8,11 +8,11 @@ No universal vendor configuration recipe is provided here. Role names, privilege
 
 - Use one dedicated identity for NetOps Helper reads; never reuse an administrator, automation writer, backup, or human operator account.
 - Bind it to the smallest vendor-native role, access profile, login class, parser view, or external command-authorization policy that permits the enabled named queries.
-- Deny configuration mode and all mutation, every file-content upload/download, software installation, reboot, process control, account management, secret export, support bundles, shell escape, privilege escalation, and access to future write-service credentials. Grant only the SFTP metadata and FTP/FTPS directory-list permissions actually required by Phase 1.
-- Explicitly deny full running, startup, candidate, committed, saved, backup, and exported configuration reads, plus generic HTTP response-body and remote file-content reads. Phase 1 neither needs nor exposes them.
-- Do not grant arbitrary log browsing. The only deliberately log-oriented Phase-1 query is a fixed, opt-in, one-hour Linux service journal query.
+- Deny configuration mode and all mutation, every file-content upload/download, software installation, reboot, process control, account management, secret export, support bundles, shell escape, privilege escalation, and access to future write-service credentials. Grant only the SFTP metadata permissions required by enabled queries. FTP/FTPS is refused by the SSH/HTTPS profile.
+- Explicitly deny full running, startup, candidate, committed, saved, backup, and exported configuration reads, plus generic HTTP response-body and remote file-content reads. The Helper neither needs nor exposes them.
+- Do not grant arbitrary log browsing. The only deliberately log-oriented Helper query is a fixed, opt-in, one-hour Linux service journal query.
 - Scope visibility to the smallest operational domain, VDOM, virtual system, routing instance, or tenant that still permits the required troubleshooting.
-- Keep Phase-1 credentials separate from every future configuration/write service.
+- Keep Helper credentials separate from every Admin or other write service.
 - Log authentication and command authorization success/failure on the target or AAA service, with retention sufficient for deployment tests and incident review.
 - Revalidate permissions after firmware, role, AAA, transport, or query-catalog changes.
 
@@ -38,7 +38,7 @@ Use a dedicated read-only role or externally authorized network-login identity. 
 
 Role behavior differs across releases and external RADIUS/TACACS policy. Test each enabled catalog command, including typed port forms, and verify that malformed, list, range, wildcard, and broad port selectors remain unavailable through the account.
 
-**Unsupported EXOS diagnostic:** the former sharing query (show sharing and its variants) is excluded on both virtual and physical platforms because complete output accompanies native STATUS=-6 and SSH exit-status250. It is unsafe to treat that output as successful completion. Remove sharing from enabled_queries before upgrading; inventory validation refuses it. See [the measured restriction](vendor-cli-references/extreme-switch-engine.md#unsupported-show-sharing).
+**Unsupported EXOS diagnostic:** the former sharing query (show sharing and its variants) is excluded on both virtual and physical platforms because complete output accompanies native STATUS=-6 and SSH exit-status 250. It is unsafe to treat that output as successful completion. Remove sharing from enabled_queries before upgrading; inventory validation refuses it. See [the measured restriction](vendor-cli-references/extreme-switch-engine.md#unsupported-show-sharing).
 
 The ExtremeXOS 33.7.1 user-level profile excludes show accounts and show configuration. Some catalogue reads can return complete output with status 250; distinguish device CLI errors, command status and answer completeness. Port reads require one enrolled port and feature permissions. This read profile neither grants mutation nor establishes every build's compatibility.
 
@@ -98,9 +98,9 @@ Use an unprivileged account with no Docker socket/group access, no writable oper
 
 If an enabled read needs elevation, expose an exact root-owned dispatcher or narrowly parameterized wrapper for that query; do not provide a shell-capable sudo rule. Constrain SSH to the expected command path where practical and deny forwarding, PTY/shell use, arbitrary environment injection, redirection, pipelines, and alternate commands. The fixed one-hour `journalctl -u <enrolled-service>` query must not become general journal access.
 
-## Additional diagnostics in Helper 0.3.4
+## Additional diagnostics
 
-The eight added queries have separate [CLI evidence](configuration.md#scoped-diagnostic-queries). Certificate details and EXOS VLAN diagnostics have direct read-only-account observations. The FortiOS 8.0.1 controller checks used an administrator account; they do not validate a restricted profile or end-to-end MCP access. Positive stacking behavior was not tested because the observed switch lacks that feature. Do not mark an administrator account as read-only to satisfy enrollment. Validate the intended restricted identity for every enabled query, or leave that query disabled.
+The eight added queries have separate [query source records](vendor-cli-references.md). Certificate details and EXOS VLAN diagnostics have direct read-only-account observations. The FortiOS 8.0.1 controller checks used an administrator account; they do not validate a restricted profile or end-to-end MCP access. Positive stacking and PoE behavior was not tested because the observed switch lacks those features. Do not mark an administrator account as read-only to satisfy enrollment. Validate the intended restricted identity for every enabled query, or leave that query disabled.
 
 ## What the session sends
 

@@ -13,7 +13,7 @@ DEVICE = {
     "platform": "fortios",
     "address": "192.0.2.10",
     "port": 22,
-    "role": "perimetr",
+    "role": "perimeter",
     "credential": "fw-a-ro",
     "host_key_fingerprint": "SHA256:" + "A" * 43,
     "legacy_ssh": None,

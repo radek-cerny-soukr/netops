@@ -4,7 +4,7 @@
     "linux": {
       "source_type": "project_contract",
       "vendor": null,
-      "baseline": "NetOps Helper Phase-1 Linux command contract",
+      "baseline": "NetOps Linux command contract",
       "reference_document": "docs/tools.md",
       "source_note": "Project contract; upstream source audit pending."
     },

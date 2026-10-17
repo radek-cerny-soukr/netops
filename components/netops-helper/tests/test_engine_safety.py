@@ -1021,6 +1021,27 @@ def test_unreachable_host_key_probe_names_the_target_without_the_key(monkeypatch
     assert "did not offer the pinned SSH host key" in str(failure.value)
 
 
+
+def test_unavailable_host_key_probe_requires_reachability_before_any_transport_or_credential(monkeypatch) -> None:
+    detail = "synthetic-host-key-probe-error"
+    def unavailable_scan(*args, **kwargs):
+        raise engine.core_hostkey.HostKeyUnavailable(detail)
+    def forbidden(*args, **kwargs):
+        raise AssertionError("unavailable host-key probe must not open transport or use credentials")
+    monkeypatch.setattr(engine.core_hostkey, "scan", unavailable_scan)
+    monkeypatch.setattr(engine.core_ssh, "run_command", forbidden)
+    monkeypatch.setattr(engine.DeviceCredential, "use", forbidden)
+    with pytest.raises(AuthenticationContextError) as failure:
+        engine.read_from_device(auth(), "linux", "hostname")
+    message = str(failure.value)
+    assert '"device-a"' in message
+    assert "SSH host-key verification unavailable" in message
+    assert "check reachability, SSH port and key negotiation before changing the pinned key" in message
+    assert "did not offer the pinned SSH host key" not in message
+    assert detail not in message
+    assert HOST_KEY_BLOB not in message
+
+
 def test_key_authentication_hands_the_transport_a_handle_not_the_text(monkeypatch) -> None:
     captured: list = []
     monkeypatch.setattr(

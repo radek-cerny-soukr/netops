@@ -36,7 +36,8 @@ runpy.run_module(module, run_name="__main__", alter_sys=True)
 
 
 def test_the_mcp_server_announces_the_package_name_and_version():
-    project = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))["project"]
+    engine = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))["tool"]["netops-engine"]
+    project = tomllib.loads((ROOT.parents[1] / "pyproject.toml").read_text(encoding="utf-8"))["project"]
     tree = ast.parse((ROOT / "src" / "netops_admin" / "mcp_server.py").read_text(encoding="utf-8"))
     servers = [node.value for node in tree.body if isinstance(node, ast.Assign)
                and [target.id for target in node.targets if isinstance(target, ast.Name)] == ["mcp"]]
@@ -45,7 +46,7 @@ def test_the_mcp_server_announces_the_package_name_and_version():
     assert isinstance(call, ast.Call) and isinstance(call.func, ast.Name) and call.func.id == "FastMCP"
     keywords = {keyword.arg: keyword.value for keyword in call.keywords}
     name = call.args[0] if call.args else keywords.get("name")
-    assert isinstance(name, ast.Constant) and name.value == project["name"]
+    assert isinstance(name, ast.Constant) and name.value == engine["name"]
     version = keywords.get("version")
     assert isinstance(version, ast.Name) and version.id == "__version__"
     imported = {(node.module, alias.name, alias.asname) for node in tree.body

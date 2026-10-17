@@ -17,7 +17,7 @@ import unittest
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 sys.path.insert(0, str(ROOT.parent / "netops-core" / "src"))
-sys.path.insert(0, str(ROOT / "scripts"))
+sys.path.insert(0, str(ROOT / "tests" / "support"))
 
 import apply_egress_rules as apply_rules
 import check_egress_rules as checker
@@ -35,7 +35,7 @@ def bundle_fixture() -> dict[str, object]:
             "platform": "linux",
             "address": "192.0.2.10",
             "port": 2222,
-            "role": "interni",
+            "role": "internal",
             "credential": "device-a-account",
             "host_key_fingerprint": PIN,
             "legacy_ssh": None,

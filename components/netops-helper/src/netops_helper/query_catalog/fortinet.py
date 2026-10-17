@@ -43,9 +43,9 @@ QUERIES: dict[str, Query] = {
         "Show validity and public metadata of one enrolled local certificate.",
     ),
     'managed_switch_status': Query('diagnose switch-controller switch-info status {managed_switch}', {"managed_switch": Slot("managed_switches", "managed_switch_serial")}, "Show a bounded state view of one enrolled managed switch.", high_volume=False),
-    'managed_switch_poe': Query('diagnose switch-controller switch-info poe summary {managed_switch}', {"managed_switch": Slot("managed_switches", "managed_switch_serial")}, "Show a bounded state view of one enrolled managed switch.", high_volume=False),
+    'managed_switch_poe': Query('diagnose switch-controller switch-info poe summary {managed_switch}', {"managed_switch": Slot("managed_switches", "managed_switch_serial")}, "Show PoE status of one enrolled PoE-capable managed switch.", high_volume=False),
     'managed_switch_mac': Query('diagnose switch-controller switch-info mac-table {managed_switch}', {"managed_switch": Slot("managed_switches", "managed_switch_serial")}, "Show a bounded state view of one enrolled managed switch.", high_volume=True),
-    'managed_switch_stacking': Query('diagnose switch-controller switch-info stacking status {managed_switch}', {"managed_switch": Slot("managed_switches", "managed_switch_serial")}, "Show a bounded state view of one enrolled managed switch.", high_volume=False),
+    'managed_switch_stacking': Query('diagnose switch-controller switch-info stacking status {managed_switch}', {"managed_switch": Slot("managed_switches", "managed_switch_serial")}, "Show stacking status of one enrolled stacking-capable switch on FortiOS 8.0; unavailable on FortiOS 7.6.7.", high_volume=False),
     'managed_switch_lldp': Query('diagnose switch-controller switch-info lldp neighbors-summary {managed_switch}', {"managed_switch": Slot("managed_switches", "managed_switch_serial")}, "Show a bounded state view of one enrolled managed switch.", high_volume=True),
 
     "system_status": Query(

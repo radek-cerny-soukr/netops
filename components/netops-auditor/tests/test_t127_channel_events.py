@@ -90,7 +90,7 @@ def test_a_refused_first_step_carries_only_its_own_event():
 def write_inventory(directory):
     path = directory / "inventory.json"
     path.write_text(json.dumps({"version": 2, "devices": [{
-        "name": DEVICE, "platform": "fortios", "address": HOST, "port": 22, "role": "perimetr",
+        "name": DEVICE, "platform": "fortios", "address": HOST, "port": 22, "role": "perimeter",
         "credential": CREDENTIAL, "host_key_fingerprint": KEY_PIN, "legacy_ssh": None,
         "auditor": {"channel": "ssh", "source": None, "required_sections": ["system global"],
                     "tls_fingerprint": None},

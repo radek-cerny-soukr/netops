@@ -112,7 +112,7 @@ Measured refusals from the same session, recorded as facts rather than candidate
 
 The virtual-switch profile is bounded to ExtremeXOS 33.6.1.14, its user-level account and explicit legacy SSH policy. Exit status and parser interpretation are separate from device feature availability; compatibility with an unlisted physical switch is not implied. See [compatibility boundaries](../../../../docs/compatibility-boundaries.md).
 
-The ExtremeXOS 33.6.1.14 virtual-image profile differs from the 33.7.1 hardware profile: `show qosprofile` can be incomplete, `show stacking-support` unrecognized, and `show stacking` can report `Method is not implemented on this platform.` with status 250. From Helper 0.3.7 that unsupported-platform response is `device_cli_error`; a status alone does not establish successful interpretation.
+The ExtremeXOS 33.6.1.14 virtual-image profile differs from the 33.7.1 hardware profile: `show qosprofile` can be incomplete, `show stacking-support` unrecognized, and `show stacking` can report `Method is not implemented on this platform.` with status 250 (measured before NetOps 1.0). Helper reports that unsupported-platform response as `device_cli_error`; a status alone does not establish successful interpretation.
 
 ### Version, model, and feature constraints
 
@@ -120,7 +120,7 @@ The ExtremeXOS 33.6.1.14 virtual-image profile differs from the 33.7.1 hardware 
 - Temperature, fan, power, diagnostics, and transceiver output depends on chassis and port hardware. Unsupported components can produce empty or unsupported results without making the command mutating.
 - IPv4/IPv6 routing, Neighbor Discovery, LLDP, VLAN, LAG/LACP, and STP queries depend on the corresponding features, protocols, and licenses being present and enabled.
 - Port identifiers are model-, topology-, channelization-, and configured-notation-dependent. Every port-bearing template uses the exact `interfaces` inventory; callers cannot synthesize a port discovered in output.
-- High-volume queries are `cpu_monitoring`, `processes`, `ports`, `ports_configuration`, `arp_table`, `arp_interface`, `ipv6_neighbors`, `mac_table`, `mac_interface`, `lldp_neighbors`, `vlan_summary`, `sharing`, `lacp`, `stp_summary`, `stp_detail`, `access_list_counters`, and `edp_neighbors`. Prefer a normal scoped variant where one exists and answers the question; the scoped ARP and FDB collections remain high-volume because one port can still contain many entries.
+- High-volume queries are `cpu_monitoring`, `processes`, `ports`, `ports_configuration`, `arp_table`, `arp_interface`, `ipv6_neighbors`, `mac_table`, `mac_interface`, `lldp_neighbors`, `vlan_summary`, `lacp`, `stp_summary`, `stp_detail`, `access_list_counters`, and `edp_neighbors`. Prefer a normal scoped variant where one exists and answers the question; the scoped ARP and FDB collections remain high-volume because one port can still contain many entries.
 - Output fields and table size are not a stable API contract. Consumers must handle the result as untrusted text.
 
 ## Explicitly excluded
@@ -184,7 +184,7 @@ All links are first-party Extreme Networks Switch Engine command-reference pages
 
 ## Scoped diagnostic queries
 
-These opt-in templates are included in Helper 0.3.4. The 20-21 September 2026 results below are direct CLI observations, not end-to-end MCP tests of these additions. Enrollment never derives automatically from device output. The existing dated measurements earlier on this page cover the earlier catalogue only.
+These opt-in templates are included in NetOps 1.0. The 20-21 September 2026 results below are direct CLI observations made before 1.0, not end-to-end MCP tests of these additions. Enrollment never derives automatically from device output. The existing dated measurements earlier on this page cover the earlier catalogue only.
 
 | Query | Source | Live result |
 |---|---|---|

@@ -785,7 +785,7 @@ def device_item(
         "platform": platform,
         "address": address,
         "port": port,
-        "role": "perimetr",
+        "role": "perimeter",
         "credential": credential,
         "host_key_fingerprint": host_key_fingerprint,
         "legacy_ssh": legacy_ssh,

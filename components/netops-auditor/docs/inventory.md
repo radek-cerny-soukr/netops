@@ -3,10 +3,7 @@
 The inventory is the list of devices the family may reach. It is **the shared document of
 `netops-core`, file version 2**: the common part of a device - its name, platform, address, role,
 credential name, host key pin and legacy SSH exception - is read by `netops_core.inventory` and is
-documented in [`../../netops-core/docs/inventory.md`](../../netops-core/docs/inventory.md). This
-document ships in the `netops-core` archive, not in the auditor archive: that relative path resolves
-in a repository checkout; from a standalone auditor archive the same file is published at
-[`netops-core/v0.2.9`](https://github.com/radek-cerny-soukr/netops/blob/netops-core/v0.2.9/components/netops-core/docs/inventory.md).
+documented in [`../../netops-core/docs/inventory.md`](../../netops-core/docs/inventory.md).
 That page is the schema of everything this one does not repeat.
 
 What each component needs for itself lives in a section of its own name. The auditor owns the
@@ -16,7 +13,8 @@ validates nor reads it.
 
 Both loaders are **fail-closed**. Every field below must be present in every `auditor` section, even
 when its value is `null`, an unknown field is an error, and a wrong value is an error - never a
-default. Every refusal names the device and the field.
+default. Every refusal names the device and the field: the common loader names the device by its
+index in `devices`, the `auditor` section by its `name`.
 
 ## A document with one device of each channel
 
@@ -29,7 +27,7 @@ default. Every refusal names the device and the field.
       "platform": "fortios",
       "address": "192.0.2.10",
       "port": 22,
-      "role": "perimetr",
+      "role": "perimeter",
       "credential": "fw-a-audit-ro",
       "host_key_fingerprint": "SHA256:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
       "legacy_ssh": null,
@@ -46,7 +44,7 @@ default. Every refusal names the device and the field.
       "platform": "fortios",
       "address": null,
       "port": null,
-      "role": "interni",
+      "role": "internal",
       "credential": "fw-b-audit-ro",
       "host_key_fingerprint": null,
       "legacy_ssh": null,
@@ -63,13 +61,13 @@ default. Every refusal names the device and the field.
       "platform": "fortios",
       "address": null,
       "port": null,
-      "role": "perimetr",
+      "role": "perimeter",
       "credential": null,
       "host_key_fingerprint": null,
       "legacy_ssh": null,
       "auditor": {
         "channel": "file",
-        "source": "/var/lib/netops/fw-c.conf",
+        "source": "/var/lib/netops/auditor/inputs/fw-c.conf",
         "required_sections": ["system global"],
         "tls_fingerprint": null
       },
@@ -91,6 +89,8 @@ inventory file inventory.json: unknown inventory file version 1, expected 2
 The old per-device fields `channel`, `source`, `required_sections` and `tls_fingerprint` moved into
 the `auditor` section, `consumer` is gone (the section itself says whose the device is), and the
 target of the `ssh` channel is now the common `address` and `port`.
+
+For a file-channel snapshot, stop NetOps and run `docker compose run -T --rm netops auditor import-snapshot --name fw-c < snapshot.cfg`. Use the printed private destination as `source`. The import is create-only, runs as the Auditor UID and preserves raw UTF-8 bytes up to 64 MiB; `collect` still evaluates `required_sections`. See the [input import workflow](../../../docs/quickstart-1.0.md#private-snapshot-and-policy-files).
 
 ## The `auditor` section
 
@@ -121,7 +121,7 @@ The two fingerprints are pins: there is no trust on first use anywhere in this t
 A credential is a **record name**, never a secret. What the record must be per channel is decided when
 the credential is resolved, not when the inventory is read: `fortios-rest` takes a credential of kind
 `api-token`, `ssh` takes `password` or `ssh-key`, and the login of an `ssh` session is the `login` of
-that record. The credential store is in [`configuration.md`](configuration.md).
+that record. The credential store is in [`../../netops-core/docs/vault.md`](../../netops-core/docs/vault.md).
 
 ## `required_sections`: the section name, never the header line
 
@@ -152,11 +152,7 @@ reached the device, and until then the same entry loads without a word.
 The field is part of the common device, so the whole family reads it the same way; the rules and the
 options behind a profile name are in
 [`../../netops-core/docs/inventory.md`](../../netops-core/docs/inventory.md) and
-[`../../netops-core/docs/ssh.md`](../../netops-core/docs/ssh.md). Both relative paths resolve in a
-repository checkout; from a standalone auditor archive the same two files are published at
-[`netops-core/v0.2.9`](https://github.com/radek-cerny-soukr/netops/blob/netops-core/v0.2.9/components/netops-core/docs/inventory.md)
-and
-[`netops-core/v0.2.9`](https://github.com/radek-cerny-soukr/netops/blob/netops-core/v0.2.9/components/netops-core/docs/ssh.md).
+[`../../netops-core/docs/ssh.md`](../../netops-core/docs/ssh.md).
 What matters here:
 
 - The `ssh` channel talks with the algorithms a current OpenSSH client offers by default. Some
@@ -167,9 +163,9 @@ What matters here:
   and the field requires a pinned host key.
 - The value is a **profile name**, not a list of algorithms, so no string from the inventory reaches
   the command line of `ssh`.
-- **The exception is visible while it is used.** The collection report - text and JSON - carries
-  `collection-legacy_ssh` with the profile name, or `none` when the session ran on current
-  algorithms.
+- **The exception is visible while it is used.** The collection report carries the profile name,
+  or `none` when the session ran on current algorithms: `collection-legacy_ssh` in the text report,
+  `collection.legacy_ssh` in the JSON report.
 - When a device needs the exception and does not have it, the failed call says so and names the field,
   the profile list, and that there is no global switch.
 
@@ -178,7 +174,7 @@ What matters here:
 From the common loader: a missing or unknown device field, a duplicate `name`, a `version` other than
 `2`, a field whose name looks like a secret (`password`, `token`, `psk`, `private_key` and others), an
 address that is not a canonical IPv4 literal or a lowercase DNS name, an IPv6 target, a `platform`
-outside the closed list, a `role` outside `perimetr`, `interni`, `lab`, a host key pin that is not
+outside the closed list, a `role` outside `perimeter`, `internal`, `lab`, a host key pin that is not
 `SHA256:` plus 43 base64 characters, a `legacy_ssh` profile that is not named in the family or has no
 host key pin to go with it, and a device that no component consumes.
 
@@ -186,5 +182,6 @@ From the `auditor` section: a missing or unknown section field, a `channel` outs
 `source` on `ssh` or a missing one elsewhere, an empty `required_sections` or an entry in it that is
 not a non-empty string, a `tls_fingerprint` that is not 64 hexadecimal characters or one on a channel
 that has no use for it, and every cross-check of the table above. A device the auditor reads is also
-refused when its `name` holds U+001F, the separator of the finding fingerprint (see
-[`configuration.md`](configuration.md)); a device of another component is neither read nor checked.
+refused when its `name` holds U+001F, the separator the auditor puts between the components of a
+finding fingerprint (rule, rule version, tenant, device, object key); a device of another component
+is neither read nor checked.

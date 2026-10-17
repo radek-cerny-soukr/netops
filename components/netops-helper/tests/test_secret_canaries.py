@@ -28,8 +28,8 @@ from netops_core.audit import STATUSES  # noqa: E402
 from netops_core.hostkey import fingerprint_of  # noqa: E402
 from netops_helper.query_catalog import READ_QUERIES  # noqa: E402
 
-LAUNCHER = ROOT / "scripts" / "remote_mcp_proxy.py"
-SCRIPTS = ROOT / "scripts"
+LAUNCHER = ROOT / "tests" / "support" / "remote_mcp_proxy.py"
+SCRIPTS = ROOT / "tests" / "support"
 SERVER_RUNTIME_MODULES = ("fastmcp", "mcp")
 LOOPBACK = "127.0.0.1"
 DEVICE_HOST_KEY = b64encode(b"canary-device-host-key-material").decode("ascii")
@@ -782,7 +782,7 @@ class Harness:
         inventory = {"version": 2, "devices": [
             {
                 "name": name, "platform": platform, "address": LOOPBACK, "port": port,
-                "role": "interni", "credential": credential, "host_key_fingerprint": pin,
+                "role": "internal", "credential": credential, "host_key_fingerprint": pin,
                 "legacy_ssh": None, "auditor": None, "helper": section,
             }
             for name, platform, port, credential, section in devices

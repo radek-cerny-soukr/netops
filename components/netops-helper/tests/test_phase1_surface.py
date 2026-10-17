@@ -92,6 +92,6 @@ def test_read_query_catalog_exposes_legacy_and_rich_metadata() -> None:
 
 
 def test_docs_require_isolated_read_only_session() -> None:
-    docs = (ROOT / "docs/security-model.md").read_text().lower()
+    docs = (ROOT.parents[1] / "SECURITY.md").read_text().lower()
     for required in ("untrusted", "dedicated", "read-only", "never instructions"):
         assert required in docs

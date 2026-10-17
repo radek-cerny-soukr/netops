@@ -147,16 +147,18 @@ Only first-party Fortinet pages are retained. General CLI references establish t
 
 ## Scoped diagnostic queries
 
-These opt-in templates are included in Helper 0.3.4. The 20-21 September 2026 results below are direct CLI observations, not end-to-end MCP tests of these additions. Enrollment never derives automatically from device output. The existing dated measurements earlier on this page cover the earlier catalogue only.
+These opt-in templates are included in NetOps 1.0. The 20-21 September 2026 results below are direct CLI observations made before 1.0, not end-to-end MCP tests of these additions. Enrollment never derives automatically from device output. The existing dated measurements earlier on this page cover the earlier catalogue only.
 
 | Query | Source | Live result |
 |---|---|---|
 | `certificate_details` | [F-CERT-LOCAL](https://docs.fortinet.com/document/fortigate/latest/administration-guide/822087/automatically-provision-a-certificate) | FortiOS 8.0.0 read-only account returned public certificate details including expiry. |
 | `managed_switch_status` | [F-CHEAT-80](https://docs.fortinet.com/document/fortigate/8.0.0/cli-troubleshooting-cheat-sheet/420966/cli-troubleshooting-cheat-sheet) | FortiOS 8.0.1 controller returned data for an enrolled managed switch. The controller test used an administrator account; restricted-profile permissions require separate deployment validation. |
-| `managed_switch_poe` | [F-CHEAT-80](https://docs.fortinet.com/document/fortigate/8.0.0/cli-troubleshooting-cheat-sheet/420966/cli-troubleshooting-cheat-sheet) | FortiOS 8.0.1 controller returned data for an enrolled managed switch. The controller test used an administrator account; restricted-profile permissions require separate deployment validation. |
+| `managed_switch_poe` | [F-CHEAT-80](https://docs.fortinet.com/document/fortigate/8.0.0/cli-troubleshooting-cheat-sheet/420966/cli-troubleshooting-cheat-sheet) | FortiOS 8.0.1 controller returned data for an enrolled managed switch. The controller test used an administrator account; restricted-profile permissions require separate deployment validation. The tested switch has no PoE, so a positive result on PoE-capable hardware remains unverified. |
 | `managed_switch_mac` | [F-CHEAT-80](https://docs.fortinet.com/document/fortigate/8.0.0/cli-troubleshooting-cheat-sheet/420966/cli-troubleshooting-cheat-sheet) | FortiOS 8.0.1 controller returned data for an enrolled managed switch. The controller test used an administrator account; restricted-profile permissions require separate deployment validation. |
-| `managed_switch_stacking` | [F-CHEAT-80](https://docs.fortinet.com/document/fortigate/8.0.0/cli-troubleshooting-cheat-sheet/420966/cli-troubleshooting-cheat-sheet) | FortiOS 8.0.1 returned -7622 because the tested model is not a stacking switch. A positive test requires stacking-capable hardware; this feature refusal is reported as a failed CLI read. |
+| `managed_switch_stacking` | [F-CHEAT-80](https://docs.fortinet.com/document/fortigate/8.0.0/cli-troubleshooting-cheat-sheet/420966/cli-troubleshooting-cheat-sheet) | FortiOS 8.0.0 and 8.0.1 CLI references define this command; FortiOS 7.6.7 does not. FortiOS 8.0.1 returned -7622 because the tested model is not a stacking switch. A positive test requires stacking-capable hardware and remains unverified; a firmware or hardware refusal is reported as a failed CLI read. |
 | `managed_switch_lldp` | [F-CHEAT-80](https://docs.fortinet.com/document/fortigate/8.0.0/cli-troubleshooting-cheat-sheet/420966/cli-troubleshooting-cheat-sheet) | FortiOS 8.0.1 controller returned data for an enrolled managed switch. The controller test used an administrator account; restricted-profile permissions require separate deployment validation. |
+
+Query enrollment does not add firmware or hardware capabilities. The catalogue does not automatically filter entries by firmware: verify the exact firmware, model and account before opting in. A stacking command rejected by FortiOS 7.6.7, or a PoE command rejected by a non-PoE model, is an error result rather than a successful measurement.
 
 ### Exact query templates
 

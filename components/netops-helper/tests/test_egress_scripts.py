@@ -14,8 +14,8 @@ from unittest import mock
 
 
 ROOT = Path(__file__).parents[1]
-GENERATOR_PATH = ROOT / "scripts" / "generate_egress_rules.py"
-CHECKER_PATH = ROOT / "scripts" / "check_egress_rules.py"
+GENERATOR_PATH = ROOT / "tests" / "support" / "generate_egress_rules.py"
+CHECKER_PATH = ROOT / "tests" / "support" / "check_egress_rules.py"
 
 
 def _load(name: str, path: Path):
@@ -53,7 +53,7 @@ def fixture(profile: str = "strict-target") -> tuple[dict, dict]:
                 "platform": "fortios",
                 "address": alpha_address,
                 "port": 22,
-                "role": "interni",
+                "role": "internal",
                 "credential": "device-alpha-account",
                 "host_key_fingerprint": PIN_ALPHA,
                 "legacy_ssh": None,
@@ -80,7 +80,7 @@ def fixture(profile: str = "strict-target") -> tuple[dict, dict]:
                 "platform": "exos",
                 "address": "switch.example.invalid",
                 "port": 2222,
-                "role": "interni",
+                "role": "internal",
                 "credential": "device-beta-account",
                 "host_key_fingerprint": PIN_BETA,
                 "legacy_ssh": None,
@@ -315,21 +315,6 @@ class GeneratorTests(unittest.TestCase):
         for value in valid:
             with self.subTest(value=value):
                 self.assertEqual(generator._ipv4_network(value), value)
-
-    def test_compose_explicitly_disables_network_ipv6(self) -> None:
-        compose = (ROOT / "compose.yaml").read_text(encoding="utf-8")
-        network = compose.split("networks:\n", 2)[-1]
-        self.assertIn("    enable_ipv6: false\n", network)
-        self.assertIn("com.docker.network.bridge.name: nh-egress0", network)
-
-    def test_compose_project_and_state_volume_do_not_depend_on_the_directory(self) -> None:
-        compose = (ROOT / "compose.yaml").read_text(encoding="utf-8")
-        self.assertTrue(compose.startswith("name: netops-helper\n"))
-        volumes = compose.split("\nvolumes:\n", 1)[-1]
-        self.assertEqual(
-            volumes,
-            "  netops-helper-state:\n    name: netops-helper-state\n    external: true\n",
-        )
 
     def test_authoritative_inventory_validation_fails_closed(self) -> None:
         invalid_inventory = (

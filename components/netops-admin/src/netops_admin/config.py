@@ -76,78 +76,82 @@ def summary(config) -> dict:
     return {"export_status_require_audit_file": config.export_status_require_audit_file}
 
 
-def _require(condition, message):
+def _require(condition, message, *, field="config", code="invalid"):
     if not condition:
-        raise Rejected(["configuration: %s" % message])
+        error = Rejected(["configuration: %s" % message])
+        error.diagnostic = (field, code)
+        raise error
 
 
-def _absolute(value, label):
+def _absolute(value, label, *, field=None):
     _require(isinstance(value, str) and os.path.isabs(value) and "\x00" not in value,
-             "%s must be an absolute path" % label)
+             "%s must be an absolute path" % label, field=field or "config." + label.replace(" ", "."), code='absolute')
     return value
 
 
-def _integer(value, label, low, high):
+def _integer(value, label, low, high, *, field=None):
     _require(isinstance(value, int) and not isinstance(value, bool) and low <= value <= high,
-             "%s must be an integer in %d..%d" % (label, low, high))
+             "%s must be an integer in %d..%d" % (label, low, high), field=field or "config." + label.replace(" ", "."), code='integer')
     return value
 
 
 def _device(name, data) -> Device:
-    _require(DEVICE_NAME.fullmatch(name) is not None, "device name %s is not an inventory alias" % shown(name))
+    _require(DEVICE_NAME.fullmatch(name) is not None, "device name %s is not an inventory alias" % shown(name), field='config.devices[].name', code='component')
     _require(isinstance(data, dict) and not set(data) - DEVICE_FIELDS,
-             "device %s has unknown fields" % name)
+             "device %s has unknown fields" % name, field='config.devices[]', code='unknown-fields')
     for field in ("platform", "address", "host_key_fingerprint", "vault", "credential", "check_credential"):
-        _require(field in data, "device %s needs %s" % (name, field))
-    _require(data["platform"] in ("fortios", "exos"), "device %s platform must be fortios or exos" % name)
+        _require(field in data, "device %s needs %s" % (name, field), field="config.devices[]." + field, code='required')
+    _require(data["platform"] in ("fortios", "exos"), "device %s platform must be fortios or exos" % name, field='config.devices[].platform', code='admin-platform')
     _require(PIN.fullmatch(str(data["host_key_fingerprint"])) is not None,
-             "device %s host_key_fingerprint must be an OpenSSH SHA256 pin" % name)
+             "device %s host_key_fingerprint must be an OpenSSH SHA256 pin" % name, field='config.devices[].host_key_fingerprint', code='ssh-pin')
     protected = data.get("protected", {})
     _require(isinstance(protected, dict) and all(
         isinstance(table, str) and isinstance(names, list) and all(isinstance(item, str) for item in names)
         for table, names in protected.items()
-    ), "device %s protected must map a table to names" % name)
+    ), "device %s protected must map a table to names" % name, field='config.devices[].protected', code='protected')
     firmware = data.get("firmware")
-    _require(firmware is None or isinstance(firmware, str), "device %s firmware must be a string" % name)
-    _require(data["platform"] != "exos" or firmware, "device %s: ExtremeXOS needs the firmware stated" % name)
+    _require(firmware is None or isinstance(firmware, str), "device %s firmware must be a string" % name, field='config.devices[].firmware', code='text')
+    _require(data["platform"] != "exos" or firmware, "device %s: ExtremeXOS needs the firmware stated" % name, field='config.devices[].firmware', code='required')
     legacy = data.get("legacy_ssh")
-    _require(legacy is None or isinstance(legacy, str), "device %s legacy_ssh must be a profile name" % name)
+    _require(legacy is None or isinstance(legacy, str), "device %s legacy_ssh must be a profile name" % name, field='config.devices[].legacy_ssh', code='text')
     accounts = data.get("accounts", [])
     _require(isinstance(accounts, list) and all(isinstance(item, str) and item for item in accounts)
-             and len(set(accounts)) == len(accounts), "device %s accounts must be distinct names" % name)
-    _require(data["platform"] != "exos" or accounts, "device %s: ExtremeXOS needs the expected accounts" % name)
+             and len(set(accounts)) == len(accounts), "device %s accounts must be distinct names" % name, field='config.devices[].accounts', code='distinct-names')
+    _require(data["platform"] != "exos" or accounts, "device %s: ExtremeXOS needs the expected accounts" % name, field='config.devices[].accounts', code='required')
     check_address = data.get("check_address")
     _require(check_address is None or (isinstance(check_address, str) and check_address
                                         and check_address != data["address"]),
-             "device %s check_address must be another address than address" % name)
+             "device %s check_address must be another address than address" % name, field='config.devices[].check_address', code='different-address')
     _require(data["check_credential"] != data["credential"],
-             "device %s: the check credential must be another account than the write credential" % name)
-    safeguard = _integer(data.get("safeguard_seconds", 180), "safeguard_seconds", 60, SAFEGUARD_MAX_SECONDS)
-    margin = _integer(data.get("confirm_margin_seconds", 45), "confirm_margin_seconds", 15, safeguard - 15)
+             "device %s: the check credential must be another account than the write credential" % name, field='config.devices[].check_credential', code='different-credential')
+    safeguard = _integer(data.get("safeguard_seconds", 180), "safeguard_seconds", 60, SAFEGUARD_MAX_SECONDS, field="config.devices[].safeguard_seconds")
+    margin = _integer(data.get("confirm_margin_seconds", 45), "confirm_margin_seconds", 15, safeguard - 15, field="config.devices[].confirm_margin_seconds")
     policy = None
     if "audit_policy" in data:
         try:
-            policy = load_policy(_absolute(data["audit_policy"], "audit_policy"), data["platform"])
+            policy = load_policy(_absolute(data["audit_policy"], "audit_policy", field="config.devices[].audit_policy"), data["platform"])
         except (OSError, ValueError, UnicodeError):
-            raise Rejected(["configuration: audit policy cannot be loaded or is invalid"]) from None
+            error = Rejected(["configuration: audit policy cannot be loaded or is invalid"])
+            error.diagnostic = ("config.devices[].audit_policy", "policy")
+            raise error from None
     schema_binding = data.get("schema")
     if schema_binding is not None:
         fields = {"library","schema_sha256","calibration","calibration_sha256","vdoms"}
         _require(data["platform"] == "fortios" and isinstance(schema_binding,dict)
-                 and set(schema_binding) == fields, "schema binding fields are invalid")
+                 and set(schema_binding) == fields, "schema binding fields are invalid", field='config.devices[].schema', code='schema')
         for field in ("library","calibration"):
-            _absolute(schema_binding[field], "schema "+field)
+            _absolute(schema_binding[field], "schema "+field, field="config.devices[].schema." + field)
         for field in ("schema_sha256","calibration_sha256"):
             _require(isinstance(schema_binding[field],str) and re.fullmatch(r"[a-f0-9]{64}",schema_binding[field]),
-                     "schema binding digest is invalid")
+                     "schema binding digest is invalid", field='config.devices[].schema', code='digest')
         domains = schema_binding["vdoms"]
         _require(isinstance(domains,list) and 1 <= len(domains) <= 64
                  and all(isinstance(x,str) and x and x.isprintable() and len(x.encode()) <= 128 and "%%" not in x for x in domains)
-                 and len(set(domains)) == len(domains), "schema VDOM inventory is invalid")
+                 and len(set(domains)) == len(domains), "schema VDOM inventory is invalid", field='config.devices[].schema.vdoms', code='vdoms')
     return Device(
         name=name, platform=data["platform"], address=str(data["address"]),
-        port=_integer(data.get("port", 22), "port", 1, 65535),
-        host_key_fingerprint=data["host_key_fingerprint"], vault=_absolute(data["vault"], "vault"),
+        port=_integer(data.get("port", 22), "port", 1, 65535, field="config.devices[].port"),
+        host_key_fingerprint=data["host_key_fingerprint"], vault=_absolute(data["vault"], "vault", field="config.devices[].vault"),
         credential=str(data["credential"]), firmware=firmware, safeguard_seconds=safeguard,
         confirm_margin_seconds=margin, protected={table: list(names) for table, names in protected.items()},
         legacy_ssh=legacy, accounts=tuple(accounts), check_credential=str(data["check_credential"]),
@@ -159,35 +163,41 @@ def load_config(path) -> Config:
     name = shown(Path(path).name)
     try:
         raw = read_regular(path, CONFIG_MAX_BYTES)
-    except (OSError, InputError) as error:
-        raise Rejected(["configuration %s cannot be read: %s" % (name, getattr(error, "strerror", None) or error)]) from None
-    data = loads(raw, "configuration %s" % name)
-    _require(isinstance(data, dict), "must be a JSON object")
-    _require(not set(data) - CONFIG_FIELDS, "unknown fields %s" % sorted(set(data) - CONFIG_FIELDS))
-    _require(data.get("version") == CONFIG_VERSION, "version must be %d" % CONFIG_VERSION)
+    except (OSError, InputError) as cause:
+        error = Rejected(["configuration %s cannot be read: %s" % (name, getattr(cause, "strerror", None) or cause)])
+        error.diagnostic = ("config", "read")
+        raise error from None
+    try:
+        data = loads(raw, "configuration %s" % name)
+    except Rejected as error:
+        error.diagnostic = ("config", "json")
+        raise
+    _require(isinstance(data, dict), "must be a JSON object", field='config', code='object')
+    _require(not set(data) - CONFIG_FIELDS, "unknown fields %s" % sorted(set(data) - CONFIG_FIELDS), field='config', code='unknown-fields')
+    _require(data.get("version") == CONFIG_VERSION, "version must be %d" % CONFIG_VERSION, field='config.version', code='version1')
     devices = data.get("devices")
-    _require(isinstance(devices, dict) and devices, "devices must be a non-empty object")
+    _require(isinstance(devices, dict) and devices, "devices must be a non-empty object", field='config.devices', code='nonempty-object')
     notify = data.get("notify")
     if notify is not None:
         _require(isinstance(notify, dict) and not set(notify) - NOTIFY_FIELDS and "server" in notify
-                 and "topic_file" in notify, "notify needs server and topic_file only")
-        _require(str(notify["server"]).startswith("https://"), "notify server must use https")
-        _require(isinstance(notify.get("x509_strict", True), bool), "notify x509_strict must be true or false")
+                 and "topic_file" in notify, "notify needs server and topic_file only", field='config.notify', code='notify-fields')
+        _require(str(notify["server"]).startswith("https://"), "notify server must use https", field='config.notify.server', code='https')
+        _require(isinstance(notify.get("x509_strict", True), bool), "notify x509_strict must be true or false", field='config.notify.x509_strict', code='boolean')
         timeout = notify.get("timeout_seconds", 10)
         low, high = NOTIFY_TIMEOUT_SECONDS
         _require(isinstance(timeout, (int, float)) and not isinstance(timeout, bool) and low <= timeout <= high,
-                 "notify timeout_seconds must be a number in %d..%d" % (low, high))
+                 "notify timeout_seconds must be a number in %d..%d" % (low, high), field='config.notify.timeout_seconds', code='notify-timeout')
         notify = Notify(server=notify["server"], topic_file=_absolute(notify["topic_file"], "notify topic_file"),
                         timeout_seconds=float(timeout),
                         x509_strict=notify.get("x509_strict", True))
     limits = dict(DEFAULT_LIMITS)
     given = data.get("limits", {})
-    _require(isinstance(given, dict) and not set(given) - LIMIT_FIELDS, "limits has unknown fields")
+    _require(isinstance(given, dict) and not set(given) - LIMIT_FIELDS, "limits has unknown fields", field='config.limits', code='unknown-fields')
     for field, value in given.items():
-        limits[field] = _integer(value, field, 1, 10 ** 6)
+        limits[field] = _integer(value, field, 1, 10 ** 6, field="config.limits." + field)
     export_status = data.get("export_status_file")
     require_audit_file = data.get("export_status_require_audit_file", False)
-    _require(isinstance(require_audit_file, bool), "export_status_require_audit_file must be true or false")
+    _require(isinstance(require_audit_file, bool), "export_status_require_audit_file must be true or false", field='config.export_status_require_audit_file', code='boolean')
     return Config(
         state_dir=_absolute(data.get("state_dir"), "state_dir"),
         audit_file=_absolute(data.get("audit_file"), "audit_file"),

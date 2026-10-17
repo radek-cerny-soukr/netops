@@ -65,7 +65,7 @@ EXIT_NOT_READY = 5
 EXIT_CONFIRMED_BLOCKED = 6
 
 
-def build_runtime(config):
+def build_runtime(config, *, require_export=True):
     from netops_admin import execute
 
     def factory(device):
@@ -79,10 +79,10 @@ def build_runtime(config):
 
         notifier = NtfyNotifier(config.notify.server, config.notify.topic_file, config.notify.timeout_seconds,
                                 config.notify.x509_strict)
-    return execute.Runtime(config, factory, notifier=notifier)
+    return execute.Runtime(config, factory, notifier=notifier, require_export=require_export)
 
 
-def _operate(args) -> int:
+def _operate(args, *, require_export=True) -> int:
     from netops_admin import execute
     from netops_admin.config import load_config
 
@@ -99,7 +99,7 @@ def _operate(args) -> int:
         _emit(execute.refresh_delivery(execute.Runtime(config, None), record))
         return 0
 
-    runtime = build_runtime(config)
+    runtime = build_runtime(config) if require_export else build_runtime(config, require_export=False)
     if args.command == "doctor":
         from netops_admin import readiness
         report = readiness.doctor(runtime, args.device)
@@ -134,7 +134,7 @@ def _operate(args) -> int:
     return EXIT_CONFIRMED_BLOCKED if record.get("reason") in execute.BLOCKING_REASONS else 0
 
 
-def main(argv=None) -> int:
+def main(argv=None, *, require_export=True) -> int:
     parser = argparse.ArgumentParser(
         prog="netops-admin",
         description="Plan a bounded device change, execute it behind a rollback safeguard, "
@@ -204,7 +204,7 @@ def main(argv=None) -> int:
     try:
         if args.command in ("apply", "status", "recover", "unblock", "notify-retry", "undo", "enroll",
                             "preview", "doctor"):
-            return _operate(args)
+            return _operate(args, require_export=require_export)
         if args.command in ("schema-plan", "schema-verify"):
             from netops_core import schema
             from netops_admin import schema_plan, schema_policy

@@ -87,6 +87,7 @@ def parse(text: str) -> Configuration:
         raise ParseError("configuration must be a string, got %r" % (text,))
     raw = split_lines(text)
     commands, modules, module = [], [], NO_MODULE
+    seen_modules = set()
     bodies, profile, opened = [], "", 0
     for number, line in enumerate(raw, 1):
         content = line.strip()
@@ -101,7 +102,8 @@ def parse(text: str) -> Configuration:
             header = None if profile else MODULE_HEADER.match(content)
             if header is not None:
                 module = header.group(1)
-                if module not in modules:
+                if module not in seen_modules:
+                    seen_modules.add(module)
                     modules.append(module)
             continue
         tokens = tokenize(content, number)

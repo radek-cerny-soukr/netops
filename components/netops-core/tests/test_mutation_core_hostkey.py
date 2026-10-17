@@ -11,6 +11,7 @@ from netops_core.hostkey import (
     KEYSCAN_CAPTURE_MAX_BYTES,
     PROBE_LOGIN,
     HostKeyError,
+    HostKeyUnavailable,
     fingerprint_of,
     keyscan_argv,
     known_hosts_file,
@@ -201,14 +202,16 @@ def test_scan_without_any_key_names_the_device_and_the_exit_code():
     run = Keyscan(stdout=b"", returncode=1)
     with pytest.raises(HostKeyError) as caught:
         scan(HOST, PORT, PIN, 30.0, run=run)
-    assert_sentence(caught, "%s offered no host key, exit code 1" % HOST, "exit code 1")
+    assert type(caught.value) is HostKeyUnavailable
+    assert message(caught) == ("%s: no host key could be obtained (exit code 1)" % HOST) + '; check reachability, SSH port and key negotiation before changing the pinned key'
 
 
 def test_scan_with_a_key_and_a_failing_exit_code_names_the_device():
     run = Keyscan(stdout=("%s\n" % LINE).encode("utf-8"), returncode=3)
     with pytest.raises(HostKeyError) as caught:
         scan(HOST, PORT, PIN, 30.0, run=run)
-    assert_sentence(caught, "%s offered no host key, exit code 3" % HOST, "exit code 3")
+    assert type(caught.value) is HostKeyUnavailable
+    assert message(caught) == ("%s: the host-key scan did not complete (exit code 3)" % HOST) + '; check reachability, SSH port and key negotiation before changing the pinned key'
 
 
 def test_scan_asks_for_the_first_type_even_with_less_than_a_second(fake_clock):
@@ -230,7 +233,7 @@ def test_scan_stops_once_less_than_a_second_is_left(fake_clock):
     with pytest.raises(HostKeyError) as caught:
         scan(HOST, PORT, PIN, 3.0, run=run)
     assert len(run.calls) == 1
-    assert_sentence(caught, "%s offered no host key" % HOST)
+    assert_sentence(caught, "%s: no host key could be obtained" % HOST)
 
 
 def test_scan_hands_the_keyscan_a_system_path_when_the_caller_has_none(monkeypatch):
@@ -270,7 +273,8 @@ def test_a_runner_that_fails_is_reported_with_the_device_and_the_error_type():
 
     with pytest.raises(HostKeyError) as caught:
         scan(HOST, PORT, PIN, 5.0, run=run)
-    assert_sentence(caught, "cannot read the host key of %s" % HOST, "(PermissionError)")
+    assert type(caught.value) is HostKeyUnavailable
+    assert message(caught) == ("cannot read the host key of %s (PermissionError)" % HOST) + '; check reachability, SSH port and key negotiation'
 
 
 def test_a_runner_that_refuses_is_reported_with_the_device_first():
@@ -279,7 +283,8 @@ def test_a_runner_that_refuses_is_reported_with_the_device_first():
 
     with pytest.raises(HostKeyError) as caught:
         scan(HOST, PORT, PIN, 5.0, run=run)
-    assert_sentence(caught, "cannot read the host key of %s: " % HOST, "and was stopped")
+    assert type(caught.value) is HostKeyUnavailable
+    assert message(caught) == ("cannot read the host key of %s: the client produced more than 1 bytes on stdout and was stopped" % HOST) + '; check reachability, SSH port and key negotiation'
 
 
 def test_a_runner_answer_without_stdout_is_a_refusal_not_a_crash():
@@ -299,7 +304,7 @@ def test_a_runner_answer_without_an_exit_code_is_not_trusted():
     answer = Answer(stdout=("%s\n" % LINE).encode("utf-8"))
     with pytest.raises(HostKeyError) as caught:
         scan(HOST, PORT, PIN, 5.0, run=lambda argv, **kwargs: answer)
-    assert_sentence(caught, "%s offered no host key, exit code None" % HOST)
+    assert_sentence(caught, "%s: the host-key scan did not complete (exit code None)" % HOST)
 
 
 def test_the_probe_finds_the_pinned_key_past_a_line_that_is_not_utf8():
@@ -311,13 +316,15 @@ def test_the_probe_finds_the_pinned_key_past_a_line_that_is_not_utf8():
 def test_the_probe_without_a_key_names_the_device_and_the_exit_code():
     with pytest.raises(HostKeyError) as caught:
         scan(HOST, PORT, PIN, 5.0, run=Probe(None, returncode=255), legacy=SHA1_PROFILE)
-    assert_sentence(caught, "%s offered no host key, exit code 255" % HOST, "exit code 255")
+    assert type(caught.value) is HostKeyUnavailable
+    assert message(caught) == ("%s: no host key could be obtained (exit code 255)" % HOST) + '; check reachability, SSH port and key negotiation before changing the pinned key'
 
 
 def test_a_probe_that_cannot_run_names_the_device():
     with pytest.raises(HostKeyError) as caught:
         scan(HOST, PORT, PIN, 5.0, run=Probe(None, error=OSError("gone")), legacy=SHA1_PROFILE)
-    assert_sentence(caught, "cannot read the host key of %s" % HOST, "(OSError)")
+    assert type(caught.value) is HostKeyUnavailable
+    assert message(caught) == ("cannot read the host key of %s (OSError)" % HOST) + '; check reachability, SSH port and key negotiation'
 
 
 def test_the_probe_names_how_many_keys_did_not_match():

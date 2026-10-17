@@ -102,8 +102,8 @@ def test_audit_operation_id_has_exact_allowlisted_format(tmp_path: Path) -> None
 
 
 def _audit_section() -> str:
-    text = (ROOT / "docs/security-model.md").read_text(encoding="utf-8")
-    start = text.index("## Mandatory two-phase audit")
+    text = (ROOT.parents[1] / "docs/architecture-1.0.md").read_text(encoding="utf-8")
+    start = text.index("## Helper operation summaries")
     end = text.find("\n## ", start + 1)
     return text[start:] if end == -1 else text[start:end]
 

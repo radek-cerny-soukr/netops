@@ -40,6 +40,7 @@ INSTRUCTIONS = (
 )
 
 _CONFIGURATION = None
+_RUNTIME_FACTORY = None
 _ACTIVE = threading.Lock()
 
 
@@ -47,8 +48,10 @@ class ConfigurationError(Exception):
     pass
 
 
-def configure(values=None):
-    global _CONFIGURATION
+def configure(values=None, *, runtime_factory=None):
+    global _CONFIGURATION, _RUNTIME_FACTORY
+    if runtime_factory is not None and not callable(runtime_factory):
+        raise ConfigurationError("runtime_factory must be callable")
     environment = os.environ if values is None else values
     path = (environment.get(CONFIG_VARIABLE) or "").strip()
     if not path:
@@ -57,7 +60,12 @@ def configure(values=None):
         _CONFIGURATION = load_config(path)
     except Rejected as error:
         raise ConfigurationError("; ".join(error.reasons)) from None
+    _RUNTIME_FACTORY = runtime_factory
     return _CONFIGURATION
+
+
+def configured_runtime():
+    return (_RUNTIME_FACTORY or build_runtime)(configuration())
 
 
 def configuration():
@@ -136,7 +144,7 @@ def admin_apply(
     if not _ACTIVE.acquire(blocking=False):
         return rejected(Rejected(["another operation of this server is running; ask admin_status later"]))
     try:
-        runtime = build_runtime(configuration())
+        runtime = configured_runtime()
         try:
             request = parse_request(json.dumps(body).encode("utf-8"))
             return summary(execute.apply(runtime, device, request))
@@ -152,7 +160,7 @@ def admin_apply(
 )
 @_tool_errors
 def admin_status(change_id: str | None = None, request_id: str | None = None) -> dict[str, Any]:
-    runtime = build_runtime(configuration())
+    runtime = configured_runtime()
     if change_id is None and request_id:
         known = runtime.store.request(request_id)
         change_id = None if known is None else known["change_id"]
@@ -187,7 +195,7 @@ def admin_preview(
     if not _ACTIVE.acquire(blocking=False):
         return rejected(Rejected(["another operation of this server is running; ask admin_status later"]))
     try:
-        runtime = build_runtime(configuration())
+        runtime = configured_runtime()
         try:
             return execute.preview(runtime, device, parse_request(json.dumps(body).encode("utf-8")))
         except Rejected as error:
@@ -211,7 +219,7 @@ def admin_doctor(device: str) -> dict[str, Any]:
         return rejected(Rejected(["another operation of this server is running; ask admin_status later"]))
     try:
         try:
-            return readiness.doctor(build_runtime(configuration()), device)
+            return readiness.doctor(configured_runtime(), device)
         except Rejected as error:
             return rejected(error)
     finally:
@@ -226,7 +234,7 @@ def _schema_call(device, operations, reason, user_request, request_id, preview):
         return rejected(Rejected(["another operation of this server is running; ask admin_status later"]))
     try:
         request = parse_request(json.dumps(body).encode("utf-8"))
-        runtime = build_runtime(configuration())
+        runtime = configured_runtime()
         if preview:
             return execute.preview(runtime, device, request)
         return summary(execute.apply(runtime, device, request))

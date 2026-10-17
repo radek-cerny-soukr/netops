@@ -9,7 +9,7 @@ from types import SimpleNamespace
 import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
-SPEC = importlib.util.spec_from_file_location("export_status", ROOT / "scripts" / "export_status.py")
+SPEC = importlib.util.spec_from_file_location("export_status", ROOT / "tests" / "support" / "export_status.py")
 export_status = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(export_status)
 

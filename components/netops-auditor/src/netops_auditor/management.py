@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from bisect import bisect_left, bisect_right
+
 import fnmatch
 import hashlib
 import ipaddress
@@ -174,16 +176,26 @@ def _port_order(port):
     return int(slot) if slot else 0, int(number)
 
 
-def _slot_range(match, inventory):
+def _slot_range(match, inventory, ordered=None):
     if not inventory or match[1] is None or match[3] is None:
         raise PolicyError("unsupported port list")
     first, last = "%s:%s" % (match[1], match[2]), "%s:%s" % (match[3], match[4])
     if first not in inventory or last not in inventory or _port_order(first) > _port_order(last):
         raise PolicyError("port range outside the port inventory")
-    return {port for port in inventory if _port_order(first) <= _port_order(port) <= _port_order(last)}
+    if ordered is None:
+        ordered = []
+    if not ordered:
+        ordered.extend(sorted((_port_order(port), port) for port in inventory))
+    start = bisect_left(ordered, _port_order(first), key=lambda item: item[0])
+    end = bisect_right(ordered, _port_order(last), key=lambda item: item[0])
+    return {port for _order, port in ordered[start:end]}
 
 
 def ports(value, inventory=None):
+    return _ports(value, inventory, [])
+
+
+def _ports(value, inventory, ordered):
     result = set()
     for item in value.split(","):
         if re.fullmatch(PORT, item):
@@ -196,7 +208,7 @@ def ports(value, inventory=None):
         if not match:
             raise PolicyError("unsupported port list")
         if match[3] not in (None, match[1]):
-            result.update(_slot_range(match, inventory))
+            result.update(_slot_range(match, inventory, ordered))
             continue
         start, end = int(match[2]), int(match[4])
         if not 1 <= start <= end <= 4096:
@@ -222,10 +234,11 @@ def port_inventory(tree):
 
 def _exos_view(tree, inventory=None, strict=False):
     vlans, descriptions, members, populated, unresolved = {}, {}, {}, set(), set()
+    ordered = []
 
     def expand(value, kind):
         try:
-            return ports(value, inventory)
+            return _ports(value, inventory, ordered)
         except PolicyError:
             if strict:
                 raise
@@ -313,7 +326,7 @@ def _cyclic_edges(graph):
             if node in components:
                 continue
             components[node] = key
-            pending.extend(reverse[node] - components.keys())
+            pending.extend(child for child in reverse[node] if child not in components)
     return {(key, member) for key, members in edges.items() for member in members
             if components[key] == components[member]}
 
@@ -349,6 +362,7 @@ def _fortios(name, tree, policy):
         graph = {key: set(node.values("member")) for key, node in groups.items()
                  if node.value("type", "default") == "default"}
         cyclic_edges = _cyclic_edges(graph) if name == "group-cycle" else set()
+        known = set(addresses) | set(groups) | {"all"} if name == "group-dangling" else set()
         for key, node in groups.items():
             if key not in graph:
                 continue
@@ -357,7 +371,7 @@ def _fortios(name, tree, policy):
             if name == "group-empty" and not members:
                 yield _hit(prefix, "firewall addrgrp", node.line, "empty-static-group")
             if name == "group-dangling":
-                for member in sorted(members - set(addresses) - set(groups) - {"all"}):
+                for member in sorted(members - known):
                     yield _hit(prefix + "/member/" + member, "firewall addrgrp", node.line, "missing-member")
             if name == "group-cycle":
                 for member in sorted(members):
@@ -371,18 +385,23 @@ def _fortios(name, tree, policy):
             active = [(key, node) for key, node in reservations.items()
                       if node.value("action", "reserved") == "reserved"
                       and node.value("type", "mac") == "mac"]
-            for key, node in active:
+            macs = [re.sub("[:-]", "", node.value("mac", "")).lower() for _key, node in active]
+            by_ip, by_mac = {}, {}
+            if name == "dhcp-conflict":
+                for position, (_key, node) in enumerate(active):
+                    if node.value("ip"):
+                        by_ip.setdefault(node.value("ip"), []).append(position)
+                    if macs[position]:
+                        by_mac.setdefault(macs[position], []).append(position)
+            for position, (key, node) in enumerate(active):
                 prefix = "system dhcp server/" + sid + "/reserved-address/" + key
                 if name == "dhcp-conflict":
-                    for other_key, other in active:
+                    others = set(by_ip.get(node.value("ip"), ()) if node.value("ip") else ()) | set(by_mac.get(macs[position], ()))
+                    for other_key, other in (active[index] for index in sorted(others)):
                         if key >= other_key:
                             continue
-                        same_ip = node.value("ip") and node.value("ip") == other.value("ip")
-                        mac = re.sub("[:-]", "", node.value("mac", "")).lower()
-                        other_mac = re.sub("[:-]", "", other.value("mac", "")).lower()
-                        if same_ip or (mac and mac == other_mac):
-                            yield _hit(prefix + "/conflict/" + other_key, "system dhcp server", node.line,
-                                       "reservation-conflict")
+                        yield _hit(prefix + "/conflict/" + other_key, "system dhcp server", node.line,
+                                   "reservation-conflict")
                 else:
                     try:
                         address = ipaddress.IPv4Address(node.value("ip", ""))

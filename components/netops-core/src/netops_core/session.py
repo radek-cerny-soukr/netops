@@ -41,10 +41,23 @@ def argv(host, port, login, known_hosts, *, identity=None, legacy=None) -> list:
 
 
 def _spawn(call, env) -> tuple:
+    program = os.fspath(call[0])
+    if os.path.dirname(program):
+        candidates = (program,)
+    else:
+        program = os.fsencode(program)
+        candidates = tuple(
+            os.path.join(os.fsencode(directory), program) for directory in os.get_exec_path(env)
+        )
     pid, fd = pty.fork()
     if pid == 0:
         try:
-            os.execvpe(call[0], call, env)
+            for program in candidates:
+                try:
+                    os.execve(program, call, env)
+                except OSError:
+                    continue
+                break
         finally:
             os._exit(EXEC_FAILURE_CODE)
     return pid, fd

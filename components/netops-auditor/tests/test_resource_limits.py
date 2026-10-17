@@ -6,6 +6,7 @@ import subprocess
 import sys
 import time
 import threading
+from types import SimpleNamespace
 from pathlib import Path
 
 import pytest
@@ -54,8 +55,8 @@ def test_in_process_memory_ceiling_is_enforced_in_an_isolated_probe():
     assert done.returncode == expected, done.stderr
 
 
-@pytest.mark.skipif(sys.platform != "darwin", reason="Darwin resident-memory observer")
 def test_observation_failure_on_a_live_child_is_refused(monkeypatch):
+    monkeypatch.setattr(guard, "sys", SimpleNamespace(**(vars(guard.sys) | {"platform": "darwin"})))
     def unavailable(pid):
         raise RuntimeError("resident memory observation failed")
     monkeypatch.setattr(guard, "resident", unavailable)
@@ -65,8 +66,8 @@ def test_observation_failure_on_a_live_child_is_refused(monkeypatch):
                   capture_output=True, timeout=3)
 
 
-@pytest.mark.skipif(sys.platform != "darwin", reason="Darwin resident-memory observer")
 def test_child_exit_during_memory_observation_is_collected(monkeypatch):
+    monkeypatch.setattr(guard, "sys", SimpleNamespace(**(vars(guard.sys) | {"platform": "darwin"})))
     def exited(pid):
         timer = threading.Timer(0.01, os.kill, args=(pid, signal.SIGTERM))
         timer.daemon = True

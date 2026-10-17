@@ -15,7 +15,7 @@ import unittest
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 sys.path.insert(0, str(ROOT.parent / "netops-core" / "src"))
-sys.path.insert(0, str(ROOT / "scripts"))
+sys.path.insert(0, str(ROOT / "tests" / "support"))
 
 import generate_egress_rules as generator
 from netops_core.hostkey import fingerprint_of
@@ -72,7 +72,7 @@ def canonical_device() -> dict[str, object]:
         "platform": "linux",
         "address": "192.0.2.10",
         "port": 2222,
-        "role": "interni",
+        "role": "internal",
         "credential": CREDENTIAL,
         "host_key_fingerprint": HOST_KEY_PIN,
         "legacy_ssh": None,
@@ -878,9 +878,9 @@ class PolicyParityTests(unittest.TestCase):
         environment["PYTHONNOUSERSITE"] = "1"
         with tempfile.TemporaryDirectory() as directory:
             for relative in (
-                "scripts/generate_egress_rules.py",
-                "scripts/check_egress_rules.py",
-                "scripts/apply_egress_rules.py",
+                "tests/support/generate_egress_rules.py",
+                "tests/support/check_egress_rules.py",
+                "tests/support/apply_egress_rules.py",
             ):
                 with self.subTest(script=relative):
                     completed = subprocess.run(

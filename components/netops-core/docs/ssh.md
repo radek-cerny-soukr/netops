@@ -42,15 +42,10 @@ with `SshError` naming the credential kind and the two that can be used.
 The client executes the askpass program, so that program must reside on a filesystem that permits execution. By default `<workspace>/askpass` is written with mode 0700 next to the secret. If the temporary filesystem is mounted `noexec`, executing that script fails with `EACCES`; `noexec` does not prevent reading a file stored there. A separately installed program on an executable filesystem can read the private secret in that workspace.
 
 A deployment that mounts its temporary directory `noexec` therefore ships the program elsewhere and
-names it in `NETOPS_ASKPASS_PROGRAM`. There are two ways to have it. Installing the distribution
-puts the program in the installing environment as **`netops-askpass`**. Install public code with
-a local `umask 022`, for example `(umask 022; python -m pip install <verified Core source directory>)`,
-so a host login default of `0002` cannot create a group-writable launcher. Activate that environment
-or put its `bin` directory on `PATH`, check the launcher owner and permissions, then set
-`NETOPS_ASKPASS_PROGRAM="$(command -v netops-askpass)"`; the module file `netops_core/askpass.py` inside `site-packages` is
-**not** a substitute, because an installer writes package files without the execute bit and the
-check below refuses it. The helper image takes the other way and installs `netops_core/askpass.py`
-as `/usr/local/bin/netops-askpass` itself, with mode 0755, and sets the variable. The named program must be a regular file,
+names it in `NETOPS_ASKPASS_PROGRAM`. The NetOps image does this: it installs `netops_core/askpass.py`
+as `/usr/local/bin/netops-askpass`, owned by root with mode 0755, and sets the variable to that path.
+The module file `netops_core/askpass.py` inside `site-packages` is **not** a substitute, because package
+files are installed without the execute bit and the check below refuses it. The named program must be a regular file,
 executable by this process, and not writable by group or other, because it is the program the
 password is handed to. The secret itself stays in the workspace either way.
 
@@ -129,12 +124,12 @@ connection open and keep writing. The host key scan takes the same `capture_max_
 defaults to the same capped runner as `run_command`, sized with its own constant,
 `KEYSCAN_CAPTURE_MAX_BYTES` (`262144`), since a
 host key answer is a handful of lines, never a configuration. A peer that keeps sending past that
-budget is killed and the scan is refused with `SshError`, the same as an oversized command answer;
+budget is killed and the scan is refused with `HostKeyError`, which is not a subclass of `SshError`;
 the `run=` argument stays the seam the tests use.
 
 The scan requests one host-key type at a time — `ed25519`, then `ecdsa`, then `rsa` — with `ssh-keyscan -t`, and stops at the pinned key. Asking for multiple types at once opens multiple connections and can exceed a device's terminal-session limit. Sequential requests bound that load to one connection at a time.
 
-`ssh-keyscan` exits1 when a requested type is unavailable. An answer containing only comment lines does not establish a key, whether the client writes those comments to standard output or standard error. An empty or comment-only answer advances to the next type; an answer with a key line and a nonzero status is refused. OpenSSH 10.0p2 and 9.2p1 differ in where they write the comment, so parsing is based on a non-comment key line rather than comment placement. Attempts share one timeout: later attempts receive only the remaining time and none starts with less than one second.
+`ssh-keyscan` exits 1 when a requested type is unavailable. An answer containing only comment lines does not establish a key, whether the client writes those comments to standard output or standard error. An empty or comment-only answer advances to the next type; an answer with a key line and a nonzero status is refused. OpenSSH 10.0p2 and 9.2p1 differ in where they write the comment, so parsing is based on a non-comment key line rather than comment placement. Attempts share one timeout: later attempts receive only the remaining time and none starts with less than one second.
 
 For a device whose inventory entry carries `legacy_ssh: "rsa-sha1-dh14"` the scan cannot use
 `ssh-keyscan`, which offers no SHA-1 key exchange and has no option to add one. `scan(...,
@@ -183,12 +178,12 @@ directory first removes what such a call left: it looks only at the entries dire
 shows a directory, not a symbolic link, owned by that user with mode 0700, whose `.owner` opens
 without following a symbolic link as a regular file of that user, and whose lock can be taken at
 once. A directory whose lock is held belongs to a call that is still running and is left alone. A
-directory without `.owner` is never removed this way - one written by an earlier release or by a
-call that has not taken its lock yet; what an ended process left there has to be removed by hand. A
+directory without `.owner` is never removed this way - one written by a call that has not taken
+its lock yet; what an ended process left there has to be removed by hand. A
 failure of this cleanup never fails the call.
 
 Nothing is removed before that next call. A remainder therefore lasts until a later call of the same
-user, until the temporary directory is cleared, or, in the helper's container, where `/tmp` is a
+user, until the temporary directory is cleared, or, in the NetOps container, where `/tmp` is a
 `tmpfs`, at the latest until the container stops.
 
 ## Result and refusals
@@ -265,6 +260,6 @@ open descriptor outlives a finished or refused call of any of the three.
 
 Host-key algorithms, authentication methods and permitted legacy profiles are platform-specific. FortiOS, ExtremeXOS, Arista EOS, Cisco IOS/IOS-XE and Junos retain their exact documented version and account boundaries; transport support does not authorize device changes. Select a legacy profile only for the exact device that requires it. Ruckus Unleashed uses the documented [interactive session](session.md) path instead of an exec channel.
 
-Exit status 255 is a transport refusal. Other command statuses remain a `Result` with their output, rather than being discarded as transport errors. An ExtremeXOS command can return status250 with complete output; the caller must distinguish a command status, a device CLI error and the completeness of the returned answer. Neither a nonzero status nor a complete answer alone establishes semantic success.
+Exit status 255 is a transport refusal. Other command statuses remain a `Result` with their output, rather than being discarded as transport errors. An ExtremeXOS command can return status 250 with complete output; the caller must distinguish a command status, a device CLI error and the completeness of the returned answer. Neither a nonzero status nor a complete answer alone establishes semantic success.
 
 Credentials and temporary workspaces keep the cleanup and interrupted-call boundaries documented above. [Generic platform boundaries](../../../docs/verified-support.md#operator-responsibility) and [compatibility evidence limits](../../../docs/compatibility-boundaries.md#catalogue-and-parser-coverage) describe the scope without deployment identities or execution logs.

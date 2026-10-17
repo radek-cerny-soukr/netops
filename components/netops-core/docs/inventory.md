@@ -24,15 +24,15 @@ UTF-8 as `not valid UTF-8`, all as `InventoryError` and before anything is parse
 ## Device
 
 `DEVICE_FIELDS = ("name", "platform", "address", "port", "role", "credential", "host_key_fingerprint", "legacy_ssh", "auditor", "helper")`.
-An unknown field is refused, naming the device and the field; a missing field is refused the same way.
+An unknown field is refused, naming the device by its index in `devices` and the field; a missing field is refused the same way.
 
 | Field | Type | Rule |
 |---|---|---|
-| `name` | string | non-empty, unique in the document; it is the name every other field is reported against |
+| `name` | string | non-empty, unique in the document; a duplicate is refused naming the name and the indexes of both devices. The core loader reports other refusals against the index of the device, the auditor section against its `name` |
 | `platform` | string | passed through `platforms.normalize`; a canonical name or a known alias, stored canonical. `PLATFORMS = ("fortios", "exos", "linux", "cisco_ios", "cisco_xe", "cisco_nxos", "arista_eos", "juniper_junos", "juniper_junos_els", "ruckus_unleashed")`, `ALIASES = {"fortinet": "fortios", "extreme_exos": "exos", "extreme_switch_engine": "exos"}` |
 | `address` | string or `null` | a canonical IPv4 literal, or a lowercase DNS name (labels `[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?`, no trailing dot, at most 253 characters, the last label not all digits). An IPv6 literal is refused with a message saying IPv6 targets are not supported. A name that the resolver reads as an IPv4 address - a hexadecimal, octal or shortened form that `inet_aton` accepts, such as `0xc000020a`, `192.0.2.0xa` or `192.0.0x20a` - is not a DNS name and is refused, naming the canonical literal it stands for; there is nothing between an IPv4 literal and a name |
 | `port` | integer or `null` | 1 to 65535; a boolean is refused. `address` and `port` are both `null` or both set |
-| `role` | string | one of `ROLES = ("perimetr", "interni", "lab")` |
+| `role` | string | one of `ROLES = ("perimeter", "internal", "lab")` |
 | `credential` | string or `null` | a record name in the credential store. The inventory never opens the vault and never checks that the record exists |
 | `host_key_fingerprint` | string or `null` | a pin in the form `SHA256:` plus 43 base64 characters (`hostkey.checked_pin`); requires `address` to be set |
 | `legacy_ssh` | string or `null` | a profile name from `legacy_ssh.PROFILES` (`rsa-sha1` or `rsa-sha1-dh14`); requires `host_key_fingerprint` to be set |
@@ -40,7 +40,7 @@ An unknown field is refused, naming the device and the field; a missing field is
 | `helper` | object or `null` | the section of the helper, under the same rule |
 
 `CONSUMERS = ("auditor", "helper")` are the names of the section fields. At least one of the two must
-be an object: a device that no component consumes is refused, naming the device.
+be an object: a device that no component consumes is refused, naming the device by its index.
 
 The content of a section is not validated here. Core carries it as given; the component that owns the
 section validates it. This is what lets one inventory serve components with different needs without
@@ -68,42 +68,9 @@ the auditor and the helper refuse every section field they do not define, a `pas
 what the document held. `Device.consumers()` returns the names of the sections that are not `null`,
 in `CONSUMERS` order.
 
-## Example document
+## Enrollment examples
 
-```json
-{
-  "version": 2,
-  "devices": [
-    {
-      "name": "fw-a.example.invalid",
-      "platform": "fortios",
-      "address": "192.0.2.10",
-      "port": 22,
-      "role": "perimetr",
-      "credential": "fw-a-ro",
-      "host_key_fingerprint": "SHA256:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
-      "legacy_ssh": null,
-      "auditor": {"channel": "ssh", "required_sections": ["system global"]},
-      "helper": null
-    },
-    {
-      "name": "sw-a.example.invalid",
-      "platform": "exos",
-      "address": "192.0.2.20",
-      "port": 22,
-      "role": "interni",
-      "credential": "sw-a-ro",
-      "host_key_fingerprint": "SHA256:BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB",
-      "legacy_ssh": "rsa-sha1",
-      "auditor": null,
-      "helper": {"account_role": "read-only"}
-    }
-  ]
-}
-```
-
-The fingerprints above have the shape of a pin and are not real keys. Both addresses are RFC 5737
-documentation addresses and both names are in the RFC 2606 reserved domain.
+Use the complete [Helper enrollment](../../../docs/helper-configuration.md) or the complete [Auditor inventory example](../../netops-auditor/docs/inventory.md). Consumer sections require their own complete schema; a role label alone is not enrollment.
 
 ## Legacy SSH is an exception per device
 

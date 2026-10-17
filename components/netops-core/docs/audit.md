@@ -47,7 +47,7 @@ A response is recorded by its length and its SHA-256, never by its content: `res
 | links | the log, its lock and the log reopened after a rotation are opened with `O_NOFOLLOW` and must be regular files owned by the user of the process with exactly one hard link (rotation renames, it never adds a second link); only then is mode 0600 set, on the open descriptor |
 | durability | each record is written with `write(2)` straight to the descriptor, and the file is fsynced before the call returns |
 | exclusion | an advisory `flock` on a stable lock file beside the log covers the size check, the whole rotation and the write, so writers in different processes cannot interleave a line or rotate the same file at once; a `threading.Lock` does the same inside one process |
-| rotation | a segment larger than `segment_bytes` is rotated; `retained_segments` files are kept in total, the active one and `retained_segments - 1` rotated ones, and the oldest is removed. Rotation is a series of renames that loses nothing when it is interrupted: the oldest segment is removed only when every rotated slot is taken; when a slot is free - one that an interrupted rotation emptied - the newer segments move up into it and nothing is removed. The directory is fsynced after the renames |
+| rotation | a segment is rotated before a write that would make it exceed `segment_bytes`, so no segment grows past it; a single record larger than `segment_bytes` is refused with `AuditPersistenceError`; `retained_segments` files are kept in total, the active one and `retained_segments - 1` rotated ones, and the oldest is removed. Rotation is a series of renames that loses nothing when it is interrupted: the oldest segment is removed only when every rotated slot is taken; when a slot is free - one that an interrupted rotation emptied - the newer segments move up into it and nothing is removed. The directory is fsynced after the renames |
 
 The lock file is the log's name with a leading dot and a `.lock` suffix - `audit.jsonl` is locked
 through `.audit.jsonl.lock` - so it is never mistaken for a segment and its name does not move when
@@ -78,4 +78,5 @@ interrupted rotation is still kept, and the oldest is removed only when a later 
 | `operation_id` of another shape | `AuditFieldError` naming the value and the expected shape |
 | component outside the three names | refused when the recorder is built |
 | the file cannot be written, locked, or rotated | `AuditPersistenceError` |
+| a record larger than `segment_bytes` | `AuditPersistenceError` naming the record size and the limit |
 | the log or its lock is a symbolic link, a hard link (more than one name), not a regular file, or owned by another user | `AuditPersistenceError`; the target of the link is neither written nor has its mode changed |

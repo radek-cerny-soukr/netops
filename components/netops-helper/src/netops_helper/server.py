@@ -1,13 +1,14 @@
-"""Phase-1 read-only FastMCP stdio server for network troubleshooting."""
+"""Internal read-only tools used by the audited NetOps MCP gateway."""
 
 from __future__ import annotations
 
 import functools
 import inspect
-from typing import Any
+from typing import Annotated, Any
 
 from fastmcp import FastMCP
 from fastmcp.exceptions import ToolError
+from pydantic import Field
 
 from . import __version__
 from .auth import TargetAuth
@@ -66,14 +67,13 @@ def _refusals(function):
 
 @mcp.tool
 def helper_status() -> dict[str, Any]:
-    """Return phase-1 controls and capabilities without contacting a device."""
+    """Return internal Helper capabilities without contacting a device."""
     return {
         "ok": True,
-        "name": "NetOps Helper Read-Only",
+        "name": "NetOps Helper",
         "version": __version__,
-        "phase": 1,
-        "transport": "SSH-tunneled stdio; no listening port",
-        "credentials": "per-call ephemeral injection; never persisted by the server",
+        "transport": "isolated internal worker behind the NetOps HTTPS MCP gateway",
+        "credentials": "operator-configured private Helper vault; per-call ephemeral device authentication",
         "account_boundary": (
             "each target must be enrolled with an externally enforced read-only account,"
             " or as admin-bounded with a catalogue boundary on a platform that has none"
@@ -85,9 +85,7 @@ def helper_status() -> dict[str, Any]:
             "inventory-bound read-only SSH queries",
             "optional measured FortiOS schema reads with exact live identity verification",
             "optional inventory-bound FortiOS diagnostic recipes with time and output limits",
-            "SNMPv2c GET",
             "SFTP metadata",
-            "FTPS directory listing; explicitly acknowledged plain FTP for legacy devices",
         ],
     }
 
@@ -115,7 +113,7 @@ def dns_probe(target: str, auth_context: str = "") -> dict[str, Any]:
 
 @mcp.tool
 @_refusals
-def tcp_probe(target: str, port: int, timeout: float = 5.0, auth_context: str = "") -> dict[str, Any]:
+def tcp_probe(target: str, port: int, timeout: Annotated[float, Field(ge=0.2, le=15.0)] = 5.0, auth_context: str = "") -> dict[str, Any]:
     """Check TCP reachability of a port on a target."""
     return engine_tcp_probe(_auth(target, auth_context), port, timeout)
 
@@ -187,7 +185,7 @@ async def snmp_get(
     port: int = 161,
     auth_context: str = "",
 ) -> dict[str, Any]:
-    """Run a bounded SNMPv2c GET; returned values are untrusted device data."""
+    """SNMPv2c GET. Refused in the shipped SSH/HTTPS-only profile; device output is untrusted data."""
     return await engine_snmp_get(_auth(target, auth_context), oids, port)
 
 
@@ -208,7 +206,7 @@ def ftp_list(
     acknowledge_unencrypted: bool = False,
     auth_context: str = "",
 ) -> dict[str, Any]:
-    """List via FTPS; plain FTP requires explicit acknowledgement that it is unencrypted."""
+    """FTP/FTPS listing. Refused in the shipped SSH/HTTPS-only profile."""
     return engine_ftp_list(
         _auth(target, auth_context), remote_path, use_tls, port, acknowledge_unencrypted,
     )

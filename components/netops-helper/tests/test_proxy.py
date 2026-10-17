@@ -1,4 +1,5 @@
 from __future__ import annotations
+from types import SimpleNamespace
 
 from base64 import urlsafe_b64decode
 import importlib.util
@@ -62,7 +63,7 @@ def _write_test_inventory(path: Path) -> None:
             "platform": "fortios",
             "address": "192.0.2.10",
             "port": 22,
-            "role": "interni",
+            "role": "internal",
             "credential": "device-a-account",
             "host_key_fingerprint": DEVICE_PIN,
             "legacy_ssh": None,
@@ -876,8 +877,8 @@ def test_askpass_refuses_unavailable_peer_credentials(monkeypatch, capsys) -> No
     assert handoff._secret == ""
 
 
-@pytest.mark.skipif(MODULE.sys.platform != "darwin", reason="Darwin filesystem socket")
 def test_darwin_askpass_socket_is_owner_only_and_ignores_long_tmpdir(tmp_path, monkeypatch) -> None:
+    monkeypatch.setattr(MODULE, "sys", SimpleNamespace(**(vars(MODULE.sys) | {"platform": "darwin"})))
     monkeypatch.setenv("TMPDIR", str(tmp_path / ("x" * 100)))
     handoff = MODULE._AskpassHandoff("askpass-secret")
     path = Path(handoff.name)
@@ -894,8 +895,8 @@ def test_darwin_askpass_socket_is_owner_only_and_ignores_long_tmpdir(tmp_path, m
     assert handoff._secret == ""
 
 
-@pytest.mark.skipif(MODULE.sys.platform != "darwin", reason="Darwin filesystem socket")
 def test_darwin_askpass_bind_failure_removes_its_directory(monkeypatch) -> None:
+    monkeypatch.setattr(MODULE, "sys", SimpleNamespace(**(vars(MODULE.sys) | {"platform": "darwin"})))
     class Listener:
         address = None
         closed = False
@@ -905,7 +906,7 @@ def test_darwin_askpass_bind_failure_removes_its_directory(monkeypatch) -> None:
         def close(self):
             self.closed = True
     listener = Listener()
-    monkeypatch.setattr(MODULE.socket, "socket", lambda *args: listener)
+    monkeypatch.setattr(MODULE, "socket", SimpleNamespace(**(vars(MODULE.socket) | {"socket": lambda *args: listener})))
     with pytest.raises(OSError):
         MODULE._AskpassHandoff("askpass-secret")
     assert listener.closed

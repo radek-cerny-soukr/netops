@@ -17,7 +17,7 @@ NAME = "fw-a.example.invalid"
 PLATFORM = "fortios"
 ADDRESS = "192.0.2.10"
 PORT = 22
-ROLE = "perimetr"
+ROLE = "perimeter"
 CREDENTIAL = "fw-a-audit-ro"
 FILE_SOURCE = "/var/lib/netops/fw-a.conf"
 REST_SOURCE = "https://192.0.2.10:443"
@@ -411,7 +411,7 @@ def test_device_rejects_an_unknown_name(tmp_path, name):
 
 def test_a_broken_common_part_is_refused_by_the_shared_loader(tmp_path):
     entry = file_item(role="dmz")
-    refusal(tmp_path, entry, "role must be one of perimetr, interni, lab")
+    refusal(tmp_path, entry, "role must be one of perimeter, internal, lab")
 
 
 def test_a_secret_field_name_is_refused_by_the_shared_loader(tmp_path):

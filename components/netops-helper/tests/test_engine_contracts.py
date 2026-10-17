@@ -1266,73 +1266,11 @@ def _skip(test: str, reason: str) -> None:
 
 
 def _project_identity(root: Path) -> tuple[str, str]:
-    project = tomllib.loads((root / "pyproject.toml").read_text(encoding="utf-8"))["project"]
-    return project["name"], project["version"]
+    engine = tomllib.loads((root / "pyproject.toml").read_text(encoding="utf-8"))["tool"]["netops-engine"]
+    project = tomllib.loads((root.parents[1] / "pyproject.toml").read_text(encoding="utf-8"))["project"]
+    return engine["name"], project["version"]
 
 
-def test_mcp_server_identity_is_the_helper_distribution() -> None:
-    root = Path(__file__).resolve().parents[1]
-    name, version = _project_identity(root)
-    package_tree = ast.parse(
-        (root / "src/netops_helper/__init__.py").read_text(encoding="utf-8")
-    )
-    package_versions = [
-        node.value.value
-        for node in package_tree.body
-        if isinstance(node, ast.Assign) and isinstance(node.value, ast.Constant)
-        and [getattr(target, "id", None) for target in node.targets] == ["__version__"]
-    ]
-    assert package_versions == [version], package_versions
-    server_tree = ast.parse(
-        (root / "src/netops_helper/server.py").read_text(encoding="utf-8")
-    )
-    constants = {
-        target.id: node.value.value
-        for node in server_tree.body
-        if isinstance(node, ast.Assign) and isinstance(node.value, ast.Constant)
-        for target in node.targets
-        if isinstance(target, ast.Name)
-    }
-    package_version_names = {
-        alias.asname or alias.name
-        for node in server_tree.body
-        if isinstance(node, ast.ImportFrom) and node.level == 1 and node.module is None
-        for alias in node.names
-        if alias.name == "__version__"
-    }
-    constructions = [
-        node.value
-        for node in server_tree.body
-        if isinstance(node, ast.Assign)
-        and [getattr(target, "id", None) for target in node.targets] == ["mcp"]
-        and isinstance(node.value, ast.Call)
-        and getattr(node.value.func, "id", None) == "FastMCP"
-    ]
-    assert len(constructions) == 1, "server.py must build exactly one FastMCP server"
-    construction = constructions[0]
-    assert construction.args, "the FastMCP server must be named"
-    named = construction.args[0]
-    server_name = (
-        constants.get(named.id) if isinstance(named, ast.Name)
-        else getattr(named, "value", None)
-    )
-    assert server_name == name, server_name
-    keywords = {keyword.arg: keyword.value for keyword in construction.keywords}
-    version_argument = keywords.get("version")
-    assert isinstance(version_argument, ast.Name), (
-        "FastMCP must receive version=__version__, otherwise initialize reports the "
-        "FastMCP library version"
-    )
-    assert version_argument.id in package_version_names, version_argument.id
-    assert not any(
-        isinstance(node, (ast.Assign, ast.AugAssign, ast.AnnAssign))
-        and any(
-            isinstance(target, ast.Attribute)
-            and isinstance(target.value, ast.Name) and target.value.id == "mcp"
-            for target in (node.targets if isinstance(node, ast.Assign) else [node.target])
-        )
-        for node in ast.walk(server_tree)
-    ), "the server identity must not be rewritten after construction"
 
 
 def test_initialize_reports_the_helper_distribution() -> None:

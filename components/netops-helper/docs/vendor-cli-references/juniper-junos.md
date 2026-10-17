@@ -56,14 +56,14 @@ These commands must not appear in the common profile merely because a target rep
 
 Compatibility is scoped to vJunos-switch 26.2R1.7 and its documented read-only role. LACP, spanning-tree and routing reads depend on the configured features and permissions; a virtual-image profile does not establish behavior for every physical model. See [compatibility boundaries](../../../../docs/compatibility-boundaries.md).
 
-| Profile | Released 0.3.6 | 0.3.7 candidate |
-| --- | --- | --- |
-| `juniper_junos` | 25 of 25 with exit status 0 | 25 of 25 with exit status 0 |
-| `juniper_junos_els` | 29 of 29 with exit status 0 | 28 with exit status 0, `virtual_chassis` `device_cli_error` |
+| Profile | Measured with the Helper engine before NetOps 1.0 |
+| --- | --- |
+| `juniper_junos` | 25 of 25 with exit status 0 |
+| `juniper_junos_els` | 28 with exit status 0, `virtual_chassis` `device_cli_error` |
 
 - `arp_interface`, `ipv6_neighbors_interface`, `ospf_neighbors_interface` and `ospfv3_neighbors_interface` take a logical interface. Asked for the physical `ge-0/0/0` they are refused by the proxy before any connection (MCP error `-32009`); enrolled as `irb.10` they answered. Enroll the unit (`ge-0/0/0.0`, `irb.10`), not the port, for these four.
-- `show virtual-chassis` on a switch that is not a virtual chassis member answers `error: the virtual-chassis-control subsystem is not running` with exit status 0. Helper 0.3.6 returned it as a successful read; 0.3.7 reports it as `device_cli_error`.
-- Junos answers a refusal with exit status 0: `configure` gives `error: unknown command: configure`, `show configuration system login` gives `error: permission denied: system`, an unknown command `error: syntax error, expecting <command>: ...`. Helper 0.3.7 reports these `error:` lines as `device_cli_error`; 0.3.6 returned them as successful reads.
+- `show virtual-chassis` on a switch that is not a virtual chassis member answers `error: the virtual-chassis-control subsystem is not running` with exit status 0 (measured before NetOps 1.0). Helper reports it as `device_cli_error`, not as a successful read.
+- Junos answers a refusal with exit status 0: `configure` gives `error: unknown command: configure`, `show configuration system login` gives `error: permission denied: system`, an unknown command `error: syntax error, expecting <command>: ...` (measured before NetOps 1.0). Helper reports these `error:` lines as `device_cli_error`, not as successful reads.
 
 The measured target is a switch image. The claim of `juniper_junos` for routing platforms (MX, SRX, PTX) and every hardware model remain unmeasured, as does AAA command authorization.
 

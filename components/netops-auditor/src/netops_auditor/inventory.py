@@ -40,7 +40,7 @@ def _checked_choice(where: str, name: str, value, allowed) -> str:
     if not isinstance(value, str) or value not in allowed:
         raise InventoryError(
             "%s: %s must be one of %s, got %s" % (where, name, ", ".join(allowed), _shape(value))
-        )
+        , field='inventory.devices[].auditor.channel', code='channel')
     return value
 
 
@@ -50,18 +50,18 @@ def _checked_source(where: str, channel: str, value):
             raise InventoryError(
                 "%s: source must be null for channel %s, the session is opened against the"
                 " address and port of the device, got %s" % (where, CHANNEL_SSH, _shape(value))
-            )
+            , field='inventory.devices[].auditor.source', code='null')
         return None
     if not isinstance(value, str) or not value.strip():
         raise InventoryError(
             "%s: source must be a non-empty string for channel %s, got %s"
             % (where, channel, _shape(value))
-        )
+        , field='inventory.devices[].auditor.source', code='text')
     if channel == CHANNEL_REST and not value.startswith(REST_SCHEME):
         raise InventoryError(
             "%s: source must name the device as %shost[:port] for channel %s, got %s"
             % (where, REST_SCHEME, CHANNEL_REST, _shape(value))
-        )
+        , field='inventory.devices[].auditor.source', code='https')
     return value
 
 
@@ -69,13 +69,13 @@ def _checked_sections(where: str, value) -> tuple:
     if not isinstance(value, list) or not value:
         raise InventoryError(
             "%s: required_sections must be a non-empty list, got %s" % (where, _shape(value))
-        )
+        , field='inventory.devices[].auditor.required_sections', code='nonempty-list')
     for index, section in enumerate(value):
         if not isinstance(section, str) or not section.strip():
             raise InventoryError(
                 "%s: required_sections[%d] must be a non-empty string, got %s"
                 % (where, index, _shape(section))
-            )
+            , field='inventory.devices[].auditor.required_sections[]', code='text')
     return tuple(value)
 
 
@@ -85,7 +85,7 @@ def _checked_tls_fingerprint(where: str, channel: str, value):
             raise InventoryError(
                 "%s: tls_fingerprint must be null for channel %s, got %s"
                 % (where, channel, _shape(value))
-            )
+            , field='inventory.devices[].auditor.tls_fingerprint', code='null')
         return None
     if (
         not isinstance(value, str)
@@ -96,7 +96,7 @@ def _checked_tls_fingerprint(where: str, channel: str, value):
             "%s: tls_fingerprint must hold the sha256 certificate fingerprint of the device"
             " for channel %s, %d hexadecimal characters, no first contact trust, got %s"
             % (where, CHANNEL_REST, TLS_FINGERPRINT_LENGTH, _shape(value))
-        )
+        , field='inventory.devices[].auditor.tls_fingerprint', code='tls-pin')
     return value.lower()
 
 
@@ -106,30 +106,30 @@ def _checked_common(where: str, channel: str, entry) -> None:
             raise InventoryError(
                 "%s: credential must be null for channel %s, a dump on disk is opened without"
                 " logging in anywhere; the reference is not repeated" % (where, CHANNEL_FILE)
-            )
+            , field='inventory.devices[].credential', code='null')
         return
     if entry.credential is None:
         raise InventoryError(
             "%s: credential must name a record in the credential store for channel %s"
             % (where, channel)
-        )
+        , field='inventory.devices[].credential', code='required')
     if channel == CHANNEL_REST:
         if entry.host_key_fingerprint is not None:
             raise InventoryError(
                 "%s: host_key_fingerprint must be null for channel %s, that channel pins the"
                 " certificate in tls_fingerprint, got %r"
                 % (where, CHANNEL_REST, entry.host_key_fingerprint)
-            )
+            , field='inventory.devices[].host_key_fingerprint', code='null')
         return
     if entry.address is None:
         raise InventoryError(
             "%s: address must name the device for channel %s" % (where, CHANNEL_SSH)
-        )
+        , field='inventory.devices[].address', code='required')
     if entry.host_key_fingerprint is None:
         raise InventoryError(
             "%s: host_key_fingerprint must pin the host key for channel %s, there is no first"
             " contact trust" % (where, CHANNEL_SSH)
-        )
+        , field='inventory.devices[].host_key_fingerprint', code='pin-required')
 
 
 def section(entry) -> AuditorSection:
@@ -137,18 +137,18 @@ def section(entry) -> AuditorSection:
     try:
         checked_component("name", entry.name)
     except FingerprintError as error:
-        raise InventoryError("device %r: %s" % (entry.name, error)) from None
+        raise InventoryError("device %r: %s" % (entry.name, error), field='inventory.devices[].name', code='component') from None
     item = entry.auditor
     if not isinstance(item, dict):
         raise InventoryError(
             "%s: must be an object, got %s" % (where, _shape(item))
-        )
+        , field='inventory.devices[].auditor', code='object')
     missing = [name for name in SECTION_FIELDS if name not in item]
     if missing:
-        raise InventoryError("%s: missing fields: %s" % (where, ", ".join(missing)))
+        raise InventoryError("%s: missing fields: %s" % (where, ", ".join(missing)), field='inventory.devices[].auditor.' + missing[0], code='required')
     unknown = sorted(set(item) - set(SECTION_FIELDS))
     if unknown:
-        raise InventoryError("%s: unknown fields: %s" % (where, ", ".join(unknown)))
+        raise InventoryError("%s: unknown fields: %s" % (where, ", ".join(unknown)), field='inventory.devices[].auditor', code='unknown-fields')
     channel = _checked_choice(where, "channel", item["channel"], CHANNELS)
     _checked_common(where, channel, entry)
     return AuditorSection(
@@ -161,8 +161,13 @@ def section(entry) -> AuditorSection:
 
 def load(path) -> tuple:
     devices = core.load(path)
-    for entry in core.for_consumer(devices, CONSUMER):
-        section(entry)
+    for index, entry in enumerate(devices):
+        if entry.auditor is not None:
+            try:
+                section(entry)
+            except InventoryError as error:
+                error.diagnostic_index = index
+                raise
     return devices
 
 

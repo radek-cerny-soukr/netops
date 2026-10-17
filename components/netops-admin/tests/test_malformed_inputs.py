@@ -516,6 +516,19 @@ REQUESTS = {
 }
 
 
+class _BenchNotifier(notify.NtfyNotifier):
+    def __call__(self, record):
+        from types import SimpleNamespace
+        from unittest.mock import patch
+        def run(arguments, *, input, capture_output, timeout, env, check):
+            assert arguments[1:3] == ["-B", "-c"]
+            assert "from netops_admin.notify import _send" in arguments[3]
+            answer = notify._send(json.loads(input))
+            return subprocess.CompletedProcess(arguments, 0, answer.encode(), b"")
+        with patch.object(notify, "subprocess", SimpleNamespace(run=run, TimeoutExpired=subprocess.TimeoutExpired)):
+            return super().__call__(record)
+
+
 class Bench:
     """A configured admin whose devices are fakes and whose state directory is a fresh copy for every run."""
 
@@ -553,7 +566,7 @@ class Bench:
         fakes = self.fakes
         notifier = None
         if config.notify is not None:
-            notifier = notify.NtfyNotifier(config.notify.server, config.notify.topic_file,
+            notifier = _BenchNotifier(config.notify.server, config.notify.topic_file,
                                            config.notify.timeout_seconds, config.notify.x509_strict)
         factory = lambda device: fakes[device.name]  # noqa: E731
         if self.real_access:
@@ -1283,7 +1296,7 @@ def test_every_mcp_tool_answers_a_broken_state_or_configuration_without_a_traceb
     clean(failures)
 
 
-EXPORT_SPEC = importlib.util.spec_from_file_location("export_status_script", COMPONENT / "scripts" / "export_status.py")
+EXPORT_SPEC = importlib.util.spec_from_file_location("export_status_script", COMPONENT / "tests" / "support" / "export_status.py")
 export_status = importlib.util.module_from_spec(EXPORT_SPEC)
 EXPORT_SPEC.loader.exec_module(export_status)
 DESTINATION = "d_netops_audit"

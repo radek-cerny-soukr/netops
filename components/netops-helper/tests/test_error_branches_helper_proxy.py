@@ -68,21 +68,18 @@ def test_a_vault_behind_an_unsearchable_directory_is_a_permission_refusal(tmp_pa
     assert json.loads(proxy.request(_call(72, *TCP_CALL)))["id"] == 72
 
 
-def _foreign_owner_only_file() -> Path | None:
-    candidate = Path("/proc/1/mem")
-    try:
-        information = candidate.lstat()
-    except OSError:
-        return None
-    if (
-        not stat.S_ISREG(information.st_mode) or stat.S_IMODE(information.st_mode) != 0o600
-        or information.st_uid == os.geteuid() or os.access(candidate, os.R_OK)
-    ):
-        return None
-    return candidate
+def _foreign_owner_only_file() -> Path:
+    for candidate in (Path("/opt/netops-test-fixtures/owner-only"), Path("/proc/1/mem")):
+        try:
+            information = candidate.lstat()
+        except OSError:
+            continue
+        if (stat.S_ISREG(information.st_mode) and stat.S_IMODE(information.st_mode) == 0o600
+                and information.st_uid != os.geteuid() and not os.access(candidate, os.R_OK)):
+            return candidate
+    raise AssertionError("The test environment must provide a stat-able foreign-owned 0600 file")
 
 
-@pytest.mark.skipif(_foreign_owner_only_file() is None, reason="needs a stat-able 0600 file of another owner")
 def test_a_vault_that_can_be_examined_but_not_read_is_a_permission_refusal(tmp_path, monkeypatch) -> None:
     _enroll(tmp_path, monkeypatch)
     monkeypatch.setattr(MODULE, "VAULT", _foreign_owner_only_file())

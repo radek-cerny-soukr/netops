@@ -14,7 +14,7 @@ from unittest import mock
 
 
 ROOT = Path(__file__).parents[1]
-SCRIPT_PATH = ROOT / "scripts" / "check_operator_config.py"
+SCRIPT_PATH = ROOT / "tests" / "support" / "check_operator_config.py"
 
 
 def _load(name: str, path: Path):
@@ -41,7 +41,7 @@ GOOD_INVENTORY = {
         "platform": "linux",
         "address": "192.0.2.10",
         "port": 22,
-        "role": "interni",
+        "role": "internal",
         "credential": "device-a-account",
         "host_key_fingerprint": PIN_A,
         "legacy_ssh": None,

@@ -74,7 +74,7 @@ REQUIRED_SECTION_PATTERNS = {
 
 
 def _load_renderer():
-    path = ROOT / "scripts/render_query_catalog_docs.py"
+    path = ROOT / "tests/support/render_query_catalog_docs.py"
     specification = importlib.util.spec_from_file_location("vendor_registry_renderer", path)
     assert specification is not None and specification.loader is not None
     module = importlib.util.module_from_spec(specification)
@@ -94,8 +94,8 @@ def _extract_urls(text: str) -> tuple[str, ...]:
 
 
 def _repository_link_prefix() -> str:
-    project = tomllib.loads(_read(ROOT / "pyproject.toml"))["project"]
-    return REPOSITORY + "/blob/" + project["name"] + "/v" + project["version"] + "/"
+    project = tomllib.loads(_read(ROOT.parents[1] / "pyproject.toml"))["project"]
+    return REPOSITORY + "/blob/v" + project["version"] + "/"
 
 
 REPOSITORY_LINK_PREFIX = _repository_link_prefix()
@@ -108,7 +108,8 @@ def _is_repository_link(url: str) -> bool:
     return (
         posixpath.normpath(path) == path
         and path != ".."
-        and not path.startswith(("/", "../", COMPONENT_PATH))
+        and not path.startswith(("/", "../", "docs/archive/"))
+        and (ROOT.parents[1] / path).is_file()
     )
 
 
@@ -323,7 +324,7 @@ def test_only_this_release_repository_links_are_accepted_besides_vendors() -> No
         own.replace("/netops/blob/", "/netops-fork/blob/", 1),
         own.replace(version, "main/", 1),
         own.replace(version, "netops-helper/v0.0.1/", 1),
-        own.replace(version, "netops-core/v" + version.split("/v", 1)[1], 1),
+        own.replace(version, "netops-core/v" + version.removeprefix("v"), 1),
         own.replace("https://", "http://", 1),
         own.replace("github.com", "github.com:8443", 1),
         own.replace("github.com", "user@github.com", 1),
