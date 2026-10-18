@@ -674,11 +674,11 @@ def _inventory_record(path, name) -> tuple:
         if record.auditor is None:
             raise inventory.InventoryError(
                 "device %s carries no auditor section, the auditor reads only the devices whose"
-                " entry names it" % record.name
+                " entry names it" % record.name, field="inventory.devices[].auditor", code="required"
             )
         return record, inventory.section(record)
     except inventory.InventoryError as error:
-        raise Failure("inventory: %s" % error)
+        raise Failure("inventory: %s" % error) from error
 
 
 def _catalog_platform(record) -> str:
@@ -708,7 +708,7 @@ def _credential(record, section, path):
             record.credential, where="the credential of device %s" % record.name
         )
     except vault.VaultError as error:
-        raise Failure("vault: %s" % error)
+        raise Failure("vault: %s" % error) from error
     kinds = CHANNEL_KINDS[section.channel]
     if credential.kind not in kinds:
         raise Failure(
@@ -887,10 +887,14 @@ def _command_migrate_suppressions(args) -> int:
 
 
 def _write_regular(path, data: bytes) -> None:
-    descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_NONBLOCK | os.O_CLOEXEC, 0o644)
+    descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_NONBLOCK | os.O_CLOEXEC | os.O_NOFOLLOW, 0o600)
     try:
         if not stat.S_ISREG(os.fstat(descriptor).st_mode):
             raise InputError("not a regular file")
+        info = os.fstat(descriptor)
+        if info.st_uid != os.geteuid() or info.st_nlink != 1:
+            raise InputError("output must be owned by the operator with a single hard link")
+        os.fchmod(descriptor, 0o600)
         os.ftruncate(descriptor, 0)
         view = memoryview(data)
         while view:

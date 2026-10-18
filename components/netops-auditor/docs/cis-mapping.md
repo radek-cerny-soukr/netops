@@ -36,7 +36,7 @@ Every rule reads a saved configuration (`show` output) only. A setting that `sho
 
 The schema-check command is a separate integrity and upgrade audit. Its rules for references, removed paths and attributes, changed values, scope and target availability have no assigned CIS recommendation number. They do not check a benchmark control or simulate firmware migration. Their coverage report distinguishes observed checks from missing metadata.
 
-VDOM and nested table scopes are supported by schema-check. The existing benchmark catalogue still requires individual VDOM exports and refuses a global/VDOM wrapper. The references and limitations in the mapping above continue to apply to that catalogue.
+VDOM and nested table scopes are supported by schema-check. The existing benchmark catalogue still requires individual VDOM exports and refuses a global/VDOM wrapper in `run` and `collect`. The exception is `schema-check --full-snapshot --catalog-vdoms`: it evaluates the catalogue rules, except the VDOM scope gate, separately for the global scope and for each VDOM of a wrapped dump, and a rule whose scope or availability the schema library does not measure is reported `not-evaluated`. The references and limitations in the mapping above continue to apply to that catalogue.
 
 
 | Schema rule | Fixtures | Benchmark mapping |

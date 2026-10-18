@@ -23,14 +23,17 @@ ASSIGNED_BARE_SECRET = re.compile(
     """
 )
 BEARER_SECRET = re.compile(r"(?i)(\bbearer[ \t]+)\S+")
+SECRET_LABEL = re.compile(_SECRET_LABELS, re.I)
+LABEL_CHUNK = 262144
+LABEL_OVERLAP = 64
 CISCO_ENABLE_SECRET = re.compile(
     r"(?im)(?<!\S)(enable[ \t]+(?:secret|password)(?:[ \t]+\d+)?[ \t]+)\S+"
 )
 CISCO_USER_SECRET = re.compile(
-    r"(?im)^(\s*username\s+\S+\s+(?:password|secret)(?:\s+\d+)?\s+)\S+"
+    r"(?im)^([^\S\n]*username\s+\S+\s+(?:password|secret)(?:\s+\d+)?\s+)\S+"
 )
 SNMP_CLI_SECRET = re.compile(
-    r'(?im)^(\s*(?:snmp-server\s+community|set\s+community)\s+)(?:"[^"\r\n]*"|\S+)'
+    r'(?im)^([^\S\n]*(?:snmp-server\s+community|set\s+community)\s+)(?:"[^"\r\n]*"|\S+)'
 )
 SNMP_STATUS_SECRET = re.compile(
     r"(?i)(\bSNMP\s+community\s+string\s+(?:configured|is)\s*[:=]\s*)\S+"
@@ -57,6 +60,39 @@ def _replace_bare(match: re.Match[str]) -> str:
     return match.group("prefix") + "<REDACTED>"
 
 
+def _next_label(value: str, position: int, chunk: int) -> re.Match[str] | None:
+    while position < len(value):
+        found = SECRET_LABEL.search(value, position, min(len(value), position + chunk + LABEL_OVERLAP))
+        if found is not None:
+            return found
+        position += chunk
+    return None
+
+
+def _assigned(pattern: re.Pattern[str], replace, value: str, chunk: int = LABEL_CHUNK) -> str:
+    value = str.__str__(value)
+    parts, cursor, position = [], 0, 0
+    while True:
+        label = _next_label(value, position, chunk)
+        if label is None:
+            break
+        start = label.start()
+        match = None
+        if start - 1 >= cursor and value[start - 1] in "\"'":
+            match = pattern.match(value, start - 1)
+        if match is None:
+            match = pattern.match(value, start)
+        if match is None:
+            position = start + 1
+            continue
+        parts += [value[cursor:match.start()], replace(match)]
+        cursor = position = match.end()
+    if not parts:
+        return value
+    parts.append(value[cursor:])
+    return "".join(parts)
+
+
 def redact(text: object, secrets: Iterable[str] = (), limit: int | None = None) -> str:
     """Remove explicit credentials and key material while preserving diagnostic context."""
     value = str(text)
@@ -73,8 +109,8 @@ def redact(text: object, secrets: Iterable[str] = (), limit: int | None = None) 
     value = CISCO_TYPE7_SECRET.sub(lambda match: match.group(1) + "<REDACTED>", value)
     value = PRESHARED_SECRET.sub(lambda match: match.group(1) + "<REDACTED>", value)
     value = BEARER_SECRET.sub(lambda match: match.group(1) + "<REDACTED>", value)
-    value = ASSIGNED_QUOTED_SECRET.sub(_replace_quoted, value)
-    value = ASSIGNED_BARE_SECRET.sub(_replace_bare, value)
+    value = _assigned(ASSIGNED_QUOTED_SECRET, _replace_quoted, value)
+    value = _assigned(ASSIGNED_BARE_SECRET, _replace_bare, value)
     if limit is not None and len(value) > limit:
         raise ValueError("redacted output exceeds the explicit limit")
     return value

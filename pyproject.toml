@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools==84.0.0", "wheel==0.48.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "netops"
+version = "1.0.0"
+description = "Isolated network operations through an audited HTTPS MCP endpoint"
+requires-python = ">=3.13"
+license = "MIT"
+license-files = ["LICENSE"]
+dependencies = ["fastmcp==4.0.5", "mcp==2.2.0", "httpx==0.28.1", "pysnmp==7.1.29", "icmplib==3.0.4", "cryptography==50.0.1", "starlette==1.6.0", "uvicorn==0.53.0"]
+
+[project.scripts]
+netops = "netops.launcher:main"
+
+[tool.setuptools]
+packages = ["netops", "netops_core", "netops_helper", "netops_helper.query_catalog", "netops_auditor", "netops_admin"]
+
+[tool.setuptools.package-dir]
+netops = "src/netops"
+netops_core = "components/netops-core/src/netops_core"
+netops_helper = "components/netops-helper/src/netops_helper"
+netops_auditor = "components/netops-auditor/src/netops_auditor"
+netops_admin = "components/netops-admin/src/netops_admin"
+
+[tool.setuptools.package-data]
+netops_auditor = ["catalog/*.json"]
+netops_admin = ["profiles/*.json"]

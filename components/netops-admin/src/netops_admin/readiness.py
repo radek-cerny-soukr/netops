@@ -48,7 +48,10 @@ def _local(report, runtime, device):
     report.attempt("journal and audit log writable", lambda: (runtime.store.check_writable(),
                                                               runtime.audit.check_writable()))
     state, why = execute.export_state(config)
-    if state == "not-configured":
+    if state == "not-configured" and not runtime.require_export:
+        report.add("operation audit configuration", OK,
+                   "local Admin operation log; MCP audit is enforced by the gateway; no independent export delivery claimed")
+    elif state == "not-configured":
         report.add("audit export", MISSING, "no export status file is configured")
     elif state == "blocked":
         report.add("audit export", REFUSED, why)

@@ -242,7 +242,8 @@ def test_the_known_hosts_file_lives_in_the_workspace_and_carries_the_pinned_key(
     assert BLOB in run.known_hosts
 
 
-def test_a_password_call_hands_the_secret_over_through_a_file_and_askpass():
+def test_a_password_call_hands_the_secret_over_through_a_file_and_askpass(monkeypatch):
+    monkeypatch.delenv("NETOPS_ASKPASS_PROGRAM", raising=False)
     run = FakeRun()
     credential = password_credential()
     call(run, credential=credential)
@@ -316,7 +317,8 @@ def test_the_workspace_is_gone_after_a_timeout():
     assert run.workspace and not os.path.exists(run.workspace)
 
 
-def test_a_password_workspace_is_gone_with_its_secret_and_askpass():
+def test_a_password_workspace_is_gone_with_its_secret_and_askpass(monkeypatch):
+    monkeypatch.delenv("NETOPS_ASKPASS_PROGRAM", raising=False)
     run = FakeRun(returncode=255, stdout=b"", stderr=b"denied")
     failure(run, credential=password_credential())
     environment = run.env()

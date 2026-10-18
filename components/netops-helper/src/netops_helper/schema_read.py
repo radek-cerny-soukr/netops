@@ -13,7 +13,7 @@ from .sanitize import redact
 
 MAX_SNAPSHOT = 2_000_000
 STATUS = re.compile(r"(?m)^Version:\s+([A-Za-z0-9_.+-]+)\s+v(\d+\.\d+\.\d+),\s*build(\d{4,6})(?:,|\s|$)")
-CURRENT_VDOM = re.compile(r"(?m)^Current virtual domain:[ \t]*([^\r\n]+?)[ \t]*$")
+CURRENT_VDOM = re.compile(r"(?m)^Current virtual domain:([^\r\n]+)(?=\n|\Z)")
 SECRET_ATTRIBUTE = re.compile(r"(?:^|[-_])(?:password|passwd|passphrase|pwd|psk|psksecret|secret|token|private.key|community|api.key)(?:$|[-_])",re.I)
 
 

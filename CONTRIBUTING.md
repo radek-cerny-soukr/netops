@@ -1,22 +1,15 @@
-# Contributing
+# Contributing to NetOps
 
-This repository holds one component per directory under `components/`, each with its own version, gate, tests, and release. Work in the directory of the component you are changing; run its own checks there, and the repository gate `python3 scripts/check_release.py` from the root before proposing a change. A new component needs a release selector, a gate of its own, a `LICENSE` copy, and a CI job - the repository gate refuses a component that is missing any of them.
+NetOps is one application, one version, one dependency closure and one Docker image. Components contain internal engine code and regression tests; they are not separately built, installed or released. Historical standalone material is clearly separated in docs/archive/0.x.
 
-Contributions are welcome when they preserve the fail-closed model.
+Preserve the fail-closed model. Describe the use case and security boundary before adding a mutation profile. Keep credentials, real addresses, host/device identifiers, private policies and captured device output out of commits, fixtures, issues and CI logs. Use documentation addresses and explicit synthetic input.
 
-1. Open an issue describing the use case and threat impact before adding a new mutation profile.
-2. Keep credentials, addresses, host keys, certificates, device output, and local policies out of
-   commits, fixtures, issues, and CI logs.
-3. Add exact positive and negative tests for every command/path capability.
-4. Run the complete offline suite and public-release checker.
-5. Keep both hash lockfiles byte-identical when dependencies did not change. If a dependency, interpreter or
-   lock generator changes, pin and record the exact generator environment (Python 3.14.8 for Helper; Python 3.13.15 for Core and Auditor), regenerate
-   both locks, and explain the complete dependency diff. Always regenerate and byte-compare the
-   CycloneDX SBOM with the reviewed release environment.
-6. Update tool, limitation, security and changelog documentation with behavior changes. Keep [platform compatibility](docs/verified-support.md#operator-responsibility) and the [compatibility summary](README.md#platform-compatibility) accurate for the exact model, full build, account policy and operation. Public documentation uses generic device names and documentation addresses. Do not infer support for unspecified combinations; retain detailed development evidence privately.
+Add meaningful positive and negative tests for changed behavior. Run the [source and installed-image qualification](docs/testing-1.0.md), both image architectures and the required real-client/platform checks. Any required failure or missing test blocks release. A new dependency requires resolving and testing the complete hashed production lock, reviewing the diff and regenerating per-architecture SBOM/scans; test/build dependencies stay in separate locks.
 
-Do not add raw command input, a generic-shell escape hatch, automatic host-key acceptance, write tools, or broad credentials to phase 1. New queries require named templates, typed inventory-bound slots, positive and negative tests, explicit pagination, and review of prompt-injection exposure. Device-side read-only authorization is mandatory; redaction and skill instructions are not authorization boundaries.
+Update current behavior, limitations and release documentation together. Compare every active example with the actual operator interface. Preserve exact model/build/account/operation [support boundaries](docs/verified-support.md), and do not infer physical-device behavior from synthetic fixtures or software images.
 
-By submitting a contribution, you agree that it is licensed under the MIT License.
+Helper queries must remain named, typed and enrollment-bound. No raw shell, arbitrary commands, automatic trust acceptance, implicit target widening or automatic retry of uncertain writes is allowed. Admin writes retain their explicit safeguards, request identity, audit and rollback proof. Device output is untrusted data, not instructions.
 
-Before publishing documentation, compare every current component version, release link, tag link and artifact filename with the actual GitHub releases and tags. Published releases and tags stay published: a new version adds its own release page and tag, and earlier ones are removed only by a separate, explicit decision (see [Releases](docs/README.md#releases)). Use commit permalinks for version-specific source documentation so a link keeps pointing at the reviewed text even if a release is removed later. Keep historical changelog entries explicitly separate from current download instructions.
+Public release assets are verified against the personally signed checksum list. Candidate source, manifest, image, tool and qualification must identify the same reviewed release. Sanitize public reports before publication; raw internal evidence remains private. Do not rewrite existing published releases or tags without a separate explicit maintainer decision.
+
+Contributions are licensed under the MIT License.

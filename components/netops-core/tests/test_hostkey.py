@@ -169,7 +169,8 @@ def test_scan_calls_the_keyscan_binary_the_way_the_contract_says():
 def test_scan_refuses_a_failed_or_empty_answer(run):
     with pytest.raises(HostKeyError) as caught:
         scan(HOST, PORT, PIN, 17, run=run)
-    assert "offered no host key" in str(caught.value)
+    expected = "the host-key scan did not complete" if run.stdout and run.returncode != 0 else "no host key could be obtained"
+    assert expected in str(caught.value)
     assert HOST in str(caught.value)
 
 
@@ -270,7 +271,7 @@ def test_scan_keeps_the_later_types_inside_the_one_timeout(monkeypatch):
     run = SlowRun([b"", b"", b""])
     with pytest.raises(HostKeyError) as caught:
         scan(HOST, PORT, PIN, 17, run=run)
-    assert "offered no host key" in str(caught.value)
+    assert "no host key could be obtained" in str(caught.value)
     assert [call["kwargs"]["timeout"] for call in run.calls] == [17.0, 4.5]
     assert _types(run) == ["ed25519", "ecdsa"]
 
@@ -301,7 +302,7 @@ def test_scan_names_the_last_exit_code_when_no_type_answered():
     run = SequenceRun([b"", b"", b""])
     with pytest.raises(HostKeyError) as caught:
         scan(HOST, PORT, PIN, 17, run=run)
-    assert "%s offered no host key, exit code 1" % HOST in str(caught.value)
+    assert "%s: no host key could be obtained (exit code 1)" % HOST in str(caught.value)
 
 
 class ProbeRun:
@@ -355,7 +356,7 @@ def test_sha1_key_exchange_probe_refuses_a_key_that_is_not_pinned():
 def test_sha1_key_exchange_probe_refuses_when_no_key_was_offered():
     with pytest.raises(HostKeyError) as caught:
         scan(HOST, 2216, PIN, 17, run=ProbeRun(None), legacy="rsa-sha1-dh14")
-    assert "offered no host key, exit code 255" in str(caught.value)
+    assert ": no host key could be obtained (exit code 255)" in str(caught.value)
 
 
 def test_the_host_key_only_profile_still_uses_keyscan():
@@ -391,4 +392,4 @@ def test_scan_with_only_banner_comments_names_no_host_key():
     run = BannerRun([b"", b"", b""])
     with pytest.raises(HostKeyError) as caught:
         scan(HOST, PORT, PIN, 17, run=run)
-    assert "offered no host key, exit code 1" in str(caught.value)
+    assert ": no host key could be obtained (exit code 1)" in str(caught.value)

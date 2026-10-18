@@ -33,7 +33,7 @@ CUTS = (
 def write_inventory(directory, config):
     path = directory / "inventory.json"
     path.write_text(json.dumps({"version": 2, "devices": [{
-        "name": DEVICE, "platform": "fortios", "address": None, "port": None, "role": "perimetr",
+        "name": DEVICE, "platform": "fortios", "address": None, "port": None, "role": "perimeter",
         "credential": None, "host_key_fingerprint": None, "legacy_ssh": None,
         "auditor": {"channel": "file", "source": str(config), "required_sections": list(SECTIONS),
                     "tls_fingerprint": None},

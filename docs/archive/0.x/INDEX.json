@@ -1,0 +1,55 @@
+{
+  "source_commit": "c6d93bf3f7cef0e96a70424c6b62ffb853ffcf69",
+  "files": [
+    {
+      "original_path": "README.md",
+      "sha256": "226ee0b5b5f44425710d3ce2efe5b5ccd51d3364995531366b8b755da2efc035",
+      "bytes": 17459
+    },
+    {
+      "original_path": "docs/README.md",
+      "sha256": "ca69ba3bb17f4ece8ab102e6e892dd025f22091e6857cbaba723bce365a127d3",
+      "bytes": 36156
+    },
+    {
+      "original_path": "components/netops-core/README.md",
+      "sha256": "d0e4cb112c853fa5ef6b8c489067f8da7de57e96dddc23e75b6a488e7bf29a89",
+      "bytes": 17527
+    },
+    {
+      "original_path": "components/netops-core/CHANGELOG.md",
+      "sha256": "1654686c259f7ce71a7ed0fa83fbe94f459f95236a5a9a7ce20944824d3c5365",
+      "bytes": 25736
+    },
+    {
+      "original_path": "components/netops-helper/README.md",
+      "sha256": "c244a5e958f58357fc8ec5da15f8c4c56afcc3482fa088ef1859ea9c43360916",
+      "bytes": 30052
+    },
+    {
+      "original_path": "components/netops-helper/CHANGELOG.md",
+      "sha256": "1313bdbd9cf1a3fc29d8f0b1d44ea12819639a8f405d5085085138f81bab15f9",
+      "bytes": 75849
+    },
+    {
+      "original_path": "components/netops-auditor/README.md",
+      "sha256": "52df53b1673f4bb62e69511d949e297c86520278753e7433f11433d25075f289",
+      "bytes": 23784
+    },
+    {
+      "original_path": "components/netops-auditor/CHANGELOG.md",
+      "sha256": "e92506aa6ac462d026134b154f9ddc4b75748592be7bb92a8326823ed8f83471",
+      "bytes": 42384
+    },
+    {
+      "original_path": "components/netops-admin/README.md",
+      "sha256": "b2401a9634dbe85894767348cc23a3f85decf9eb9e93f31f2468259bc34f9930",
+      "bytes": 21026
+    },
+    {
+      "original_path": "components/netops-admin/CHANGELOG.md",
+      "sha256": "7500fc12ba8b2ba3237e74ac68ada251be3c53f66f07f4354c34dee2dace21dc",
+      "bytes": 45580
+    }
+  ]
+}

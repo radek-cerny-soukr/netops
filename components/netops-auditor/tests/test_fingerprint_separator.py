@@ -103,7 +103,7 @@ def _device(name, source, auditor=True):
         "platform": "fortios",
         "address": None,
         "port": None,
-        "role": "perimetr",
+        "role": "perimeter",
         "credential": None,
         "host_key_fingerprint": None,
         "legacy_ssh": None,

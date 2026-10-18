@@ -52,22 +52,22 @@ The NX-OS neighbor-table command is `show ipv6 neighbor`. The earlier `show ipv6
 
 Cisco virtual-image profiles have distinct firmware, privilege, feature and transport boundaries. They do not establish that every command exists on Catalyst or Nexus hardware. See [compatibility boundaries](../../../../docs/compatibility-boundaries.md).
 
-| Profile | Image | Account | Released 0.3.6 | 0.3.7 candidate |
-| --- | --- | --- | --- | --- |
-| `cisco_xe` | IOL 17.18.2 (`X86_64BI_LINUX-ADVENTERPRISEK9-M`, router) | privilege 1, RSA 3072 key | every call `the device refused the connection` | 21 of 27 with exit status 0, 6 `device_cli_error` |
-| `cisco_xe` | IOL-L2 17.18.2 (`X86_64BI_LINUX_L2-ADVENTERPRISEK9-M`) | the same | every call `the device refused the connection` | 26 of 27 with exit status 0, 1 `device_cli_error` |
-| `cisco_ios` | IOSv 15.9(3)M12 (router) | privilege 1, RSA 3072 key, `legacy_ssh: "rsa-sha1-dh14"` | host key scan refused (SHA-1 key exchange only) | 19 of 27 with exit status 0, 8 `device_cli_error` |
-| `cisco_ios` | IOSvL2 15.2(20200924) | the same | host key scan refused (SHA-1 key exchange only) | 26 of 27 with exit status 0, 1 `device_cli_error` |
-| `cisco_nxos` | Nexus 9300v 9.3(12) | role `network-operator`, RSA 3072 key | 30 answered, 29 with exit status 0 and `lldp_neighbors` exit status 244 once the HSRP, VRRP and vPC features were enabled | the same |
-| `cisco_nxos` | Nexus 9500v 9.3(12) | the same | 30 of 30 with exit status 0 | 30 of 30 with exit status 0 |
+| Profile | Image | Account | Measured with the Helper engine before NetOps 1.0 |
+| --- | --- | --- | --- |
+| `cisco_xe` | IOL 17.18.2 (`X86_64BI_LINUX-ADVENTERPRISEK9-M`, router) | privilege 1, RSA 3072 key | 21 of 27 with exit status 0, 6 `device_cli_error` |
+| `cisco_xe` | IOL-L2 17.18.2 (`X86_64BI_LINUX_L2-ADVENTERPRISEK9-M`) | the same | 26 of 27 with exit status 0, 1 `device_cli_error` |
+| `cisco_ios` | IOSv 15.9(3)M12 (router) | privilege 1, RSA 3072 key, `legacy_ssh: "rsa-sha1-dh14"` | 19 of 27 with exit status 0, 8 `device_cli_error` |
+| `cisco_ios` | IOSvL2 15.2(20200924) | the same | 26 of 27 with exit status 0, 1 `device_cli_error` |
+| `cisco_nxos` | Nexus 9300v 9.3(12) | role `network-operator`, RSA 3072 key | 30 answered, 29 with exit status 0 and `lldp_neighbors` exit status 244 once the HSRP, VRRP and vPC features were enabled |
+| `cisco_nxos` | Nexus 9500v 9.3(12) | the same | 30 of 30 with exit status 0 |
 
 What these runs established:
 
-- **IOS and IOS-XE refuse with exit status 0.** A command the image does not implement, and one above the account's privilege (`show running-config`, `configure terminal`), is answered `Line has invalid autocommand "<command>"` with exit status 0. Helper 0.3.7 reports it as `device_cli_error`. Every `device_cli_error` above is a command the image lacks: the router images have no `show interfaces status`, `show vlan brief`, `show mac address-table`, `show etherchannel summary` or `counters errors` form, IOSv also no `show lacp neighbor` and `show spanning-tree summary`, and none of the four IOS and IOS-XE images has environment sensors.
-- **The IOL images have five VTY lines.** The released host key scan opened one connection per key type at once, the device was still closing them when the real connection came, and reset it. Core 0.2.5 scans one key type at a time.
-- **IOSv and IOSvL2 offer only SHA-1 key exchange methods** and an `ssh-rsa` host key. The per-device profile `legacy_ssh: "rsa-sha1-dh14"` of Core 0.2.5 adds exactly `diffie-hellman-group14-sha1` for such a device; `diffie-hellman-group1-sha1` and `diffie-hellman-group-exchange-sha1` stay refused.
-- **IOL names its ports `Ethernet<slot>/<port>`**, which helper 0.3.7 accepts for `cisco_ios` and `cisco_xe` (see the interface grammar above); `interface_details` for `Ethernet0/1` answered with exit status 0 on both IOL images, and `interface_errors` for it on the L2 image (the router image has no `counters errors` form).
-- **NX-OS refuses with a non-zero status.** An unknown command, and an HSRP, VRRP or vPC command while that feature is disabled, gives `Syntax error while parsing '<command>'` with exit status 16; a command above the role, such as `show running-config`, `% Permission denied for the role` with exit status 30. Helper 0.3.7 reports both as `device_cli_error`. `show lldp neighbors detail` without a neighbour ends with `ERROR: No neighbour information` and exit status 244 and stays a successful read. NX-OS 9.3(12) offers current key exchange and an RSA host key with `rsa-sha2-256`; no legacy exception is needed.
+- **IOS and IOS-XE refuse with exit status 0.** A command the image does not implement, and one above the account's privilege (`show running-config`, `configure terminal`), is answered `Line has invalid autocommand "<command>"` with exit status 0 (measured before NetOps 1.0). Helper reports it as `device_cli_error`. Every `device_cli_error` above is a command the image lacks: the router images have no `show interfaces status`, `show vlan brief`, `show mac address-table`, `show etherchannel summary` or `counters errors` form, IOSv also no `show lacp neighbor` and `show spanning-tree summary`, and none of the four IOS and IOS-XE images has environment sensors.
+- **The IOL images have five VTY lines.** A host key scan that opens one connection per key type at once leaves the device still closing them when the real connection comes, and the device resets it. Core therefore scans one key type at a time.
+- **IOSv and IOSvL2 offer only SHA-1 key exchange methods** and an `ssh-rsa` host key. The per-device profile `legacy_ssh: "rsa-sha1-dh14"` adds exactly `diffie-hellman-group14-sha1` for such a device; `diffie-hellman-group1-sha1` and `diffie-hellman-group-exchange-sha1` stay refused.
+- **IOL names its ports `Ethernet<slot>/<port>`**, which the Helper accepts for `cisco_ios` and `cisco_xe` (see the interface grammar above); `interface_details` for `Ethernet0/1` answered with exit status 0 on both IOL images, and `interface_errors` for it on the L2 image (the router image has no `counters errors` form).
+- **NX-OS refuses with a non-zero status.** An unknown command, and an HSRP, VRRP or vPC command while that feature is disabled, gives `Syntax error while parsing '<command>'` with exit status 16; a command above the role, such as `show running-config`, `% Permission denied for the role` with exit status 30 (measured before NetOps 1.0). Helper reports both as `device_cli_error`. `show lldp neighbors detail` without a neighbour ends with `ERROR: No neighbour information` and exit status 244 and stays a successful read. NX-OS 9.3(12) offers current key exchange and an RSA host key with `rsa-sha2-256`; no legacy exception is needed.
 
 Not measured: Catalyst IOS and IOS-XE hardware, NX-OS 10.x, parser views, and AAA or TACACS+ command authorization.
 

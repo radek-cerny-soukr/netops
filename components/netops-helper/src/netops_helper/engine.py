@@ -247,6 +247,11 @@ def host_key_line(
                 target, auth.port, auth.host_key_fingerprint, _HOST_KEY_SCAN_TIMEOUT_SECONDS,
                 legacy=auth.legacy_ssh,
             )
+    except core_hostkey.HostKeyUnavailable as exc:
+        raise AuthenticationContextError(
+            f'SSH host-key verification unavailable for target "{auth.alias}"; '
+            'check reachability, SSH port and key negotiation before changing the pinned key'
+        ) from exc
     except core_hostkey.HostKeyError as exc:
         raise AuthenticationContextError(
             f'target "{auth.alias}" did not offer the pinned SSH host key'
@@ -341,15 +346,16 @@ def _pty_body(data: bytes, command: str, prompt: bytes) -> str:
     if text.endswith(marker):
         text = text[: -len(marker)]
     lines = text.split("\n")
-    while lines and not lines[0].strip():
-        lines.pop(0)
-    if lines and lines[0].strip() == command:
-        lines.pop(0)
-    while lines and not lines[0].strip():
-        lines.pop(0)
-    while lines and not lines[-1].strip():
-        lines.pop()
-    return "\n".join(lines)
+    start, end = 0, len(lines)
+    while start < end and not lines[start].strip():
+        start += 1
+    if start < end and lines[start].strip() == command:
+        start += 1
+    while start < end and not lines[start].strip():
+        start += 1
+    while end > start and not lines[end - 1].strip():
+        end -= 1
+    return "\n".join(lines[start:end])
 
 
 def _pty_read(auth: TargetAuth, platform: str, command: str) -> tuple[int | None, str]:

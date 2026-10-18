@@ -102,3 +102,61 @@ def test_probe_namespace_cannot_be_requested_over_normal_apply(tmp_path):
     with pytest.raises(Rejected, match="reserved"):
         execute.apply(runtime, name, request(key="netops-enroll-example"))
     assert target.applied_blocks == []
+
+@pytest.mark.parametrize("platform,probe", [("fortios", "192.0.2.254/32"), ("exos", "3998")])
+def test_unified_context_enrolls_with_local_operation_audit_without_claiming_export(tmp_path, platform, probe):
+    from netops_admin import readiness
+    from netops_admin.config import Notify
+    runtime, target, name = ready(tmp_path, platform)
+    runtime.require_export = False
+    runtime.config = replace(runtime.config, export_status_file=None,
+                             notify=Notify("https://notify.example.invalid", str(tmp_path / "topic"), 10.0, True))
+    before = target.snapshot()
+    record = enrollment.run(runtime, name, probe)
+    assert record["enrollment"] == "valid" and record["result"] == "reverted"
+    assert record["audit_delivery"] == "not-configured" and record["notification"] == "sent"
+    assert target.snapshot() == before
+    report = readiness.doctor(runtime, name)
+    assert report["ready"] is True
+    checks = {item["check"]: item for item in report["checks"]}
+    assert checks["operation audit configuration"]["status"] == readiness.OK
+    assert "no independent export delivery claimed" in checks["operation audit configuration"]["detail"]
+    assert "audit export" not in checks
+
+
+@pytest.mark.parametrize("failure", ["stale", "missing"])
+def test_unified_context_keeps_configured_export_failures_blocking(tmp_path, failure):
+    from netops_admin import readiness
+    runtime, target, name = ready(tmp_path)
+    runtime.require_export = False
+    if failure == "stale":
+        with open(runtime.config.export_status_file, "w") as stream:
+            json.dump({"updated_at": time.time() - 10000, "pending": 0}, stream)
+    else:
+        __import__("pathlib").Path(runtime.config.export_status_file).unlink()
+    with pytest.raises(Rejected, match="audit export is blocked"):
+        enrollment.run(runtime, name, "192.0.2.254/32")
+    assert target.applied_blocks == []
+    assert readiness.doctor(runtime, name)["ready"] is False
+
+
+def test_unified_context_keeps_local_audit_failure_blocking(tmp_path, monkeypatch):
+    runtime, target, name = ready(tmp_path)
+    runtime.require_export = False
+    runtime.config = replace(runtime.config, export_status_file=None)
+    def unavailable():
+        raise Rejected(["synthetic operation audit unavailable"])
+    monkeypatch.setattr(runtime.audit, "check_writable", unavailable)
+    with pytest.raises(Rejected, match="operation audit unavailable"):
+        enrollment.run(runtime, name, "192.0.2.254/32")
+    assert target.applied_blocks == []
+
+
+def test_unified_context_still_requires_actual_notification_before_probe(tmp_path):
+    runtime, target, name = ready(tmp_path)
+    runtime.require_export = False
+    runtime.config = replace(runtime.config, export_status_file=None)
+    runtime.notifier = lambda record: "failed"
+    record = enrollment.run(runtime, name, "192.0.2.254/32")
+    assert record["result"] == "rejected" and record.get("enrollment") is None
+    assert target.applied_blocks == []

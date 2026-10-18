@@ -1,7 +1,5 @@
-"""The sandbox of tests/_sandbox_guard.py keeps every test inside its temporary directories and off the network.
-
-The deliberate violations at the end run only with NETOPS_SANDBOX_DEMO=1 and must then fail;
-test_deliberate_violations_fail_the_test runs them in a child pytest and checks that they do.
+"""The sandbox refuses writes outside temporary directories and network access off loopback.
+The negative-test driver explicitly runs all five deliberately failing fixture cases.
 """
 
 from __future__ import annotations
@@ -14,17 +12,16 @@ import socket
 import sqlite3
 import subprocess
 import sys
+import xml.etree.ElementTree as ET
 
 import pytest
 
 GUARD = sys.modules["netops_sandbox_guard"]
 COMPONENT = Path(__file__).resolve().parents[1]
-DEMO = os.environ.get("NETOPS_SANDBOX_DEMO") == "1"
 PROBE = Path.home() / ".netops-sandbox-guard-probe"
 UNGUARDED_UNLINK = os.unlink
 DOCUMENTATION_ADDRESS = "192.0.2.1"
 
-demo = pytest.mark.skipif(not DEMO, reason="deliberate sandbox violation, runs only with NETOPS_SANDBOX_DEMO=1")
 
 
 def _refused(call, fragment: str) -> None:
@@ -160,11 +157,12 @@ def test_network_off_loopback_is_refused():
     _refused(lambda: socket.getaddrinfo("example.invalid", 443), "example.invalid")
 
 
-def test_deliberate_violations_fail_the_test():
-    environment = dict(os.environ, NETOPS_SANDBOX_DEMO="1", PYTHONDONTWRITEBYTECODE="1")
+def test_deliberate_violations_fail_the_test(tmp_path):
+    report = tmp_path / "negative-fixtures.xml"
+    environment = dict(os.environ, PYTHONDONTWRITEBYTECODE="1")
     completed = subprocess.run(
         [sys.executable, "-B", "-m", "pytest", "-q", "-p", "no:cacheprovider", "-k", "demo",
-         str(Path(__file__).relative_to(COMPONENT))],
+         "tests/support/sandbox_violations.py", "--junitxml", str(report)],
         cwd=COMPONENT, env=environment, capture_output=True, text=True, timeout=300,
     )
     exists = os.path.lexists(PROBE)
@@ -174,35 +172,18 @@ def test_deliberate_violations_fail_the_test():
     assert "5 failed" in output, output
     assert str(PROBE) in output and os.devnull in output and DOCUMENTATION_ADDRESS in output, output
     assert not exists
-
-
-@demo
-def test_demo_write_into_the_home_directory():
-    with open(PROBE, "w", encoding="utf-8") as handle:
-        handle.write("written by a test\n")
-
-
-@demo
-def test_demo_swallowed_refusal_still_fails():
-    try:
-        PROBE.write_text("written by a test\n", encoding="utf-8")
-    except OSError:
-        pass
-
-
-@demo
-def test_demo_write_into_the_null_device():
-    with open(os.devnull, "w", encoding="utf-8") as handle:
-        handle.write("written by a test\n")
-
-
-@demo
-def test_demo_replace_onto_the_null_device(tmp_path):
-    staged = tmp_path / "staged"
-    staged.write_text("x", encoding="utf-8")
-    os.replace(staged, os.devnull)
-
-
-@demo
-def test_demo_connection_off_loopback():
-    socket.create_connection((DOCUMENTATION_ADDRESS, 9), timeout=1).close()
+    expected = {
+        "test_demo_write_into_the_home_directory": ("test sandbox", str(PROBE)),
+        "test_demo_swallowed_refusal_still_fails": ("test sandbox", str(PROBE)),
+        "test_demo_write_into_the_null_device": ("test sandbox", os.devnull),
+        "test_demo_replace_onto_the_null_device": ("test sandbox", os.devnull),
+        "test_demo_connection_off_loopback": ("SocketConnectBlockedError", DOCUMENTATION_ADDRESS),
+    }
+    cases = ET.parse(report).findall(".//testcase")
+    assert {case.get("name") for case in cases} == set(expected)
+    for case in cases:
+        assert case.find("skipped") is None and case.find("error") is None
+        failure = case.find("failure")
+        assert failure is not None
+        detail = "".join(failure.itertext())
+        assert all(fragment in detail for fragment in expected[case.get("name")]), detail

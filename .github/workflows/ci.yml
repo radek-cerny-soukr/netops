@@ -8,32 +8,9 @@ permissions:
   contents: read
 
 jobs:
-  repository:
+  tests:
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
-    steps:
-      - name: Check out source
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-        with:
-          persist-credentials: false
-
-      - name: Set up Python 3.13.15
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
-        with:
-          python-version: 3.13.15
-
-      - name: Verify the repository tree and every component gate
-        run: |
-          python tests/test_release_gate.py
-          python scripts/check_release.py
-
-  netops-helper:
-    if: ${{ !startsWith(github.ref, 'refs/tags/') || startsWith(github.ref, 'refs/tags/netops-helper/') }}
-    runs-on: ubuntu-24.04
-    timeout-minutes: 30
-    defaults:
-      run:
-        working-directory: components/netops-helper
+    timeout-minutes: 45
     steps:
       - name: Check out source
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -45,206 +22,25 @@ jobs:
         with:
           python-version: 3.14.8
 
-      - name: Install locked runtime and test tools
-        run: python -m pip install --require-hashes -r requirements-release.lock
+      - name: Check the public source for private data and product identity
+        run: python -B release/check_source.py
 
-      - name: Run offline verification
+      - name: Test the release and acceptance tooling
         run: |
-          PYTHONPATH=src python tests/run_tests.py
-          NETOPS_REQUIRE_RUNTIME_TESTS=1 python -m pytest -q
-          python scripts/generate_sbom.py
-          git diff --exit-code -- sbom.cdx.json
-          python scripts/check_public_release.py
-          python scripts/create_release_artifacts.py --output dist
-
-      - name: Verify the exported archive stands alone
-        run: |
-          mapfile -t exported < <(find dist -mindepth 1 -maxdepth 1 -type d)
-          if [ "${#exported[@]}" -ne 1 ]; then
-            echo "expected exactly one exported directory in dist/, found: ${exported[*]}" >&2
-            exit 1
-          fi
-          target="$RUNNER_TEMP/netops-helper-standalone"
-          rm -rf "$target"
-          cp -a "${exported[0]}" "$target"
-          test -f "$target/compose.yaml"
-          test -f "$target/Dockerfile"
-          test -f "$target/src/netops_core/__init__.py"
-          (cd "$target" && python -B scripts/check_public_release.py)
-
-      - name: Install on a proxy host with the core release it pins and run the documented preflight
-        run: |
-          source="$(find dist -mindepth 1 -maxdepth 1 -type d)"
-          pinned="$(grep -oE '"netops-core==[0-9]+\.[0-9]+\.[0-9]+"' pyproject.toml | tr -d '"')"
-          pinned="${pinned#netops-core==}"
-          test -n "$pinned"
-          git -C "$GITHUB_WORKSPACE" fetch --quiet --no-tags --depth 1 origin "refs/tags/netops-core/v$pinned:refs/tags/netops-core/v$pinned"
-          rm -rf "$RUNNER_TEMP/core-pinned" "$RUNNER_TEMP/core-export"
-          mkdir -p "$RUNNER_TEMP/core-pinned"
-          git -C "$GITHUB_WORKSPACE" archive "netops-core/v$pinned" components/netops-core | tar -x -C "$RUNNER_TEMP/core-pinned"
-          (cd "$RUNNER_TEMP/core-pinned/components/netops-core" && python -B scripts/create_release_artifacts.py --output "$RUNNER_TEMP/core-export")
-          core="$(find "$RUNNER_TEMP/core-export" -mindepth 1 -maxdepth 1 -type d)"
-          venv="$RUNNER_TEMP/netops-helper-installed"
-          rm -rf "$venv"
-          python -m venv "$venv"
-          "$venv/bin/python" -m pip install --quiet "$core" "$source"
-          "$venv/bin/netops-helper-proxy" --help > /dev/null
-          NETOPS_INSTALLED_HELPER_PYTHON="$venv/bin/python" python -m pytest -q tests/test_supply_chain.py -k installed_helper_does_not_own_core_files
-          home="$RUNNER_TEMP/netops-helper-config"
-          rm -rf "$home"
-          mkdir -p "$home/netops-helper"
-          cp config/inventory.example.json "$home/netops-helper/inventory.json"
-          cp config/vault.example.json "$home/netops-helper/vault.json"
-          cp config/egress-policy.example.json "$home/netops-helper/egress-policy.json"
-          cp config/runner.example.json "$home/netops-helper/runner.json"
-          chmod 600 "$home/netops-helper/vault.json"
-          XDG_CONFIG_HOME="$home" "$venv/bin/python" "$source/scripts/check_operator_config.py"
-          "$venv/bin/python" "$source/scripts/generate_egress_rules.py" \
-            --inventory "$home/netops-helper/inventory.json" \
-            --policy "$home/netops-helper/egress-policy.json" \
-            --output "$RUNNER_TEMP/netops-helper-egress.json"
-
-  netops-auditor:
-    if: ${{ !startsWith(github.ref, 'refs/tags/') || startsWith(github.ref, 'refs/tags/netops-auditor/') }}
-    runs-on: ubuntu-24.04
-    timeout-minutes: 30
-    defaults:
-      run:
-        working-directory: components/netops-auditor
-    steps:
-      - name: Check out source
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-        with:
-          persist-credentials: false
-
-      - name: Set up Python 3.13.15
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
-        with:
-          python-version: 3.13.15
-
-      - name: Install locked runtime and test tools
-        run: python -m pip install --require-hashes -r requirements-release.lock
-
-      - name: Run offline verification
-        env:
-          PYTHONPATH: ../netops-core/src
-        run: |
-          python -m pytest -q
-          python scripts/generate_sbom.py
-          git diff --exit-code -- sbom.cdx.json
-          python scripts/check_gates.py
-          python scripts/create_release_artifacts.py --output dist
-
-      - name: Verify the exported archive stands alone
-        run: |
-          mapfile -t exported < <(find dist -mindepth 1 -maxdepth 1 -type d)
-          if [ "${#exported[@]}" -ne 1 ]; then
-            echo "expected exactly one exported directory in dist/, found: ${exported[*]}" >&2
-            exit 1
-          fi
-          target="$RUNNER_TEMP/netops-auditor-standalone"
-          rm -rf "$target"
-          cp -a "${exported[0]}" "$target"
-          (cd "$target" && PYTHONPATH="$GITHUB_WORKSPACE/components/netops-core/src" python -B scripts/check_gates.py)
-
-      - name: Audit a configuration from an installed distribution
-        run: |
-          source="$(find dist -mindepth 1 -maxdepth 1 -type d)"
-          rm -rf "$RUNNER_TEMP/core-export"
-          (cd ../netops-core && python -B scripts/create_release_artifacts.py --output "$RUNNER_TEMP/core-export")
-          core="$(find "$RUNNER_TEMP/core-export" -mindepth 1 -maxdepth 1 -type d)"
-          venv="$RUNNER_TEMP/netops-auditor-installed"
-          rm -rf "$venv"
-          python -m venv "$venv"
-          "$venv/bin/python" -m pip install --quiet "$core" "$source"
-          for platform in fortios exos; do
-            "$venv/bin/netops-auditor" run \
-              --platform "$platform" \
-              --tenant ci \
-              --device ci-device \
-              --config "tests/fixtures/${platform}_clean.conf" \
-              --json > "$RUNNER_TEMP/installed-$platform.json"
+          set -euo pipefail
+          for test in release/tests/test_*.py release/acceptance/tests/test_*.py release/sign/tests/test_*.py; do
+            python -B "$test"
           done
-          "$venv/bin/python" -c "import json,os,sys; [json.load(open(os.environ['RUNNER_TEMP'] + '/installed-%s.json' % name)) for name in ('fortios', 'exos')]"
 
-  netops-admin:
-    if: ${{ !startsWith(github.ref, 'refs/tags/') || startsWith(github.ref, 'refs/tags/netops-admin/') }}
-    runs-on: ubuntu-24.04
-    timeout-minutes: 30
-    defaults:
-      run:
-        working-directory: components/netops-admin
-    steps:
-      - name: Check out source
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-        with:
-          persist-credentials: false
-
-      - name: Set up Python 3.13.15
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
-        with:
-          python-version: 3.13.15
-
-      - name: Install locked runtime and test tools
-        run: python -m pip install --require-hashes -r requirements-release.lock
-
-      - name: Run offline verification
+      - name: Build the native product image from locked dependencies
         run: |
-          python -m pytest -q
-          python scripts/generate_sbom.py
-          git diff --exit-code -- sbom.cdx.json
-          python scripts/check_gates.py
-          python scripts/create_release_artifacts.py --output dist
+          set -euo pipefail
+          docker build --pull --iidfile "$RUNNER_TEMP/netops-ci-unit.iid" .
 
-  netops-core:
-    if: ${{ !startsWith(github.ref, 'refs/tags/') || startsWith(github.ref, 'refs/tags/netops-core/') }}
-    runs-on: ubuntu-24.04
-    timeout-minutes: 30
-    defaults:
-      run:
-        working-directory: components/netops-core
-    steps:
-      - name: Check out source
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-        with:
-          persist-credentials: false
-
-      - name: Set up Python 3.13.15
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
-        with:
-          python-version: 3.13.15
-
-      - name: Install locked runtime and test tools
-        run: python -m pip install --require-hashes -r requirements-release.lock
-
-      - name: Run offline verification
+      - name: Run the installed product unit tests
         run: |
-          python -m pytest -q
-          python scripts/generate_sbom.py
-          git diff --exit-code -- sbom.cdx.json
-          python scripts/check_gates.py
-          python scripts/create_release_artifacts.py --output dist
-
-      - name: Verify the exported archive stands alone
-        run: |
-          mapfile -t exported < <(find dist -mindepth 1 -maxdepth 1 -type d)
-          if [ "${#exported[@]}" -ne 1 ]; then
-            echo "expected exactly one exported directory in dist/, found: ${exported[*]}" >&2
-            exit 1
-          fi
-          target="$RUNNER_TEMP/netops-core-standalone"
-          rm -rf "$target"
-          cp -a "${exported[0]}" "$target"
-          (cd "$target" && python -B scripts/check_gates.py)
-
-      - name: Hand a password to the client from an installed distribution
-        run: |
-          source="$(find dist -mindepth 1 -maxdepth 1 -type d)"
-          venv="$RUNNER_TEMP/netops-core-installed"
-          rm -rf "$venv"
-          python -m venv "$venv"
-          "$venv/bin/python" -m pip install --quiet "$source"
-          printf 'secret-of-this-ci-run\n' > "$RUNNER_TEMP/askpass-secret"
-          answer="$(NETOPS_ASKPASS_FILE="$RUNNER_TEMP/askpass-secret" "$venv/bin/netops-askpass")"
-          test "$answer" = "secret-of-this-ci-run"
-          PATH="$PATH:$venv/bin" python -m pytest -q tests/test_supply_chain.py
+          set -euo pipefail
+          ref="$(cat "$RUNNER_TEMP/netops-ci-unit.iid")"
+          [[ "$ref" =~ ^sha256:[0-9a-f]{64}$ ]]
+          docker run --rm --network none --read-only --tmpfs /tmp:rw,nosuid,nodev,noexec,size=64m --cap-drop ALL \
+            --security-opt no-new-privileges --user 51000:51000 --entrypoint python "$ref" -B -m unittest discover -s /opt/netops/tests -v

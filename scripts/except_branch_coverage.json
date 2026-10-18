@@ -57,8 +57,8 @@
       }
     },
     "netops-core": {
-      "branches": 34,
-      "covered": 25,
+      "branches": 35,
+      "covered": 26,
       "min_percent": 73,
       "modules": {
         "netops_core/audit.py": {
@@ -68,9 +68,9 @@
           "min_percent": 100
         },
         "netops_core/session.py": {
-          "branches": 11,
-          "branches_in_source": 11,
-          "covered": 8,
+          "branches": 12,
+          "branches_in_source": 12,
+          "covered": 9,
           "min_percent": 72
         },
         "netops_core/ssh.py": {
@@ -82,14 +82,14 @@
       }
     },
     "netops-helper": {
-      "branches": 91,
-      "covered": 84,
+      "branches": 92,
+      "covered": 85,
       "min_percent": 92,
       "modules": {
         "netops_helper/engine.py": {
-          "branches": 37,
-          "branches_in_source": 37,
-          "covered": 36,
+          "branches": 38,
+          "branches_in_source": 38,
+          "covered": 37,
           "min_percent": 97
         },
         "netops_helper/proxy.py": {

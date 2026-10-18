@@ -81,6 +81,5 @@ a string.
   wherever the table holds nothing. The pseudo-terminal path of a device without an exec channel is
   not touched: it strips its own prompt as part of driving the terminal.
 
-Before this module the auditor carried the rule alone, with `^([^#\n]+# )` - it knew `#` only. Under a
-read-only account the `$` prompt stayed in the snapshot and in its hash, and the preflight would have
-read `<hostname> $ output` instead of `output`.
+A rule that knows `#` only, such as `^([^#\n]+# )`, leaves the `$` prompt of a read-only account in
+the snapshot and in its hash, and the preflight would read `<hostname> $ output` instead of `output`.

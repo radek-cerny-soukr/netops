@@ -1601,7 +1601,7 @@ class Proxy:
             ):
                 raise ToolArgumentsError()
 
-        if "content_sha256" in normalized and not (
+        if "content_sha256" in normalized and normalized["content_sha256"] is not None and not (
             isinstance(normalized["content_sha256"], str)
             and re.fullmatch(r"[0-9a-f]{64}", normalized["content_sha256"])
         ):

@@ -1,0 +1,420 @@
+import base64
+
+import ipaddress
+
+import json
+
+import re
+
+import shutil
+
+import subprocess
+
+import sys
+
+from pathlib import Path
+
+import pytest
+
+COMPONENT = Path(__file__).resolve().parents[1]
+
+SCRIPT = COMPONENT / "tests" / "support" / "check_gates.py"
+
+CATALOG_DIRECTORY = COMPONENT / "src" / "netops_auditor" / "catalog"
+
+CATALOG = CATALOG_DIRECTORY / "fortios.json"
+
+GATE_NAMES = (
+    "fixtures_per_rule",
+    "fixtures_synthetic",
+    "catalog",
+    "core_stdlib",
+)
+
+EXACT_RELEASE_FILES = (
+    "CHANGELOG.md", "LICENSE", "README.md", "action.yml",
+    "requirements-release.in", "requirements-release.lock", "sbom.cdx.json",
+)
+
+RELEASE_TREES = ("docs", "scripts")
+
+SYNTHETIC = (
+    "config system global",
+    '    set hostname "fw-example"',
+    "end",
+    "config system interface",
+    '    edit "wan1"',
+    "        set ip 192.0.2.1 255.255.255.0",
+    "    next",
+    "end",
+)
+
+RFC1918_TEST_ADDRESS = str(ipaddress.ip_address(0x0A000001))
+
+PUBLIC_DNS_SAMPLE = str(ipaddress.ip_address(0x08080808))
+
+NTP_DOMAIN_SAMPLE = "ntp." + "cesnet" + ".cz"
+
+PEM_TEST_PAYLOAD = "MII" + base64.b64encode(bytes(range(45))).decode("ascii")
+
+ULA_TEST_ADDRESS = str(ipaddress.ip_address((0xFD12 << 112) | 1))
+
+DOCUMENTATION_IPV6_SAMPLE = str(ipaddress.ip_address((0x20010DB8 << 96) | 1))
+
+MAC_TEST_ADDRESS = ":".join("%02x" % octet for octet in (0x3C, 0x2A, 0xF4, 0x11, 0x22, 0x33))
+
+DOCUMENTATION_MAC_SAMPLE = ":".join(
+    "%02x" % octet for octet in (0x00, 0x00, 0x5E, 0x00, 0x53, 0x01)
+)
+
+PRIVATE_PATH_SAMPLE = "/" + "home" + "/deploy/netops"
+
+CREDENTIAL_SAMPLE = "gh" + "p_" + "A" * 36
+
+def _text(lines) -> str:
+    return "\n".join(lines) + "\n"
+
+def _rule_identifiers() -> list:
+    identifiers = []
+    for path in sorted(CATALOG_DIRECTORY.glob("*.json")):
+        document = json.loads(path.read_text(encoding="utf-8"))
+        identifiers.extend(item["id"] for item in document["rules"])
+    return identifiers
+
+def _tree(tmp_path: Path) -> Path:
+    root = tmp_path / "component"
+    shutil.copytree(COMPONENT / "src", root / "src", ignore=shutil.ignore_patterns("__pycache__"))
+    for identifier in _rule_identifiers():
+        directory = root / "tests" / "fixtures" / "rules" / identifier
+        directory.mkdir(parents=True)
+        for name in ("positive.conf", "negative.conf"):
+            (directory / name).write_text(_text(SYNTHETIC), encoding="utf-8")
+    return root
+
+def _fixture(root: Path, identifier: str, name: str) -> Path:
+    return root / "tests" / "fixtures" / "rules" / identifier / name
+
+def _catalog(root: Path) -> Path:
+    return root / "src" / "netops_auditor" / "catalog" / "fortios.json"
+
+def _patch_first_rule(root: Path, changes: dict) -> str:
+    path = _catalog(root)
+    document = json.loads(path.read_text(encoding="utf-8"))
+    document["rules"][0].update(changes)
+    path.write_text(json.dumps(document, indent=2), encoding="utf-8")
+    return document["rules"][0]["id"]
+
+def _run(root: Path):
+    return subprocess.run(
+        [sys.executable, str(SCRIPT), "--root", str(root)],
+        capture_output=True,
+        text=True,
+        timeout=300,
+    )
+
+def _lines(result) -> list:
+    return result.stdout.splitlines()
+
+def _details(result, gate: str) -> list:
+    prefix = "gate_%s=failed detail=" % gate
+    return [line[len(prefix):] for line in _lines(result) if line.startswith(prefix)]
+
+def _passed(result, gate: str) -> bool:
+    return ("gate_%s=passed" % gate) in _lines(result)
+
+def _only_gate_failed(result, *gates: str) -> None:
+    assert result.returncode != 0, result.stdout + result.stderr
+    assert _lines(result)[-1] == "auditor_gates=failed"
+    for other in GATE_NAMES:
+        if other not in gates:
+            assert _passed(result, other), result.stdout
+    for gate in gates:
+        assert not _passed(result, gate), result.stdout
+
+def test_synthetic_tree_passes(tmp_path):
+    result = _run(_tree(tmp_path))
+    assert result.returncode == 0, result.stdout + result.stderr
+    for gate in GATE_NAMES:
+        assert _passed(result, gate), result.stdout
+    assert _lines(result)[-1] == "auditor_gates=passed"
+
+def test_missing_positive_fixture_names_the_rule(tmp_path):
+    root = _tree(tmp_path)
+    identifier = _rule_identifiers()[0]
+    _fixture(root, identifier, "positive.conf").unlink()
+    result = _run(root)
+    _only_gate_failed(result, "fixtures_per_rule")
+    details = _details(result, "fixtures_per_rule")
+    assert any(
+        identifier in detail and "positive.conf" in detail for detail in details
+    ), details
+
+def test_missing_negative_fixture_names_the_rule(tmp_path):
+    root = _tree(tmp_path)
+    identifier = _rule_identifiers()[-1]
+    _fixture(root, identifier, "negative.conf").unlink()
+    result = _run(root)
+    _only_gate_failed(result, "fixtures_per_rule")
+    details = _details(result, "fixtures_per_rule")
+    assert any(
+        identifier in detail and "negative.conf" in detail for detail in details
+    ), details
+
+def test_empty_fixture_is_rejected(tmp_path):
+    root = _tree(tmp_path)
+    identifier = _rule_identifiers()[0]
+    _fixture(root, identifier, "positive.conf").write_text("", encoding="utf-8")
+    result = _run(root)
+    _only_gate_failed(result, "fixtures_per_rule")
+    details = _details(result, "fixtures_per_rule")
+    assert any(identifier in detail and "empty" in detail for detail in details), details
+
+def test_fixture_directory_without_a_rule_is_rejected(tmp_path):
+    root = _tree(tmp_path)
+    directory = root / "tests" / "fixtures" / "rules" / "fortios.gone.removed-rule"
+    directory.mkdir(parents=True)
+    for name in ("positive.conf", "negative.conf"):
+        (directory / name).write_text(_text(SYNTHETIC), encoding="utf-8")
+    result = _run(root)
+    _only_gate_failed(result, "fixtures_per_rule")
+    details = _details(result, "fixtures_per_rule")
+    assert any("fortios.gone.removed-rule" in detail for detail in details), details
+
+def test_real_address_in_a_fixture_is_rejected(tmp_path):
+    root = _tree(tmp_path)
+    identifier = _rule_identifiers()[0]
+    path = _fixture(root, identifier, "negative.conf")
+    path.write_text(
+        _text(("config system dns", "    set primary %s" % PUBLIC_DNS_SAMPLE, "end")),
+        encoding="utf-8",
+    )
+    result = _run(root)
+    _only_gate_failed(result, "fixtures_synthetic", "release_content")
+    details = _details(result, "fixtures_synthetic")
+    expected = "tests/fixtures/rules/%s/negative.conf:2" % identifier
+    assert any(expected in detail and PUBLIC_DNS_SAMPLE in detail for detail in details), details
+
+def test_real_address_outside_the_rule_fixtures_is_rejected(tmp_path):
+    root = _tree(tmp_path)
+    path = root / "tests" / "fixtures" / "loose.conf"
+    path.write_text(_text(("set gateway %s" % RFC1918_TEST_ADDRESS,)), encoding="utf-8")
+    result = _run(root)
+    _only_gate_failed(result, "fixtures_synthetic", "release_content")
+    details = _details(result, "fixtures_synthetic")
+    assert any(
+        "tests/fixtures/loose.conf:1" in detail and RFC1918_TEST_ADDRESS in detail
+        for detail in details
+    ), details
+
+def test_documentation_addresses_and_masks_pass(tmp_path):
+    root = _tree(tmp_path)
+    identifier = _rule_identifiers()[0]
+    _fixture(root, identifier, "negative.conf").write_text(
+        _text(
+            (
+                "set ip 192.0.2.1 255.255.255.0",
+                "set ip 198.51.100.254 255.255.0.0",
+                "set ip 203.0.113.7 255.255.255.255",
+                "set gateway 0.0.0.0 0.0.0.0",
+                "set wildcard 0.0.0.255",
+            )
+        ),
+        encoding="utf-8",
+    )
+    result = _run(root)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert _passed(result, "fixtures_synthetic"), result.stdout
+
+def test_real_domain_in_a_fixture_is_rejected(tmp_path):
+    root = _tree(tmp_path)
+    identifier = _rule_identifiers()[0]
+    _fixture(root, identifier, "positive.conf").write_text(
+        _text(("config system ntp", '    set server "%s"' % NTP_DOMAIN_SAMPLE, "end")),
+        encoding="utf-8",
+    )
+    result = _run(root)
+    _only_gate_failed(result, "fixtures_synthetic", "release_content")
+    details = _details(result, "fixtures_synthetic")
+    expected = "tests/fixtures/rules/%s/positive.conf:2" % identifier
+    assert any(
+        expected in detail and NTP_DOMAIN_SAMPLE in detail for detail in details
+    ), details
+
+def test_allowed_documentation_domains_pass(tmp_path):
+    root = _tree(tmp_path)
+    identifier = _rule_identifiers()[0]
+    _fixture(root, identifier, "positive.conf").write_text(
+        _text(
+            (
+                'set server "ntp.example.invalid"',
+                'set fqdn "www.example.com"',
+                'set fqdn "mail.example.net"',
+                'set fqdn "example.org"',
+            )
+        ),
+        encoding="utf-8",
+    )
+    result = _run(root)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert _passed(result, "fixtures_synthetic"), result.stdout
+
+def test_rule_identifiers_are_not_read_as_domains(tmp_path):
+    root = _tree(tmp_path)
+    identifier = _rule_identifiers()[0]
+    _fixture(root, identifier, "positive.conf").write_text(
+        _text(tuple("# %s" % name for name in _rule_identifiers())), encoding="utf-8"
+    )
+    result = _run(root)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert _passed(result, "fixtures_synthetic"), result.stdout
+
+def test_private_key_material_is_rejected(tmp_path):
+    root = _tree(tmp_path)
+    identifier = _rule_identifiers()[0]
+    _fixture(root, identifier, "positive.conf").write_text(
+        _text(
+            (
+                "config vpn certificate local",
+                "-----BEGIN PRIVATE KEY-----",
+                PEM_TEST_PAYLOAD,
+                "-----END PRIVATE KEY-----",
+                "end",
+            )
+        ),
+        encoding="utf-8",
+    )
+    result = _run(root)
+    _only_gate_failed(result, "fixtures_synthetic", "release_content")
+    details = _details(result, "fixtures_synthetic")
+    expected = "tests/fixtures/rules/%s/positive.conf:2" % identifier
+    assert any(
+        expected in detail and "private key" in detail for detail in details
+    ), details
+
+def test_placeholder_key_block_passes(tmp_path):
+    root = _tree(tmp_path)
+    identifier = _rule_identifiers()[0]
+    _fixture(root, identifier, "positive.conf").write_text(
+        _text(
+            (
+                "config vpn certificate local",
+                '    set private-key "-----BEGIN ENCRYPTED PRIVATE KEY-----',
+                "KANARCI-TAJEMSTVI-13",
+                '-----END ENCRYPTED PRIVATE KEY-----"',
+                "end",
+            )
+        ),
+        encoding="utf-8",
+    )
+    result = _run(root)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert _passed(result, "fixtures_synthetic"), result.stdout
+
+def test_empty_title_is_rejected(tmp_path):
+    root = _tree(tmp_path)
+    identifier = _patch_first_rule(root, {"title": "   "})
+    result = _run(root)
+    _only_gate_failed(result, "catalog")
+    details = _details(result, "catalog")
+    assert any(identifier in detail and "title" in detail for detail in details), details
+
+def test_empty_remediation_is_rejected(tmp_path):
+    root = _tree(tmp_path)
+    identifier = _patch_first_rule(root, {"remediation": ""})
+    result = _run(root)
+    _only_gate_failed(result, "catalog")
+    details = _details(result, "catalog")
+    assert any(
+        identifier in detail and "remediation" in detail for detail in details
+    ), details
+
+def test_empty_evidence_fields_are_rejected(tmp_path):
+    root = _tree(tmp_path)
+    identifier = _patch_first_rule(root, {"evidence_fields": []})
+    result = _run(root)
+    _only_gate_failed(result, "catalog")
+    details = _details(result, "catalog")
+    assert any(
+        identifier in detail and "evidence_fields" in detail for detail in details
+    ), details
+
+def test_unknown_severity_is_rejected(tmp_path):
+    root = _tree(tmp_path)
+    identifier = _patch_first_rule(root, {"severity": "critical"})
+    result = _run(root)
+    _only_gate_failed(result, "catalog")
+    details = _details(result, "catalog")
+    assert any(
+        identifier in detail and "severity" in detail for detail in details
+    ), details
+
+def test_unknown_class_is_rejected(tmp_path):
+    root = _tree(tmp_path)
+    identifier = _patch_first_rule(root, {"class": "dohad"})
+    result = _run(root)
+    _only_gate_failed(result, "catalog")
+    details = _details(result, "catalog")
+    assert any(identifier in detail and "class" in detail for detail in details), details
+
+def test_judgement_rule_must_not_be_high(tmp_path):
+    root = _tree(tmp_path)
+    identifier = _patch_first_rule(root, {"class": "usudek", "severity": "high"})
+    result = _run(root)
+    _only_gate_failed(result, "catalog")
+    details = _details(result, "catalog")
+    assert any(
+        identifier in detail and "usudek" in detail for detail in details
+    ), details
+
+def test_unimplemented_check_is_rejected(tmp_path):
+    root = _tree(tmp_path)
+    _patch_first_rule(root, {"check": "check_that_does_not_exist"})
+    result = _run(root)
+    _only_gate_failed(result, "catalog")
+    details = _details(result, "catalog")
+    assert any(
+        "check_that_does_not_exist" in detail and "not implemented" in detail
+        for detail in details
+    ), details
+
+def test_third_party_import_in_the_core_is_rejected(tmp_path):
+    root = _tree(tmp_path)
+    path = root / "src" / "netops_auditor" / "query.py"
+    path.write_text(path.read_text(encoding="utf-8") + "import requests\n", encoding="utf-8")
+    result = _run(root)
+    _only_gate_failed(result, "core_stdlib")
+    details = _details(result, "core_stdlib")
+    assert any(
+        "query.py" in detail and "requests" in detail for detail in details
+    ), details
+
+def test_the_shared_access_layer_is_not_a_third_party_import(tmp_path):
+    root = _tree(tmp_path)
+    path = root / "src" / "netops_auditor" / "query.py"
+    path.write_text(
+        path.read_text(encoding="utf-8") + "from netops_core import inventory\n", encoding="utf-8"
+    )
+    result = _run(root)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert _passed(result, "core_stdlib"), result.stdout
+
+def test_mcp_dependency_outside_the_mcp_shell_is_rejected(tmp_path):
+    root = _tree(tmp_path)
+    path = root / "src" / "netops_auditor" / "cli.py"
+    path.write_text(
+        path.read_text(encoding="utf-8") + "from fastmcp import FastMCP\n", encoding="utf-8"
+    )
+    result = _run(root)
+    _only_gate_failed(result, "core_stdlib")
+    details = _details(result, "core_stdlib")
+    assert any("cli.py" in detail and "fastmcp" in detail for detail in details), details
+
+def test_component_passes_every_gate():
+    rules = COMPONENT / "tests" / "fixtures" / "rules"
+    if not rules.is_dir():
+        pytest.skip("tests/fixtures/rules does not exist yet")
+    result = _run(COMPONENT)
+    assert result.returncode == 0, result.stdout + result.stderr
+    for gate in GATE_NAMES:
+        assert _passed(result, gate), result.stdout
+    assert _lines(result)[-1] == "auditor_gates=passed"

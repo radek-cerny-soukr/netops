@@ -39,8 +39,9 @@ The word turns up on this page in two unrelated meanings, and mixing them up cos
 Neither is the auditor's to set. The third meaning is gone: the option `--profile` of `collect` was
 removed; the login of an `ssh` session is now the `login` of the credential the
 inventory names. The report says which account was used in `collection-profile` and which kind of
-record opened the session in `collection-credential-kind`; on `file` and `fortios-rest`, which log in
-as nobody, `collection-profile` is `unknown`.
+record opened the session in `collection-credential-kind` (in the JSON report, `profile` and
+`credential-kind` inside the `collection` object); on `file` and `fortios-rest`, which log in as
+nobody, the profile is `unknown`.
 
 ## Channel `fortios-rest`
 
@@ -51,7 +52,9 @@ as nobody, `collection-profile` is `unknown`.
   the URL: a token in a query string ends up in the device log and in every proxy log on the way.
 - Never sends the token to an unverified peer - but the two ways it verifies are not the same
   thing. **Without a pin** the call runs on the default context: the chain is validated against the
-  system CA store and the hostname is checked. **With a pin** in the inventory the context is opened
+  system CA store and the hostname is checked. That path is reachable only by calling the collector function
+  directly; the inventory refuses a `fortios-rest` entry without `tls_fingerprint`, so `collect` always runs with a
+  pin. **With a pin** in the inventory the context is opened
   with `check_hostname = False` and `verify_mode = CERT_NONE`, so the chain is not validated at all;
   the trust rests entirely on the sha256 of the certificate the device presented, which is compared
   against the pin before the request is sent, so a mismatch drops the connection with the token
@@ -68,11 +71,11 @@ as nobody, `collection-profile` is `unknown`.
 - **Bounded body, measured before a block is kept.** The answer is assembled block by block, and the
   running total is compared against `--max-response-bytes` of `collect` before each block is added,
   so a body that will not fit is refused while it is still arriving. The default is `8388608`,
-  8 MiB - sized for a configuration export rather than copied from the 2 MB cap of `netops-helper`,
-  Compatibility is limited to the documented protocol, platform, and configuration boundaries; validate each target independently. See [compatibility boundaries](../../../docs/compatibility-boundaries.md#deployment-verification).
+  8 MiB - sized for a configuration export rather than copied from the 2 MB cap of `netops-helper`:
+  the largest dump measured on this page has 57,258 lines, and
   even at a generous hundred bytes per line that stays under 6 MB. The refusal names the limit and
-  nothing of the peer's words. Why the number is what it is, and how to raise it, is in
-  [`configuration.md`](configuration.md).
+  nothing of the peer's words. To raise it, pass a positive whole number of bytes to `collect`, for
+  example `docker compose run --rm netops auditor collect --device <name> --max-response-bytes N`.
 - **An error status ends the call without a body.** When the HTTP status is not `200` the collector
   reads at most a small head of the answer, throws it away and reports the status alone. An error
   page is never assembled, never hashed and never anywhere near a log, and the channel event of such
@@ -92,8 +95,9 @@ as nobody, `collection-profile` is `unknown`.
 - **The method does not separate reading from writing.** The backup endpoint is a `POST`, and the
   `/api/v2/cmdb/` branch can write. The boundary between read and write is the profile of the token,
   not the HTTP verb.
-- Devices usually carry a self-signed certificate, so without a pinned fingerprint in the inventory
-  there is nothing to verify the peer against.
+- Devices usually carry a self-signed certificate, so without a pinned fingerprint there would be
+  nothing to verify the peer against; the inventory therefore requires `tls_fingerprint` for this
+  channel.
 - Only the `monitor/.../config/backup` endpoint is used. The `/api/v2/cmdb/` branch, which returns
   the configuration as JSON and would need no parser at all, is not used here.
 - FortiOS only. There is no REST channel for any other platform.
@@ -101,9 +105,9 @@ as nobody, `collection-profile` is `unknown`.
 ### Tested against
 
 **Verified live on 20 September 2026.** This collector used an `api-token` credential and a pinned
-certificate against a FortiGate 80F, fetched the configuration backup and ran all six FortiOS rules:
-zero findings. Requiring an absent section produced `fortios.snapshot.incomplete`, confirming that
-the live dump was parsed. The configuration was not retained. The earlier export-size and
+certificate against a FortiGate 80F, fetched the configuration backup and ran the six FortiOS rules
+the catalogue held on that date: zero findings. Requiring an absent section produced
+`fortios.snapshot.incomplete`, confirming that the live dump was parsed. The configuration was not retained. The earlier export-size and
 access-profile comparisons above remain measurements from a different tool, not from this run.
 
 ## Channel `ssh`
@@ -111,9 +115,7 @@ access-profile comparisons above remain measurements from a different tool, not 
 The transport is `netops_core.ssh`, shared with the rest of the family: the client call,
 the hardening options, the workspace and the two kinds of authentication are described in
 [`../../netops-core/docs/ssh.md`](../../netops-core/docs/ssh.md) and measured there against real
-devices. These documents ship in the `netops-core` archive, not in the auditor archive: that relative
-path resolves in a repository checkout; from a standalone auditor archive the same file is published
-at [`netops-core/v0.2.9`](https://github.com/radek-cerny-soukr/netops/blob/netops-core/v0.2.9/components/netops-core/docs/ssh.md).
+devices.
 What the auditor adds is the step table of the platform, the preflight and the `ChannelEvent` of
 every command; the prompt cleaning is `netops_core.prompt`. It adds **nothing** to the options of
 the client.
@@ -150,7 +152,8 @@ the client.
   would show it to every user on the machine, and never reaches a value in the environment: only the
   path of the file that holds it does. The directory is removed when the call ends, on every path.
 - Default timeout 120 s per command, about fifteen times the slowest dump measured (7.7 s). A
-  collection runs at most three commands, so the wall clock is bounded by three timeouts.
+  collection runs the host key scan and at most two commands, each bounded by that timeout, so the
+  wall clock is bounded by three timeouts.
 
 ### Old algorithms, one device at a time
 
@@ -181,8 +184,9 @@ The name says what it costs: `rsa-sha1` is SHA-1, for that device, for the host 
 public key of the client. It is not a compatibility switch to set on a whole fleet. The full schema
 of the entry, and how the exception is written down, is in [`inventory.md`](inventory.md).
 
-The exception is visible in the run that used it: the collection report carries
-`collection-legacy_ssh` with the profile name, or `none` when the session ran on current algorithms.
+The exception is visible in the run that used it: the text collection report carries
+`collection-legacy_ssh` (the JSON report `collection.legacy_ssh`) with the profile name, or `none`
+when the session ran on current algorithms.
 The channel event, which is what the database keeps, does not carry the profile today.
 
 Two details that measurement decided rather than reasoning:
@@ -219,7 +223,7 @@ a failure that is not a negotiation, such as a rejected credential.
 
 ### Why `show` and not `show full-configuration`
 
-Compatibility is limited to the documented protocol, platform, and configuration boundaries; validate each target independently. See [compatibility boundaries](../../../docs/compatibility-boundaries.md#deployment-verification).
+The two commands, measured over this channel
 (FortiOS v8.0.0 build0167):
 
 | | `show` | `show full-configuration` |
@@ -247,7 +251,7 @@ differ in a way the tool has to respect:
   known `more`; any other value is written by the device, so the message gives its length in bytes
   and the first 16 hexadecimal digits of its sha256 instead of repeating it. The auditor would rather not run than change a
   device for its own convenience.
-- Compatibility is limited to the documented protocol, platform, and configuration boundaries; validate each target independently. See [compatibility boundaries](../../../docs/compatibility-boundaries.md#deployment-verification).
+- **EXOS**: no pager command is sent, and none is needed. Measured on
   19 September 2026 against ExtremeXOS 33.7.1: `show configuration` returned 10,728 bytes with zero
   `--More--` markers and a complete final module, and the byte count was identical across three
   shapes - with no preamble, in a fresh session after `disable cli paging` had been sent in a
@@ -282,7 +286,7 @@ A PTY is needed only by wrappers that run the command as `timeout N sh -c '...'`
 
 ### The prompt in the output, and the two hashes
 
-Compatibility is limited to the documented protocol, platform, and configuration boundaries; validate each target independently. See [compatibility boundaries](../../../docs/compatibility-boundaries.md#deployment-verification).
+The answer of `get system console` over the exec channel, measured on a
 FortiGate 80F, `cat -A`, `$` marks the end of a line:
 
 ```
@@ -305,15 +309,13 @@ Left alone, this breaks two things: the preflight never finds its field (the key
 reads `FortiGate-80F # output`, not `output`), and the snapshot carries the hostname of the device
 and a prompt instead of being only the configuration.
 
-Compatibility is limited to the documented protocol, platform, and configuration boundaries; validate each target independently. See [compatibility boundaries](../../../docs/compatibility-boundaries.md#deployment-verification).
+The prompt depends on the profile of the account. Measured on FortiOS over the
 exec channel: the `super_admin` account answers with `<hostname> # `, and an account with a read-only
-profile answers with `<hostname> $ `. Until this release the cleaner knew `#` alone, so under a
-read-only account the prompt stayed in the snapshot - and in its hash.
+profile answers with `<hostname> $ `. A cleaner that knew `#` alone would leave the prompt of a
+read-only account in the snapshot - and in its hash.
 
-So the answer is cleaned by [`netops_core.prompt`](../../netops-core/docs/prompt.md) (published, for
-a standalone archive, at
-[`netops-core/v0.2.9`](https://github.com/radek-cerny-soukr/netops/blob/netops-core/v0.2.9/components/netops-core/docs/prompt.md)),
-which the helper uses as well, by a rule that is deliberately narrow:
+So the answer is cleaned by [`netops_core.prompt`](../../netops-core/docs/prompt.md), which the
+helper uses as well, by a rule that is deliberately narrow:
 
 - **only the first line** can lose a prefix, and only when that line starts with a prompt shape: at
   least one character that is neither `#` nor `$`, a space, then `#` or `$` and a space. A first line
@@ -342,7 +344,7 @@ When the device prints no prompt the cleaner does nothing and both hashes are eq
   an audit and a disqualification for a backup.
 - **The content depends on the profile of the account that logs in.** A weaker profile returns a
   quietly incomplete view, and the counts of `config` and `end` still match, so nothing looks wrong.
-  Compatibility is limited to the documented protocol, platform, and configuration boundaries; validate each target independently. See [compatibility boundaries](../../../docs/compatibility-boundaries.md#deployment-verification).
+  Measured on FortiOS: an account with a read-only
   profile (every group `read`, `cli-show enable`) collects the full `show` with the same 2,165
   top-level sections as a `super_admin` account, but `system admin`, `system api-user` and
   `system accprofile` list **only the account's own entries** and `system automation-action` is
@@ -353,19 +355,20 @@ When the device prints no prompt the cleaner does nothing and both hashes are eq
   read-only boundary is the step table above (`get system console`, `show`), the pinned host key
   and the absence of any other command in this channel - not the profile. Restrict the account
   with `trusthost` to the collector and log its sessions on the device.
-- **An EXOS snapshot is audited by four rules.** The catalogue `exos.json` exists, `run --platform exos` and `collect` over an `exos` entry both
-  work, and what those four rules do and do not see is [below](#what-the-exos-catalogue-reads).
+- **An EXOS snapshot is audited by four base rules and five configuration-management rules.** The
+  catalogue `exos.json` exists, `run --platform exos` and `collect` over an `exos` entry both work;
+  what the four base rules do and do not see is [below](#what-the-exos-catalogue-reads), and the five
+  `exos.management.*` rules are described in [`management-policy.md`](management-policy.md).
 - **Unverified:** the behaviour when FortiOS reports `output: more`. Switching a production device
   to the pager would have been a write, so the refusal path was proven in tests, not on a device.
-- Compatibility is limited to the documented protocol, platform, and configuration boundaries; validate each target independently. See [compatibility boundaries](../../../docs/compatibility-boundaries.md#deployment-verification).
+- **EXOS prints no prompt into the answer.** Measured over the
   exec channel: 0 occurrences in the dump. The same cleaning stays declared for `exos` in the step
   table - it is a no-op there, and it keeps one path for both platforms.
 
 ### What it gives you for free
 
 The configuration of a FortiSwitch and of a FortiAP managed over FortiLink is part of the FortiGate
-configuration (29 `edit` entries under `switch-controller managed-switch` and one
-Compatibility is limited to the documented protocol and configuration boundaries; validate each target independently. See [compatibility boundaries](../../../docs/compatibility-boundaries.md#deployment-verification).
+configuration (29 `edit` entries under `switch-controller managed-switch` in the measured dump), so the
 auditor does not have to visit the switch and the access point separately.
 
 A pipe works: `show full-configuration | grep -c "^config"` walks the whole output, so long output
@@ -381,7 +384,7 @@ auditor binds it with arguments instead of trusting a configuration file.
 
 ### SSH collection and command boundaries
 
-For FortiOS, the pager preflight uses `get system console` with `output:standard`; EXOS collection disables CLI paging. SSH collection uses one-shot exec without a PTY; authentication follows the configured credential and host-key policy. Prompt cleaning normalizes the supported leading or trailing prompt before snapshot hashing.
+For FortiOS, the pager preflight uses `get system console` with `output:standard`; EXOS collection sends no paging command, and `show configuration` is its only command. SSH collection uses one-shot exec without a PTY; authentication follows the configured credential and host-key policy. Prompt cleaning normalizes the supported leading or trailing prompt before snapshot hashing.
 
 Full EXOS configuration collection requires administrator privilege. When a target offers only `ssh-rsa`, configure the explicit per-target legacy profile. Sequential host-key-type probing follows the same configured timeout and host-key pin policy. Apply configured input and response-size limits; no measured collection duration is a product guarantee. Documented ExtremeXOS examples include firmware `33.7.1.6`, `33.6.1.14`.
 
@@ -399,7 +402,7 @@ measures it once the snapshot is taken. A section is recognized by the header it
 around it, and the platform of the entry decides which header that is - nothing is guessed from the
 text of the dump:
 
-| Compatibility boundary | Support is limited to documented platform and version combinations. | Validate each deployment independently. | [Compatibility boundaries](../../../docs/compatibility-boundaries.md#deployment-verification) |
+| platform | header | measured on |
 |---|---|---|
 | `fortios` | `config <section>` | FortiOS v8.0.0 build0167, the `show` dump measured in [Tested against](#tested-against) |
 | `exos` | `# Module <section> configuration.` | ExtremeXOS 33.7.1.6; parser recognizes the documented module-header format |
@@ -430,9 +433,10 @@ close it.
 
 ## What the EXOS catalogue reads
 
-**EXOS has an audit rule catalogue.** The four rules of `exos.json` are
-all class `fakt`, and all of them read the flat list of commands the L1 parser builds out of
-`show configuration` - a record per command carrying its line, the module declared above it and its
+**EXOS has an audit rule catalogue.** `exos.json` holds four base rules, listed below, and five
+`exos.management.*` rules described in [`management-policy.md`](management-policy.md). The four
+base rules are all class `fakt`, and all of them read the flat list of commands the L1 parser
+builds out of `show configuration` - a record per command carrying its line, the module declared above it and its
 tokens. There is no normalized model between the rules and the text; a rule asks whether a command is
 there and what stands in the positions the vendor documentation gives that command.
 
@@ -476,7 +480,7 @@ The `exos.time.no-sntp-client` rule accounts for the documented NTP-client form;
 These finding rules and unit fixtures describe parsing supplied configuration. They do not establish end-to-end device collection through SSH; channel access still requires the documented permissions and connection policy.
 ## Choosing a channel
 
-- `fortios-rest` if you want the configuration in a machine-readable shape from the API, you accept
+- `fortios-rest` if you want the configuration exported over the API (as CLI text), you accept
   that two exports of an untouched device differ, and you accept that private key material passes
   through the tool. Pin the certificate fingerprint, and remember that the completeness of the
   answer is decided by the profile of the token.
@@ -490,3 +494,5 @@ These finding rules and unit fixtures describe parsing supplied configuration. T
 - `file` if the collection happens somewhere else entirely.
 
 Neither remote channel is a fallback for the other. Pick one per device and pin it.
+
+Compatibility is limited to the documented protocol, platform, and configuration boundaries; validate each target independently. See [compatibility boundaries](../../../docs/compatibility-boundaries.md#deployment-verification).

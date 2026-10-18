@@ -69,7 +69,7 @@ INVENTORY = {
             "platform": "fortios",
             "address": "192.0.2.10",
             "port": 22,
-            "role": "perimetr",
+            "role": "perimeter",
             "credential": "fw-a-ro",
             "host_key_fingerprint": PIN,
             "legacy_ssh": "rsa-sha1",

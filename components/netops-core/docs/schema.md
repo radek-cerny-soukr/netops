@@ -2,9 +2,9 @@
 
 ## Scope
 
-Core 0.2.8 supplies the standard-library-only `netops_core.fortios` parser and `netops_core.schema` runtime. Auditor keeps its existing `l1_fortios` import interface through the shared parser. Helper and Admin use the same schema identities and configuration instance traversal.
+Core supplies the standard-library-only `netops_core.fortios` parser and `netops_core.schema` runtime. Auditor keeps its existing `l1_fortios` import interface through the shared parser. Helper and Admin use the same schema identities and configuration instance traversal.
 
-Operators supply version-bound schema libraries separately and pin their bytes. This archive contains neither a complete vendor schema catalogue nor schema-generation/calibration utilities.
+Operators supply version-bound schema libraries separately and pin their bytes. NetOps contains neither a complete vendor schema catalogue nor schema-generation/calibration utilities.
 
 ## Library contract
 
@@ -47,4 +47,4 @@ The parser handles FortiOS escaping, quoted backslashes, multiline values and th
 - Admin additionally requires pinned rollback calibration, grants, independent checks and an on-device safeguard. A new library digest inherits no old write grant. Admin evaluates local and reference conditions against the same pinned snapshot in the exact measured context; an unknown result refuses the change and a satisfied condition grants nothing.
 - Model/licence-specific availability, conditional visibility, reference targets and generated identities require actual measurement. VM evidence is not a grant for physical hardware. Library data and device responses remain untrusted inputs.
 
-See the component READMEs for schema reads, scoped audit and calibrated transaction setup, and [verified support](https://github.com/radek-cerny-soukr/netops/blob/main/docs/verified-support.md#fortios-bounds) for the model/build and permission boundaries.
+Schema reads are the Helper tool `schema_read` ([Helper tools](../../netops-helper/docs/tools.md), [Helper configuration](../../../docs/helper-configuration.md)); scoped audit is Auditor's `schema-check` ([measured schema rules](../../netops-auditor/docs/cis-mapping.md#measured-schema-rules)); Admin setup is in [Admin configuration](../../../docs/admin-configuration.md). See [verified support](https://github.com/radek-cerny-soukr/netops/blob/main/docs/verified-support.md#fortios-bounds) for the model/build and permission boundaries.

@@ -29,7 +29,10 @@ REUSED_REQUEST = "request_id was already used for a different request"
 
 
 class Runtime:
-    def __init__(self, config, access_factory, notifier=None, sleep=time.sleep, monotonic=time.monotonic):
+    def __init__(self, config, access_factory, notifier=None, sleep=time.sleep, monotonic=time.monotonic, *, require_export=True):
+        if type(require_export) is not bool:
+            raise ValueError("require_export must be a boolean")
+        self.require_export = require_export
         self.config = config
         self.access_factory = access_factory
         self.notifier = notifier
@@ -426,8 +429,10 @@ def _prepared(runtime, device, adapter, request, expected_before, enrolling, mis
             missing.extend(exc.reasons)
     elif not enrolling:
         enrollment.require(runtime, device, accounts, plan["firmware"])
-    elif runtime.notifier is None or export not in ("acknowledged", "pending"):
-        raise Rejected(["enrollment requires notification and a healthy configured audit export"])
+    elif runtime.notifier is None or (export not in ("acknowledged", "pending")
+                                      and (runtime.require_export or export != "not-configured")):
+        requirement = "a healthy configured audit export" if runtime.require_export else "an available operation audit"
+        raise Rejected(["enrollment requires notification and " + requirement])
     if len(plan["commands"]) > config.limits["plan_commands"] or len(plan["inverse"]) > config.limits["plan_commands"]:
         raise Rejected(["the plan holds more than %d commands" % config.limits["plan_commands"]])
     if expected_before is not ANY_STATE and plan["predicted"]["before"] != expected_before:

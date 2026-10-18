@@ -316,7 +316,7 @@ def timer_row(text: str, timer: str):
 
 
 def upm_listing_complete(text: str, kind: str) -> bool:
-    count = re.search(r"^\s*Number of UPM %s:\s*(\d{1,9})\s*$" % kind, text, re.MULTILINE)
+    count = re.search(r"^[^\S\n]*Number of UPM %s:\s*(\d{1,9})\s*$" % kind, text, re.MULTILINE)
     if count is None:
         return False
     lines = text.splitlines()
@@ -363,7 +363,7 @@ def accounts(snapshot) -> list:
 
 VLAN_HEADER = re.compile(r"^VLAN Interface with name (\S+) created", re.MULTILINE)
 VLAN_TAG = re.compile(r"802\.1Q Tag (\d+)")
-VLAN_DESCRIPTION = re.compile(r"^\s*Description:\s*(.*?)\s*$", re.MULTILINE)
+VLAN_DESCRIPTION = re.compile(r"^[^\S\n]*Description:\s*(.*)$", re.MULTILINE)
 VLAN_ABSENT = "Invalid numeric list"
 NO_DESCRIPTION = "None"
 
@@ -381,13 +381,13 @@ def shown_vlan(text: str, key: str):
     if tag is not None:
         attributes["tag"] = tag.group(1)
     description = VLAN_DESCRIPTION.search(text)
-    if description is not None and description.group(1) != NO_DESCRIPTION:
-        attributes["description"] = description.group(1)
+    if description is not None and description.group(1).rstrip() != NO_DESCRIPTION:
+        attributes["description"] = description.group(1).rstrip()
     return attributes
 
 
 QUERY_SESSIONS = "show session"
-SESSION_ROW = re.compile(r"^\s*(\*?)\d+\s+\w{3} \w{3} +\d", re.MULTILINE)
+SESSION_ROW = re.compile(r"^[^\S\n]*(\*?)\d+\s+\w{3} \w{3} +\d", re.MULTILINE)
 
 
 def foreign_sessions(text: str) -> int:

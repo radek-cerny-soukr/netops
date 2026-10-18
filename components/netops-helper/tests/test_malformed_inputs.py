@@ -287,7 +287,7 @@ def inventory_document() -> dict:
         "platform": "fortios",
         "address": "192.0.2.10",
         "port": 22,
-        "role": "interni",
+        "role": "internal",
         "credential": "device-a-account",
         "host_key_fingerprint": DEVICE_PIN,
         "legacy_ssh": None,
@@ -608,7 +608,7 @@ def test_helper_inventory_and_egress_policy_raise_only_inventory_errors() -> Non
 
 
 def _script(name: str):
-    return _load(ROOT / "scripts" / ("%s.py" % name), "_malformed_%s" % name)
+    return _load(ROOT / "tests" / "support" / ("%s.py" % name), "_malformed_%s" % name)
 
 
 def test_operator_preflight_refuses_every_broken_file() -> None:
@@ -629,7 +629,7 @@ def test_operator_preflight_refuses_every_broken_file() -> None:
             _write(files[name], document(), mode)
             valid = json.dumps(document()).encode("utf-8")
             for label, path in path_shapes(directory, valid, mode or 0o644).items():
-                argv = [str(ROOT / "scripts" / "check_operator_config.py")]
+                argv = [str(ROOT / "tests" / "support" / "check_operator_config.py")]
                 for other, location in files.items():
                     argv.extend(["--%s" % other, path if other == name else str(location)])
                 cases["%s path %s" % (name, label)] = (argv, _environment(directory))
@@ -669,7 +669,7 @@ def test_egress_generator_checker_and_installer_refuse_every_broken_input() -> N
             if found:
                 failures["apply " + shape] = found
         cases = {}
-        script = str(ROOT / "scripts" / "generate_egress_rules.py")
+        script = str(ROOT / "tests" / "support" / "generate_egress_rules.py")
         for label, path in path_shapes(directory, files["egress-policy"].read_bytes()).items():
             cases["generate policy " + label] = ([script, "--inventory", str(files["inventory"]), "--policy", path,
                                                   "--output", str(directory / "cli-out.json")], _environment(directory))

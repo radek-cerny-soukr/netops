@@ -1,0 +1,703 @@
+{
+  "scope": "Only standalone 0.x packaging assertions are N/A; functional failures are never waived.",
+  "roles": {
+    "core": [
+      {
+        "nodeid": "tests/test_core_gates.py::test_synthetic_tree_passes",
+        "disposition": "N/A",
+        "reason": "Standalone 0.x distribution/export/metadata contract; NetOps 1.x ships one installed application, one image and one generated SBOM.",
+        "replacement": "tests/v1/test_runtime.py::PrivateFiles.test_all_engines_report_the_single_product_version; installed image selftest; per-architecture generated SBOM/scan and candidate manifest checks; release/check_source.py (public privacy, single version and Core dependency boundaries)"
+      },
+      {
+        "nodeid": "tests/test_core_gates.py::test_third_party_import_in_the_package_is_rejected",
+        "disposition": "N/A",
+        "reason": "Standalone 0.x distribution/export/metadata contract; NetOps 1.x ships one installed application, one image and one generated SBOM.",
+        "replacement": "tests/v1/test_runtime.py::PrivateFiles.test_all_engines_report_the_single_product_version; installed image selftest; per-architecture generated SBOM/scan and candidate manifest checks; release/check_source.py (public privacy, single version and Core dependency boundaries)"
+      },
+      {
+        "nodeid": "tests/test_core_gates.py::test_third_party_import_below_the_package_is_rejected",
+        "disposition": "N/A",
+        "reason": "Standalone 0.x distribution/export/metadata contract; NetOps 1.x ships one installed application, one image and one generated SBOM.",
+        "replacement": "tests/v1/test_runtime.py::PrivateFiles.test_all_engines_report_the_single_product_version; installed image selftest; per-architecture generated SBOM/scan and candidate manifest checks; release/check_source.py (public privacy, single version and Core dependency boundaries)"
+      },
+      {
+        "nodeid": "tests/test_core_gates.py::test_a_stale_sbom_is_rejected",
+        "disposition": "N/A",
+        "reason": "Standalone 0.x distribution/export/metadata contract; NetOps 1.x ships one installed application, one image and one generated SBOM.",
+        "replacement": "tests/v1/test_runtime.py::PrivateFiles.test_all_engines_report_the_single_product_version; installed image selftest; per-architecture generated SBOM/scan and candidate manifest checks; release/check_source.py (public privacy, single version and Core dependency boundaries)"
+      },
+      {
+        "nodeid": "tests/test_core_gates.py::test_a_missing_sbom_is_rejected",
+        "disposition": "N/A",
+        "reason": "Standalone 0.x distribution/export/metadata contract; NetOps 1.x ships one installed application, one image and one generated SBOM.",
+        "replacement": "tests/v1/test_runtime.py::PrivateFiles.test_all_engines_report_the_single_product_version; installed image selftest; per-architecture generated SBOM/scan and candidate manifest checks; release/check_source.py (public privacy, single version and Core dependency boundaries)"
+      },
+      {
+        "nodeid": "tests/test_core_gates.py::test_version_that_disagrees_with_the_package_is_rejected",
+        "disposition": "N/A",
+        "reason": "Standalone component version/source-literal or installation-pin contract; every role now imports the single NetOps product version.",
+        "replacement": "tests/v1/test_runtime.py::PrivateFiles.test_all_engines_report_the_single_product_version; installed image selftest; per-architecture generated SBOM/scan and candidate manifest checks; release/check_source.py (public privacy, single version and Core dependency boundaries)"
+      },
+      {
+        "nodeid": "tests/test_core_gates.py::test_foreign_component_name_is_rejected",
+        "disposition": "N/A",
+        "reason": "Standalone 0.x distribution/export/metadata contract; NetOps 1.x ships one installed application, one image and one generated SBOM.",
+        "replacement": "tests/v1/test_runtime.py::PrivateFiles.test_all_engines_report_the_single_product_version; installed image selftest; per-architecture generated SBOM/scan and candidate manifest checks; release/check_source.py (public privacy, single version and Core dependency boundaries)"
+      },
+      {
+        "nodeid": "tests/test_core_gates.py::test_missing_project_metadata_is_rejected",
+        "disposition": "N/A",
+        "reason": "Standalone 0.x distribution/export/metadata contract; NetOps 1.x ships one installed application, one image and one generated SBOM.",
+        "replacement": "tests/v1/test_runtime.py::PrivateFiles.test_all_engines_report_the_single_product_version; installed image selftest; per-architecture generated SBOM/scan and candidate manifest checks; release/check_source.py (public privacy, single version and Core dependency boundaries)"
+      },
+      {
+        "nodeid": "tests/test_core_gates.py::test_release_content_rejects_a_private_address",
+        "disposition": "N/A",
+        "reason": "Standalone 0.x distribution/export/metadata contract; NetOps 1.x ships one installed application, one image and one generated SBOM.",
+        "replacement": "tests/v1/test_runtime.py::PrivateFiles.test_all_engines_report_the_single_product_version; installed image selftest; per-architecture generated SBOM/scan and candidate manifest checks; release/check_source.py (public privacy, single version and Core dependency boundaries)"
+      },
+      {
+        "nodeid": "tests/test_core_gates.py::test_release_content_rejects_a_public_address",
+        "disposition": "N/A",
+        "reason": "Standalone 0.x distribution/export/metadata contract; NetOps 1.x ships one installed application, one image and one generated SBOM.",
+        "replacement": "tests/v1/test_runtime.py::PrivateFiles.test_all_engines_report_the_single_product_version; installed image selftest; per-architecture generated SBOM/scan and candidate manifest checks; release/check_source.py (public privacy, single version and Core dependency boundaries)"
+      },
+      {
+        "nodeid": "tests/test_core_gates.py::test_release_content_rejects_a_unique_local_ipv6_address",
+        "disposition": "N/A",
+        "reason": "Standalone 0.x distribution/export/metadata contract; NetOps 1.x ships one installed application, one image and one generated SBOM.",
+        "replacement": "tests/v1/test_runtime.py::PrivateFiles.test_all_engines_report_the_single_product_version; installed image selftest; per-architecture generated SBOM/scan and candidate manifest checks; release/check_source.py (public privacy, single version and Core dependency boundaries)"
+      },
+      {
+        "nodeid": "tests/test_core_gates.py::test_release_content_rejects_a_mac_address",
+        "disposition": "N/A",
+        "reason": "Standalone 0.x distribution/export/metadata contract; NetOps 1.x ships one installed application, one image and one generated SBOM.",
+        "replacement": "tests/v1/test_runtime.py::PrivateFiles.test_all_engines_report_the_single_product_version; installed image selftest; per-architecture generated SBOM/scan and candidate manifest checks; release/check_source.py (public privacy, single version and Core dependency boundaries)"
+      },
+      {
+        "nodeid": "tests/test_core_gates.py::test_release_content_rejects_a_domain_outside_the_allowlist",
+        "disposition": "N/A",
+        "reason": "Standalone 0.x distribution/export/metadata contract; NetOps 1.x ships one installed application, one image and one generated SBOM.",
+        "replacement": "tests/v1/test_runtime.py::PrivateFiles.test_all_engines_report_the_single_product_version; installed image selftest; per-architecture generated SBOM/scan and candidate manifest checks; release/check_source.py (public privacy, single version and Core dependency boundaries)"
+      },
+      {
+        "nodeid": "tests/test_core_gates.py::test_release_content_rejects_a_private_path_marker",
+        "disposition": "N/A",
+        "reason": "Standalone 0.x distribution/export/metadata contract; NetOps 1.x ships one installed application, one image and one generated SBOM.",
+        "replacement": "tests/v1/test_runtime.py::PrivateFiles.test_all_engines_report_the_single_product_version; installed image selftest; per-architecture generated SBOM/scan and candidate manifest checks; release/check_source.py (public privacy, single version and Core dependency boundaries)"
+      },
+      {
+        "nodeid": "tests/test_core_gates.py::test_release_content_rejects_credential_material",
+        "disposition": "N/A",
+        "reason": "Standalone 0.x distribution/export/metadata contract; NetOps 1.x ships one installed application, one image and one generated SBOM.",
+        "replacement": "tests/v1/test_runtime.py::PrivateFiles.test_all_engines_report_the_single_product_version; installed image selftest; per-architecture generated SBOM/scan and candidate manifest checks; release/check_source.py (public privacy, single version and Core dependency boundaries)"
+      },
+      {
+        "nodeid": "tests/test_core_gates.py::test_release_content_rejects_private_key_material",
+        "disposition": "N/A",
+        "reason": "Standalone 0.x distribution/export/metadata contract; NetOps 1.x ships one installed application, one image and one generated SBOM.",
+        "replacement": "tests/v1/test_runtime.py::PrivateFiles.test_all_engines_report_the_single_product_version; installed image selftest; per-architecture generated SBOM/scan and candidate manifest checks; release/check_source.py (public privacy, single version and Core dependency boundaries)"
+      },
+      {
+        "nodeid": "tests/test_core_gates.py::test_release_content_rejects_a_leak_in_a_released_module",
+        "disposition": "N/A",
+        "reason": "Standalone 0.x distribution/export/metadata contract; NetOps 1.x ships one installed application, one image and one generated SBOM.",
+        "replacement": "tests/v1/test_runtime.py::PrivateFiles.test_all_engines_report_the_single_product_version; installed image selftest; per-architecture generated SBOM/scan and candidate manifest checks; release/check_source.py (public privacy, single version and Core dependency boundaries)"
+      },
+      {
+        "nodeid": "tests/test_core_gates.py::test_release_content_accepts_documentation_values",
+        "disposition": "N/A",
+        "reason": "Standalone 0.x distribution/export/metadata contract; NetOps 1.x ships one installed application, one image and one generated SBOM.",
+        "replacement": "tests/v1/test_runtime.py::PrivateFiles.test_all_engines_report_the_single_product_version; installed image selftest; per-architecture generated SBOM/scan and candidate manifest checks; release/check_source.py (public privacy, single version and Core dependency boundaries)"
+      },
+      {
+        "nodeid": "tests/test_core_gates.py::test_release_content_fails_closed_without_the_selector",
+        "disposition": "N/A",
+        "reason": "Standalone 0.x distribution/export/metadata contract; NetOps 1.x ships one installed application, one image and one generated SBOM.",
+        "replacement": "tests/v1/test_runtime.py::PrivateFiles.test_all_engines_report_the_single_product_version; installed image selftest; per-architecture generated SBOM/scan and candidate manifest checks; release/check_source.py (public privacy, single version and Core dependency boundaries)"
+      },
+      {
+        "nodeid": "tests/test_core_gates.py::test_release_content_survives_a_selector_that_rewrites_the_gate",
+        "disposition": "N/A",
+        "reason": "Standalone 0.x distribution/export/metadata contract; NetOps 1.x ships one installed application, one image and one generated SBOM.",
+        "replacement": "tests/v1/test_runtime.py::PrivateFiles.test_all_engines_report_the_single_product_version; installed image selftest; per-architecture generated SBOM/scan and candidate manifest checks; release/check_source.py (public privacy, single version and Core dependency boundaries)"
+      },
+      {
+        "nodeid": "tests/test_core_gates.py::test_the_export_carries_no_repository_and_passes_the_gate",
+        "disposition": "N/A",
+        "reason": "Standalone 0.x distribution/export/metadata contract; NetOps 1.x ships one installed application, one image and one generated SBOM.",
+        "replacement": "tests/v1/test_runtime.py::PrivateFiles.test_all_engines_report_the_single_product_version; installed image selftest; per-architecture generated SBOM/scan and candidate manifest checks; release/check_source.py (public privacy, single version and Core dependency boundaries)"
+      },
+      {
+        "nodeid": "tests/test_core_gates.py::test_a_leak_added_to_the_export_fails_the_gate_inside_the_export",
+        "disposition": "N/A",
+        "reason": "Standalone 0.x distribution/export/metadata contract; NetOps 1.x ships one installed application, one image and one generated SBOM.",
+        "replacement": "tests/v1/test_runtime.py::PrivateFiles.test_all_engines_report_the_single_product_version; installed image selftest; per-architecture generated SBOM/scan and candidate manifest checks; release/check_source.py (public privacy, single version and Core dependency boundaries)"
+      },
+      {
+        "nodeid": "tests/test_core_gates.py::test_the_export_rejects_a_file_outside_the_release_selection",
+        "disposition": "N/A",
+        "reason": "Standalone 0.x distribution/export/metadata contract; NetOps 1.x ships one installed application, one image and one generated SBOM.",
+        "replacement": "tests/v1/test_runtime.py::PrivateFiles.test_all_engines_report_the_single_product_version; installed image selftest; per-architecture generated SBOM/scan and candidate manifest checks; release/check_source.py (public privacy, single version and Core dependency boundaries)"
+      },
+      {
+        "nodeid": "tests/test_core_gates.py::test_the_export_rejects_a_released_file_that_is_gone",
+        "disposition": "N/A",
+        "reason": "Standalone 0.x distribution/export/metadata contract; NetOps 1.x ships one installed application, one image and one generated SBOM.",
+        "replacement": "tests/v1/test_runtime.py::PrivateFiles.test_all_engines_report_the_single_product_version; installed image selftest; per-architecture generated SBOM/scan and candidate manifest checks; release/check_source.py (public privacy, single version and Core dependency boundaries)"
+      },
+      {
+        "nodeid": "tests/test_core_gates.py::test_the_export_rejects_a_symlink_in_the_released_tree",
+        "disposition": "N/A",
+        "reason": "Standalone 0.x distribution/export/metadata contract; NetOps 1.x ships one installed application, one image and one generated SBOM.",
+        "replacement": "tests/v1/test_runtime.py::PrivateFiles.test_all_engines_report_the_single_product_version; installed image selftest; per-architecture generated SBOM/scan and candidate manifest checks; release/check_source.py (public privacy, single version and Core dependency boundaries)"
+      },
+      {
+        "nodeid": "tests/test_core_gates.py::test_a_tree_beside_a_repository_is_not_checked_for_completeness",
+        "disposition": "N/A",
+        "reason": "Standalone 0.x distribution/export/metadata contract; NetOps 1.x ships one installed application, one image and one generated SBOM.",
+        "replacement": "tests/v1/test_runtime.py::PrivateFiles.test_all_engines_report_the_single_product_version; installed image selftest; per-architecture generated SBOM/scan and candidate manifest checks; release/check_source.py (public privacy, single version and Core dependency boundaries)"
+      },
+      {
+        "nodeid": "tests/test_core_gates.py::test_the_gate_leaves_no_bytecode_behind",
+        "disposition": "N/A",
+        "reason": "Standalone 0.x distribution/export/metadata contract; NetOps 1.x ships one installed application, one image and one generated SBOM.",
+        "replacement": "tests/v1/test_runtime.py::PrivateFiles.test_all_engines_report_the_single_product_version; installed image selftest; per-architecture generated SBOM/scan and candidate manifest checks; release/check_source.py (public privacy, single version and Core dependency boundaries)"
+      },
+      {
+        "nodeid": "tests/test_core_gates.py::test_component_passes_every_gate",
+        "disposition": "N/A",
+        "reason": "Standalone 0.x distribution/export/metadata contract; NetOps 1.x ships one installed application, one image and one generated SBOM.",
+        "replacement": "tests/v1/test_runtime.py::PrivateFiles.test_all_engines_report_the_single_product_version; installed image selftest; per-architecture generated SBOM/scan and candidate manifest checks; release/check_source.py (public privacy, single version and Core dependency boundaries)"
+      },
+      {
+        "nodeid": "tests/test_core_gates.py::test_the_export_hands_on_the_executable_bit_of_every_program",
+        "disposition": "N/A",
+        "reason": "Standalone 0.x distribution/export/metadata contract; NetOps 1.x ships one installed application, one image and one generated SBOM.",
+        "replacement": "tests/v1/test_runtime.py::PrivateFiles.test_all_engines_report_the_single_product_version; installed image selftest; per-architecture generated SBOM/scan and candidate manifest checks; release/check_source.py (public privacy, single version and Core dependency boundaries)"
+      },
+      {
+        "nodeid": "tests/test_core_gates.py::test_the_packaged_askpass_program_stays_executable_in_the_export",
+        "disposition": "N/A",
+        "reason": "Standalone 0.x distribution/export/metadata contract; NetOps 1.x ships one installed application, one image and one generated SBOM.",
+        "replacement": "tests/v1/test_runtime.py::PrivateFiles.test_all_engines_report_the_single_product_version; installed image selftest; per-architecture generated SBOM/scan and candidate manifest checks; release/check_source.py (public privacy, single version and Core dependency boundaries)"
+      },
+      {
+        "nodeid": "tests/test_supply_chain.py::test_sbom_root_carries_the_project_identity",
+        "disposition": "N/A",
+        "reason": "Standalone component version/source-literal or installation-pin contract; every role now imports the single NetOps product version.",
+        "replacement": "tests/v1/test_runtime.py::PrivateFiles.test_all_engines_report_the_single_product_version; installed image selftest; per-architecture generated SBOM/scan and candidate manifest checks; release/check_source.py (public privacy, single version and Core dependency boundaries)"
+      },
+      {
+        "nodeid": "tests/test_supply_chain.py::test_the_package_states_the_project_version",
+        "disposition": "N/A",
+        "reason": "Standalone component version/source-literal or installation-pin contract; every role now imports the single NetOps product version.",
+        "replacement": "tests/v1/test_runtime.py::PrivateFiles.test_all_engines_report_the_single_product_version; installed image selftest; per-architecture generated SBOM/scan and candidate manifest checks; release/check_source.py (public privacy, single version and Core dependency boundaries)"
+      },
+      {
+        "nodeid": "tests/test_supply_chain.py::test_the_changelog_names_the_project_version",
+        "disposition": "N/A",
+        "reason": "Standalone component version/source-literal or installation-pin contract; every role now imports the single NetOps product version.",
+        "replacement": "tests/v1/test_runtime.py::PrivateFiles.test_all_engines_report_the_single_product_version; installed image selftest; per-architecture generated SBOM/scan and candidate manifest checks; release/check_source.py (public privacy, single version and Core dependency boundaries)"
+      }
+    ],
+    "auditor": [
+      {
+        "nodeid": "tests/test_check_gates.py::test_synthetic_tree_passes",
+        "disposition": "N/A",
+        "reason": "Standalone 0.x distribution/export/metadata contract; NetOps 1.x ships one installed application, one image and one generated SBOM.",
+        "replacement": "tests/v1/test_runtime.py::PrivateFiles.test_all_engines_report_the_single_product_version; installed image selftest; per-architecture generated SBOM/scan and candidate manifest checks; release/check_source.py (public privacy, single version and Core dependency boundaries)"
+      },
+      {
+        "nodeid": "tests/test_check_gates.py::test_missing_positive_fixture_names_the_rule",
+        "disposition": "N/A",
+        "reason": "Standalone 0.x distribution/export/metadata contract; NetOps 1.x ships one installed application, one image and one generated SBOM.",
+        "replacement": "tests/v1/test_runtime.py::PrivateFiles.test_all_engines_report_the_single_product_version; installed image selftest; per-architecture generated SBOM/scan and candidate manifest checks; release/check_source.py (public privacy, single version and Core dependency boundaries)"
+      },
+      {
+        "nodeid": "tests/test_check_gates.py::test_missing_negative_fixture_names_the_rule",
+        "disposition": "N/A",
+        "reason": "Standalone 0.x distribution/export/metadata contract; NetOps 1.x ships one installed application, one image and one generated SBOM.",
+        "replacement": "tests/v1/test_runtime.py::PrivateFiles.test_all_engines_report_the_single_product_version; installed image selftest; per-architecture generated SBOM/scan and candidate manifest checks; release/check_source.py (public privacy, single version and Core dependency boundaries)"
+      },
+      {
+        "nodeid": "tests/test_check_gates.py::test_empty_fixture_is_rejected",
+        "disposition": "N/A",
+        "reason": "Standalone 0.x distribution/export/metadata contract; NetOps 1.x ships one installed application, one image and one generated SBOM.",
+        "replacement": "tests/v1/test_runtime.py::PrivateFiles.test_all_engines_report_the_single_product_version; installed image selftest; per-architecture generated SBOM/scan and candidate manifest checks; release/check_source.py (public privacy, single version and Core dependency boundaries)"
+      },
+      {
+        "nodeid": "tests/test_check_gates.py::test_fixture_directory_without_a_rule_is_rejected",
+        "disposition": "N/A",
+        "reason": "Standalone 0.x distribution/export/metadata contract; NetOps 1.x ships one installed application, one image and one generated SBOM.",
+        "replacement": "tests/v1/test_runtime.py::PrivateFiles.test_all_engines_report_the_single_product_version; installed image selftest; per-architecture generated SBOM/scan and candidate manifest checks; release/check_source.py (public privacy, single version and Core dependency boundaries)"
+      },
+      {
+        "nodeid": "tests/test_check_gates.py::test_real_address_in_a_fixture_is_rejected",
+        "disposition": "N/A",
+        "reason": "Standalone 0.x distribution/export/metadata contract; NetOps 1.x ships one installed application, one image and one generated SBOM.",
+        "replacement": "tests/v1/test_runtime.py::PrivateFiles.test_all_engines_report_the_single_product_version; installed image selftest; per-architecture generated SBOM/scan and candidate manifest checks; release/check_source.py (public privacy, single version and Core dependency boundaries)"
+      },
+      {
+        "nodeid": "tests/test_check_gates.py::test_real_address_outside_the_rule_fixtures_is_rejected",
+        "disposition": "N/A",
+        "reason": "Standalone 0.x distribution/export/metadata contract; NetOps 1.x ships one installed application, one image and one generated SBOM.",
+        "replacement": "tests/v1/test_runtime.py::PrivateFiles.test_all_engines_report_the_single_product_version; installed image selftest; per-architecture generated SBOM/scan and candidate manifest checks; release/check_source.py (public privacy, single version and Core dependency boundaries)"
+      },
+      {
+        "nodeid": "tests/test_check_gates.py::test_documentation_addresses_and_masks_pass",
+        "disposition": "N/A",
+        "reason": "Standalone 0.x distribution/export/metadata contract; NetOps 1.x ships one installed application, one image and one generated SBOM.",
+        "replacement": "tests/v1/test_runtime.py::PrivateFiles.test_all_engines_report_the_single_product_version; installed image selftest; per-architecture generated SBOM/scan and candidate manifest checks; release/check_source.py (public privacy, single version and Core dependency boundaries)"
+      },
+      {
+        "nodeid": "tests/test_check_gates.py::test_real_domain_in_a_fixture_is_rejected",
+        "disposition": "N/A",
+        "reason": "Standalone 0.x distribution/export/metadata contract; NetOps 1.x ships one installed application, one image and one generated SBOM.",
+        "replacement": "tests/v1/test_runtime.py::PrivateFiles.test_all_engines_report_the_single_product_version; installed image selftest; per-architecture generated SBOM/scan and candidate manifest checks; release/check_source.py (public privacy, single version and Core dependency boundaries)"
+      },
+      {
+        "nodeid": "tests/test_check_gates.py::test_allowed_documentation_domains_pass",
+        "disposition": "N/A",
+        "reason": "Standalone 0.x distribution/export/metadata contract; NetOps 1.x ships one installed application, one image and one generated SBOM.",
+        "replacement": "tests/v1/test_runtime.py::PrivateFiles.test_all_engines_report_the_single_product_version; installed image selftest; per-architecture generated SBOM/scan and candidate manifest checks; release/check_source.py (public privacy, single version and Core dependency boundaries)"
+      },
+      {
+        "nodeid": "tests/test_check_gates.py::test_rule_identifiers_are_not_read_as_domains",
+        "disposition": "N/A",
+        "reason": "Standalone 0.x distribution/export/metadata contract; NetOps 1.x ships one installed application, one image and one generated SBOM.",
+        "replacement": "tests/v1/test_runtime.py::PrivateFiles.test_all_engines_report_the_single_product_version; installed image selftest; per-architecture generated SBOM/scan and candidate manifest checks; release/check_source.py (public privacy, single version and Core dependency boundaries)"
+      },
+      {
+        "nodeid": "tests/test_check_gates.py::test_private_key_material_is_rejected",
+        "disposition": "N/A",
+        "reason": "Standalone 0.x distribution/export/metadata contract; NetOps 1.x ships one installed application, one image and one generated SBOM.",
+        "replacement": "tests/v1/test_runtime.py::PrivateFiles.test_all_engines_report_the_single_product_version; installed image selftest; per-architecture generated SBOM/scan and candidate manifest checks; release/check_source.py (public privacy, single version and Core dependency boundaries)"
+      },
+      {
+        "nodeid": "tests/test_check_gates.py::test_placeholder_key_block_passes",
+        "disposition": "N/A",
+        "reason": "Standalone 0.x distribution/export/metadata contract; NetOps 1.x ships one installed application, one image and one generated SBOM.",
+        "replacement": "tests/v1/test_runtime.py::PrivateFiles.test_all_engines_report_the_single_product_version; installed image selftest; per-architecture generated SBOM/scan and candidate manifest checks; release/check_source.py (public privacy, single version and Core dependency boundaries)"
+      },
+      {
+        "nodeid": "tests/test_check_gates.py::test_empty_title_is_rejected",
+        "disposition": "N/A",
+        "reason": "Standalone 0.x distribution/export/metadata contract; NetOps 1.x ships one installed application, one image and one generated SBOM.",
+        "replacement": "tests/v1/test_runtime.py::PrivateFiles.test_all_engines_report_the_single_product_version; installed image selftest; per-architecture generated SBOM/scan and candidate manifest checks; release/check_source.py (public privacy, single version and Core dependency boundaries)"
+      },
+      {
+        "nodeid": "tests/test_check_gates.py::test_empty_remediation_is_rejected",
+        "disposition": "N/A",
+        "reason": "Standalone 0.x distribution/export/metadata contract; NetOps 1.x ships one installed application, one image and one generated SBOM.",
+        "replacement": "tests/v1/test_runtime.py::PrivateFiles.test_all_engines_report_the_single_product_version; installed image selftest; per-architecture generated SBOM/scan and candidate manifest checks; release/check_source.py (public privacy, single version and Core dependency boundaries)"
+      },
+      {
+        "nodeid": "tests/test_check_gates.py::test_empty_evidence_fields_are_rejected",
+        "disposition": "N/A",
+        "reason": "Standalone 0.x distribution/export/metadata contract; NetOps 1.x ships one installed application, one image and one generated SBOM.",
+        "replacement": "tests/v1/test_runtime.py::PrivateFiles.test_all_engines_report_the_single_product_version; installed image selftest; per-architecture generated SBOM/scan and candidate manifest checks; release/check_source.py (public privacy, single version and Core dependency boundaries)"
+      },
+      {
+        "nodeid": "tests/test_check_gates.py::test_unknown_severity_is_rejected",
+        "disposition": "N/A",
+        "reason": "Standalone 0.x distribution/export/metadata contract; NetOps 1.x ships one installed application, one image and one generated SBOM.",
+        "replacement": "tests/v1/test_runtime.py::PrivateFiles.test_all_engines_report_the_single_product_version; installed image selftest; per-architecture generated SBOM/scan and candidate manifest checks; release/check_source.py (public privacy, single version and Core dependency boundaries)"
+      },
+      {
+        "nodeid": "tests/test_check_gates.py::test_unknown_class_is_rejected",
+        "disposition": "N/A",
+        "reason": "Standalone 0.x distribution/export/metadata contract; NetOps 1.x ships one installed application, one image and one generated SBOM.",
+        "replacement": "tests/v1/test_runtime.py::PrivateFiles.test_all_engines_report_the_single_product_version; installed image selftest; per-architecture generated SBOM/scan and candidate manifest checks; release/check_source.py (public privacy, single version and Core dependency boundaries)"
+      },
+      {
+        "nodeid": "tests/test_check_gates.py::test_judgement_rule_must_not_be_high",
+        "disposition": "N/A",
+        "reason": "Standalone 0.x distribution/export/metadata contract; NetOps 1.x ships one installed application, one image and one generated SBOM.",
+        "replacement": "tests/v1/test_runtime.py::PrivateFiles.test_all_engines_report_the_single_product_version; installed image selftest; per-architecture generated SBOM/scan and candidate manifest checks; release/check_source.py (public privacy, single version and Core dependency boundaries)"
+      },
+      {
+        "nodeid": "tests/test_check_gates.py::test_unimplemented_check_is_rejected",
+        "disposition": "N/A",
+        "reason": "Standalone 0.x distribution/export/metadata contract; NetOps 1.x ships one installed application, one image and one generated SBOM.",
+        "replacement": "tests/v1/test_runtime.py::PrivateFiles.test_all_engines_report_the_single_product_version; installed image selftest; per-architecture generated SBOM/scan and candidate manifest checks; release/check_source.py (public privacy, single version and Core dependency boundaries)"
+      },
+      {
+        "nodeid": "tests/test_check_gates.py::test_third_party_import_in_the_core_is_rejected",
+        "disposition": "N/A",
+        "reason": "Standalone 0.x distribution/export/metadata contract; NetOps 1.x ships one installed application, one image and one generated SBOM.",
+        "replacement": "tests/v1/test_runtime.py::PrivateFiles.test_all_engines_report_the_single_product_version; installed image selftest; per-architecture generated SBOM/scan and candidate manifest checks; release/check_source.py (public privacy, single version and Core dependency boundaries)"
+      },
+      {
+        "nodeid": "tests/test_check_gates.py::test_the_shared_access_layer_is_not_a_third_party_import",
+        "disposition": "N/A",
+        "reason": "Standalone 0.x distribution/export/metadata contract; NetOps 1.x ships one installed application, one image and one generated SBOM.",
+        "replacement": "tests/v1/test_runtime.py::PrivateFiles.test_all_engines_report_the_single_product_version; installed image selftest; per-architecture generated SBOM/scan and candidate manifest checks; release/check_source.py (public privacy, single version and Core dependency boundaries)"
+      },
+      {
+        "nodeid": "tests/test_check_gates.py::test_mcp_dependency_outside_the_mcp_shell_is_rejected",
+        "disposition": "N/A",
+        "reason": "Standalone 0.x distribution/export/metadata contract; NetOps 1.x ships one installed application, one image and one generated SBOM.",
+        "replacement": "tests/v1/test_runtime.py::PrivateFiles.test_all_engines_report_the_single_product_version; installed image selftest; per-architecture generated SBOM/scan and candidate manifest checks; release/check_source.py (public privacy, single version and Core dependency boundaries)"
+      },
+      {
+        "nodeid": "tests/test_check_gates.py::test_a_stale_sbom_is_rejected",
+        "disposition": "N/A",
+        "reason": "Standalone 0.x distribution/export/metadata contract; NetOps 1.x ships one installed application, one image and one generated SBOM.",
+        "replacement": "tests/v1/test_runtime.py::PrivateFiles.test_all_engines_report_the_single_product_version; installed image selftest; per-architecture generated SBOM/scan and candidate manifest checks; release/check_source.py (public privacy, single version and Core dependency boundaries)"
+      },
+      {
+        "nodeid": "tests/test_check_gates.py::test_unpinned_requirement_is_rejected",
+        "disposition": "N/A",
+        "reason": "Standalone 0.x distribution/export/metadata contract; NetOps 1.x ships one installed application, one image and one generated SBOM.",
+        "replacement": "tests/v1/test_runtime.py::PrivateFiles.test_all_engines_report_the_single_product_version; installed image selftest; per-architecture generated SBOM/scan and candidate manifest checks; release/check_source.py (public privacy, single version and Core dependency boundaries)"
+      },
+      {
+        "nodeid": "tests/test_check_gates.py::test_missing_project_metadata_is_rejected",
+        "disposition": "N/A",
+        "reason": "Standalone 0.x distribution/export/metadata contract; NetOps 1.x ships one installed application, one image and one generated SBOM.",
+        "replacement": "tests/v1/test_runtime.py::PrivateFiles.test_all_engines_report_the_single_product_version; installed image selftest; per-architecture generated SBOM/scan and candidate manifest checks; release/check_source.py (public privacy, single version and Core dependency boundaries)"
+      },
+      {
+        "nodeid": "tests/test_check_gates.py::test_foreign_component_name_is_rejected",
+        "disposition": "N/A",
+        "reason": "Standalone 0.x distribution/export/metadata contract; NetOps 1.x ships one installed application, one image and one generated SBOM.",
+        "replacement": "tests/v1/test_runtime.py::PrivateFiles.test_all_engines_report_the_single_product_version; installed image selftest; per-architecture generated SBOM/scan and candidate manifest checks; release/check_source.py (public privacy, single version and Core dependency boundaries)"
+      },
+      {
+        "nodeid": "tests/test_check_gates.py::test_version_that_disagrees_with_the_package_is_rejected",
+        "disposition": "N/A",
+        "reason": "Standalone component version/source-literal or installation-pin contract; every role now imports the single NetOps product version.",
+        "replacement": "tests/v1/test_runtime.py::PrivateFiles.test_all_engines_report_the_single_product_version; installed image selftest; per-architecture generated SBOM/scan and candidate manifest checks; release/check_source.py (public privacy, single version and Core dependency boundaries)"
+      },
+      {
+        "nodeid": "tests/test_check_gates.py::test_missing_requirements_file_is_rejected",
+        "disposition": "N/A",
+        "reason": "Standalone 0.x distribution/export/metadata contract; NetOps 1.x ships one installed application, one image and one generated SBOM.",
+        "replacement": "tests/v1/test_runtime.py::PrivateFiles.test_all_engines_report_the_single_product_version; installed image selftest; per-architecture generated SBOM/scan and candidate manifest checks; release/check_source.py (public privacy, single version and Core dependency boundaries)"
+      },
+      {
+        "nodeid": "tests/test_check_gates.py::test_release_content_rejects_a_private_address_outside_the_fixtures",
+        "disposition": "N/A",
+        "reason": "Standalone 0.x distribution/export/metadata contract; NetOps 1.x ships one installed application, one image and one generated SBOM.",
+        "replacement": "tests/v1/test_runtime.py::PrivateFiles.test_all_engines_report_the_single_product_version; installed image selftest; per-architecture generated SBOM/scan and candidate manifest checks; release/check_source.py (public privacy, single version and Core dependency boundaries)"
+      },
+      {
+        "nodeid": "tests/test_check_gates.py::test_release_content_rejects_a_unique_local_ipv6_address",
+        "disposition": "N/A",
+        "reason": "Standalone 0.x distribution/export/metadata contract; NetOps 1.x ships one installed application, one image and one generated SBOM.",
+        "replacement": "tests/v1/test_runtime.py::PrivateFiles.test_all_engines_report_the_single_product_version; installed image selftest; per-architecture generated SBOM/scan and candidate manifest checks; release/check_source.py (public privacy, single version and Core dependency boundaries)"
+      },
+      {
+        "nodeid": "tests/test_check_gates.py::test_release_content_rejects_a_mac_address",
+        "disposition": "N/A",
+        "reason": "Standalone 0.x distribution/export/metadata contract; NetOps 1.x ships one installed application, one image and one generated SBOM.",
+        "replacement": "tests/v1/test_runtime.py::PrivateFiles.test_all_engines_report_the_single_product_version; installed image selftest; per-architecture generated SBOM/scan and candidate manifest checks; release/check_source.py (public privacy, single version and Core dependency boundaries)"
+      },
+      {
+        "nodeid": "tests/test_check_gates.py::test_release_content_rejects_a_domain_outside_the_allowlist",
+        "disposition": "N/A",
+        "reason": "Standalone 0.x distribution/export/metadata contract; NetOps 1.x ships one installed application, one image and one generated SBOM.",
+        "replacement": "tests/v1/test_runtime.py::PrivateFiles.test_all_engines_report_the_single_product_version; installed image selftest; per-architecture generated SBOM/scan and candidate manifest checks; release/check_source.py (public privacy, single version and Core dependency boundaries)"
+      },
+      {
+        "nodeid": "tests/test_check_gates.py::test_release_content_rejects_a_private_path_marker",
+        "disposition": "N/A",
+        "reason": "Standalone 0.x distribution/export/metadata contract; NetOps 1.x ships one installed application, one image and one generated SBOM.",
+        "replacement": "tests/v1/test_runtime.py::PrivateFiles.test_all_engines_report_the_single_product_version; installed image selftest; per-architecture generated SBOM/scan and candidate manifest checks; release/check_source.py (public privacy, single version and Core dependency boundaries)"
+      },
+      {
+        "nodeid": "tests/test_check_gates.py::test_release_content_rejects_credential_material",
+        "disposition": "N/A",
+        "reason": "Standalone 0.x distribution/export/metadata contract; NetOps 1.x ships one installed application, one image and one generated SBOM.",
+        "replacement": "tests/v1/test_runtime.py::PrivateFiles.test_all_engines_report_the_single_product_version; installed image selftest; per-architecture generated SBOM/scan and candidate manifest checks; release/check_source.py (public privacy, single version and Core dependency boundaries)"
+      },
+      {
+        "nodeid": "tests/test_check_gates.py::test_release_content_rejects_a_leak_in_a_released_module",
+        "disposition": "N/A",
+        "reason": "Standalone 0.x distribution/export/metadata contract; NetOps 1.x ships one installed application, one image and one generated SBOM.",
+        "replacement": "tests/v1/test_runtime.py::PrivateFiles.test_all_engines_report_the_single_product_version; installed image selftest; per-architecture generated SBOM/scan and candidate manifest checks; release/check_source.py (public privacy, single version and Core dependency boundaries)"
+      },
+      {
+        "nodeid": "tests/test_check_gates.py::test_release_content_accepts_documentation_values",
+        "disposition": "N/A",
+        "reason": "Standalone 0.x distribution/export/metadata contract; NetOps 1.x ships one installed application, one image and one generated SBOM.",
+        "replacement": "tests/v1/test_runtime.py::PrivateFiles.test_all_engines_report_the_single_product_version; installed image selftest; per-architecture generated SBOM/scan and candidate manifest checks; release/check_source.py (public privacy, single version and Core dependency boundaries)"
+      },
+      {
+        "nodeid": "tests/test_check_gates.py::test_release_content_fails_closed_without_the_selector",
+        "disposition": "N/A",
+        "reason": "Standalone 0.x distribution/export/metadata contract; NetOps 1.x ships one installed application, one image and one generated SBOM.",
+        "replacement": "tests/v1/test_runtime.py::PrivateFiles.test_all_engines_report_the_single_product_version; installed image selftest; per-architecture generated SBOM/scan and candidate manifest checks; release/check_source.py (public privacy, single version and Core dependency boundaries)"
+      },
+      {
+        "nodeid": "tests/test_check_gates.py::test_release_content_survives_a_selector_that_rewrites_the_gate",
+        "disposition": "N/A",
+        "reason": "Standalone 0.x distribution/export/metadata contract; NetOps 1.x ships one installed application, one image and one generated SBOM.",
+        "replacement": "tests/v1/test_runtime.py::PrivateFiles.test_all_engines_report_the_single_product_version; installed image selftest; per-architecture generated SBOM/scan and candidate manifest checks; release/check_source.py (public privacy, single version and Core dependency boundaries)"
+      },
+      {
+        "nodeid": "tests/test_check_gates.py::test_the_export_carries_no_repository_and_passes_the_gate",
+        "disposition": "N/A",
+        "reason": "Standalone 0.x distribution/export/metadata contract; NetOps 1.x ships one installed application, one image and one generated SBOM.",
+        "replacement": "tests/v1/test_runtime.py::PrivateFiles.test_all_engines_report_the_single_product_version; installed image selftest; per-architecture generated SBOM/scan and candidate manifest checks; release/check_source.py (public privacy, single version and Core dependency boundaries)"
+      },
+      {
+        "nodeid": "tests/test_check_gates.py::test_a_leak_added_to_the_export_fails_the_gate_inside_the_export",
+        "disposition": "N/A",
+        "reason": "Standalone 0.x distribution/export/metadata contract; NetOps 1.x ships one installed application, one image and one generated SBOM.",
+        "replacement": "tests/v1/test_runtime.py::PrivateFiles.test_all_engines_report_the_single_product_version; installed image selftest; per-architecture generated SBOM/scan and candidate manifest checks; release/check_source.py (public privacy, single version and Core dependency boundaries)"
+      },
+      {
+        "nodeid": "tests/test_check_gates.py::test_the_export_rejects_a_file_outside_the_release_selection",
+        "disposition": "N/A",
+        "reason": "Standalone 0.x distribution/export/metadata contract; NetOps 1.x ships one installed application, one image and one generated SBOM.",
+        "replacement": "tests/v1/test_runtime.py::PrivateFiles.test_all_engines_report_the_single_product_version; installed image selftest; per-architecture generated SBOM/scan and candidate manifest checks; release/check_source.py (public privacy, single version and Core dependency boundaries)"
+      },
+      {
+        "nodeid": "tests/test_check_gates.py::test_the_export_rejects_a_released_file_that_is_gone",
+        "disposition": "N/A",
+        "reason": "Standalone 0.x distribution/export/metadata contract; NetOps 1.x ships one installed application, one image and one generated SBOM.",
+        "replacement": "tests/v1/test_runtime.py::PrivateFiles.test_all_engines_report_the_single_product_version; installed image selftest; per-architecture generated SBOM/scan and candidate manifest checks; release/check_source.py (public privacy, single version and Core dependency boundaries)"
+      },
+      {
+        "nodeid": "tests/test_check_gates.py::test_the_export_rejects_a_symlink_in_the_released_tree",
+        "disposition": "N/A",
+        "reason": "Standalone 0.x distribution/export/metadata contract; NetOps 1.x ships one installed application, one image and one generated SBOM.",
+        "replacement": "tests/v1/test_runtime.py::PrivateFiles.test_all_engines_report_the_single_product_version; installed image selftest; per-architecture generated SBOM/scan and candidate manifest checks; release/check_source.py (public privacy, single version and Core dependency boundaries)"
+      },
+      {
+        "nodeid": "tests/test_check_gates.py::test_a_tree_beside_a_repository_is_not_checked_for_completeness",
+        "disposition": "N/A",
+        "reason": "Standalone 0.x distribution/export/metadata contract; NetOps 1.x ships one installed application, one image and one generated SBOM.",
+        "replacement": "tests/v1/test_runtime.py::PrivateFiles.test_all_engines_report_the_single_product_version; installed image selftest; per-architecture generated SBOM/scan and candidate manifest checks; release/check_source.py (public privacy, single version and Core dependency boundaries)"
+      },
+      {
+        "nodeid": "tests/test_check_gates.py::test_the_gate_leaves_no_bytecode_behind",
+        "disposition": "N/A",
+        "reason": "Standalone 0.x distribution/export/metadata contract; NetOps 1.x ships one installed application, one image and one generated SBOM.",
+        "replacement": "tests/v1/test_runtime.py::PrivateFiles.test_all_engines_report_the_single_product_version; installed image selftest; per-architecture generated SBOM/scan and candidate manifest checks; release/check_source.py (public privacy, single version and Core dependency boundaries)"
+      },
+      {
+        "nodeid": "tests/test_check_gates.py::test_component_passes_every_gate",
+        "disposition": "N/A",
+        "reason": "Standalone 0.x distribution/export/metadata contract; NetOps 1.x ships one installed application, one image and one generated SBOM.",
+        "replacement": "tests/v1/test_runtime.py::PrivateFiles.test_all_engines_report_the_single_product_version; installed image selftest; per-architecture generated SBOM/scan and candidate manifest checks; release/check_source.py (public privacy, single version and Core dependency boundaries)"
+      },
+      {
+        "nodeid": "tests/test_check_gates.py::test_the_export_hands_on_the_executable_bit_of_every_program",
+        "disposition": "N/A",
+        "reason": "Standalone 0.x distribution/export/metadata contract; NetOps 1.x ships one installed application, one image and one generated SBOM.",
+        "replacement": "tests/v1/test_runtime.py::PrivateFiles.test_all_engines_report_the_single_product_version; installed image selftest; per-architecture generated SBOM/scan and candidate manifest checks; release/check_source.py (public privacy, single version and Core dependency boundaries)"
+      },
+      {
+        "nodeid": "tests/test_supply_chain.py::test_sbom_root_carries_the_project_identity",
+        "disposition": "N/A",
+        "reason": "Standalone component version/source-literal or installation-pin contract; every role now imports the single NetOps product version.",
+        "replacement": "tests/v1/test_runtime.py::PrivateFiles.test_all_engines_report_the_single_product_version; installed image selftest; per-architecture generated SBOM/scan and candidate manifest checks; release/check_source.py (public privacy, single version and Core dependency boundaries)"
+      },
+      {
+        "nodeid": "tests/test_supply_chain.py::test_sbom_carries_the_shared_access_layer_as_the_required_dependency",
+        "disposition": "N/A",
+        "reason": "Standalone 0.x distribution/export/metadata contract; NetOps 1.x ships one installed application, one image and one generated SBOM.",
+        "replacement": "tests/v1/test_runtime.py::PrivateFiles.test_all_engines_report_the_single_product_version; installed image selftest; per-architecture generated SBOM/scan and candidate manifest checks; release/check_source.py (public privacy, single version and Core dependency boundaries)"
+      },
+      {
+        "nodeid": "tests/test_supply_chain.py::test_the_pinned_core_version_is_the_one_in_the_tree",
+        "disposition": "N/A",
+        "reason": "Standalone component version/source-literal or installation-pin contract; every role now imports the single NetOps product version.",
+        "replacement": "tests/v1/test_runtime.py::PrivateFiles.test_all_engines_report_the_single_product_version; installed image selftest; per-architecture generated SBOM/scan and candidate manifest checks; release/check_source.py (public privacy, single version and Core dependency boundaries)"
+      },
+      {
+        "nodeid": "tests/test_supply_chain.py::test_subprocess_tests_pass_beside_the_pinned_core_archive",
+        "disposition": "N/A",
+        "reason": "Standalone 0.x distribution/export/metadata contract; NetOps 1.x ships one installed application, one image and one generated SBOM.",
+        "replacement": "tests/v1/test_runtime.py::PrivateFiles.test_all_engines_report_the_single_product_version; installed image selftest; per-architecture generated SBOM/scan and candidate manifest checks; release/check_source.py (public privacy, single version and Core dependency boundaries)"
+      },
+      {
+        "nodeid": "tests/test_supply_chain.py::test_the_action_runs_the_sources_it_ships_with",
+        "disposition": "N/A",
+        "reason": "Standalone 0.x distribution/export/metadata contract; NetOps 1.x ships one installed application, one image and one generated SBOM.",
+        "replacement": "tests/v1/test_runtime.py::PrivateFiles.test_all_engines_report_the_single_product_version; installed image selftest; per-architecture generated SBOM/scan and candidate manifest checks; release/check_source.py (public privacy, single version and Core dependency boundaries)"
+      }
+    ],
+    "helper": [
+      {
+        "nodeid": "tests/test_engine_contracts.py::test_mcp_server_identity_is_the_helper_distribution",
+        "disposition": "N/A",
+        "reason": "Standalone component version/source-literal or installation-pin contract; every role now imports the single NetOps product version.",
+        "replacement": "tests/v1/test_runtime.py::PrivateFiles.test_all_engines_report_the_single_product_version; installed image selftest; per-architecture generated SBOM/scan and candidate manifest checks; release/check_source.py (public privacy, single version and Core dependency boundaries)"
+      },
+      {
+        "nodeid": "tests/test_supply_chain.py::test_sbom_contains_all_direct_dependencies",
+        "disposition": "N/A",
+        "reason": "Standalone 0.x distribution/export/metadata contract; NetOps 1.x ships one installed application, one image and one generated SBOM.",
+        "replacement": "tests/v1/test_runtime.py::PrivateFiles.test_all_engines_report_the_single_product_version; installed image selftest; per-architecture generated SBOM/scan and candidate manifest checks; release/check_source.py (public privacy, single version and Core dependency boundaries)"
+      },
+      {
+        "nodeid": "tests/test_supply_chain.py::test_sbom_generator_adds_core_and_preserves_the_external_graph",
+        "disposition": "N/A",
+        "reason": "Standalone 0.x distribution/export/metadata contract; NetOps 1.x ships one installed application, one image and one generated SBOM.",
+        "replacement": "tests/v1/test_runtime.py::PrivateFiles.test_all_engines_report_the_single_product_version; installed image selftest; per-architecture generated SBOM/scan and candidate manifest checks; release/check_source.py (public privacy, single version and Core dependency boundaries)"
+      },
+      {
+        "nodeid": "tests/test_supply_chain.py::test_sbom_generator_refuses_a_direct_version_mismatch",
+        "disposition": "N/A",
+        "reason": "Standalone component version/source-literal or installation-pin contract; every role now imports the single NetOps product version.",
+        "replacement": "tests/v1/test_runtime.py::PrivateFiles.test_all_engines_report_the_single_product_version; installed image selftest; per-architecture generated SBOM/scan and candidate manifest checks; release/check_source.py (public privacy, single version and Core dependency boundaries)"
+      },
+      {
+        "nodeid": "tests/test_supply_chain.py::test_version_invariant_accepts_authorities_and_ignores_decoys",
+        "disposition": "N/A",
+        "reason": "Standalone component version/source-literal or installation-pin contract; every role now imports the single NetOps product version.",
+        "replacement": "tests/v1/test_runtime.py::PrivateFiles.test_all_engines_report_the_single_product_version; installed image selftest; per-architecture generated SBOM/scan and candidate manifest checks; release/check_source.py (public privacy, single version and Core dependency boundaries)"
+      },
+      {
+        "nodeid": "tests/test_supply_chain.py::test_version_invariant_rejects_changed_pyproject",
+        "disposition": "N/A",
+        "reason": "Standalone component version/source-literal or installation-pin contract; every role now imports the single NetOps product version.",
+        "replacement": "tests/v1/test_runtime.py::PrivateFiles.test_all_engines_report_the_single_product_version; installed image selftest; per-architecture generated SBOM/scan and candidate manifest checks; release/check_source.py (public privacy, single version and Core dependency boundaries)"
+      },
+      {
+        "nodeid": "tests/test_supply_chain.py::test_version_invariant_rejects_changed_package_version",
+        "disposition": "N/A",
+        "reason": "Standalone component version/source-literal or installation-pin contract; every role now imports the single NetOps product version.",
+        "replacement": "tests/v1/test_runtime.py::PrivateFiles.test_all_engines_report_the_single_product_version; installed image selftest; per-architecture generated SBOM/scan and candidate manifest checks; release/check_source.py (public privacy, single version and Core dependency boundaries)"
+      },
+      {
+        "nodeid": "tests/test_supply_chain.py::test_version_invariant_ignores_backtick_fenced_heading_decoy",
+        "disposition": "N/A",
+        "reason": "Standalone component version/source-literal or installation-pin contract; every role now imports the single NetOps product version.",
+        "replacement": "tests/v1/test_runtime.py::PrivateFiles.test_all_engines_report_the_single_product_version; installed image selftest; per-architecture generated SBOM/scan and candidate manifest checks; release/check_source.py (public privacy, single version and Core dependency boundaries)"
+      },
+      {
+        "nodeid": "tests/test_supply_chain.py::test_version_invariant_respects_tilde_fence_closing_length",
+        "disposition": "N/A",
+        "reason": "Standalone component version/source-literal or installation-pin contract; every role now imports the single NetOps product version.",
+        "replacement": "tests/v1/test_runtime.py::PrivateFiles.test_all_engines_report_the_single_product_version; installed image selftest; per-architecture generated SBOM/scan and candidate manifest checks; release/check_source.py (public privacy, single version and Core dependency boundaries)"
+      },
+      {
+        "nodeid": "tests/test_supply_chain.py::test_public_allowlist_contains_all_0_2_contracts",
+        "disposition": "N/A",
+        "reason": "Standalone 0.x distribution/export/metadata contract; NetOps 1.x ships one installed application, one image and one generated SBOM.",
+        "replacement": "tests/v1/test_runtime.py::PrivateFiles.test_all_engines_report_the_single_product_version; installed image selftest; per-architecture generated SBOM/scan and candidate manifest checks; release/check_source.py (public privacy, single version and Core dependency boundaries)"
+      },
+      {
+        "nodeid": "tests/test_supply_chain.py::test_documented_scripts_write_no_bytecode_into_the_unpacked_archive",
+        "disposition": "N/A",
+        "reason": "Standalone 0.x distribution/export/metadata contract; NetOps 1.x ships one installed application, one image and one generated SBOM.",
+        "replacement": "tests/v1/test_runtime.py::PrivateFiles.test_all_engines_report_the_single_product_version; installed image selftest; per-architecture generated SBOM/scan and candidate manifest checks; release/check_source.py (public privacy, single version and Core dependency boundaries)"
+      },
+      {
+        "nodeid": "tests/test_supply_chain.py::test_release_selection_rejects_unsafe_entries",
+        "disposition": "N/A",
+        "reason": "Standalone 0.x distribution/export/metadata contract; NetOps 1.x ships one installed application, one image and one generated SBOM.",
+        "replacement": "tests/v1/test_runtime.py::PrivateFiles.test_all_engines_report_the_single_product_version; installed image selftest; per-architecture generated SBOM/scan and candidate manifest checks; release/check_source.py (public privacy, single version and Core dependency boundaries)"
+      },
+      {
+        "nodeid": "tests/test_supply_chain.py::test_release_export_preserves_existing_destination",
+        "disposition": "N/A",
+        "reason": "Standalone 0.x distribution/export/metadata contract; NetOps 1.x ships one installed application, one image and one generated SBOM.",
+        "replacement": "tests/v1/test_runtime.py::PrivateFiles.test_all_engines_report_the_single_product_version; installed image selftest; per-architecture generated SBOM/scan and candidate manifest checks; release/check_source.py (public privacy, single version and Core dependency boundaries)"
+      },
+      {
+        "nodeid": "tests/test_supply_chain.py::test_release_gate_rejects_missing_vendor_contract",
+        "disposition": "N/A",
+        "reason": "Standalone 0.x distribution/export/metadata contract; NetOps 1.x ships one installed application, one image and one generated SBOM.",
+        "replacement": "tests/v1/test_runtime.py::PrivateFiles.test_all_engines_report_the_single_product_version; installed image selftest; per-architecture generated SBOM/scan and candidate manifest checks; release/check_source.py (public privacy, single version and Core dependency boundaries)"
+      },
+      {
+        "nodeid": "tests/test_supply_chain.py::test_release_tree_integrity_fails_closed",
+        "disposition": "N/A",
+        "reason": "Standalone 0.x distribution/export/metadata contract; NetOps 1.x ships one installed application, one image and one generated SBOM.",
+        "replacement": "tests/v1/test_runtime.py::PrivateFiles.test_all_engines_report_the_single_product_version; installed image selftest; per-architecture generated SBOM/scan and candidate manifest checks; release/check_source.py (public privacy, single version and Core dependency boundaries)"
+      },
+      {
+        "nodeid": "tests/test_supply_chain.py::test_public_gate_rejects_recursive_local_environment_markers",
+        "disposition": "N/A",
+        "reason": "Standalone 0.x distribution/export/metadata contract; NetOps 1.x ships one installed application, one image and one generated SBOM.",
+        "replacement": "tests/v1/test_runtime.py::PrivateFiles.test_all_engines_report_the_single_product_version; installed image selftest; per-architecture generated SBOM/scan and candidate manifest checks; release/check_source.py (public privacy, single version and Core dependency boundaries)"
+      },
+      {
+        "nodeid": "tests/test_supply_chain.py::test_public_gate_privacy_scan_has_bounded_runtime",
+        "disposition": "N/A",
+        "reason": "Standalone 0.x distribution/export/metadata contract; NetOps 1.x ships one installed application, one image and one generated SBOM.",
+        "replacement": "tests/v1/test_runtime.py::PrivateFiles.test_all_engines_report_the_single_product_version; installed image selftest; per-architecture generated SBOM/scan and candidate manifest checks; release/check_source.py (public privacy, single version and Core dependency boundaries)"
+      },
+      {
+        "nodeid": "tests/test_supply_chain.py::test_public_export_contains_no_python_bytecode",
+        "disposition": "N/A",
+        "reason": "Standalone 0.x distribution/export/metadata contract; NetOps 1.x ships one installed application, one image and one generated SBOM.",
+        "replacement": "tests/v1/test_runtime.py::PrivateFiles.test_all_engines_report_the_single_product_version; installed image selftest; per-architecture generated SBOM/scan and candidate manifest checks; release/check_source.py (public privacy, single version and Core dependency boundaries)"
+      },
+      {
+        "nodeid": "tests/test_supply_chain.py::test_release_export_compose_builds_from_archive_root",
+        "disposition": "N/A",
+        "reason": "Standalone 0.x distribution/export/metadata contract; NetOps 1.x ships one installed application, one image and one generated SBOM.",
+        "replacement": "tests/v1/test_runtime.py::PrivateFiles.test_all_engines_report_the_single_product_version; installed image selftest; per-architecture generated SBOM/scan and candidate manifest checks; release/check_source.py (public privacy, single version and Core dependency boundaries)"
+      },
+      {
+        "nodeid": "tests/test_supply_chain.py::test_release_export_keeps_askpass_executable",
+        "disposition": "N/A",
+        "reason": "Standalone 0.x distribution/export/metadata contract; NetOps 1.x ships one installed application, one image and one generated SBOM.",
+        "replacement": "tests/v1/test_runtime.py::PrivateFiles.test_all_engines_report_the_single_product_version; installed image selftest; per-architecture generated SBOM/scan and candidate manifest checks; release/check_source.py (public privacy, single version and Core dependency boundaries)"
+      },
+      {
+        "nodeid": "tests/test_supply_chain.py::test_release_export_root_mode_is_independent_of_private_umask",
+        "disposition": "N/A",
+        "reason": "Standalone 0.x distribution/export/metadata contract; NetOps 1.x ships one installed application, one image and one generated SBOM.",
+        "replacement": "tests/v1/test_runtime.py::PrivateFiles.test_all_engines_report_the_single_product_version; installed image selftest; per-architecture generated SBOM/scan and candidate manifest checks; release/check_source.py (public privacy, single version and Core dependency boundaries)"
+      },
+      {
+        "nodeid": "tests/test_supply_chain.py::test_exported_vendor_references_pass_their_own_contract",
+        "disposition": "N/A",
+        "reason": "Standalone 0.x distribution/export/metadata contract; NetOps 1.x ships one installed application, one image and one generated SBOM.",
+        "replacement": "tests/v1/test_runtime.py::PrivateFiles.test_all_engines_report_the_single_product_version; installed image selftest; per-architecture generated SBOM/scan and candidate manifest checks; release/check_source.py (public privacy, single version and Core dependency boundaries)"
+      }
+    ],
+    "admin": [
+      {
+        "nodeid": "tests/test_gates.py::test_shipped_tree_passes",
+        "disposition": "N/A",
+        "reason": "Standalone 0.x distribution/export/metadata contract; NetOps 1.x ships one installed application, one image and one generated SBOM.",
+        "replacement": "tests/v1/test_runtime.py::PrivateFiles.test_all_engines_report_the_single_product_version; installed image selftest; per-architecture generated SBOM/scan and candidate manifest checks; release/check_source.py (public privacy, single version and Core dependency boundaries)"
+      },
+      {
+        "nodeid": "tests/test_gates.py::test_version_drift_is_reported",
+        "disposition": "N/A",
+        "reason": "Standalone component version/source-literal or installation-pin contract; every role now imports the single NetOps product version.",
+        "replacement": "tests/v1/test_runtime.py::PrivateFiles.test_all_engines_report_the_single_product_version; installed image selftest; per-architecture generated SBOM/scan and candidate manifest checks; release/check_source.py (public privacy, single version and Core dependency boundaries)"
+      },
+      {
+        "nodeid": "tests/test_gates.py::test_dependency_drift_is_reported",
+        "disposition": "N/A",
+        "reason": "Standalone 0.x distribution/export/metadata contract; NetOps 1.x ships one installed application, one image and one generated SBOM.",
+        "replacement": "tests/v1/test_runtime.py::PrivateFiles.test_all_engines_report_the_single_product_version; installed image selftest; per-architecture generated SBOM/scan and candidate manifest checks; release/check_source.py (public privacy, single version and Core dependency boundaries)"
+      },
+      {
+        "nodeid": "tests/test_gates.py::test_every_gate_passes_on_the_shipped_component",
+        "disposition": "N/A",
+        "reason": "Standalone 0.x distribution/export/metadata contract; NetOps 1.x ships one installed application, one image and one generated SBOM.",
+        "replacement": "tests/v1/test_runtime.py::PrivateFiles.test_all_engines_report_the_single_product_version; installed image selftest; per-architecture generated SBOM/scan and candidate manifest checks; release/check_source.py (public privacy, single version and Core dependency boundaries)"
+      },
+      {
+        "nodeid": "tests/test_gates.py::test_changelog_heading_drift_is_reported[first]",
+        "disposition": "N/A",
+        "reason": "Standalone component version/source-literal or installation-pin contract; every role now imports the single NetOps product version.",
+        "replacement": "tests/v1/test_runtime.py::PrivateFiles.test_all_engines_report_the_single_product_version; installed image selftest; per-architecture generated SBOM/scan and candidate manifest checks; release/check_source.py (public privacy, single version and Core dependency boundaries)"
+      },
+      {
+        "nodeid": "tests/test_gates.py::test_changelog_heading_drift_is_reported[duplicate]",
+        "disposition": "N/A",
+        "reason": "Standalone component version/source-literal or installation-pin contract; every role now imports the single NetOps product version.",
+        "replacement": "tests/v1/test_runtime.py::PrivateFiles.test_all_engines_report_the_single_product_version; installed image selftest; per-architecture generated SBOM/scan and candidate manifest checks; release/check_source.py (public privacy, single version and Core dependency boundaries)"
+      },
+      {
+        "nodeid": "tests/test_gates.py::test_installation_and_first_operation_use_the_package_pins",
+        "disposition": "N/A",
+        "reason": "Standalone component version/source-literal or installation-pin contract; every role now imports the single NetOps product version.",
+        "replacement": "tests/v1/test_runtime.py::PrivateFiles.test_all_engines_report_the_single_product_version; installed image selftest; per-architecture generated SBOM/scan and candidate manifest checks; release/check_source.py (public privacy, single version and Core dependency boundaries)"
+      }
+    ]
+  }
+}

@@ -1,16 +1,18 @@
 # Verified platform support
 
+Qualification uses local Docker state volumes; network-backed state storage, including NFS, is not qualified.
+
 Compatibility is scoped to the exact platform, firmware build, model, account policy and operation documented by each component. Catalogue presence does not qualify every deployment. Software-image or synthetic results do not establish hardware forwarding, sensor or every timing path. Each target must satisfy its component's enrollment requirements.
 
 ## Host operating system
 
-NetOps deployment hosts run Linux. Windows and macOS are not supported deployment targets. POSIX process, filesystem and permission interfaces are required; see the [Core release requirements](../components/netops-core/docs/releasing.md). Distribution, architecture and optional dependency requirements belong to each component's installation instructions.
+NetOps deployment hosts run Linux with Docker Engine and Compose. Supported host families are Ubuntu, Debian, Fedora Server and Raspberry Pi OS 64, on amd64 or arm64 where the distribution supports the architecture. Fedora requires Docker SELinux support with the host enforcing. Docker Engine in rootless mode is not part of the qualified platform matrix. Windows and macOS can run MCP clients; deployment requires a supported Linux guest. The [single-product quickstart](quickstart-1.0.md) is the only installation path. Engines are not separately installed. Support is bounded by the exact current release qualification; no platform inherits PASS from an older candidate.
 
 ## FortiOS bounds
 
 Documented FortiOS contracts distinguish 7.6.7 build3704 and 8.0.0 build0167. FortiGate 60F, FortiGate 80F and FortiGate-VM64-KVM model scopes remain separate; software-image coverage does not establish physical forwarding or every firmware variant. Preserve the exact schema's model/build, reference semantics, conditionals, nested configuration, protected objects and restart requirements.
 
-Helper reads use their documented catalogue and account policy. Auditor SSH and REST collection require the [collector channel](../components/netops-auditor/docs/channels.md) permissions. Admin supports enrolled address, address-group, DHCP-reservation and explicitly bounded schema operations only. Safeguard installation, readback, prediction and return proof remain mandatory.
+Helper reads use their documented catalogue and account policy. The opt-in FortiOS `managed_switch_stacking` and `managed_switch_poe` queries have no positive result: the tested switch is neither stacking- nor PoE-capable, so behavior on such hardware is unverified (see the [FortiOS reference](../components/netops-helper/docs/vendor-cli-references/fortinet-fortios.md)). Auditor SSH and REST collection require the [collector channel](../components/netops-auditor/docs/channels.md) permissions. Admin supports enrolled address, address-group, DHCP-reservation and explicitly bounded schema operations only; in NetOps 1.0 schema operations have no supported way to receive their binding files (see [Admin MCP tools](admin-configuration.md#mcp-tools)). Safeguard installation, readback, prediction and return proof remain mandatory.
 
 ## EXOS bounds
 

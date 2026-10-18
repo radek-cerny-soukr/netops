@@ -9,6 +9,7 @@ from pathlib import Path
 
 from . import hostkey, legacy_ssh, platforms
 from .inputs import InputError, read_regular
+from .validation import ValidationError
 
 FILE_VERSION = 2
 DOCUMENT_FIELDS = ("version", "devices")
@@ -25,7 +26,7 @@ DEVICE_FIELDS = (
     "auditor",
     "helper",
 )
-ROLES = ("perimetr", "interni", "lab")
+ROLES = ("perimeter", "internal", "lab")
 CONSUMERS = ("auditor", "helper")
 PORT_MIN = 1
 PORT_MAX = 65535
@@ -45,7 +46,7 @@ SECRET_MARKERS = (
 )
 
 
-class InventoryError(Exception):
+class InventoryError(ValidationError):
     pass
 
 
@@ -85,12 +86,12 @@ def _secret_free(where: str, names) -> None:
             "%s: secrets do not belong in the inventory, remove fields: %s;"
             " credential may only name a record in the credential store"
             % (where, ", ".join(str(name) for name in found))
-        )
+        , field='inventory', code='secret-fields')
 
 
 def _checked_text(where: str, name: str, value) -> str:
     if not isinstance(value, str) or not value.strip():
-        raise InventoryError("%s: %s must be a non-empty string, got %r" % (where, name, value))
+        raise InventoryError("%s: %s must be a non-empty string, got %r" % (where, name, value), field="inventory.devices[]." + name, code='text')
     return value
 
 
@@ -98,7 +99,7 @@ def _checked_choice(where: str, name: str, value, allowed) -> str:
     if not isinstance(value, str) or value not in allowed:
         raise InventoryError(
             "%s: %s must be one of %s, got %r" % (where, name, ", ".join(allowed), value)
-        )
+        , field="inventory.devices[]." + name, code="inventory-role" if name == "role" else "choice")
     return value
 
 
@@ -106,7 +107,7 @@ def _checked_platform(where: str, value) -> str:
     try:
         return platforms.normalize(value)
     except platforms.PlatformError as error:
-        raise InventoryError("%s: %s" % (where, error)) from None
+        raise InventoryError("%s: %s" % (where, error), field='inventory.devices[].platform', code='platform') from None
 
 
 def _address_refused(where: str, value) -> InventoryError:
@@ -114,7 +115,7 @@ def _address_refused(where: str, value) -> InventoryError:
         "%s: address must be null, a canonical IPv4 literal or a lowercase DNS name"
         " (labels of letters, digits and hyphens, no trailing dot, at most %d characters),"
         " got %r" % (where, DNS_NAME_MAX_LENGTH, value)
-    )
+    , field='inventory.devices[].address', code='address')
 
 
 def _checked_address(where: str, value):
@@ -131,12 +132,12 @@ def _checked_address(where: str, value):
             raise InventoryError(
                 "%s: IPv6 targets are not supported, address must be null, a canonical IPv4"
                 " literal or a lowercase DNS name, got %r" % (where, value)
-            )
+            , field='inventory.devices[].address', code='ipv4')
         if str(parsed) != value:
             raise InventoryError(
                 "%s: address must hold the canonical form of the IPv4 literal, got %r,"
                 " expected %r" % (where, value, str(parsed))
-            )
+            , field='inventory.devices[].address', code='address')
         return value
     if len(value) > DNS_NAME_MAX_LENGTH or value != value.lower() or value.endswith("."):
         raise _address_refused(where, value)
@@ -151,7 +152,7 @@ def _checked_address(where: str, value):
         "%s: address must hold the canonical form of the IPv4 literal, got %r, which the resolver"
         " reads as the address %r and is not a DNS name, expected %r"
         % (where, value, numeric, numeric)
-    )
+    , field='inventory.devices[].address', code='address')
 
 
 def _checked_port(where: str, value):
@@ -161,12 +162,12 @@ def _checked_port(where: str, value):
         raise InventoryError(
             "%s: port must be null or an integer between %d and %d, got %r"
             % (where, PORT_MIN, PORT_MAX, value)
-        )
+        , field='inventory.devices[].port', code='optional-port')
     if not PORT_MIN <= value <= PORT_MAX:
         raise InventoryError(
             "%s: port must be null or an integer between %d and %d, got %r"
             % (where, PORT_MIN, PORT_MAX, value)
-        )
+        , field='inventory.devices[].port', code='optional-port')
     return value
 
 
@@ -175,7 +176,7 @@ def _checked_reach(where: str, address, port) -> None:
         raise InventoryError(
             "%s: address and port must be both null or both set, a device is reached by both or"
             " by neither, got address %r and port %r" % (where, address, port)
-        )
+        , field='inventory.devices[].address', code='address-port')
 
 
 def _checked_credential(where: str, value):
@@ -185,7 +186,7 @@ def _checked_credential(where: str, value):
         raise InventoryError(
             "%s: credential must be null or name a record in the credential store, got %s"
             % (where, _kind(value))
-        )
+        , field='inventory.devices[].credential', code='optional-reference')
     return value
 
 
@@ -195,12 +196,12 @@ def _checked_host_key(where: str, value, address):
     try:
         pin = hostkey.checked_pin(value)
     except hostkey.HostKeyError as error:
-        raise InventoryError("%s: %s" % (where, error)) from None
+        raise InventoryError("%s: %s" % (where, error), field='inventory.devices[].host_key_fingerprint', code='ssh-pin') from None
     if address is None:
         raise InventoryError(
             "%s: host_key_fingerprint pins the key of the host behind address, it must be null"
             " for a device without an address, got %r" % (where, value)
-        )
+        , field='inventory.devices[].host_key_fingerprint', code='address-required')
     return pin
 
 
@@ -208,12 +209,12 @@ def _checked_legacy_ssh(where: str, value, host_key_fingerprint):
     try:
         profile = legacy_ssh.checked(value)
     except legacy_ssh.LegacySshError as error:
-        raise InventoryError("%s: %s" % (where, error)) from None
+        raise InventoryError("%s: %s" % (where, error), field='inventory.devices[].legacy_ssh', code='legacy-profile') from None
     if profile is not None and host_key_fingerprint is None:
         raise InventoryError(
             "%s: legacy_ssh %r requires host_key_fingerprint, weakening the algorithms of a"
             " session whose host key is not pinned makes no sense" % (where, profile)
-        )
+        , field='inventory.devices[].legacy_ssh', code='pin-required')
     return profile
 
 
@@ -224,7 +225,7 @@ def _checked_section(where: str, name: str, value):
         raise InventoryError(
             "%s: %s must be null or an object, its content belongs to that component, got %s"
             % (where, name, type(value).__name__)
-        )
+        , field="inventory.devices[]." + name, code='optional-object')
     return value
 
 
@@ -233,20 +234,20 @@ def _checked_sections(where: str, sections) -> None:
         raise InventoryError(
             "%s: at least one of %s must be an object, a device no component consumes is refused"
             % (where, ", ".join(CONSUMERS))
-        )
+        , field='inventory.devices[]', code='consumer-required')
 
 
 def _device(index: int, item) -> Device:
     where = "device %d" % index
     if not isinstance(item, dict):
-        raise InventoryError("%s: must be an object, got %s" % (where, type(item).__name__))
+        raise InventoryError("%s: must be an object, got %s" % (where, type(item).__name__), field='inventory.devices[]', code='object')
     _secret_free(where, item)
     missing = [name for name in DEVICE_FIELDS if name not in item]
     if missing:
-        raise InventoryError("%s: missing fields: %s" % (where, ", ".join(missing)))
+        raise InventoryError("%s: missing fields: %s" % (where, ", ".join(missing)), field='inventory.devices[].' + missing[0], code='required')
     unknown = sorted(set(item) - set(DEVICE_FIELDS))
     if unknown:
-        raise InventoryError("%s: unknown fields: %s" % (where, ", ".join(unknown)))
+        raise InventoryError("%s: unknown fields: %s" % (where, ", ".join(unknown)), field='inventory.devices[]', code='unknown-fields')
     address = _checked_address(where, item["address"])
     port = _checked_port(where, item["port"])
     _checked_reach(where, address, port)
@@ -288,45 +289,45 @@ def _document(path: Path) -> dict:
     try:
         data = read_regular(path, INVENTORY_MAX_BYTES)
     except (OSError, InputError) as error:
-        raise InventoryError("cannot read inventory file %s: %s" % (path, error)) from None
+        raise InventoryError("cannot read inventory file %s: %s" % (path, error), field='inventory', code='read') from None
     try:
         raw = data.decode("utf-8")
     except UnicodeDecodeError:
-        raise InventoryError("inventory file %s is not valid UTF-8" % path) from None
+        raise InventoryError("inventory file %s is not valid UTF-8" % path, field='inventory', code='utf8') from None
     try:
         document = json.loads(raw, object_pairs_hook=_unique)
     except ValueError as error:
-        raise InventoryError("inventory file %s is not valid JSON: %s" % (path, error)) from None
+        raise InventoryError("inventory file %s is not valid JSON: %s" % (path, error), field='inventory', code='json') from None
     except RecursionError:
-        raise InventoryError("inventory file %s is nested too deeply" % path) from None
+        raise InventoryError("inventory file %s is nested too deeply" % path, field='inventory', code='depth') from None
     if not _encodable(document):
-        raise InventoryError("inventory file %s holds an unpaired surrogate escape" % path)
+        raise InventoryError("inventory file %s holds an unpaired surrogate escape" % path, field='inventory', code='utf8')
     if not isinstance(document, dict):
         raise InventoryError(
             "inventory file %s must hold an object, got %s" % (path, type(document).__name__)
-        )
+        , field='inventory', code='object')
     _secret_free("inventory file %s" % path, document)
     missing = [name for name in DOCUMENT_FIELDS if name not in document]
     if missing:
         raise InventoryError(
             "inventory file %s: missing document fields: %s" % (path, ", ".join(missing))
-        )
+        , field='inventory.' + missing[0], code='required')
     unknown = sorted(set(document) - set(DOCUMENT_FIELDS))
     if unknown:
         raise InventoryError(
             "inventory file %s: unknown document fields: %s" % (path, ", ".join(unknown))
-        )
+        , field='inventory', code='unknown-fields')
     version = document["version"]
     if isinstance(version, bool) or version != FILE_VERSION:
         raise InventoryError(
             "inventory file %s: unknown inventory file version %r, expected %d"
             % (path, version, FILE_VERSION)
-        )
+        , field='inventory.version', code='version2')
     if not isinstance(document["devices"], list):
         raise InventoryError(
             "inventory file %s: devices must be a list, got %s"
             % (path, type(document["devices"]).__name__)
-        )
+        , field='inventory.devices', code='list')
     return document
 
 
@@ -336,17 +337,21 @@ def load(path) -> tuple:
         document = _document(location)
         devices, seen = [], {}
         for index, item in enumerate(document["devices"]):
-            entry = _device(index, item)
-            if entry.name in seen:
-                raise InventoryError(
-                    "device %d: duplicate name %r, already used by device %d"
-                    % (index, entry.name, seen[entry.name])
-                )
-            seen[entry.name] = index
-            devices.append(entry)
+            try:
+                entry = _device(index, item)
+                if entry.name in seen:
+                    raise InventoryError(
+                        "device %d: duplicate name %r, already used by device %d"
+                        % (index, entry.name, seen[entry.name])
+                    , field='inventory.devices[].name', code='duplicate')
+                seen[entry.name] = index
+                devices.append(entry)
+            except InventoryError as error:
+                error.diagnostic_index = index
+                raise
         return tuple(devices)
     except RecursionError:
-        raise InventoryError("inventory file %s is nested too deeply" % location) from None
+        raise InventoryError("inventory file %s is nested too deeply" % location, field='inventory', code='depth') from None
 
 
 def device(devices, name) -> Device:
@@ -356,12 +361,12 @@ def device(devices, name) -> Device:
     known = ", ".join(sorted(entry.name for entry in devices))
     raise InventoryError(
         "unknown device %r, inventory holds: %s" % (name, known if known else "no devices")
-    )
+    , field='inventory.devices[].name', code='reference')
 
 
 def for_consumer(devices, consumer) -> tuple:
     if not isinstance(consumer, str) or consumer not in CONSUMERS:
         raise InventoryError(
             "consumer must be one of %s, got %r" % (", ".join(CONSUMERS), consumer)
-        )
+        , field='inventory', code='choice')
     return tuple(entry for entry in devices if getattr(entry, consumer) is not None)

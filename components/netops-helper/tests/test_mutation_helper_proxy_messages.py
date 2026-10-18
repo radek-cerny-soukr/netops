@@ -43,7 +43,7 @@ def _enroll(tmp_path: Path, monkeypatch, *, snmp: bool = True) -> None:
     files = {name: tmp_path / f"{name}.json" for name in ("inventory", "vault", "policy", "runner")}
     files["inventory"].write_text(json.dumps({"version": 2, "devices": [{
         "name": "device-a", "platform": "fortios", "address": "192.0.2.10", "port": 22,
-        "role": "interni", "credential": "device-a-account",
+        "role": "internal", "credential": "device-a-account",
         "host_key_fingerprint": DEVICE_PIN, "legacy_ssh": None, "auditor": None,
         "helper": _helper_section(snmp),
     }]}))

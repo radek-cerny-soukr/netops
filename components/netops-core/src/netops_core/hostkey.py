@@ -45,6 +45,10 @@ class HostKeyError(Exception):
     pass
 
 
+class HostKeyUnavailable(HostKeyError):
+    pass
+
+
 def checked_pin(value) -> str:
     if isinstance(value, str) and value.startswith(PREFIX):
         digest = value[len(PREFIX):]
@@ -213,14 +217,14 @@ def scan(
         if not _key_lines(lines):
             continue
         if code != 0:
-            raise HostKeyError("%s offered no host key, exit code %s" % (name, code))
+            raise HostKeyUnavailable("%s: the host-key scan did not complete (exit code %s); check reachability, SSH port and key negotiation before changing the pinned key" % (name, code))
         answered = True
         line, seen = _match(lines, fingerprint)
         if line is not None:
             return line
         offered += seen
     if not answered:
-        raise HostKeyError("%s offered no host key, exit code %s" % (name, code))
+        raise HostKeyUnavailable("%s: no host key could be obtained (exit code %s); check reachability, SSH port and key negotiation before changing the pinned key" % (name, code))
     raise HostKeyError(
         "no offered host key matches the pinned fingerprint %s, %d key(s) offered"
         % (fingerprint, offered)
@@ -241,7 +245,7 @@ def _probe(runner, host, port, fingerprint, seconds, name, profile) -> str:
     if len(data) > KEYSCAN_CAPTURE_MAX_BYTES:
         raise HostKeyError("%s offered more than %d bytes of host keys" % (name, KEYSCAN_CAPTURE_MAX_BYTES))
     if not data:
-        raise HostKeyError("%s offered no host key, exit code %s" % (name, code))
+        raise HostKeyUnavailable("%s: no host key could be obtained (exit code %s); check reachability, SSH port and key negotiation before changing the pinned key" % (name, code))
     line, offered = _match(data.decode("utf-8", "replace").splitlines(), fingerprint)
     if line is not None:
         return line
@@ -255,10 +259,10 @@ def _scan_one(runner, argv, name, seconds):
     try:
         result = runner(argv, capture_output=True, timeout=seconds, check=False, env=_env())
     except ssh_module.SshError as error:
-        raise HostKeyError("cannot read the host key of %s: %s" % (name, error)) from None
+        raise HostKeyUnavailable("cannot read the host key of %s: %s; check reachability, SSH port and key negotiation" % (name, error)) from None
     except Exception as error:
-        raise HostKeyError(
-            "cannot read the host key of %s (%s)" % (name, type(error).__name__)
+        raise HostKeyUnavailable(
+            "cannot read the host key of %s (%s); check reachability, SSH port and key negotiation" % (name, type(error).__name__)
         ) from None
     output = getattr(result, "stdout", None)
     if not isinstance(output, (bytes, bytearray)):

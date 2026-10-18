@@ -1,0 +1,37 @@
+name: netops
+
+services:
+  netops:
+    image: ${NETOPS_IMAGE:?Set NETOPS_IMAGE to the signed release digest}
+    user: "0:0"
+    read_only: true
+    cap_drop: [ALL]
+    cap_add: [CHOWN, DAC_OVERRIDE, FOWNER, SETUID, SETGID, SETPCAP]
+    security_opt: [no-new-privileges:true]
+    pids_limit: 128
+    cpus: 2
+    mem_limit: 1g
+    ports:
+      - target: 8443
+        published: "${NETOPS_PORT:?Set NETOPS_PORT}"
+        host_ip: "${NETOPS_BIND_IP:?Set NETOPS_BIND_IP}"
+        protocol: tcp
+    environment:
+      NETOPS_BIND_IP: ${NETOPS_BIND_IP:?Set NETOPS_BIND_IP}
+      NETOPS_PORT: ${NETOPS_PORT:?Set NETOPS_PORT}
+      NETOPS_SERVER_NAME: ${NETOPS_SERVER_NAME:?Set NETOPS_SERVER_NAME}
+    volumes:
+      - netops-state:/var/lib/netops
+    tmpfs:
+      - /run/netops:rw,nosuid,nodev,noexec,size=16m,mode=0755
+      - /tmp:rw,nosuid,nodev,noexec,size=64m,mode=1777
+    healthcheck:
+      test: ["CMD", "netops", "health"]
+      interval: 30s
+      timeout: 10s
+      start_period: 20s
+      retries: 3
+    restart: unless-stopped
+    stop_grace_period: 60s
+volumes:
+  netops-state:

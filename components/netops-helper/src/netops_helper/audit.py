@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from typing import Any
 
 from netops_core.audit import Recorder
 
 
-AUDIT_PATH = Path("/var/lib/netops-helper/audit.jsonl")
+AUDIT_PATH = Path(os.environ.get("NETOPS_HELPER_AUDIT_PATH", "/var/lib/netops-helper/audit.jsonl"))
 _RECORDER = Recorder(AUDIT_PATH, "helper")
 
 

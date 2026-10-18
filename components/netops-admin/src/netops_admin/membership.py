@@ -27,7 +27,7 @@ def _default_rendering(snapshot, command) -> bool:
     if len(tokens) != 6 or tokens[:3] != DEFAULT_ROUTER or tokens[3] not in ("add", "delete") or tokens[4] != "ports":
         return False
     try:
-        return ports(command.tokens[5]) == set(snapshot.inventory)
+        return ports(command.tokens[5]) == snapshot.inventory
     except (ValueError, IndexError):
         return False
 
@@ -144,18 +144,18 @@ def prediction(snapshot, port, state):
 
 
 PORT_NUMBER = re.compile(r"[1-9][0-9]*(?::[1-9][0-9]*)?")
-MODE_ROW = re.compile(r"\s+(Untagged|Tagged)\s+(.*?)\s*")
-PORT_ROW = re.compile(r"\s*(\S+)\s+(Untagged|Tagged)\s+(.*?)\s*")
+MODE_ROW = re.compile(r"\s+(Untagged|Tagged)\s+(.*)")
+PORT_ROW = re.compile(r"\s*(\S+)\s+(Untagged|Tagged)\s+(.*)")
 NAME_LINE = re.compile(r"(\S+)\s*")
 
 
 def _line(line):
     row = MODE_ROW.fullmatch(line)
     if row:
-        return None, row[1], row[2]
+        return None, row[1], row[2].rstrip()
     row = PORT_ROW.fullmatch(line)
     if row:
-        return row[1], row[2], row[3]
+        return row[1], row[2], row[3].rstrip()
     row = NAME_LINE.fullmatch(line)
     if row and set(row[1]) != {"-"}:
         return row[1], None, None
@@ -201,7 +201,7 @@ def shown(text, port, alias=None):
                 raise Rejected(["unsupported VLAN name in membership answer"])
             modes[current].update(names)
         elif identity is None and matched and line.strip():
-            if not current or not re.fullmatch(r"\s+[A-Za-z][A-Za-z0-9_, -]*\s*", line):
+            if not current or not re.fullmatch(r"\s+[A-Za-z][A-Za-z0-9_, -]*", line.rstrip()):
                 raise Rejected(["unsupported membership continuation"])
             modes[current].update(re.split(r"[,\s]+", line.strip()))
     if not matched or len(modes["Untagged"]) != 1:

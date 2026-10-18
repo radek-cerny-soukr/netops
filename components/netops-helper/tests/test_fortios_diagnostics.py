@@ -252,7 +252,7 @@ def test_interface_in_another_vdom_is_refused_before_options():
 def load_gate():
     import importlib.util
     root=__import__("pathlib").Path(__file__).resolve().parents[1]
-    path=root/"scripts/check_public_release.py"
+    path=root/"tests/support/check_public_release.py"
     spec=importlib.util.spec_from_file_location("diagnostic_gate",path)
     module=importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)

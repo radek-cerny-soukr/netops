@@ -25,7 +25,7 @@ import time
 
 ROOT = Path(__file__).parents[1]
 SCRIPT = ROOT / "src" / "netops_helper" / "proxy.py"
-LAUNCHER = ROOT / "scripts" / "remote_mcp_proxy.py"
+LAUNCHER = ROOT / "tests" / "support" / "remote_mcp_proxy.py"
 DEVICE_PIN = "SHA256:" + "A" * 43
 RUNNER_PIN = "SHA256:" + "B" * 43
 DEVICE_SECRET = "ssh-password"
@@ -78,7 +78,7 @@ def _device(section: dict, platform: str = "fortios") -> dict:
         "platform": platform,
         "address": "192.0.2.10",
         "port": 22,
-        "role": "interni",
+        "role": "internal",
         "credential": "device-a-account",
         "host_key_fingerprint": DEVICE_PIN,
         "legacy_ssh": None,
@@ -548,7 +548,7 @@ def check_a_continuation_is_free_only_at_an_offset_the_server_issued(
         arguments = {**read, "content_sha256": snapshot, "offset": 16_000}
         assert proxy.request(_request(identifier, "ssh_read", arguments)) is not None
     assert used() == 8
-    for malformed in ("A" * 64, "a" * 63, 7, None):
+    for malformed in ("A" * 64, "a" * 63, 7, False):
         arguments = {**read, "content_sha256": malformed, "offset": 16_000}
         assert proxy.request(_request(12, "ssh_read", arguments)) is None
     assert [item["error"]["data"]["category"] for item in emitted] == ["invalid_params"] * 4
@@ -2166,7 +2166,7 @@ record = os.environ["NETOPS_FAKE_SSH_RECORD"]
 restarted = os.path.exists(record) and '"started"' in open(record, encoding="utf-8").read()
 late_writer = (
     "import json, sys, time\\n"
-    "time.sleep(3.0)\\n"
+    "time.sleep(10.0)\\n"
     "sys.stdout.write(sys.argv[1] + chr(10))\\n"
     "sys.stdout.flush()\\n"
     "with open(sys.argv[2], 'a', encoding='utf-8') as handle:\\n"
@@ -2223,7 +2223,7 @@ def _stalling_proxy(module, directory: Path, refuse_restart: bool):
     launcher = (
         "import sys; sys.path[:0] = %r; "
         "from netops_helper import proxy; "
-        "proxy.PENDING_RESPONSE_TIMEOUT_SECONDS = 1.0; "
+        "proxy.PENDING_RESPONSE_TIMEOUT_SECONDS = 5.0; "
         "raise SystemExit(proxy.main())"
     ) % ([str(ROOT / "src"), str(ROOT.parent / "netops-core" / "src")],)
     process = subprocess.Popen(
@@ -2519,7 +2519,7 @@ def _main_function_call_names(source_path: Path) -> set[str]:
 
 def check_shared_legacy_configuration_detection() -> None:
     proxy_calls = _main_function_call_names(SCRIPT)
-    preflight_calls = _main_function_call_names(ROOT / "scripts" / "check_operator_config.py")
+    preflight_calls = _main_function_call_names(ROOT / "tests" / "support" / "check_operator_config.py")
     assert "legacy_configuration_detail" in proxy_calls
     assert "legacy_configuration_detail" in preflight_calls
 
