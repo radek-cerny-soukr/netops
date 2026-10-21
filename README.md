@@ -262,3 +262,13 @@ Version 1.0 does not migrate 0.x data or modify 0.x volumes. Previously publishe
 ## License
 
 NetOps is an open-source project by Radek Černý, distributed under the [MIT license](LICENSE). Claude Code and Codex assist implementation and independent review; compatible MCP clients remain vendor-neutral.
+
+## Disclaimer
+
+NetOps is open-source software provided **"as is", without warranty of any kind**, as stated in the [MIT license](LICENSE). You use it entirely **at your own risk**. The author currently has no plans to offer a commercial NetOps product or paid support. The MIT license permits commercial use, forks and redistribution.
+
+- **No liability.** The [MIT license](LICENSE) disclaims liability for the software's authors or copyright holders for claims, damages or other liability arising from the software or its use, including changes that the Admin role makes to network devices.
+- **No obligation to support or fix.** There is no service-level agreement and no commitment to provide support, answer questions, fix defects or security issues, publish updates or keep the project maintained. Any fix or release is voluntary and may never happen.
+- **Your responsibility.** Before any production use, you are responsible for evaluating NetOps in your environment, verifying device accounts and permissions, keeping configuration backups, testing changes, and following your organization's policies and applicable law.
+- **No certification.** Published tests, qualification results and supported-platform lists describe their documented scope and observations. They are not a guarantee, certification or fitness-for-purpose statement for your deployment.
+- **Forks and redistributions.** Anyone may fork or redistribute NetOps under the MIT license, including commercially. Such versions are not provided, endorsed or supported by the author, and they create no obligation on the author's part toward their users.

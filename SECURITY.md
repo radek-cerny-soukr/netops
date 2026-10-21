@@ -4,7 +4,7 @@
 
 NetOps 1.x is a single Docker-only product. Only a personally signed release and its covered assets are a release. Historical 0.x artifacts remain available but are frozen; their old packaging and deployment procedures do not describe this product.
 
-Report suspected vulnerabilities privately using this repository's GitHub Security Advisories. Never include live credentials, real addresses, private policies or captured device configurations in a public issue, pull request or CI log.
+Report suspected vulnerabilities privately using this repository's GitHub Security Advisories. Reports are welcome, but there is no committed response time and no obligation to provide a fix or release; see the [disclaimer](README.md#disclaimer). Never include live credentials, real addresses, private policies or captured device configurations in a public issue, pull request or CI log.
 
 ## Boundaries
 
