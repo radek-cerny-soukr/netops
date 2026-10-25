@@ -18,7 +18,7 @@ PWD_PREFIX = "Remote working directory: "
 NOT_DIRECTORY_HEAD = 'Can\'t change directory: "'
 NOT_DIRECTORY_TAIL = '" is not a directory'
 ECHO_PREFIX = "sftp> "
-PROGRESS_PREFIX = "Connected to "
+PROGRESS_LINE = "Connected to %s."
 LISTING_MAX_BYTES = 256 * 1024
 PATH_MAX_CHARS = 2_000
 FORBIDDEN_PATH_MARKS = ('"', "\\", "\n", "\r", "\x00")
@@ -217,7 +217,7 @@ def _listing(data) -> list:
     return lines
 
 
-def _reported(result) -> list:
+def _reported(result, name) -> list:
     data = getattr(result, "stderr", None)
     if not isinstance(data, (bytes, bytearray)):
         return []
@@ -226,11 +226,11 @@ def _reported(result) -> list:
         for line in bytes(data).decode("utf-8", "replace").splitlines()
         if line.strip()
     ]
-    for index, line in enumerate(lines):
-        if line.startswith(PROGRESS_PREFIX):
-            lines = lines[index + 1:]
-            break
-    return [line for line in lines if not line.startswith(PROGRESS_PREFIX)]
+    shown = name[1:-1] if name.startswith("[") and name.endswith("]") else name
+    for index in range(len(lines) - 1, -1, -1):
+        if lines[index] == PROGRESS_LINE % shown:
+            return lines[index + 1:]
+    return lines
 
 
 def stat(
@@ -318,7 +318,7 @@ def stat(
                 said,
             )
         lines = _listing(bytes(data))
-        reported = _reported(result)
+        reported = _reported(result, name)
         if confined:
             lines = _resolved_inside(name, confined, bytes(data), reported)
             reported = [line for line in reported if _not_directory(line) is None]

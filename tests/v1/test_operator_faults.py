@@ -70,6 +70,7 @@ class OperatorPartialResults(unittest.TestCase):
             rc, output, error = self.run_workflow(operator.rotate_instance_ca, config, gateway, first_only)
             self.assertEqual(rc, 3)
             self.assertIn("Instance CA rotated", output)
+            self.assertIn("Export the new CA with `docker compose run --rm netops ca > netops-ca.pem` and replace the CA at every MCP client", output)
             self.assertIn("completion record could not be written", error)
             with patch.object(certificates, "DIRECTORY", gateway):
                 certificates.verify_pairs()

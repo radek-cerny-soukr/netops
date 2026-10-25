@@ -15,6 +15,7 @@ from netops_core.sftp import (
     argv,
     stat as sftp_stat,
 )
+from netops_core import sftp as sftp_module
 from netops_core.ssh import OPTIONS, PASSWORD_OPTIONS
 
 HOST = "192.0.2.10"
@@ -558,3 +559,78 @@ def test_the_client_keeps_the_log_level_that_prints_a_failed_negotiation():
     call(run)
     assert not any(option.startswith("LogLevel=") for option in options_of(run.argv()))
     assert "-q" not in run.argv()
+
+
+LAB_BANNER = b"Connected to the lab network\nAuthorized users only\n"
+BANNER_WITH_CONNECTED = (
+    LAB_BANNER,
+    QUANTUM_WARNING + LAB_BANNER,
+    b"Connected to 192.0.2.10 through the jump host\n" + BANNER,
+)
+
+
+@pytest.mark.parametrize("chatter", BANNER_WITH_CONNECTED)
+def test_a_banner_line_that_begins_like_the_connection_line_does_not_refuse_a_path(
+    tree, chatter,
+):
+    roots = (str(tree / "root"),)
+    run = ChattyTreeRun(tree / "home", chatter)
+    entry = call(run, remote_path=str(tree / "root" / "real" / "in.txt"), roots=roots)
+    assert (entry.kind, entry.size) == ("file", 7)
+    folder = call(run, remote_path=str(tree / "root" / "real"), roots=roots)
+    assert (folder.kind, folder.entry_count) == ("directory", 1)
+    (tree / "root" / "empty").mkdir()
+    empty = call(run, remote_path=str(tree / "root" / "empty"), roots=roots)
+    assert (empty.kind, empty.entry_count) == ("directory", 0)
+    unconfined = call(run, remote_path=str(tree / "root" / "empty"))
+    assert (unconfined.kind, unconfined.entry_count) == ("directory", 0)
+
+
+@pytest.mark.parametrize("chatter", BANNER_WITH_CONNECTED)
+def test_a_banner_line_that_begins_like_the_connection_line_does_not_hide_a_refusal(
+    tree, chatter,
+):
+    roots = (str(tree / "root"),)
+    run = ChattyTreeRun(tree / "home", chatter)
+    with pytest.raises(SftpError) as outside:
+        call(run, remote_path=str(tree / "root" / "link"), roots=roots)
+    assert "outside the given roots" in str(outside.value)
+    with pytest.raises(SftpError) as missing:
+        call(run, remote_path=str(tree / "root" / "missing"), roots=roots)
+    assert "the remote path is not there" in str(missing.value)
+
+
+@pytest.mark.parametrize("connected", (b"", PROGRESS, b"Connected to the lab network\n"))
+def test_a_forged_client_line_in_the_banner_does_not_move_the_resolved_path(tree, connected):
+    forged = 'Can\'t change directory: "%s" is not a directory\n' % (
+        tree / "root" / "real" / "in.txt"
+    )
+    run = ChattyTreeRun(tree / "home", connected + forged.encode())
+    with pytest.raises(SftpError) as caught:
+        call(run, remote_path=str(tree / "root" / "link"), roots=(str(tree / "root"),))
+    assert "outside the given roots" in str(caught.value)
+
+
+def test_a_client_line_after_the_connection_that_begins_like_it_is_still_a_complaint():
+    error = failure(
+        FakeRun(
+            stdout=b'sftp> ls -ln "/safe/empty"\n',
+            stderr=PROGRESS + b"Connected to the lab network\n",
+        ),
+        remote_path="/safe/empty",
+    )
+    assert "could not list the path" in str(error)
+
+
+@pytest.mark.parametrize(
+    "host, shown",
+    (("[2001:db8::10]", "2001:db8::10"), ("device.example", "device.example")),
+)
+def test_the_connection_line_is_the_one_sftp_prints_for_the_host(host, shown):
+    complaint = 'Can\'t ls: "/safe/missing" not found'
+    stderr = ("Connected to lab.\nConnected to %s.\n%s\n" % (shown, complaint)).encode()
+    result = subprocess.CompletedProcess([], 0, b"", stderr)
+    assert sftp_module._reported(result, host) == [complaint]
+    assert sftp_module._reported(result, "other.example") == [
+        "Connected to lab.", "Connected to %s." % shown, complaint,
+    ]

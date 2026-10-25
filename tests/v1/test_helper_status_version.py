@@ -45,10 +45,10 @@ class HelperStatusVersion(unittest.IsolatedAsyncioTestCase):
         importlib.reload(worker)
 
     async def test_current_canonical_version_control(self):
-        await self.check_version("1.0.0")
+        await self.check_version("1.0.1")
 
     async def test_new_canonical_version_in_both_actual_bridge_representations(self):
-        await self.check_version("1.0.1")
+        await self.check_version("1.0.2")
 
 
 if __name__ == "__main__":

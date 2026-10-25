@@ -20,7 +20,7 @@ from netops.files import UIDS, write_private
 
 ORIGINAL_GATEWAY_SERVE = gateway.serve
 
-PREVIOUS_STATE_HINT = 'State belongs to NetOps 1.0.0; start NetOps 1.0.1 to upgrade it before running this command. Do not reinitialize existing state'
+PREVIOUS_STATE_HINT = 'State belongs to NetOps 1.0.1; start NetOps 1.0.2 to upgrade it before running this command. Do not reinitialize existing state'
 
 
 class PreviousReleaseUpgrade(unittest.TestCase):
@@ -35,9 +35,9 @@ class PreviousReleaseUpgrade(unittest.TestCase):
         self.path = self.root / "gateway/config.json"
         self.path.parent.mkdir(mode=0o700)
         self.stack.enter_context(patch.dict(UIDS, {"gateway": os.geteuid()}))
-        self.stack.enter_context(patch.object(state, "__version__", "1.0.1"))
-        self.stack.enter_context(patch.object(bootstrap, "__version__", "1.0.1", create=True))
-        self.stack.enter_context(patch.object(gateway, "__version__", "1.0.1"))
+        self.stack.enter_context(patch.object(state, "__version__", "1.0.2"))
+        self.stack.enter_context(patch.object(bootstrap, "__version__", "1.0.2", create=True))
+        self.stack.enter_context(patch.object(gateway, "__version__", "1.0.2"))
         for module in (bootstrap, cli, init, operator, gateway):
             self.stack.enter_context(patch.object(module, "STATE", self.root))
         self.stack.enter_context(patch.object(bootstrap, "RUNTIME", self.runtime))
@@ -51,7 +51,7 @@ class PreviousReleaseUpgrade(unittest.TestCase):
         self.stack.enter_context(patch.object(bootstrap.os, "kill"))
         self.gateway_start = self.stack.enter_context(patch.object(gateway, "serve"))
         self.settings = {
-            "version": 1, "product_version": "1.0.0",
+            "version": 1, "product_version": "1.0.1",
             "server_name": "upgrade.example.invalid", "external_port": 8443,
             "admin_enabled": False,
             "audit": {"mode": "local", "budget_bytes": 16777216,
@@ -121,7 +121,7 @@ class PreviousReleaseUpgrade(unittest.TestCase):
 
         with patch.object(files.os, "replace", side_effect=replacing):
             self.start()
-        expected = dict(self.settings, product_version="1.0.1")
+        expected = dict(self.settings, product_version="1.0.2")
         self.assertEqual(json.loads(self.path.read_bytes()), expected)
         self.assertEqual(observed, [expected])
         after = self.snapshot()
@@ -131,7 +131,7 @@ class PreviousReleaseUpgrade(unittest.TestCase):
                 self.assertEqual(after[name], value, name)
         self.assertEqual(set(after) - set(before), {"gateway/instance.lock"})
         self.assertEqual(self.gateway_start.call_args.args[0], expected)
-        self.assertEqual(self.gateway_start.call_args.kwargs, {"upgraded_from": "1.0.0"})
+        self.assertEqual(self.gateway_start.call_args.kwargs, {"upgraded_from": "1.0.1"})
 
     def test_strict_reader_never_implicitly_converts_previous_state(self):
         before = self.snapshot()
@@ -142,12 +142,13 @@ class PreviousReleaseUpgrade(unittest.TestCase):
 
     def test_only_exact_previous_software_schema_tuple_is_admitted(self):
         cases = [
-            ("1.0.1", {"version": 1, "product_version": "1.0.2"}),
-            ("1.0.1", {"version": 1, "product_version": "0.3.12"}),
-            ("1.0.1", {"version": 1, "product_version": "SYNTHETIC_UNSUPPORTED"}),
-            ("1.0.1", {"version": True, "product_version": "1.0.0"}),
-            ("1.0.1", {"version": 2, "product_version": "1.0.0"}),
-            ("1.0.1", {"version": 1}),
+            ("1.0.2", {"version": 1, "product_version": "1.0.3"}),
+            ("1.0.2", {"version": 1, "product_version": "0.3.12"}),
+            ("1.0.2", {"version": 1, "product_version": "SYNTHETIC_UNSUPPORTED"}),
+            ("1.0.2", {"version": True, "product_version": "1.0.1"}),
+            ("1.0.2", {"version": 2, "product_version": "1.0.1"}),
+            ("1.0.2", {"version": 1}),
+            ("1.0.3", {"version": 1, "product_version": "1.0.1"}),
             ("1.0.2", {"version": 1, "product_version": "1.0.0"}),
         ]
         for software, settings in cases:
@@ -164,7 +165,7 @@ class PreviousReleaseUpgrade(unittest.TestCase):
         self.gateway_start.assert_not_called()
 
     def test_same_version_start_is_byte_idempotent_and_has_no_upgrade_claim(self):
-        self.store(dict(self.settings, product_version="1.0.1"))
+        self.store(dict(self.settings, product_version="1.0.2"))
         before = self.path.read_bytes()
         with patch.object(files.os, "replace", wraps=os.replace) as replacing:
             self.start()
@@ -191,7 +192,7 @@ class PreviousReleaseUpgrade(unittest.TestCase):
 
     def test_start_rereads_state_after_lock_before_any_conversion(self):
         original_lock = fcntl.flock
-        changed = dict(self.settings, product_version="1.0.2")
+        changed = dict(self.settings, product_version="1.0.3")
         touched = []
 
         def acquire(descriptor, operation):
@@ -253,7 +254,7 @@ class PreviousReleaseUpgrade(unittest.TestCase):
             self.start()
         self.assertEqual(failed, [True])
         self.assertEqual(json.loads(self.path.read_bytes()),
-                         dict(self.settings, product_version="1.0.1"))
+                         dict(self.settings, product_version="1.0.2"))
         self.gateway_start.assert_not_called()
         committed = self.path.read_bytes()
         self.start()
@@ -298,7 +299,7 @@ class PreviousReleaseUpgrade(unittest.TestCase):
         self.assertEqual(self.snapshot(), before)
 
     def test_repeat_init_current_state_preserves_data(self):
-        current = dict(self.settings, product_version="1.0.1")
+        current = dict(self.settings, product_version="1.0.2")
         self.store(current)
         before = self.snapshot()
         args = SimpleNamespace(audit_budget=16777216, syslog_port=6514)
@@ -327,7 +328,7 @@ class PreviousReleaseUpgrade(unittest.TestCase):
         self.assertIn(PREVIOUS_STATE_HINT, errors.getvalue())
 
     def test_token_rotation_on_current_state_remains_online(self):
-        self.store(dict(self.settings, product_version="1.0.1"))
+        self.store(dict(self.settings, product_version="1.0.2"))
         path = self.path.parent / "instance.lock"
         descriptor = os.open(path, os.O_CREAT | os.O_RDWR, 0o600)
         original = (self.path.parent / "token").read_bytes()
@@ -366,13 +367,13 @@ class PreviousReleaseUpgrade(unittest.TestCase):
         self.start()
         self.assertEqual(self.gateway_start.call_count, 1)
         self.assertEqual([event for event, _ in observed], ["durable-start", "entered"])
-        self.assertEqual(json.loads(observed[0][1])["product_version"], "1.0.1")
+        self.assertEqual(json.loads(observed[0][1])["product_version"], "1.0.2")
         records = [json.loads(line) for path in (self.path.parent / "audit").glob("*.jsonl")
                    for line in path.read_text().splitlines()]
         starts = [record for record in records if record["direction"] == "instance_start"]
         self.assertEqual(len(starts), 1)
-        self.assertEqual(starts[0]["payload"]["version"], "1.0.1")
-        self.assertEqual(starts[0]["payload"]["upgrade"], {"from": "1.0.0", "to": "1.0.1"})
+        self.assertEqual(starts[0]["payload"]["version"], "1.0.2")
+        self.assertEqual(starts[0]["payload"]["upgrade"], {"from": "1.0.1", "to": "1.0.2"})
 
     def test_failed_audit_start_never_enters_lifespan(self):
         from starlette.applications import Starlette
@@ -388,8 +389,8 @@ class PreviousReleaseUpgrade(unittest.TestCase):
         async def scenario():
             inner = Starlette()
             with patch.object(gateway.FastMCP, "http_app", return_value=inner):
-                await gateway.application(dict(self.settings, product_version="1.0.1"),
-                                          [], [], upgraded_from="1.0.0")
+                await gateway.application(dict(self.settings, product_version="1.0.2"),
+                                          [], [], upgraded_from="1.0.1")
                 with patch.object(gateway.Audit, "record", new=failing_start):
                     async with inner.router.lifespan_context(inner):
                         entered.append(True)
@@ -400,7 +401,7 @@ class PreviousReleaseUpgrade(unittest.TestCase):
 
     def assert_process_exit_at_writer_boundary(self, point):
         before = self.path.read_bytes()
-        expected = json.dumps(dict(self.settings, product_version="1.0.1")).encode()
+        expected = json.dumps(dict(self.settings, product_version="1.0.2")).encode()
         original_temp = files.tempfile.mkstemp
         original_write = files.os.write
         original_sync = files.os.fsync
@@ -455,7 +456,7 @@ class PreviousReleaseUpgrade(unittest.TestCase):
         custody = (payload, info.st_uid, info.st_gid, info.st_mode, info.st_ino)
         self.start()
         self.assertEqual(json.loads(self.path.read_bytes()),
-                         dict(self.settings, product_version="1.0.1"))
+                         dict(self.settings, product_version="1.0.2"))
         after = orphan.lstat()
         self.assertEqual((orphan.read_bytes(), after.st_uid, after.st_gid, after.st_mode, after.st_ino),
                          custody)
@@ -475,9 +476,9 @@ class PreviousReleaseUpgrade(unittest.TestCase):
         schema = "Unsupported state schema; use the matching NetOps release and its verified recovery procedure"
         unreadable = "Initialized private state cannot be read safely; initialize a new instance or use the matching release to inspect existing state"
         cases = [(name, dict(self.settings, product_version=value), product) for name, value in (
-            ("T03", "1.0.2"), ("T03-canary", "1.0.2-SYNTHETIC_ADMISSION_CANARY"),
+            ("T03", "1.0.3"), ("T03-canary", "1.0.3-SYNTHETIC_ADMISSION_CANARY"),
             ("T04", "1.1.0"), ("T05", "0.3.12"), ("T06", "1.0"),
-            ("T07", "1.0.0 "), ("T08", "v1.0.0"), ("T10", None), ("T11", 100))]
+            ("T07", "1.0.1 "), ("T08", "v1.0.1"), ("T10", None), ("T11", 100))]
         cases.append(("T09", {key: value for key, value in self.settings.items()
                               if key != "product_version"}, product))
         cases.extend((name, dict(self.settings, version=value), schema) for name, value in (
@@ -485,8 +486,8 @@ class PreviousReleaseUpgrade(unittest.TestCase):
         cases.append(("T16", {key: value for key, value in self.settings.items()
                               if key != "version"}, schema))
         cases.extend((
-            ("T17", b'{"version":1,"product_version":"1.0.1","product_version":"1.0.0"}', unreadable),
-            ("T18", b'{"version":1,"product_version":"1.0.0","value":NaN}', unreadable),
+            ("T17", b'{"version":1,"product_version":"1.0.2","product_version":"1.0.1"}', unreadable),
+            ("T18", b'{"version":1,"product_version":"1.0.1","value":NaN}', unreadable),
             ("T19", b"{", unreadable), ("T20", "mode0644", unreadable),
             ("T22", "symlink", unreadable)))
         return cases
@@ -595,10 +596,10 @@ class PreviousReleaseUpgrade(unittest.TestCase):
         unreadable = "Initialized private state cannot be read safely; initialize a new instance or use the matching release to inspect existing state"
         product = "State belongs to another product version; automatic upgrade or downgrade is refused. Use the verified release procedure"
         for value, expected in ((dict(self.settings), PREVIOUS_STATE_HINT),
-                                (dict(self.settings, product_version="1.0.2"), product),
+                                (dict(self.settings, product_version="1.0.3"), product),
                                 (b"{", unreadable)):
             with self.subTest(after_lock=value):
-                self.store(dict(self.settings, product_version="1.0.1"))
+                self.store(dict(self.settings, product_version="1.0.2"))
                 sampled = []
 
                 def change():
@@ -621,7 +622,7 @@ class PreviousReleaseUpgrade(unittest.TestCase):
         sampled = []
 
         def change():
-            self.store(dict(self.settings, product_version="1.0.1"))
+            self.store(dict(self.settings, product_version="1.0.2"))
             sampled.append((self.path.stat().st_ino, self.path.read_bytes()))
 
         hook, touched = self.after_exclusive_lock(change)
@@ -634,15 +635,15 @@ class PreviousReleaseUpgrade(unittest.TestCase):
         self.assertEqual(self.gateway_start.call_args.args[3:], ())
 
     def test_prelock_current_postlock_previous_converts(self):
-        self.store(dict(self.settings, product_version="1.0.1"))
+        self.store(dict(self.settings, product_version="1.0.2"))
         hook, touched = self.after_exclusive_lock(lambda: self.store(dict(self.settings)))
         with hook:
             self.start()
         self.assertEqual(touched, [True])
         self.assertEqual(json.loads(self.path.read_bytes()),
-                         dict(self.settings, product_version="1.0.1"))
+                         dict(self.settings, product_version="1.0.2"))
         self.assertEqual(self.gateway_start.call_count, 1)
-        self.assertEqual(self.gateway_start.call_args.kwargs, {"upgraded_from": "1.0.0"})
+        self.assertEqual(self.gateway_start.call_args.kwargs, {"upgraded_from": "1.0.1"})
 
     def test_postlock_unreadable_and_symlink_are_not_read_unsafe(self):
         unreadable = "Initialized private state cannot be read safely; initialize a new instance or use the matching release to inspect existing state"
@@ -665,7 +666,7 @@ class PreviousReleaseUpgrade(unittest.TestCase):
         old = json.dumps(self.settings).encode()
         write_private(self.path, old, replace=True)
         self.start()
-        expected = json.dumps(dict(self.settings, product_version="1.0.1")).encode()
+        expected = json.dumps(dict(self.settings, product_version="1.0.2")).encode()
         self.assertEqual(self.path.read_bytes(), expected)
 
     def test_conversion_uses_gateway_owner_and_single_replace(self):
@@ -703,19 +704,19 @@ class PreviousReleaseUpgrade(unittest.TestCase):
                          (os.geteuid(), os.geteuid(), 0o600))
 
     def test_later_gateway_start_has_no_upgrade_field(self):
-        self.store(dict(self.settings, product_version="1.0.1"))
+        self.store(dict(self.settings, product_version="1.0.2"))
         from starlette.applications import Starlette
 
         async def one(previous):
             inner = Starlette()
             with patch.object(gateway.FastMCP, "http_app", return_value=inner):
-                await gateway.application(dict(self.settings, product_version="1.0.1"),
+                await gateway.application(dict(self.settings, product_version="1.0.2"),
                                           [], [], upgraded_from=previous)
                 async with inner.router.lifespan_context(inner):
                     pass
 
         async def scenario():
-            await one("1.0.0")
+            await one("1.0.1")
             await one(None)
 
         asyncio.run(scenario())
@@ -723,7 +724,7 @@ class PreviousReleaseUpgrade(unittest.TestCase):
                    for line in path.read_text().splitlines()]
         starts = [record["payload"] for record in records if record["direction"] == "instance_start"]
         self.assertEqual(len(starts), 2)
-        self.assertEqual(starts[0].get("upgrade"), {"from": "1.0.0", "to": "1.0.1"})
+        self.assertEqual(starts[0].get("upgrade"), {"from": "1.0.1", "to": "1.0.2"})
         self.assertNotIn("upgrade", starts[1])
 
     def test_read_only_previous_state_matches_nonempty_exact_controls(self):
@@ -753,13 +754,13 @@ class PreviousReleaseUpgrade(unittest.TestCase):
             self.assertEqual(self.snapshot(), before)
 
         check()
-        self.store(dict(self.settings, product_version="1.0.1"))
+        self.store(dict(self.settings, product_version="1.0.2"))
         check()
 
     def test_init_nonroot_refuses_previous_and_current_without_prepare(self):
         args = SimpleNamespace(audit_budget=16777216, syslog_port=6514)
         message = "Initialization and the short start bootstrap require the declared container user and capabilities"
-        for version in ("1.0.0", "1.0.1"):
+        for version in ("1.0.1", "1.0.2"):
             for uid in (1000, 51000, 51001, 51002, 51003):
                 with self.subTest(version=version, uid=uid):
                     self.store(dict(self.settings, product_version=version))
@@ -780,7 +781,7 @@ class PreviousReleaseUpgrade(unittest.TestCase):
                     self.assertEqual(self.snapshot(), before)
 
     def test_postlock_current_symlink_is_refused_before_dispatch(self):
-        current = dict(self.settings, product_version="1.0.1")
+        current = dict(self.settings, product_version="1.0.2")
         self.store(current)
         target = self.root / "outside-current.json"
         write_private(target, json.dumps(current).encode(), UIDS["gateway"])
@@ -877,7 +878,7 @@ class PreviousReleaseUpgrade(unittest.TestCase):
                 self.start()
             except ValueError as exc:
                 self.fail("Valid fresh leaf refused: " + type(exc).__name__)
-        self.assertEqual(json.loads(self.path.read_bytes())["product_version"], "1.0.1")
+        self.assertEqual(json.loads(self.path.read_bytes())["product_version"], "1.0.2")
         self.gateway_start.assert_called_once()
 
     def test_missing_unreadable_and_malformed_leaf_refused_before_conversion(self):

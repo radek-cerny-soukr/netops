@@ -1,5 +1,34 @@
 # NetOps changelog
 
+## 1.0.2 - 2026-10-25
+
+### Security
+
+- Core SFTP: `sftp_stat` takes the last stderr line `Connected to <host>.` of the OpenSSH client as the end of the login banner. A banner line that began with `Connected to `, for example `Connected to the lab network`, made every call with roots fail and an empty directory unreadable, and together with a forged client line in the banner it let a directory reached through a symlink out of a root be listed. A device that controls its SSH banner could thus expose metadata outside an enrolled `sftp_roots` entry.
+
+### Fixed
+
+- The CA export hints that `init`, `connection` and `ca rotate` print now name the complete command `docker compose run --rm netops ca > netops-ca.pem`; they lacked the redirection to the file that the client configuration uses.
+
+### Changed
+
+- Upgrade the state of NetOps 1.0.1: the first start of 1.0.2 converts its state under the instance lock and changes only the recorded product version, as the upgrade from 1.0.0 to 1.0.1 did. State of NetOps 1.0.0 is refused; it is upgraded to 1.0.1 first. Apart from the SFTP banner fix and the CA export hints, the product code is unchanged, and the syslog audit format stays that of 1.0.1.
+
+### Documentation
+
+- Restructure the quickstart into numbered steps, each ending with a check, after blind installation tests of 1.0.1 on Fedora Server 44 and Ubuntu: Docker Engine from Docker's repository with the exact commands for Debian, Ubuntu, Raspberry Pi OS and Fedora, SELinux support in the Fedora Docker daemon before the download (checked with `docker info`), account access through the `docker` group or rootless Docker with its packages and the system daemon stopped, then `curl`, `jq` and cosign, and only then the download.
+- Install cosign from the official Sigstore 3.x release (checked with v3.1.4) on every host family, check the package against the release checksums and link the Sigstore verification of cosign itself; README and quickstart now name the same requirement, cosign 2.5 or newer.
+- Stop the download block at the first failed download, so cosign never runs on an incomplete set of files; the same for the upgrade download and the README.
+- Add a separate step for an MCP client on the same host (`NETOPS_BIND_IP=127.0.0.1`, `NETOPS_SERVER_NAME=localhost`), also in the README, and describe the bind address, name resolution and host firewall for remote clients.
+- Add a check of the running instance without an MCP client: `netops health`, `netops version`, an HTTPS request without the token refused with 401 and one with the token accepted with 200, and `audit stats`, including why `unauthenticated_rejections` is `null` before the first refused request.
+- Document the order of the interactive `init` prompts, a uniform rule for `-T` and `< /dev/null`, the meaning of the manifest field `vulnerability_gate` (`needs-assessment`), a table of the tools that answer without an enrolled device with their arguments, and that exit status 0 of `claude -p` does not prove a tool call: the audit does.
+- Add the download block to the README quick start and record Codex CLI 0.164.0 in the tested-clients table, tested against a NetOps 1.0.1 instance.
+- Describe removing the NetOps image and the client configuration when an instance is removed.
+- Document the upgrade from 1.0.1 to 1.0.2 in the quickstart in four steps: the syslog receiver of 1.0.1 stays unchanged, an instance of 1.0.0 is upgraded to 1.0.1 first, and a rollback starts the unchanged 1.0.1 instance without a receiver change.
+- Make the upgrade runnable as written: concrete directories for the release files (`~/netops-1.0.2-release`), the new instance (`~/netops-1.0.2`) and the backup (`~/netops-backup`), no step that writes into the 1.0.1 instance directory, and `COMPOSE_PROJECT_NAME=netops-102` in the `.env` of the new instance, so that `docker compose` in its directory addresses 1.0.2 and not the stopped 1.0.1 state.
+- Describe the acceptance of 1.0.2 in the README as it was run: CI in GitHub Actions on amd64 and arm64, a blind installation on Fedora Server 44 and Debian 13 on amd64, a blind upgrade from 1.0.1 on amd64 and a code review. Ubuntu, Raspberry Pi OS, arm64 hosts and rootless Docker, whose quickstart commands are new in 1.0.2, were not tested by a blind run for 1.0.2; their product code is unchanged since 1.0.1, whose acceptance covered them.
+- Core SFTP: an embedded SFTP server that sends no permissions in its stat answer or returns `REALPATH` in another form (without the leading `/`, or with a volume prefix) makes `sftp_stat` refuse paths below a root (fail-closed); the path equal to a root works.
+
 ## 1.0.1 - 2026-10-25
 
 - Support Docker Engine in rootless mode on all supported host families and architectures, including the SELinux label of the rootless Docker data on Fedora, applied before the first start of the rootless daemon. Rootless mode was not qualified in 1.0.0.

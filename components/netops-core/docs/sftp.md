@@ -181,6 +181,9 @@ Limits:
   that race, as for any path it can read.
 - The check relies on the server resolving symbolic links in `REALPATH`, as OpenSSH does. A server
   that only normalizes the spelling makes the check lexical again.
+- An embedded SFTP server that sends no permissions in its answer to a stat request, or that returns
+  `REALPATH` in another form (without the leading `/`, or with a volume prefix), makes `sftp_stat`
+  refuse every path below a root (fail-closed); the path equal to a root still works.
 
 ## Refusals
 

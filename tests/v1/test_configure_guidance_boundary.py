@@ -32,7 +32,7 @@ class ConfigureGuidanceBoundary(unittest.TestCase):
             state = Path(temporary)
             (state / "gateway").mkdir(mode=0o700)
             (state / role).mkdir(mode=0o700, exist_ok=True)
-            settings = {"version": 1, "product_version": "1.0.1", "audit": {"mode": "local"}}
+            settings = {"version": 1, "product_version": "1.0.2", "audit": {"mode": "local"}}
             write_private(state / "gateway/config.json", json.dumps(settings).encode())
             before = {str(p.relative_to(state)): p.read_bytes() for p in state.rglob("*") if p.is_file()}
             errors, output = io.StringIO(), io.StringIO()
@@ -129,7 +129,7 @@ class ConfigureGuidanceBoundary(unittest.TestCase):
         uid = os.geteuid()
         with tempfile.TemporaryDirectory() as temporary:
             state = Path(temporary); (state / "gateway").mkdir(mode=0o700)
-            write_private(state / "gateway/config.json", json.dumps({"version": 1, "product_version": "1.0.1"}).encode())
+            write_private(state / "gateway/config.json", json.dumps({"version": 1, "product_version": "1.0.2"}).encode())
             lock = os.open(state / "gateway/instance.lock", os.O_RDWR | os.O_CREAT, 0o600)
             try:
                 fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)

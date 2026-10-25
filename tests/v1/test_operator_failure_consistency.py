@@ -78,7 +78,7 @@ class OperatorFailureConsistency(unittest.TestCase):
             for role in ("gateway", "auditor"):
                 (state / role).mkdir(mode=0o700)
             write_private(state / "gateway/config.json", json.dumps({
-                "version": 1, "product_version": "1.0.1", "audit": {"mode": "local"}}).encode())
+                "version": 1, "product_version": "1.0.2", "audit": {"mode": "local"}}).encode())
             errors, output = io.StringIO(), io.StringIO()
             with patch.object(operator, "STATE", state), patch.dict(UIDS, {"auditor": uid}), \
                     patch.object(operator, "demote"), patch.object(operator, "role_environment"), \
@@ -177,7 +177,7 @@ class OperatorFailureConsistency(unittest.TestCase):
                 for role in ("gateway", "admin"):
                     (state / role).mkdir(mode=0o700)
                 write_private(state / "gateway/config.json", json.dumps({
-                    "version": 1, "product_version": "1.0.1", "audit": {"mode": "local"}}).encode())
+                    "version": 1, "product_version": "1.0.2", "audit": {"mode": "local"}}).encode())
                 document = self.admin()
                 candidate = copy.deepcopy(document["config"])
                 candidate["state_dir"] = str(state / "admin/changes")

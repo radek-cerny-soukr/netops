@@ -50,7 +50,7 @@ def connection(settings):
     url = "https://" + name + ":" + port + "/mcp"
     print("MCP URL: " + url)
     print("Authorization: Bearer ${NETOPS_TOKEN}")
-    print("Export the public CA: docker compose run --rm netops ca (add -p <instance> before run for an additional instance)")
+    print("Export the public CA: docker compose run --rm netops ca > netops-ca.pem (add -p <instance> before run for an additional instance)")
     print("Claude Code: NODE_EXTRA_CA_CERTS=/absolute/path/netops-ca.pem")
     print("Codex: CODEX_CA_CERTIFICATE=/absolute/path/netops-ca.pem")
     print("Other MCP clients: configure HTTPS Streamable HTTP, the CA certificate and Authorization from NETOPS_TOKEN.")

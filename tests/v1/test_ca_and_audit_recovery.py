@@ -203,6 +203,7 @@ class PendingAndIdentity(unittest.TestCase):
             with contextlib.redirect_stdout(output), patch("netops.certificates.ca_notice", return_value=("notice", None)):
                 init.connection(settings)
             self.assertIn("https://mcp.example.invalid:9443/mcp", output.getvalue())
+            self.assertIn("Export the public CA: docker compose run --rm netops ca > netops-ca.pem", output.getvalue())
         with patch.dict(os.environ, {"NETOPS_SERVER_NAME": "other.example.invalid"}):
             self.assertIn("restore the previous value", init.changed_identity(settings))
 

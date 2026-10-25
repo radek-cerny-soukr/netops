@@ -3,7 +3,7 @@ name: Release candidate
 on:
   push:
     branches:
-      - release/1.0.1-candidate
+      - release/1.0.2-candidate
   workflow_dispatch:
 
 permissions:
@@ -15,7 +15,7 @@ concurrency:
 
 env:
   IMAGE: ghcr.io/radek-cerny-soukr/netops
-  VERSION: 1.0.1
+  VERSION: 1.0.2
   BUILDKIT_IMAGE: moby/buildkit:v0.34.0@sha256:b059f8d7226d0b326bc871af489a5dddf65e36af4d20d14251b072974d9ee87c
   SYFT_VERSION: 1.54.1
   GRYPE_VERSION: 0.120.1

@@ -3,7 +3,7 @@ name: CodeQL
 on:
   push:
     branches:
-      - release/1.0.1-candidate
+      - release/1.0.2-candidate
   workflow_dispatch:
 
 permissions:

@@ -441,7 +441,7 @@ def rotate_instance_ca():
             recorded = False
         print("Instance CA rotated. New CA SHA-256: " + current + "; valid until " + expires.strftime("%Y-%m-%d") + ".")
         print("The previous CA and server key were kept privately in " + retired + "; the token and role data are unchanged.")
-        print("Export the new CA with `docker compose run --rm netops ca` and replace the CA at every MCP client before starting the instance; clients that trust only the previous CA refuse the connection.")
+        print("Export the new CA with `docker compose run --rm netops ca > netops-ca.pem` and replace the CA at every MCP client before starting the instance; clients that trust only the previous CA refuse the connection.")
         print("If rotation was interrupted, run it again; it always issues a complete new pair.")
         if not recorded:
             sys.stderr.write("netops: the CA was rotated, but its completion record could not be written; only the start record is in the audit; check the audit before starting\n")

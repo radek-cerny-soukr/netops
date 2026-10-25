@@ -1,6 +1,6 @@
 # NetOps
 
-This README describes NetOps 1.0.1, the current release. Changes since 1.0.0, including the fixes for [issue #6](https://github.com/radek-cerny-soukr/netops/issues/6), are listed in the [release notes](release/notes-1.0.1.md).
+This README describes NetOps 1.0.2, the current release. Changes since 1.0.1 are listed in the [release notes](release/notes-1.0.2.md); the fixes for [issue #6](https://github.com/radek-cerny-soukr/netops/issues/6) came with [1.0.1](release/notes-1.0.1.md).
 
 NetOps is a self-hosted MCP server for network diagnostics, configuration audits and bounded, reversible device changes. Version 1.0 ships as one Docker image that runs the Helper, Auditor and Admin roles behind one token-protected HTTPS (Streamable HTTP) MCP endpoint. Supported, authenticated MCP traffic passes through a mandatory durable audit boundary.
 
@@ -148,35 +148,46 @@ Details: [Architecture](docs/architecture-1.0.md) · [Security policy](SECURITY.
 
 ## Quick start
 
-This is a shortened version of the [quickstart](docs/quickstart-1.0.md); follow the full document for multiple instances, Fedora/SELinux, syslog receivers, backup, restore and upgrades.
+This is a shortened version of the [quickstart](docs/quickstart-1.0.md). Follow the full document for a new host: it installs the prerequisites step by step for Debian, Ubuntu, Fedora Server and Raspberry Pi OS, and covers rootless Docker, syslog receivers, backup, restore, upgrades and removal.
 
-**1. Download and verify.** Download `compose.yaml`, `env.example`, `netops-1.0.1-manifest.json`, `netops-1.0.1-SHA256SUMS` and `netops-1.0.1-SHA256SUMS.sigstore.json` from the same GitHub release into an empty directory. Verification needs cosign 2.5 or newer.
+**0. Prerequisites.** Docker Engine with the Compose plugin from [Docker's repository](https://docs.docker.com/engine/install/), and an account that can run `docker info` (root, the `docker` group or rootless Docker); on Fedora, SELinux support enabled in the Docker daemon (`"selinux-enabled": true`) before the first start, so that `docker info` lists `name=selinux`. Further `curl`, `jq` and cosign 2.5 or newer; the quickstart installs the official Sigstore 3.x release (checked with v3.1.4). See quickstart steps [1–4](docs/quickstart-1.0.md#1-install-docker-engine).
+
+**1. Download and verify.** In a new, empty directory download the five release files and verify them. The block stops at the first failed download or check:
 
 ```sh
-cosign verify-blob --bundle netops-1.0.1-SHA256SUMS.sigstore.json \
+mkdir -m 700 ~/netops && cd ~/netops &&
+(
+  for f in compose.yaml env.example netops-1.0.2-manifest.json netops-1.0.2-SHA256SUMS netops-1.0.2-SHA256SUMS.sigstore.json; do
+    curl -fLO "https://github.com/radek-cerny-soukr/netops/releases/download/v1.0.2/$f" || exit 1
+  done
+) &&
+cosign verify-blob --bundle netops-1.0.2-SHA256SUMS.sigstore.json \
   --certificate-identity 325383355+radek-cerny-soukr@users.noreply.github.com \
-  --certificate-oidc-issuer https://github.com/login/oauth netops-1.0.1-SHA256SUMS
-sha256sum -c --ignore-missing netops-1.0.1-SHA256SUMS
+  --certificate-oidc-issuer https://github.com/login/oauth netops-1.0.2-SHA256SUMS &&
+sha256sum -c --ignore-missing netops-1.0.2-SHA256SUMS
 ```
 
-Both commands must succeed: cosign prints `Verified OK` and sha256sum prints `OK` for every downloaded file.
+cosign must print `Verified OK`, and sha256sum `OK` for `compose.yaml`, `env.example` and the release manifest; cosign authenticates the checksum list using the signature bundle.
 
-**2. Configure and initialize.**
+**2. Configure.** Create `.env` and keep `NETOPS_IMAGE` exactly as pinned by digest. For an MCP client on the same host, bind to the loopback address and use the name `localhost`:
 
 ```sh
 umask 077
 cp env.example .env
+sed -i -e 's/^NETOPS_BIND_IP=.*/NETOPS_BIND_IP=127.0.0.1/' -e 's/^NETOPS_SERVER_NAME=.*/NETOPS_SERVER_NAME=localhost/' .env
 ```
 
-Edit `.env`: keep `NETOPS_IMAGE` exactly as pinned by digest, set `NETOPS_BIND_IP` to the host address you explicitly want to expose, `NETOPS_PORT` to the host port and `NETOPS_SERVER_NAME` to the exact DNS name your MCP clients will use (IP certificate names and the unedited `env.example` placeholder are refused). Then:
+For clients on other machines, set `NETOPS_BIND_IP` to the host address you explicitly want to expose and `NETOPS_SERVER_NAME` to the exact DNS name the clients will use instead (IP certificate names and the unedited `env.example` placeholders are refused); see [step 6](docs/quickstart-1.0.md#6-configure-env).
+
+**3. Initialize and start.**
 
 ```sh
 docker compose run --rm netops init && docker compose up -d --wait && docker compose ps
 ```
 
-`init` asks for the audit target (TLS syslog receiver recommended, or local audit with an explicit disk-warning acceptance). Without a terminal, choose explicitly with `init --audit syslog --syslog-host <host> [--syslog-port <port>]` or `init --audit local --accept-local-audit`.
+`init` asks for the audit target: a TLS syslog receiver (recommended), or, when you leave it blank, local audit, which you accept by typing `LOCAL`. Without a terminal, choose explicitly with `init --audit syslog --syslog-host <host> [--syslog-port <port>]` or `init --audit local --accept-local-audit`. `docker compose ps` must show the service as `healthy`.
 
-**3. Export the CA and token.**
+**4. Export the CA and the token.**
 
 ```sh
 docker compose run --rm netops ca > netops-ca.pem &&
@@ -185,7 +196,19 @@ export NETOPS_TOKEN &&
 docker compose run --rm netops connection
 ```
 
-**4. Connect a client.** Use the URL printed by `connection`.
+**5. Check without an MCP client.**
+
+```sh
+docker compose exec -T netops netops health < /dev/null
+docker compose exec -T netops netops version < /dev/null
+curl -sS -o /dev/null -w '%{http_code}\n' --cacert netops-ca.pem \
+  -H 'Content-Type: application/json' -H 'Accept: application/json, text/event-stream' \
+  -X POST https://localhost:8443/mcp -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'
+```
+
+They print `ready`, `1.0.2` and `401`: a request without the token is refused. Use the URL printed by `connection` when it is not `https://localhost:8443/mcp`. [Step 9](docs/quickstart-1.0.md#9-check-the-instance-without-an-mcp-client) adds a request with the token.
+
+**6. Connect a client.** Use the URL printed by `connection`.
 
 Claude Code:
 
@@ -207,7 +230,7 @@ url = "https://<server-name>:<port>/mcp"
 bearer_token_env_var = "NETOPS_TOKEN"
 ```
 
-The [quickstart](docs/quickstart-1.0.md) adds the Codex settings and the commands for a first non-interactive `helper_status` call with either client.
+The [quickstart](docs/quickstart-1.0.md#10-connect-an-mcp-client) adds the Codex settings, the commands for a first non-interactive `helper_status` call with either client and how to find that call in the audit.
 
 Other MCP clients must enable normal CA/SAN verification. Never disable TLS verification.
 
@@ -219,11 +242,13 @@ Tested for 1.0.1 against a NetOps 1.0.1 instance, with each call found in the au
 |---|---|---|---|
 | Claude Code | 2.1.310 | Linux (Ubuntu 26.04, blind run of the quickstart), macOS 26.6.2 arm64, Windows 11 (PowerShell 5.1) as a remote client | Claude models of the client's provider account |
 | Open WebUI | v0.12.3 | container image | Laguna XS 2.1 Q4 and gpt-oss-120b MXFP4, local, through llama.cpp `llama-server` (OpenAI-compatible API), 16,384-token context |
-| Codex | — | Linux | tested; the quickstart covers its configuration |
+| Codex CLI | 0.164.0 | Linux (Debian GNU/Linux 13, amd64) | gpt-6.1-sol (medium reasoning) |
 
-Other MCP clients with Streamable HTTP, bearer tokens and normal TLS verification can be used; the [quickstart](docs/quickstart-1.0.md) has notes for Open WebUI.
+Codex CLI made three read-only calls per role. The three Admin calls returned the expected `admin_not_configured` refusal on an instance without enrolled devices, so no device changes were tested with Codex.
 
-**5. Enroll devices.** Start with `helper_status` and `read_query_catalog`. Enrollment is an operator action with the instance stopped, using private JSON files (mode 600) outside the source repository:
+Other MCP clients with Streamable HTTP, bearer tokens and normal TLS verification can be used; the [quickstart](docs/quickstart-1.0.md#open-webui) has notes for Open WebUI.
+
+**7. Enroll devices.** Start with `helper_status` and `read_query_catalog`. Enrollment is an operator action with the instance stopped, using private JSON files (mode 600) outside the source repository:
 
 ```sh
 docker compose stop
@@ -238,11 +263,11 @@ See [Helper configuration](docs/helper-configuration.md), [Admin configuration](
 
 A release is the maintainer's personally signed checksum list together with the assets it covers. A candidate branch, digest, build or CI run without that signature is not a release.
 
-- **Signature:** `netops-1.0.1-SHA256SUMS` is signed with Sigstore (`netops-1.0.1-SHA256SUMS.sigstore.json`); certificate identity `325383355+radek-cerny-soukr@users.noreply.github.com`, OIDC issuer `https://github.com/login/oauth`.
-- **Covered assets:** the release manifest (image index and per-architecture digests), the SBOMs, the vulnerability scans and their assessments, and the acceptance reports of every tested platform.
+- **Signature:** `netops-1.0.2-SHA256SUMS` is signed with Sigstore (`netops-1.0.2-SHA256SUMS.sigstore.json`); certificate identity `325383355+radek-cerny-soukr@users.noreply.github.com`, OIDC issuer `https://github.com/login/oauth`.
+- **Covered assets:** the release manifest (image index and per-architecture digests), the SBOMs, the vulnerability scans and their assessments, and the acceptance reports listed below.
 - **Build once:** every release candidate is built once in GitHub Actions and the same digests are tested, accepted and published without a rebuild.
-- **Vulnerabilities:** each architecture is scanned; a fixable High or Critical finding blocks the release and every other finding ships with a written assessment (`netops-1.0.1-vulnerability-assessments.json`). The digests of the latest release are rescanned daily against its assessments.
-- **Acceptance:** the signing checklist requires the evidence of the release's test layers: CI suites and engine tests on amd64 and arm64; a regression test for every fix; installation by the quickstart on Ubuntu, Debian and Fedora Server (SELinux enforcing) on amd64 and arm64 and on Raspberry Pi OS arm64, with Docker as root and rootless; a blind run of the quickstart; the upgrade from the previous release when the release changes stored state; Claude Code and Codex as MCP clients on Linux, macOS and Windows; syslog load and receiver outage when the release changes audit or syslog; an independent review of the code change. Download verification, installation, first MCP use, audit, restart and every supported upgrade are release gates.
+- **Vulnerabilities:** each architecture is scanned; a fixable High or Critical finding blocks the release and every other finding ships with a written assessment (`netops-1.0.2-vulnerability-assessments.json`). The digests of the latest release are rescanned daily against its assessments.
+- **Acceptance of 1.0.2:** this corrective release is accepted in proportion to its change. The signing checklist requires the CI suites and engine tests of the candidate image in GitHub Actions on amd64 and arm64; a blind installation on Fedora Server 44 amd64 and on Debian 13 amd64, in which a tester without the project's context follows only this README and the quickstart and records the signature and checksum verification, a healthy instance reporting the candidate version, a request without the token refused with 401, the MCP tool list returned with the token, and an audit record of the call that does not contain the token; a blind upgrade on amd64 from the published NetOps 1.0.1 image (`ghcr.io/radek-cerny-soukr/netops@sha256:082ba2fd7384c5d3d5708753eed6c9ca532926b821ea7a4f8ffb431aa9c1652a`) to the candidate by the quickstart, with the data, token and CA preserved; and an independent review of the code change since 1.0.1. A run of Codex as MCP client is recorded when available and does not block. Ubuntu, Raspberry Pi OS, arm64 hosts and rootless Docker were not installed by a blind run for 1.0.2: the quickstart commands for them are newly written in 1.0.2, while the product code on these paths is unchanged since 1.0.1, whose acceptance covered them.
 
 Use the image digest and configuration files from one signed release manifest. Qualification from a source checkout is described in [Qualification](docs/testing-1.0.md).
 
@@ -268,10 +293,10 @@ Use the image digest and configuration files from one signed release manifest. Q
 - The roles are isolated as processes and files inside one container, not against the host administrator or the container runtime.
 - Authenticated requests with bodies above 64 KiB or uncertain body framing are processed one at a time across roles, so they can queue behind another large request; other authenticated requests share the remaining slots within the limit of 16.
 - An incomplete local audit write blocks further operations until `netops audit recover` runs while the instance is stopped. A full syslog queue blocks new operations, and an interrupted send can deliver records to the receiver more than once.
-- Syslog records remain bounded at 8 MiB and use numbered 1024-byte parts with a persistent record ID and whole SHA256. Messages are at most 1618 bytes including their header. Configure a dedicated receiver archive filtered by RFC5424 APP-NAME `netops`, preserving exact MSG+LF, before the first 1.0.1 start. Offline `audit reassemble --record-id` freezes the first complete SHA-valid set in archive order: later conflicts or invalid rows preserve its bytes and produce typed warnings/exit 3; earlier validation or input-read errors give exit 2 without record output. Keep older 1.0 full-record archives separately. Native default-limit storage checks verified rsyslog 8.2504 and 8.2512 with gtls and ossl and syslog-ng 4.12 on arm64 and amd64, each receiver running in a container.
+- Syslog records remain bounded at 8 MiB and use numbered 1024-byte parts with a persistent record ID and whole SHA256. Messages are at most 1618 bytes including their header. Configure a dedicated receiver archive filtered by RFC5424 APP-NAME `netops`, preserving exact MSG+LF, before the first start. Offline `audit reassemble --record-id` freezes the first complete SHA-valid set in archive order: later conflicts or invalid rows preserve its bytes and produce typed warnings/exit 3; earlier validation or input-read errors give exit 2 without record output. Keep older 1.0 full-record archives separately. Native default-limit storage checks verified rsyslog 8.2504 and 8.2512 with gtls and ossl and syslog-ng 4.12 on arm64 and amd64, each receiver running in a container.
 - There is no supported provisioning path for the schema registry/library files of Helper `schema_read` and `fortios_diagnostics`, the extra input files of Auditor `--suppressions`, `merge-sarif` and `schema-check`, or file-based Admin offline and schema workflows.
 - The opt-in FortiOS `managed_switch_stacking` and `managed_switch_poe` queries have no positive result on stacking- or PoE-capable hardware. Virtual device images do not establish physical hardware behavior.
-- The process-profile acceptance check samples at a nominal 50 ms interval and can miss short-lived processes; see the [release notes](release/notes-1.0.1.md) for the exact attribution rule.
+- The process-profile acceptance check samples at a nominal 50 ms interval and can miss short-lived processes; see the [1.0.1 release notes](release/notes-1.0.1.md) for the exact attribution rule.
 
 ## 0.x releases and packaging
 

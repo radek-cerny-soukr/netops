@@ -9,7 +9,7 @@ fixture = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(fixture)
 
 TOKEN_ROWS = ["actions-%s-token-output" % a for a in fixture.ARCHES]
-EXPECTED_REQUIRED = 40
+EXPECTED_REQUIRED = 24
 
 
 def acceptance_rows(output):
@@ -26,10 +26,10 @@ class SignTokenOutput(fixture.SignTool):
 
     def test_token_output_rows_are_only_the_actions_rows(self):
         self.assertEqual(len(TOKEN_ROWS), 2)
-        self.assertEqual(len(set(fixture.ROWS) - set(TOKEN_ROWS)), 38)
+        self.assertEqual(len(set(fixture.ROWS) - set(TOKEN_ROWS)), 22)
         self.assertEqual(len(set(fixture.ROWS) | set(TOKEN_ROWS)), EXPECTED_REQUIRED)
 
-    def test_complete_candidate_with_token_rows_passes_and_requires_40_rows(self):
+    def test_complete_candidate_with_token_rows_passes_and_requires_24_rows(self):
         rc, out = self.run_tool()
         self.assertEqual(rc, 0, out)
         self.assertIn("OVERALL: PASS", out)

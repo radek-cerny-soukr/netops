@@ -20,36 +20,44 @@ COMMIT = "a" * 40
 IMAGE = "ghcr.io/radek-cerny-soukr/netops"
 A = "sha256:" + "1" * 64
 B = "sha256:" + "2" * 64
-V = "1.0.0"
+V = "1.0.2"
 ARCHES = ("amd64", "arm64")
 SUITES = ("blackbox", "redteam", "failclosed", "syslog", "device", "token-output")
+BLIND_INSTALL_ROWS = ("blind-install-fedora-amd64", "blind-install-debian-amd64")
+BLIND_ROWS = BLIND_INSTALL_ROWS + ("blind-upgrade-amd64",)
 ROWS = (["actions-%s-%s" % (a, s) for a in ARCHES for s in SUITES]
         + ["actions-%s-engine-%s" % (a, r) for a in ARCHES for r in ("core", "helper", "auditor", "admin")]
-        + ["%s-%s-%s" % (o, a, d) for o in ("ubuntu", "debian", "fedora") for a in ARCHES for d in ("rootful", "rootless")]
-        + ["rpios-arm64-%s" % d for d in ("rootful", "rootless")]
-        + ["upgrade-amd64", "upgrade-arm64", "upgrade-fedora-amd64", "claude-code-e2e", "syslog-load", "code-review"])
+        + list(BLIND_ROWS) + ["code-review"])
 OPTIONAL_ROWS = ("codex-cli-e2e",)
-UPGRADE_CHECKS = ("kroky-postupu", "bezi-verze-TO", "health-ready", "obnova-manifest-shodny", "CA-klic-token-beze-zmeny",
-                  "konfigurace-beze-zmeny", "data-roli-beze-zmeny", "audit-prefix", "audit-zaznam-upgrade", "mcp-tools-list",
-                  "mcp-odpovedi-roli", "token-plati-bez-tokenu-401", "connection-shodne", "druhy-start-nic-nemeni",
-                  "token-ani-heslo-v-logs", "rollback-FROM", "FROM-nedotcena-do-rollbacku")
+OLD_ROWS = (["%s-%s-%s" % (o, a, d) for o in ("ubuntu", "debian", "fedora") for a in ARCHES for d in ("rootful", "rootless")]
+            + ["rpios-arm64-%s" % d for d in ("rootful", "rootless")]
+            + ["upgrade-amd64", "upgrade-arm64", "upgrade-fedora-amd64", "claude-code-e2e", "syslog-load"])
+INSTALL_CHECKS = ("cosign-verify-blob", "sha256sum-check", "container-healthy", "health-ready", "version-is-candidate",
+                  "unauthenticated-401", "mcp-tools-list", "audit-without-token")
+UPGRADE_CHECKS = ("upgrade-steps-from-docs", "health-ready", "version-is-candidate", "data-preserved", "token-preserved", "ca-preserved")
+UPGRADE_ROW = "blind-upgrade-amd64"
+FROM_VERSION = "1.0.1"
+FROM_IMAGE = IMAGE + "@sha256:082ba2fd7384c5d3d5708753eed6c9ca532926b821ea7a4f8ffb431aa9c1652a"
+
+
+def blind_checks(row):
+    return INSTALL_CHECKS if row in BLIND_INSTALL_ROWS else UPGRADE_CHECKS
 
 
 def default_report(row):
-    if row.startswith("upgrade-"):
-        report = {"checks": [{"check": c, "status": "PASS"} for c in UPGRADE_CHECKS]}
-    elif row.startswith("fedora-"):
-        report = {"checks": [{"check": "selinux-enforcing", "status": "PASS"}, {"check": "x", "status": "PASS"}]}
+    if row in BLIND_ROWS:
+        report = {"version": V, "rehearsal": False, "checks": [{"check": c, "status": "PASS"} for c in blind_checks(row)]}
+        if row == UPGRADE_ROW:
+            report.update(from_version=FROM_VERSION, from_image=FROM_IMAGE)
     else:
         report = {"checks": [{"check": "x", "status": "PASS"}]}
-    if row in ("syslog-load", "code-review"):
+    if row in BLIND_ROWS or row == "code-review":
         report["protocol_sha256"] = "3" * 64
     return report
 
 
-
 FINDING = {"id": "CVE-1", "package": "libx", "version": "1.0", "type": "apk"}
-SUMS = "netops-1.0.0-SHA256SUMS"
+SUMS = "netops-%s-SHA256SUMS" % V
 BUNDLE = SUMS + ".sigstore.json"
 
 
@@ -281,18 +289,18 @@ class SignTool(unittest.TestCase):
         self.assertEqual(rc, 0, out)
         self.assertIn("OVERALL: PASS", out)
 
-    def test_acceptance_rows_are_the_seven_layer_rows(self):
+    def test_acceptance_rows_are_the_1_0_2_rows(self):
         rc, out = self.run_tool()
         self.assertEqual(rc, 0, out)
         self.assertEqual(sorted(set(re.findall(r"(?m)^acceptance (\S+)", out))), sorted(ROWS + list(OPTIONAL_ROWS)))
-        self.assertEqual(len(ROWS), 40)
-        for old in ("ubuntu-amd64-redteam", "fedora-arm64-after-restart", "fedora-amd64-selinux", "debian-arm64-nonroot", "rpios-arm64-syslog"):
-            self.assertNotIn(old, out)
+        self.assertEqual(len(ROWS), 24)
+        for old in OLD_ROWS:
+            self.assertNotRegex(out, r"(?m)^acceptance %s\s" % re.escape(old))
 
     def test_missing_rows_are_not_run(self):
-        self.reports = {r: v for r, v in self.reports.items() if not r.startswith("fedora-arm64")}
+        self.reports = {r: v for r, v in self.reports.items() if not r.startswith("blind-install-fedora")}
         out = self.assert_refused("OVERALL: NOT RUN")
-        self.assertRegex(out, r"(?m)^acceptance fedora-arm64-rootless\s+NOT RUN\s+no report")
+        self.assertRegex(out, r"(?m)^acceptance blind-install-fedora-amd64\s+NOT RUN\s+no report")
 
     def test_engine_rows_are_required(self):
         del self.reports["actions-arm64-engine-admin"]
@@ -308,9 +316,8 @@ class SignTool(unittest.TestCase):
         self.assertIn("actions-amd64-device", out)
         self.assertIn("OVERALL: NOT RUN", out)
 
-    def test_each_layer_3_to_7_row_is_required(self):
-        for row in ("ubuntu-amd64-rootless", "debian-arm64-rootful", "fedora-amd64-rootless", "rpios-arm64-rootful", "rpios-arm64-rootless",
-                    "upgrade-amd64", "upgrade-arm64", "upgrade-fedora-amd64", "claude-code-e2e", "syslog-load", "code-review"):
+    def test_each_blind_row_and_code_review_is_required(self):
+        for row in BLIND_ROWS + ("code-review",):
             with self.subTest(row=row):
                 reports = self.reports
                 self.reports = {r: v for r, v in reports.items() if r != row}
@@ -319,6 +326,14 @@ class SignTool(unittest.TestCase):
                 self.assertEqual(rc, 1, out)
                 self.assertRegex(out, r"(?m)^acceptance %s\s+NOT RUN\s+no report" % re.escape(row))
                 self.assertIn("OVERALL: NOT RUN", out)
+
+    def test_1_0_1_layer_reports_do_not_replace_blind_rows(self):
+        self.reports = {r: v for r, v in self.reports.items() if r not in BLIND_ROWS}
+        for row in OLD_ROWS:
+            self.reports[row] = {"checks": [{"check": "x", "status": "PASS"}], "protocol_sha256": "3" * 64}
+        out = self.assert_refused("OVERALL: NOT RUN")
+        for row in BLIND_ROWS:
+            self.assertRegex(out, r"(?m)^acceptance %s\s+NOT RUN\s+no report" % re.escape(row))
 
     def test_codex_row_is_optional_and_states_why(self):
         del self.reports["codex-cli-e2e"]
@@ -337,40 +352,31 @@ class SignTool(unittest.TestCase):
         out = self.assert_refused("OVERALL: FAIL")
         self.assertRegex(out, r"(?m)^acceptance codex-cli-e2e\s+FAIL")
 
-    def test_fedora_rows_need_selinux_enforcing(self):
-        for row in ("fedora-amd64-rootful", "fedora-arm64-rootless"):
-            for checks in ([{"check": "x", "status": "PASS"}], [{"check": "selinux-enforcing", "status": "NOT RUN"}, {"check": "x", "status": "PASS"}]):
-                with self.subTest(row=row, checks=checks):
-                    self.reports[row] = {"checks": checks}
-                    rc, out = self.run_tool()
-                    self.reports[row] = default_report(row)
-                    self.assertEqual(rc, 1, out)
-                    self.assertNotIn("OVERALL: PASS", out)
-                    self.assertRegex(out, r"(?m)^acceptance %s\s+(FAIL|NOT RUN)" % re.escape(row))
-                    if len(checks) == 1:
-                        self.assertIn("required check missing or repeated: selinux-enforcing", out)
-
-    def test_upgrade_rows_need_exactly_the_17_upgrade_checks_passed(self):
-        def checks(drop=(), fail=(), extra=()):
-            return {"checks": [{"check": c, "status": "FAIL" if c in fail else "PASS"} for c in UPGRADE_CHECKS if c not in drop]
-                    + [{"check": c, "status": "PASS"} for c in extra]}
-        cases = ((checks(fail=("rollback-FROM",)), "checks failed: rollback-FROM"),
-                 (checks(drop=("audit-zaznam-upgrade",)), "required check missing or repeated: audit-zaznam-upgrade"),
-                 (checks(extra=("kroky-postupu",)), "required check missing or repeated: kroky-postupu"),
-                 (checks(extra=("extra-check",)), "upgrade report must have exactly 17 checks"),
-                 ({"checks": [dict(c, check=c["check"].lower()) for c in checks()["checks"]]}, "required check missing or repeated: bezi-verze-TO"))
-        for row in ("upgrade-amd64", "upgrade-fedora-amd64"):
-            for report, text in cases:
+    def test_blind_rows_need_exactly_their_checks_passed(self):
+        def checks(row, drop=(), fail=(), notrun=(), extra=()):
+            return dict(default_report(row), checks=[{"check": c, "status": "FAIL" if c in fail else "NOT RUN" if c in notrun else "PASS"}
+                                                     for c in blind_checks(row) if c not in drop]
+                        + [{"check": c, "status": "PASS"} for c in extra])
+        for row in BLIND_ROWS:
+            first, last = blind_checks(row)[0], blind_checks(row)[-1]
+            cases = ((checks(row, fail=(last,)), "FAIL", "checks failed: " + last),
+                     (checks(row, notrun=(first,)), "NOT RUN", "checks not run"),
+                     (checks(row, drop=(last,)), "FAIL", "required check missing or repeated: " + last),
+                     (checks(row, extra=(first,)), "FAIL", "required check missing or repeated: " + first),
+                     (checks(row, extra=("extra-check",)), "FAIL", "blind report must have exactly %d checks" % len(blind_checks(row))),
+                     (dict(default_report(row), checks=[dict(c, check=c["check"].upper()) for c in checks(row)["checks"]]), "FAIL", "required check missing or repeated: " + first))
+            for report, status, text in cases:
                 with self.subTest(row=row, text=text):
                     self.reports[row] = report
                     rc, out = self.run_tool()
                     self.reports[row] = default_report(row)
                     self.assertEqual(rc, 1, out)
-                    self.assertRegex(out, r"(?m)^acceptance %s\s+FAIL" % re.escape(row))
+                    self.assertNotIn("OVERALL: PASS", out)
+                    self.assertRegex(out, r"(?m)^acceptance %s\s+%s" % (re.escape(row), status))
                     self.assertIn(text, out)
 
-    def test_syslog_load_and_code_review_need_a_protocol_sha256(self):
-        for row in ("syslog-load", "code-review"):
+    def test_blind_rows_and_code_review_need_a_protocol_sha256(self):
+        for row in BLIND_ROWS + ("code-review",):
             for value in (None, "", "3" * 63, "A" * 64, 7, "3" * 64 + "\n"):
                 with self.subTest(row=row, value=value):
                     report = default_report(row)
@@ -385,13 +391,106 @@ class SignTool(unittest.TestCase):
                     self.assertRegex(out, r"(?m)^acceptance %s\s+FAIL" % re.escape(row))
                     self.assertIn("no protocol SHA-256", out)
 
+    def test_blind_report_must_not_be_a_rehearsal(self):
+        for row in BLIND_ROWS:
+            for value in (True, "false", 0, None, MISSING):
+                with self.subTest(row=row, value=value):
+                    report = default_report(row)
+                    if value is MISSING:
+                        del report["rehearsal"]
+                    else:
+                        report["rehearsal"] = value
+                    self.reports[row] = report
+                    rc, out = self.run_tool()
+                    self.reports[row] = default_report(row)
+                    self.assertEqual(rc, 1, out)
+                    self.assertRegex(out, r"(?m)^acceptance %s\s+FAIL\s+rehearsal report: rehearsal must be JSON false" % re.escape(row))
+
+    def test_blind_report_must_name_the_candidate_version(self):
+        for row in BLIND_ROWS:
+            for value in ("1.0.1", V + " ", "v" + V, 102, None, MISSING):
+                with self.subTest(row=row, value=value):
+                    report = default_report(row)
+                    if value is MISSING:
+                        del report["version"]
+                    else:
+                        report["version"] = value
+                    self.reports[row] = report
+                    rc, out = self.run_tool()
+                    self.reports[row] = default_report(row)
+                    self.assertEqual(rc, 1, out)
+                    self.assertRegex(out, r"(?m)^acceptance %s\s+FAIL\s+report does not name version %s" % (re.escape(row), re.escape(V)))
+
+    def test_blind_upgrade_must_start_from_the_1_0_1_release_image(self):
+        cases = [("from_version", v) for v in ("1.0.2", "1.0.0", FROM_VERSION + " ", "v" + FROM_VERSION, 101, None, MISSING)]
+        cases += [("from_image", v) for v in (IMAGE + "@" + A, IMAGE + ":1.0.1", IMAGE + "@sha256:" + "0" * 64, FROM_IMAGE.split("@")[1],
+                                              FROM_IMAGE.upper(), FROM_IMAGE + " ", None, MISSING)]
+        for field, value in cases:
+            with self.subTest(field=field, value=value):
+                report = default_report(UPGRADE_ROW)
+                if value is MISSING:
+                    del report[field]
+                else:
+                    report[field] = value
+                self.reports[UPGRADE_ROW] = report
+                rc, out = self.run_tool()
+                self.reports[UPGRADE_ROW] = default_report(UPGRADE_ROW)
+                self.assertEqual(rc, 1, out)
+                self.assertRegex(out, r"(?m)^acceptance %s\s+FAIL\s+upgrade report does not start from NetOps %s \(%s\)"
+                                 % (re.escape(UPGRADE_ROW), re.escape(FROM_VERSION), re.escape(FROM_IMAGE)))
+
+    def test_install_rows_do_not_need_an_upgrade_origin(self):
+        for row in BLIND_INSTALL_ROWS:
+            self.assertNotIn("from_version", default_report(row))
+        rc, out = self.run_tool()
+        self.assertEqual(rc, 0, out)
+        self.assertRegex(out, r"(?m)^acceptance %s\s+PASS" % re.escape(UPGRADE_ROW))
+
+    def test_blind_report_of_another_candidate_fails(self):
+        for row in BLIND_ROWS:
+            for field, value, text in (("candidate_commit", "b" * 40, "report is not for this commit"),
+                                       ("candidate_image", "sha256:" + "9" * 64, "report is not for this image index")):
+                with self.subTest(row=row, field=field):
+                    self.reports[row] = dict(default_report(row), **{field: value})
+                    rc, out = self.run_tool()
+                    self.reports[row] = default_report(row)
+                    self.assertEqual(rc, 1, out)
+                    self.assertRegex(out, r"(?m)^acceptance %s\s+FAIL\s+%s" % (re.escape(row), re.escape(text)))
+
+    def test_tool_signs_only_1_0_2_and_later(self):
+        global V
+        saved = V
+        try:
+            for version, expected in (("1.0.1", 1), ("1.0.0", 1), ("0.9.9", 1), ("1.0.2", 0), ("1.0.10", 0), ("1.1.0", 0)):
+                with self.subTest(version=version):
+                    V = version
+                    self.reports = {row: default_report(row) for row in ROWS + list(OPTIONAL_ROWS)}
+                    rc, out = self.run_tool()
+                    self.assertEqual(rc, expected, out)
+                    if expected:
+                        self.assertRegex(out, r"(?m)^manifest\s+FAIL\s+this signing tool signs netops 1\.0\.2 and later, not %s" % re.escape(version))
+                    else:
+                        self.assertIn("OVERALL: PASS", out)
+        finally:
+            V = saved
+
+    def test_read_json_decodes_utf8_whatever_the_default_encoding(self):
+        rc, out, snapdir = self.run_function(
+            "[IO.File]::WriteAllBytes('/snap/x.json', [Text.Encoding]::UTF8.GetBytes('{\"d\":\"' + [char]0x10D + '\"}'))\n"
+            "$PSDefaultParameterValues['Get-Content:Encoding'] = 'ascii'\n"
+            "$o = Read-Json '/snap/x.json'; 'DECODED ' + $o.d.Length + ' ' + [int]$o.d[0]\n")
+        try:
+            self.assertIn("DECODED 1 269", out)
+        finally:
+            shutil.rmtree(snapdir)
+
     def test_single_platform_is_not_enough(self):
         self.reports = {"actions-amd64-blackbox": self.reports["actions-amd64-blackbox"]}
         self.assert_refused("OVERALL: NOT RUN")
 
     def test_not_run_rows_cannot_be_waived(self):
-        self.reports = {r: v for r, v in self.reports.items() if not r.startswith("rpios-")}
-        rc, out = self.run_tool(extra=("-AcceptNotRun", "rpios-arm64"))
+        self.reports = {r: v for r, v in self.reports.items() if not r.startswith("blind-")}
+        rc, out = self.run_tool(extra=("-AcceptNotRun", "blind-install-fedora-amd64"))
         self.assertNotEqual(rc, 0, out)
         self.assertNotIn("OVERALL: PASS", out)
 
@@ -412,17 +511,17 @@ class SignTool(unittest.TestCase):
     def test_null_matches_fail(self):
         self.build()
         for arch in ARCHES:
-            name = "netops-1.0.0-linux-%s-grype.json" % arch
+            name = "netops-1.0.2-linux-%s-grype.json" % arch
             scan = json.load(open(os.path.join(self.dir, name)))
             scan["matches"] = None
             self.write(name, scan)
-        manifest = json.load(open(os.path.join(self.dir, "netops-1.0.0-manifest.json")))
+        manifest = json.load(open(os.path.join(self.dir, "netops-1.0.2-manifest.json")))
         for arch in ARCHES:
-            name = "netops-1.0.0-linux-%s-grype.json" % arch
+            name = "netops-1.0.2-linux-%s-grype.json" % arch
             manifest["image"]["platforms"][arch]["files"]["scan"]["sha256"] = sha(open(os.path.join(self.dir, name), "rb").read())
-        self.write("netops-1.0.0-manifest.json", manifest)
-        lines = ["%s  %s" % (sha(open(os.path.join(self.dir, n), "rb").read()), n) for n in sorted(os.listdir(self.dir)) if n != "netops-1.0.0-SHA256SUMS"]
-        self.write("netops-1.0.0-SHA256SUMS", "\n".join(lines) + "\n")
+        self.write("netops-1.0.2-manifest.json", manifest)
+        lines = ["%s  %s" % (sha(open(os.path.join(self.dir, n), "rb").read()), n) for n in sorted(os.listdir(self.dir)) if n != "netops-1.0.2-SHA256SUMS"]
+        self.write("netops-1.0.2-SHA256SUMS", "\n".join(lines) + "\n")
         rc, out = self.run_tool(build=False)
         self.assertEqual(rc, 1, out)
         self.assertIn("matches is not a JSON array", out)
@@ -436,7 +535,7 @@ class SignTool(unittest.TestCase):
         self.assert_refused("not assessed for this exact package version")
 
     def test_empty_checks_fail(self):
-        self.reports["claude-code-e2e"] = {"checks": []}
+        self.reports["code-review"] = {"checks": [], "protocol_sha256": "3" * 64}
         self.assert_refused("report has no checks")
 
     def test_unknown_status_fails(self):
@@ -444,17 +543,17 @@ class SignTool(unittest.TestCase):
         self.assert_refused("unknown status UNKNOWN")
 
     def test_report_without_commit_or_image_fails(self):
-        self.reports["ubuntu-amd64-rootful"] = {"checks": [{"status": "PASS"}], "candidate_commit": None}
+        self.reports["blind-upgrade-amd64"] = dict(default_report("blind-upgrade-amd64"), candidate_commit=None)
         self.assert_refused("report is not for this commit")
-        self.reports["ubuntu-amd64-rootful"] = {"checks": [{"status": "PASS"}], "candidate_image": "sha256:" + "9" * 64}
+        self.reports["blind-upgrade-amd64"] = dict(default_report("blind-upgrade-amd64"), candidate_image="sha256:" + "9" * 64)
         self.assert_refused("report is not for this image index")
 
     def test_unsigned_report_in_directory_fails(self):
-        self.skip_from_sums = {"acceptance-claude-code-e2e.json"}
+        self.skip_from_sums = {"acceptance-blind-upgrade-amd64.json"}
         self.assert_refused("not in the signed checksum list")
 
     def test_traversal_absolute_and_duplicate_lines_fail(self):
-        for line in ("%s  ../outside.json" % ("0" * 64), "%s  /etc/passwd" % ("0" * 64), "%s  netops-1.0.0-manifest.json" % ("0" * 64)):
+        for line in ("%s  ../outside.json" % ("0" * 64), "%s  /etc/passwd" % ("0" * 64), "%s  netops-1.0.2-manifest.json" % ("0" * 64)):
             self.extra_lines = [line]
             self.assert_refused("checksums")
 
@@ -474,13 +573,13 @@ class SignTool(unittest.TestCase):
     def test_bundle_name_link_fails(self):
         for target in ("compose.yaml", "missing-target"):
             self.build()
-            os.symlink(target, os.path.join(self.dir, "netops-1.0.0-SHA256SUMS.sigstore.json"))
+            os.symlink(target, os.path.join(self.dir, "netops-1.0.2-SHA256SUMS.sigstore.json"))
             rc, out = self.run_tool(build=False)
             self.assertEqual(rc, 1, out)
             self.assertIn("is a link or reparse point", out)
 
     def test_linked_sums_and_manifest_fail_before_reading(self):
-        for name in ("netops-1.0.0-SHA256SUMS", "netops-1.0.0-manifest.json"):
+        for name in ("netops-1.0.2-SHA256SUMS", "netops-1.0.2-manifest.json"):
             self.build()
             path = os.path.join(self.dir, name)
             os.rename(path, path + ".real")
@@ -491,7 +590,7 @@ class SignTool(unittest.TestCase):
 
     def test_directory_in_candidate_fails(self):
         self.build()
-        os.mkdir(os.path.join(self.dir, "netops-1.0.0-SHA256SUMS.sigstore.json"))
+        os.mkdir(os.path.join(self.dir, "netops-1.0.2-SHA256SUMS.sigstore.json"))
         rc, out = self.run_tool(build=False)
         self.assertEqual(rc, 1, out)
         self.assertIn("is a directory", out)
@@ -505,7 +604,7 @@ class SignTool(unittest.TestCase):
 
     def test_existing_bundle_passes_check_but_is_never_overwritten(self):
         self.build()
-        self.write("netops-1.0.0-SHA256SUMS.sigstore.json", "{}")
+        self.write("netops-1.0.2-SHA256SUMS.sigstore.json", "{}")
         rc, out = self.run_tool(build=False)
         self.assertEqual(rc, 0, out)
         rc, out = self.run_tool(check_only=False, stdin="SIGN\n", build=False)
@@ -515,9 +614,9 @@ class SignTool(unittest.TestCase):
 
     def test_manifest_version_with_path_fails(self):
         self.build()
-        path = os.path.join(self.dir, "netops-1.0.0-manifest.json")
+        path = os.path.join(self.dir, "netops-1.0.2-manifest.json")
         manifest = json.load(open(path))
-        manifest["version"] = "../1.0.0"
+        manifest["version"] = "../" + V
         with open(path, "w") as stream:
             json.dump(manifest, stream)
         rc, out = self.run_tool(build=False)
@@ -526,7 +625,7 @@ class SignTool(unittest.TestCase):
 
     def test_tampered_file_fails(self):
         self.build()
-        self.write("netops-1.0.0-linux-arm64.cdx.json", '{"x":1}')
+        self.write("netops-1.0.2-linux-arm64.cdx.json", '{"x":1}')
         rc, out = self.run_tool(build=False)
         self.assertEqual(rc, 1, out)
         self.assertIn("SHA-256 differs", out)
@@ -538,15 +637,15 @@ class SignTool(unittest.TestCase):
     def test_scan_of_other_digest_fails(self):
         self.digests = {"amd64": A, "arm64": B}
         self.build()
-        scan_name = "netops-1.0.0-linux-amd64-grype.json"
+        scan_name = "netops-1.0.2-linux-amd64-grype.json"
         scan = json.load(open(os.path.join(self.dir, scan_name)))
         scan["source"]["target"]["userInput"] = IMAGE + "@" + B
         self.write(scan_name, scan)
-        manifest = json.load(open(os.path.join(self.dir, "netops-1.0.0-manifest.json")))
+        manifest = json.load(open(os.path.join(self.dir, "netops-1.0.2-manifest.json")))
         manifest["image"]["platforms"]["amd64"]["files"]["scan"]["sha256"] = sha(open(os.path.join(self.dir, scan_name), "rb").read())
-        self.write("netops-1.0.0-manifest.json", manifest)
-        lines = ["%s  %s" % (sha(open(os.path.join(self.dir, n), "rb").read()), n) for n in sorted(os.listdir(self.dir)) if n != "netops-1.0.0-SHA256SUMS"]
-        self.write("netops-1.0.0-SHA256SUMS", "\n".join(lines) + "\n")
+        self.write("netops-1.0.2-manifest.json", manifest)
+        lines = ["%s  %s" % (sha(open(os.path.join(self.dir, n), "rb").read()), n) for n in sorted(os.listdir(self.dir)) if n != "netops-1.0.2-SHA256SUMS"]
+        self.write("netops-1.0.2-SHA256SUMS", "\n".join(lines) + "\n")
         rc, out = self.run_tool(build=False)
         self.assertEqual(rc, 1, out)
         self.assertIn("raw scan is not of", out)
@@ -609,11 +708,11 @@ class SignTool(unittest.TestCase):
     def test_unpinned_env_fails(self):
         self.build()
         self.write("env.example", "NETOPS_IMAGE=%s:latest\n" % IMAGE)
-        manifest = json.load(open(os.path.join(self.dir, "netops-1.0.0-manifest.json")))
+        manifest = json.load(open(os.path.join(self.dir, "netops-1.0.2-manifest.json")))
         manifest["release_files"]["env.example"] = sha(open(os.path.join(self.dir, "env.example"), "rb").read())
-        self.write("netops-1.0.0-manifest.json", manifest)
-        lines = ["%s  %s" % (sha(open(os.path.join(self.dir, n), "rb").read()), n) for n in sorted(os.listdir(self.dir)) if n != "netops-1.0.0-SHA256SUMS"]
-        self.write("netops-1.0.0-SHA256SUMS", "\n".join(lines) + "\n")
+        self.write("netops-1.0.2-manifest.json", manifest)
+        lines = ["%s  %s" % (sha(open(os.path.join(self.dir, n), "rb").read()), n) for n in sorted(os.listdir(self.dir)) if n != "netops-1.0.2-SHA256SUMS"]
+        self.write("netops-1.0.2-SHA256SUMS", "\n".join(lines) + "\n")
         rc, out = self.run_tool(build=False)
         self.assertEqual(rc, 1, out)
         self.assertIn("does not pin", out)
@@ -861,7 +960,7 @@ class SignTool(unittest.TestCase):
         self.patches = {}
         self.reports = {row: default_report(row) for row in ROWS + list(OPTIONAL_ROWS)}
         if kind == "report":
-            self.reports["ubuntu-amd64-rootful"].update(change)
+            self.reports["blind-install-debian-amd64"].update(change)
         else:
             self.patches = {kind: lambda content, arch: change(content) if arch in (None, "amd64") else None}
 

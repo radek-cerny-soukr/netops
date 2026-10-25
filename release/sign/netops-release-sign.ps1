@@ -18,16 +18,19 @@ $RequiredRows = New-Object System.Collections.ArrayList
 foreach ($arch in $Arches) { foreach ($suite in $Suites) { [void]$RequiredRows.Add("actions-$arch-$suite") } }
 foreach ($arch in $Arches) { foreach ($role in @("core", "helper", "auditor", "admin")) { [void]$RequiredRows.Add("actions-$arch-engine-$role") } }
 $RequiredChecks = New-Object System.Collections.Hashtable ([StringComparer]::Ordinal)
-foreach ($os in @("ubuntu", "debian", "fedora")) {
-    foreach ($arch in $Arches) { foreach ($docker in @("rootful", "rootless")) { [void]$RequiredRows.Add("$os-$arch-$docker") } }
+$MinimumVersion = [version]"1.0.2"
+$BlindInstallChecks = @("cosign-verify-blob", "sha256sum-check", "container-healthy", "health-ready", "version-is-candidate", "unauthenticated-401", "mcp-tools-list", "audit-without-token")
+$BlindUpgradeChecks = @("upgrade-steps-from-docs", "health-ready", "version-is-candidate", "data-preserved", "token-preserved", "ca-preserved")
+$BlindRows = @("blind-install-fedora-amd64", "blind-install-debian-amd64", "blind-upgrade-amd64")
+$UpgradeRow = "blind-upgrade-amd64"
+$UpgradeFromVersion = "1.0.1"
+$UpgradeFromImage = "ghcr.io/radek-cerny-soukr/netops@sha256:082ba2fd7384c5d3d5708753eed6c9ca532926b821ea7a4f8ffb431aa9c1652a"
+foreach ($row in $BlindRows) {
+    [void]$RequiredRows.Add($row)
+    if ($row -clike "blind-install-*") { $RequiredChecks[$row] = $BlindInstallChecks } else { $RequiredChecks[$row] = $BlindUpgradeChecks }
 }
-foreach ($docker in @("rootful", "rootless")) { [void]$RequiredRows.Add("rpios-arm64-$docker") }
-foreach ($row in $RequiredRows) { if ($row -clike "fedora-*") { $RequiredChecks[$row] = @("selinux-enforcing") } }
-$UpgradeChecks = @("kroky-postupu", "bezi-verze-TO", "health-ready", "obnova-manifest-shodny", "CA-klic-token-beze-zmeny", "konfigurace-beze-zmeny", "data-roli-beze-zmeny", "audit-prefix", "audit-zaznam-upgrade", "mcp-tools-list", "mcp-odpovedi-roli", "token-plati-bez-tokenu-401", "connection-shodne", "druhy-start-nic-nemeni", "token-ani-heslo-v-logs", "rollback-FROM", "FROM-nedotcena-do-rollbacku")
-foreach ($row in @("upgrade-amd64", "upgrade-arm64", "upgrade-fedora-amd64")) { [void]$RequiredRows.Add($row); $RequiredChecks[$row] = $UpgradeChecks }
-[void]$RequiredRows.Add("claude-code-e2e")
-$ProtocolRows = @("syslog-load", "code-review")
-foreach ($row in $ProtocolRows) { [void]$RequiredRows.Add($row) }
+[void]$RequiredRows.Add("code-review")
+$ProtocolRows = @("code-review") + $BlindRows
 $OptionalRows = @("codex-cli-e2e")
 $KnownSeverities = @("Critical", "High", "Medium", "Low", "Negligible", "Unknown")
 $BlockingSeverities = @("High", "Critical")
@@ -51,7 +54,7 @@ function Get-FileSha256([string]$Path) {
 }
 
 function Read-Json([string]$Path) {
-    return (Get-Content -Raw -LiteralPath $Path | ConvertFrom-Json)
+    return (Get-Content -Raw -Encoding UTF8 -LiteralPath $Path | ConvertFrom-Json)
 }
 
 function Get-JsonString([byte[]]$Bytes, [string[]]$Names) {
@@ -200,6 +203,10 @@ function Test-Manifest($Manifest, $Listed, [string]$ManifestName) {
     if ($Manifest.schema -isnot [string] -or $Manifest.product -isnot [string] -or $Manifest.version -isnot [string] -or $Manifest.schema -cne "netops-release-candidate/1" -or $Manifest.product -cne "netops" -or $Manifest.version -cnotmatch '^[0-9]+\.[0-9]+\.[0-9]+\z') {
         Add-Row "manifest" "FAIL" "unknown schema, product or version"; return $false
     }
+    $parsedVersion = $null
+    if (-not [version]::TryParse($Manifest.version, [ref]$parsedVersion) -or $parsedVersion -lt $MinimumVersion) {
+        Add-Row "manifest" "FAIL" ("this signing tool signs netops " + $MinimumVersion + " and later, not " + $Manifest.version + "; use the tool from the commit of that release"); return $false
+    }
     if ($Manifest.source.repository -isnot [string] -or $Manifest.source.commit -isnot [string] -or $Manifest.source.repository -cne $Repository -or $Manifest.source.commit -cnotmatch '^[0-9a-f]{40}\z') {
         Add-Row "manifest" "FAIL" "repository or commit invalid"; return $false
     }
@@ -344,6 +351,9 @@ function Test-Acceptance([string]$Dir, $Manifest, $Listed) {
         $report = Read-Json (Join-Path $Dir $entry.file)
         if (-not (Has-Property $report "candidate_commit") -or $report.candidate_commit -isnot [string] -or $report.candidate_commit -cne $Manifest.source.commit) { Add-Row $label "FAIL" "report is not for this commit"; continue }
         if (-not (Has-Property $report "candidate_image") -or $report.candidate_image -isnot [string] -or $report.candidate_image -cne $Manifest.image.index_digest) { Add-Row $label "FAIL" "report is not for this image index"; continue }
+        if ($BlindRows -ccontains $row -and (-not (Has-Property $report "rehearsal") -or $report.rehearsal -isnot [bool] -or $report.rehearsal)) { Add-Row $label "FAIL" "rehearsal report: rehearsal must be JSON false"; continue }
+        if ($BlindRows -ccontains $row -and (-not (Has-Property $report "version") -or $report.version -isnot [string] -or $report.version -cne $Manifest.version)) { Add-Row $label "FAIL" ("report does not name version " + $Manifest.version); continue }
+        if ($row -ceq $UpgradeRow -and (-not (Has-Property $report "from_version") -or $report.from_version -isnot [string] -or $report.from_version -cne $UpgradeFromVersion -or -not (Has-Property $report "from_image") -or $report.from_image -isnot [string] -or $report.from_image -cne $UpgradeFromImage)) { Add-Row $label "FAIL" ("upgrade report does not start from NetOps " + $UpgradeFromVersion + " (" + $UpgradeFromImage + ")"); continue }
         $checks = @($report.checks)
         if ($checks.Count -eq 0) { Add-Row $label "FAIL" "report has no checks"; continue }
         $unknown = @($checks | Where-Object { $ReportStatuses -cnotcontains $_.status })
@@ -356,7 +366,7 @@ function Test-Acceptance([string]$Dir, $Manifest, $Listed) {
         if ($unknown.Count -gt 0) { Add-Row $label "FAIL" ("unknown status " + $unknown[0].status) }
         elseif ($failed.Count -gt 0) { Add-Row $label "FAIL" ([string]$failed.Count + " of " + $checks.Count + " checks failed: " + $failed[0].check) }
         elseif ($absent.Count -gt 0) { Add-Row $label "FAIL" ("required check missing or repeated: " + $absent[0]) }
-        elseif ($row -clike "upgrade-*" -and $checks.Count -ne $required.Count) { Add-Row $label "FAIL" ("upgrade report must have exactly " + $required.Count + " checks") }
+        elseif ($BlindRows -ccontains $row -and $checks.Count -ne $required.Count) { Add-Row $label "FAIL" ("blind report must have exactly " + $required.Count + " checks") }
         elseif ($ProtocolRows -ccontains $row -and (-not (Has-Property $report "protocol_sha256") -or $report.protocol_sha256 -isnot [string] -or $report.protocol_sha256 -cnotmatch '^[0-9a-f]{64}\z')) { Add-Row $label "FAIL" "no protocol SHA-256 (protocol_sha256)" }
         elseif ($notRun.Count -gt 0) {
             $why = ""
