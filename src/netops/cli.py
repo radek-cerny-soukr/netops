@@ -104,9 +104,15 @@ def main():
     token = commands.add_parser("token")
     token.add_argument("action", choices=("show", "rotate"))
     audit = commands.add_parser("audit")
-    audit.add_argument("action", choices=("show", "tail", "export", "pending", "stats", "recover"), default="show", nargs="?")
+    audit.add_argument("action", choices=("show", "tail", "export", "pending", "stats", "recover", "reassemble"), default="show", nargs="?")
     audit.add_argument("--lines", type=int, default=100)
+    audit.add_argument("--record-id")
     args = parser.parse_args()
+    if args.command == "audit":
+        if args.action == "reassemble" and args.record_id is None:
+            parser.error("audit reassemble requires --record-id")
+        if args.action != "reassemble" and args.record_id is not None:
+            parser.error("--record-id is only valid for audit reassemble")
     try:
         if args.command == "version":
             print(__version__)
@@ -155,9 +161,54 @@ def main():
             if args.action == "show":
                 sys.stdout.write(read_private(STATE / "gateway" / "token", owner=UIDS["gateway"]).decode())
             else:
+                from .state import read_state_settings
+                read_state_settings(STATE)
                 write_private(STATE / "gateway" / "token", (secrets.token_urlsafe(48) + "\n").encode(), UIDS["gateway"], replace=True)
                 print("Token rotated; existing authorization is invalid.")
             return 0
+        if args.command == "audit" and args.action == "reassemble":
+            from .syslog_parts import ID, MAX_MESSAGE_BYTES, ReassemblyError, decode_messages
+            if ID.fullmatch(args.record_id) is None:
+                sys.stderr.write("netops: reassembly_argument_error line_0\n")
+                return 2
+            consumed = 0
+            read_failed = False
+            warned = False
+            def messages():
+                nonlocal consumed, read_failed
+                try:
+                    limit = MAX_MESSAGE_BYTES + 2
+                    while line := sys.stdin.buffer.readline(limit):
+                        consumed += 1
+                        if len(line) == limit and not line.endswith(b"\n"):
+                            while (rest := sys.stdin.buffer.readline(limit)) and not rest.endswith(b"\n"):
+                                pass
+                            yield b""
+                        else:
+                            yield line.removesuffix(b"\n")
+                except Exception:
+                    read_failed = True
+                    raise
+            def warning(item):
+                nonlocal warned
+                warned = True
+                sys.stderr.write(json.dumps({"schema": "netops-syslog-reassembly-warning/1",
+                                             "code": item.code, "line_number": item.line_number},
+                                            separators=(",", ":"), ensure_ascii=True) + "\n")
+            try:
+                original = decode_messages(messages(), args.record_id, on_warning=warning)
+            except Exception as error:
+                if read_failed:
+                    sys.stderr.write("netops: reassembly_read_error after_line_" + str(consumed) + "\n")
+                elif isinstance(error, ReassemblyError):
+                    location = "after_line_" if error.end else "line_"
+                    sys.stderr.write("netops: reassembly_validation_error " + location + str(error.line_number) + "\n")
+                else:
+                    raise
+                return 2
+            sys.stdout.buffer.write(original)
+            sys.stdout.buffer.flush()
+            return 3 if warned else 0
         if args.command == "audit" and args.action == "recover":
             from .operator import recover_audit
             return recover_audit()

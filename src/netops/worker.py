@@ -5,9 +5,11 @@ import json
 import os
 import sys
 import uuid
+from . import __version__
 from .files import MAX_MESSAGE, RUNTIME, STATE, UIDS, read_private
 from .ipc import peer_uid
 from .bootstrap import role_environment
+from .state import AUDITOR_DEFAULTS, admin_devices, auditor_settings
 from .redaction import redact
 
 MODULES = {"helper": "netops_helper.server", "auditor": "netops_auditor.mcp_server", "admin": "netops_admin.mcp_server"}
@@ -83,7 +85,7 @@ class HelperBridge:
             return {"content": [{"type": "text", "text": json.dumps(response["error"], separators=(",", ":"))}], "isError": True}
         result = response["result"]
         if name == "helper_status":
-            payload = {"version": "1.0.0", "transport": "HTTPS Streamable HTTP", **self.proxy._helper_status_payload()}
+            payload = {"version": __version__, "transport": "HTTPS Streamable HTTP", **self.proxy._helper_status_payload()}
             result = {"content": [{"type": "text", "text": json.dumps(payload)}], "structuredContent": payload, "isError": False}
         return await _owned_thread(_redacted_result, result, tuple(self.proxy.session_secrets))
 
@@ -102,16 +104,14 @@ async def run(role):
     os.environ["NETOPS_VAULT_PATH"] = str(directory / "vault.json")
     os.environ["NETOPS_ADMIN_CONFIG"] = str(directory / "config.json")
     os.environ["NETOPS_AUDITOR_STORE"] = str(directory / "store.sqlite")
-    auditor_config = directory / "config.json"
-    auditor_settings = json.loads(read_private(auditor_config, owner=UIDS[role])) if role == "auditor" and auditor_config.exists() else {"tenant": "default", "catalog": "fortios"}
-    os.environ["NETOPS_AUDITOR_TENANT"] = auditor_settings["tenant"]
-    os.environ["NETOPS_AUDITOR_CATALOG"] = auditor_settings["catalog"]
+    auditor = auditor_settings(directory, read_private) if role == "auditor" else AUDITOR_DEFAULTS
+    os.environ["NETOPS_AUDITOR_TENANT"] = auditor["tenant"]
+    os.environ["NETOPS_AUDITOR_CATALOG"] = auditor["catalog"]
     module = importlib.import_module(MODULES[role])
     if role == "auditor":
         module.configure()
     elif role == "admin":
-        settings = json.loads(read_private(directory / "config.json", owner=UIDS[role]))
-        if settings.get("devices"):
+        if admin_devices(directory, read_private):
             module.configure(runtime_factory=lambda config: module.build_runtime(config, require_export=False))
     bridge = HelperBridge() if role == "helper" else None
     lock = asyncio.Lock()

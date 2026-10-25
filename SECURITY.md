@@ -1,5 +1,7 @@
 # Security policy
 
+This policy applies to NetOps 1.0.1, the current release. Its security fixes, including those for [issue #6](https://github.com/radek-cerny-soukr/netops/issues/6), are listed in the [release notes](release/notes-1.0.1.md).
+
 ## Scope and reporting
 
 NetOps 1.x is a single Docker-only product. Only a personally signed release and its covered assets are a release. Historical 0.x artifacts remain available but are frozen; their old packaging and deployment procedures do not describe this product.

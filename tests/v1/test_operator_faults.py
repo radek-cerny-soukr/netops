@@ -6,7 +6,7 @@ from pathlib import Path
 import tempfile
 import unittest
 from unittest.mock import patch
-from netops import certificates, operator
+from netops import __version__, certificates, operator
 from netops.audit import Audit, AuditUnavailable
 from netops.files import write_private
 
@@ -42,7 +42,7 @@ class OperatorPartialResults(unittest.TestCase):
         return rc, output.getvalue(), error.getvalue()
 
     def test_recovery_without_its_audit_record_is_a_partial_result(self):
-        config = {"version": 1, "product_version": "1.0.0", "server_name": NAME, "audit": {"mode": "local"}}
+        config = {"version": 1, "product_version": __version__, "server_name": NAME, "audit": {"mode": "local"}}
         directory, gateway = state_with(config)
         with directory:
             write_private(gateway / "audit" / "current.jsonl", b'{"direction":"request","correlation":"c"}\n{"incomplete":')
@@ -55,7 +55,7 @@ class OperatorPartialResults(unittest.TestCase):
             self.assertTrue((gateway / "audit" / "current.jsonl").read_bytes().endswith(b"}\n"))
 
     def test_rotation_without_its_completion_record_is_a_partial_result(self):
-        config = {"version": 1, "product_version": "1.0.0", "server_name": NAME, "audit": {"mode": "local"}}
+        config = {"version": 1, "product_version": __version__, "server_name": NAME, "audit": {"mode": "local"}}
         directory, gateway = state_with(config)
         with directory, patch.dict(os.environ, {}, clear=False):
             os.environ.pop("NETOPS_SERVER_NAME", None)

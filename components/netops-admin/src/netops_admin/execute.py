@@ -231,6 +231,10 @@ def _settle_after_expiry(runtime, access, record, plan, reason, due):
     except Exception as exc:
         _step(runtime, record, "revert_unverified", type(exc).__name__)
         return _finish(runtime, record, "unknown", reason)
+    if (verdict["result"] != "match" and not verdict["object_matches"] and not adapter.FIRING_OBSERVED
+            and not adapter.safeguard_disarmed(access, record)):
+        _step(runtime, record, "safeguard_kept", "firing not proven")
+        return _finish(runtime, record, "unknown", reason, verdict["differences"])
     cleaned = adapter.remove_safeguard(access, record, _spec(record))
     _step(runtime, record, "safeguard_removed" if cleaned else "safeguard_removal_unverified")
     if verdict["result"] == "match":

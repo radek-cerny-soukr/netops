@@ -12,6 +12,11 @@ CONFIG_FILE = ssh_module.CONFIG_FILE
 DEFAULT_TIMEOUT_SECONDS = 60.0
 WORKSPACE_PREFIX = ssh_module.WORKSPACE_PREFIX
 LIST_COMMAND = 'ls -ln "%s"\n'
+CD_COMMAND = 'cd "%s"\n'
+PWD_COMMAND = "pwd\n"
+PWD_PREFIX = "Remote working directory: "
+NOT_DIRECTORY_HEAD = 'Can\'t change directory: "'
+NOT_DIRECTORY_TAIL = '" is not a directory'
 ECHO_PREFIX = "sftp> "
 PROGRESS_PREFIX = "Connected to "
 LISTING_MAX_BYTES = 256 * 1024
@@ -73,6 +78,72 @@ def _checked_remote_path(value) -> str:
     if any(part == ".." for part in path.split("/")):
         raise SftpError("remote_path must not walk upwards, got %r" % (value,))
     return path
+
+
+def _under(path, root) -> bool:
+    return path == root or path.startswith(root.rstrip("/") + "/")
+
+
+def _checked_roots(roots, path):
+    if isinstance(roots, (str, bytes)) or not isinstance(roots, (list, tuple)):
+        raise SftpError("roots must be a list of absolute paths, got %s" % type(roots).__name__)
+    checked = tuple(_checked_remote_path(root) for root in roots)
+    matching = tuple(root for root in checked if _under(path, root))
+    if not matching:
+        raise SftpError("remote_path is outside the given roots")
+    if path in matching:
+        return ()
+    return matching
+
+
+def _resolution_batch(roots, path) -> str:
+    batch = ""
+    for root in roots:
+        batch += CD_COMMAND % root + PWD_COMMAND
+    return batch + CD_COMMAND % path + PWD_COMMAND
+
+
+def _segments(data) -> list:
+    segments = []
+    for line in data.decode("utf-8", "replace").splitlines():
+        if line.startswith(ECHO_PREFIX):
+            segments.append([])
+        elif line.strip() and segments:
+            segments[-1].append(line)
+    return segments
+
+
+def _not_directory(line):
+    if line.startswith(NOT_DIRECTORY_HEAD) and line.endswith(NOT_DIRECTORY_TAIL):
+        return line[len(NOT_DIRECTORY_HEAD):-len(NOT_DIRECTORY_TAIL)] or None
+    return None
+
+
+def _resolved_inside(name, roots, data, reported) -> list:
+    segments = _segments(data)
+    if len(segments) != 2 * (len(roots) + 1) + 1:
+        raise SftpError("sftp on %s answered a batch this parser does not know" % name)
+    places = []
+    for index in range(len(roots) + 1):
+        if segments[2 * index]:
+            raise SftpError("sftp on %s answered a batch this parser does not know" % name)
+        answer = segments[2 * index + 1]
+        if len(answer) != 1 or not answer[0].startswith(PWD_PREFIX):
+            raise SftpError("sftp on %s answered a batch this parser does not know" % name)
+        places.append(answer[0][len(PWD_PREFIX):])
+    files = [_not_directory(line) for line in reported]
+    if None in files or len(files) > 1:
+        raise SftpError(
+            "sftp on %s could not resolve the path; %s"
+            % (name, ssh_module.reason("\n".join(reported)))
+        )
+    target = files[0] if files else places[-1]
+    if not any(_under(target, root) for root in places[:-1]):
+        raise SftpError(
+            "sftp on %s resolved the path outside the given roots and its metadata was not read"
+            % name
+        )
+    return segments[-1]
 
 
 def argv(host, port, login, known_hosts, *, identity=None, legacy=None) -> list:
@@ -150,11 +221,16 @@ def _reported(result) -> list:
     data = getattr(result, "stderr", None)
     if not isinstance(data, (bytes, bytearray)):
         return []
-    return [
+    lines = [
         line.strip()
         for line in bytes(data).decode("utf-8", "replace").splitlines()
-        if line.strip() and not line.strip().startswith(PROGRESS_PREFIX)
+        if line.strip()
     ]
+    for index, line in enumerate(lines):
+        if line.startswith(PROGRESS_PREFIX):
+            lines = lines[index + 1:]
+            break
+    return [line for line in lines if not line.startswith(PROGRESS_PREFIX)]
 
 
 def stat(
@@ -170,10 +246,12 @@ def stat(
     capture_max_bytes=ssh_module.CAPTURE_MAX_BYTES,
     run=None,
     now=None,
+    roots=None,
 ) -> Entry:
     name = ssh_module._checked_host(host)
     number = ssh_module._checked_port(port)
     path = _checked_remote_path(remote_path)
+    confined = None if roots is None else _checked_roots(roots, path)
     kind = ssh_module._checked_credential(credential)
     user = ssh_module._checked_login(
         login if login is not None else getattr(credential, "login", None)
@@ -194,7 +272,9 @@ def stat(
         known_hosts = hostkey.known_hosts_file(workspace, host_key_line)
         identity, environment = ssh_module._prepared(workspace, kind, credential)
         call = argv(name, number, user, known_hosts, identity=identity, legacy=profile)
-        batch = (LIST_COMMAND % path).encode("utf-8")
+        batch = (
+            (_resolution_batch(confined, path) if confined else "") + LIST_COMMAND % path
+        ).encode("utf-8")
         started_at = ssh_module._moment(clock)
         try:
             result = runner(
@@ -239,6 +319,9 @@ def stat(
             )
         lines = _listing(bytes(data))
         reported = _reported(result)
+        if confined:
+            lines = _resolved_inside(name, confined, bytes(data), reported)
+            reported = [line for line in reported if _not_directory(line) is None]
         if not lines:
             if reported:
                 raise SftpError(

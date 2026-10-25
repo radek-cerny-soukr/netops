@@ -120,6 +120,9 @@ def safeguard_disarmed(access, record) -> bool:
             and exos.safeguard_names(record["change_id"])["timer"] not in exos.listed_names(timers))
 
 
+FIRING_OBSERVED = True
+
+
 def safeguard_fired(access, record) -> bool:
     names = exos.safeguard_names(record["change_id"])
     try:

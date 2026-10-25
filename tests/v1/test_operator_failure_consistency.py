@@ -9,7 +9,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from netops import cli, operator
+from netops import __version__, cli, operator
 from netops.files import UIDS, write_private
 from netops.diagnostics import OPERATION_FAILURE, OPERATION_PERMISSION, REASONS, GENERAL_OPERATION_FAILURE, GENERAL_OPERATION_PERMISSION
 import test_configure_guidance_boundary as guide
@@ -78,7 +78,7 @@ class OperatorFailureConsistency(unittest.TestCase):
             for role in ("gateway", "auditor"):
                 (state / role).mkdir(mode=0o700)
             write_private(state / "gateway/config.json", json.dumps({
-                "version": 1, "product_version": "1.0.0", "audit": {"mode": "local"}}).encode())
+                "version": 1, "product_version": "1.0.1", "audit": {"mode": "local"}}).encode())
             errors, output = io.StringIO(), io.StringIO()
             with patch.object(operator, "STATE", state), patch.dict(UIDS, {"auditor": uid}), \
                     patch.object(operator, "demote"), patch.object(operator, "role_environment"), \
@@ -144,7 +144,7 @@ class OperatorFailureConsistency(unittest.TestCase):
                                     "Invalid role configuration: config.devices[].schema." + field + ": must be an absolute path without NUL")
 
     def test_operator_error_precedence_includes_token_ca_and_audit(self):
-        from netops.state import StateCompatibilityError, OperatorAccessError
+        from netops.state import StateCompatibilityError, OperatorAccessError, read_state_settings
         cases = ((["token", "show"], cli, "read_private"),
                  (["token", "rotate"], cli, "write_private"),
                  (["ca", "export"], cli, "read_private"),
@@ -159,8 +159,9 @@ class OperatorFailureConsistency(unittest.TestCase):
                 with self.subTest(command=arguments, kind=type(error).__name__), tempfile.TemporaryDirectory() as raw:
                     state = Path(raw)
                     (state / "gateway").mkdir(mode=0o700)
-                    (state / "gateway/config.json").write_text("{}")
+                    (state / "gateway/config.json").write_text(json.dumps({"version": 1, "product_version": __version__}))
                     (state / "gateway/config.json").chmod(0o600)
+                    read_state_settings(state)
                     errors = io.StringIO()
                     with patch.object(cli, "STATE", state), patch.object(cli.os, "geteuid", return_value=0),                             patch.object(module, attribute, side_effect=error),                             patch.object(sys, "argv", ["netops", *arguments]),                             contextlib.redirect_stderr(errors), contextlib.redirect_stdout(io.StringIO()):
                         self.assertEqual(cli.main(), 2)
@@ -176,7 +177,7 @@ class OperatorFailureConsistency(unittest.TestCase):
                 for role in ("gateway", "admin"):
                     (state / role).mkdir(mode=0o700)
                 write_private(state / "gateway/config.json", json.dumps({
-                    "version": 1, "product_version": "1.0.0", "audit": {"mode": "local"}}).encode())
+                    "version": 1, "product_version": "1.0.1", "audit": {"mode": "local"}}).encode())
                 document = self.admin()
                 candidate = copy.deepcopy(document["config"])
                 candidate["state_dir"] = str(state / "admin/changes")

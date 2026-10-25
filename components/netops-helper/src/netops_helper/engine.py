@@ -1093,6 +1093,7 @@ def _sftp_entry(auth: TargetAuth, path: str) -> core_sftp.Entry:
                 path,
                 legacy_ssh=auth.legacy_ssh,
                 timeout_seconds=_SSH_READ_TIMEOUT_SECONDS,
+                roots=auth.sftp_roots,
             )
     except core_ssh.SshError as exc:
         _forget_host_key_line(address, auth.port)

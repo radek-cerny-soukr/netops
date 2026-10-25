@@ -202,12 +202,19 @@ if "-i" not in argv and os.environ.get("SSH_ASKPASS"):
     received = subprocess.run(
         [os.environ["SSH_ASKPASS"]], capture_output=True, check=False,
     ).stdout.decode("utf-8").strip()
-batch = sys.stdin.read()
-path = batch.split(chr(34))[1]
+lines = sys.stdin.read().splitlines()
+path = lines[-1].split(chr(34))[1]
 if path == "/safe/broken":
     sys.stderr.write("remote failure while serving " + received + chr(10))
     sys.exit(1)
-sys.stdout.write("sftp> " + batch.strip() + chr(10))
+place = "/home/device"
+for line in lines[:-1]:
+    sys.stdout.write("sftp> " + line + chr(10))
+    if line.startswith("cd "):
+        place = line.split(chr(34))[1]
+    elif line == "pwd":
+        sys.stdout.write("Remote working directory: " + place + chr(10))
+sys.stdout.write("sftp> " + lines[-1] + chr(10))
 if path == "/safe/file":
     token = "".join(received.split())
     sys.stdout.write("-rw-r--r--    1 0 0 42 " + token + " 1 12:00 " + path + chr(10))

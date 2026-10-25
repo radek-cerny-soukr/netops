@@ -8,10 +8,8 @@ spec = importlib.util.spec_from_file_location("sign_tool_fixture", os.path.join(
 fixture = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(fixture)
 
-TOKEN_ROWS = (["actions-%s-token-output" % a for a in fixture.ARCHES]
-              + ["%s-%s-token-output" % (o, a) for o in ("ubuntu", "debian", "fedora") for a in fixture.ARCHES]
-              + ["rpios-arm64-token-output"])
-EXPECTED_REQUIRED = 79
+TOKEN_ROWS = ["actions-%s-token-output" % a for a in fixture.ARCHES]
+EXPECTED_REQUIRED = 40
 
 
 def acceptance_rows(output):
@@ -26,17 +24,17 @@ class SignTokenOutput(fixture.SignTool):
         for row in TOKEN_ROWS:
             self.reports[row] = {"checks": [{"check": "token-output-bytes", "status": "PASS"}]}
 
-    def test_nine_token_rows_are_exactly_the_new_ones(self):
-        self.assertEqual(len(TOKEN_ROWS), 9)
-        self.assertEqual(len(set(fixture.ROWS) - set(TOKEN_ROWS)), 70)
+    def test_token_output_rows_are_only_the_actions_rows(self):
+        self.assertEqual(len(TOKEN_ROWS), 2)
+        self.assertEqual(len(set(fixture.ROWS) - set(TOKEN_ROWS)), 38)
         self.assertEqual(len(set(fixture.ROWS) | set(TOKEN_ROWS)), EXPECTED_REQUIRED)
 
-    def test_complete_candidate_with_token_rows_passes_and_requires_79_rows(self):
+    def test_complete_candidate_with_token_rows_passes_and_requires_40_rows(self):
         rc, out = self.run_tool()
         self.assertEqual(rc, 0, out)
         self.assertIn("OVERALL: PASS", out)
         rows = acceptance_rows(out)
-        self.assertEqual(len(rows), EXPECTED_REQUIRED, rows)
+        self.assertEqual(len(rows), EXPECTED_REQUIRED + len(fixture.OPTIONAL_ROWS), rows)
         for row in TOKEN_ROWS:
             self.assertIn(row, rows)
 
@@ -52,7 +50,7 @@ class SignTokenOutput(fixture.SignTool):
                 self.assertRegex(out, r"(?m)^acceptance %s\s+NOT RUN" % re.escape(row))
 
     def test_failed_token_report_refuses(self):
-        for row in ("actions-arm64-token-output", "fedora-amd64-token-output", "rpios-arm64-token-output"):
+        for row in TOKEN_ROWS:
             with self.subTest(row=row):
                 self.reports[row] = {"checks": [{"check": "token-output-bytes", "status": "FAIL"}]}
                 out = self.assert_refused("OVERALL: FAIL")
@@ -60,7 +58,7 @@ class SignTokenOutput(fixture.SignTool):
                 self.reports[row] = {"checks": [{"check": "token-output-bytes", "status": "PASS"}]}
 
     def test_token_report_for_another_commit_or_image_refuses(self):
-        row = "ubuntu-arm64-token-output"
+        row = "actions-arm64-token-output"
         self.reports[row] = {"checks": [{"check": "token-output-bytes", "status": "PASS"}], "candidate_commit": "b" * 40}
         self.assert_refused("report is not for this commit")
         self.reports[row] = {"checks": [{"check": "token-output-bytes", "status": "PASS"}], "candidate_image": "sha256:" + "9" * 64}
@@ -68,7 +66,7 @@ class SignTokenOutput(fixture.SignTool):
 
     def test_token_report_not_matching_the_signed_file_refuses(self):
         self.build()
-        path = os.path.join(self.dir, "acceptance-debian-amd64-token-output.json")
+        path = os.path.join(self.dir, "acceptance-actions-amd64-token-output.json")
         with open(path, "a") as stream:
             stream.write("\n")
         rc, out = self.run_tool(build=False)

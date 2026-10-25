@@ -147,7 +147,8 @@ the client.
 - **Authenticates with a key or with a password.** A record of kind `ssh-key` is written into a file
   with mode 0600 in a private temporary directory and passed as `-i <path>`; a record of kind
   `password` is written into a file of the same mode that an askpass script reads, and the client is
-  called with `BatchMode=no`, `NumberOfPasswordPrompts=1` and `PubkeyAuthentication=no`, so a wrong
+  called with `BatchMode=no`, `PreferredAuthentications=password`,
+  `KbdInteractiveAuthentication=no`, `NumberOfPasswordPrompts=1` and `PubkeyAuthentication=no`, so a wrong
   password is one failure instead of a prompt loop or a silent fallback to a key. Either way the credential never reaches `argv`, where `ps`
   would show it to every user on the machine, and never reaches a value in the environment: only the
   path of the file that holds it does. The directory is removed when the call ends, on every path.

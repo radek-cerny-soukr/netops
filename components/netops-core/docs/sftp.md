@@ -24,7 +24,7 @@ written down, and one place the tests hold against.
 | `SFTP_BINARY` | `sftp` |
 | `CONFIG_FILE` | `/dev/null`, passed as `-F` before anything else |
 | `DEFAULT_TIMEOUT_SECONDS` | `60.0` |
-| `LIST_COMMAND` | `ls -ln "<path>"`, a batch of exactly one line |
+| `LIST_COMMAND` | `ls -ln "<path>"`, the whole batch without `roots`, its last line with them |
 | `LISTING_MAX_BYTES` | `262144`; a larger answer is refused unparsed |
 | `capture_max_bytes` | `ssh.CAPTURE_MAX_BYTES` by default; the receive budget of [the shared runner](ssh.md#bounded-receive), which stops a flooding client before anything is parsed |
 
@@ -146,6 +146,41 @@ path against the enrolled roots first - runs both checks, in that order.
 Inside the double quotes the client does **not** expand a glob: measured, `ls -ln "/safe/*"` asked the
 server for the literal name `/safe/*` and answered `Can't ls: "/safe/\*" not found`. So a path with
 `*`, `?` or `[` is one path, not a pattern.
+
+## Roots resolved by the server
+
+`stat(..., roots=...)` confines the path to the given roots as the server sees them, not only as they
+are spelled. A path outside every root by its spelling is refused before the client starts. The path
+equal to a root is listed with the one-line batch above: the operator enrolled that spelling. For a
+path below a root, the batch resolves first and lists last, in one session:
+
+```
+cd "<each root the path lies below>"
+pwd
+cd "<path>"
+pwd
+ls -ln "<path>"
+```
+
+`cd` makes the client ask the server for the real path (`SSH_FXP_REALPATH`) and `pwd` prints it as
+`Remote working directory: <real path>`. For a path that is not a directory the client refuses the
+`cd` with `Can't change directory: "<real path>" is not a directory` on standard error, and that real
+path is taken instead. The resolved path must equal a resolved root or lie below it; otherwise the
+call is refused, its message names no resolved path and `said` stays empty. Any other complaint on
+standard error, more than one such line, or a `cd` or `pwd` answer of another shape is a refusal.
+
+Why: `ls -ln` follows a symbolic link in an ancestor and in the final component. Measured with
+OpenSSH 10.0p2 `sftp` against its own `sftp-server`, a root `/r` holding `link -> /outside` answered
+the size of `/outside/secret.txt` for `/r/link/secret.txt`, and the entry count of `/outside` for
+`/r/link` (issue #6).
+
+Limits:
+
+- The check and the listing are separate requests. A link that someone who can write below the root
+  replaces between them is not caught; the server account's own permissions remain the boundary for
+  that race, as for any path it can read.
+- The check relies on the server resolving symbolic links in `REALPATH`, as OpenSSH does. A server
+  that only normalizes the spelling makes the check lexical again.
 
 ## Refusals
 

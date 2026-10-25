@@ -14,6 +14,37 @@ from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.x509.oid import ExtendedKeyUsageOID, NameOID
 from netops.audit import Audit
 from netops.files import MAX_MESSAGE, read_private, write_private
+from netops.syslog_parts import decode_messages
+
+def received_messages(connection):
+    messages = []
+    while True:
+        prefix = bytearray()
+        while True:
+            part = connection.recv(1)
+            if not part:
+                if prefix:
+                    raise ValueError("Truncated octet count")
+                return messages
+            if part == b" ":
+                break
+            if not part.isdigit() or len(prefix) >= 9:
+                raise ValueError("Invalid octet count")
+            prefix.extend(part)
+        expected = int(prefix)
+        if not 0 < expected <= 2048:
+            raise ValueError("Message exceeds the syslog interoperability cap")
+        message = bytearray()
+        while len(message) < expected:
+            block = connection.recv(min(65536, expected - len(message)))
+            if not block:
+                raise ValueError("Truncated message")
+            message.extend(block)
+        messages.append(bytes(message).split(b" - netops - - - ", 1)[1])
+
+def received_records(messages):
+    ids = list(dict.fromkeys(json.loads(body)["record_id"] for body in messages))
+    return [json.loads(decode_messages(messages, record_id)) for record_id in ids]
 
 class SyslogTLS(unittest.IsolatedAsyncioTestCase):
     def identity(self, directory):
@@ -51,25 +82,11 @@ class SyslogTLS(unittest.IsolatedAsyncioTestCase):
                         if not clean:
                             connection.recv(1)
                             return
-                        prefix = bytearray()
-                        while True:
-                            part = connection.recv(1)
-                            if part == b" ":
-                                break
-                            if not part or len(prefix) > 9 or not part.isdigit():
-                                raise ValueError("Invalid octet count")
-                            prefix.extend(part)
-                        expected = int(prefix)
-                        message = bytearray()
-                        while len(message) < expected:
-                            block = connection.recv(min(65536, expected - len(message)))
-                            if not block:
-                                raise ValueError("Truncated message")
-                            message.extend(block)
-                        result["length"] = len(message)
-                        result["sha256"] = hashlib.sha256(message).hexdigest()
-                        result["message"] = json.loads(bytes(message).split(b" - netops - - - ", 1)[1])
-                        self.assertEqual(connection.recv(1), b"")
+                        messages = received_messages(connection)
+                        records = received_records(messages)
+                        self.assertEqual(len(records), 1)
+                        result["message"] = records[0]
+                        result["parts"] = len(messages)
                         if reply:
                             connection.unwrap()
                 except Exception as error:
@@ -101,7 +118,7 @@ class SyslogTLS(unittest.IsolatedAsyncioTestCase):
             if clean and not fault:
                 self.assertNotIn("error", result)
                 self.assertEqual(result["message"]["payload"]["padding"], "x" * size)
-                self.assertGreater(result["length"], size)
+                self.assertGreater(result["parts"], 1)
 
     async def test_one_mib_and_max_message_arrive_complete_before_queue_removal(self):
         for size in (1024 * 1024, MAX_MESSAGE):
@@ -137,23 +154,8 @@ class SyslogTLS(unittest.IsolatedAsyncioTestCase):
             listener.settimeout(30)
             received, state = [], {"connections": 0}
             def frames(connection):
-                while True:
-                    prefix = bytearray()
-                    while True:
-                        part = connection.recv(1)
-                        if not part:
-                            return
-                        if part == b" ":
-                            break
-                        prefix.extend(part)
-                    expected = int(prefix)
-                    message = bytearray()
-                    while len(message) < expected:
-                        block = connection.recv(min(65536, expected - len(message)))
-                        if not block:
-                            raise ValueError("Truncated message")
-                        message.extend(block)
-                    received.append(json.loads(bytes(message).split(b" - netops - - - ", 1)[1])["correlation"])
+                messages = received_messages(connection)
+                received.extend(row["correlation"] for row in received_records(messages))
             def receiver():
                 try:
                     while len(received) < count:

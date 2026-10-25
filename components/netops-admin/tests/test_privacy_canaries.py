@@ -235,6 +235,12 @@ def enrolled(runtime, name, notifier, base):
     return fresh
 
 
+def safeguard_removed_by_a_person(device):
+    device.stitches.clear()
+    device.triggers.clear()
+    device.actions.clear()
+
+
 def apply_with(device, runtime, name, request, hook):
     blocks = []
 
@@ -295,6 +301,7 @@ def fortios_paths(base, notifier, journal):
         op="update", key="spare-host", changes={"comment": ATTRIBUTE + " three"}, request_id="k7c-foreign-1"),
         lambda fake, lines: setattr(fake, "object_secret", True)))
     assert foreign["result"] in ("revert-failed", "reverted", "unknown") and foreign["differences"]
+    safeguard_removed_by_a_person(device)
     keep("blocked apply", lambda: execute.apply(runtime, "lab", fortios_request(key="k7c-host-4", request_id="k7c-blocked-1")))
     keep("blocked preview", lambda: execute.preview(runtime, "lab", fortios_request(key="k7c-host-4", request_id="k7c-blocked-2")))
     keep("blocked doctor", lambda: readiness.doctor(runtime, "lab"))
@@ -309,7 +316,8 @@ def fortios_paths(base, notifier, journal):
     kept = keep("foreign value on the object", lambda: apply_with(device, runtime, "lab", fortios_request(
         op="update", key="spare-host", changes={"subnet": "192.0.2.77/32"}, request_id="k7c-foreign-2"),
         lambda fake, lines: fake.addresses["spare-host"].__setitem__("comment", ATTRIBUTE + " foreign")))
-    assert kept["result"] == "revert-failed" and any("Vb8Wn" in item for item in kept["differences"])
+    assert kept["result"] == "unknown" and any("Vb8Wn" in item for item in kept["differences"])
+    safeguard_removed_by_a_person(device)
     keep("unblock after the foreign value", lambda: execute.unblock(runtime, "lab", "checked"))
     device.addresses["spare-host"]["comment"] = "unused"
     fresh()

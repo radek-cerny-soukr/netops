@@ -1,6 +1,6 @@
 # NetOps 1.0 documentation
 
-- [Quickstart](quickstart-1.0.md): verified release files, explicit bind, init, HTTPS clients, role configuration, audit and lifecycle.
+- [Quickstart](quickstart-1.0.md): verified release files, explicit bind, init, HTTPS clients, role configuration, audit, lifecycle, backup, restore and upgrade from the previous release.
 - [Helper configuration](helper-configuration.md): complete current inventory/vault input and first device operation.
 - [Admin configuration](admin-configuration.md): device, safeguard, notification and enrollment input, preview, apply and operator undo.
 - MCP tool references: [Helper tools](../components/netops-helper/docs/tools.md), [Auditor tools](../components/netops-auditor/docs/tools.md) and [Admin tools](admin-configuration.md#mcp-tools).

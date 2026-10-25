@@ -23,6 +23,8 @@ def read_private(path, maximum=MAX_MESSAGE, owner=None):
     fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC | os.O_NONBLOCK)
     try:
         before = check_regular(fd, owner)
+        if not before.st_mode & stat.S_IRUSR:
+            raise operation_error("file-mode")
         if before.st_size > maximum:
             raise operation_error("file-size")
         chunks = []

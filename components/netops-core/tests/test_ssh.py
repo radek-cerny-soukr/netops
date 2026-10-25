@@ -152,7 +152,10 @@ def test_the_hardening_options_are_written_down_in_this_module():
     )
     assert PASSWORD_OPTIONS[0] == "BatchMode=no"
     assert PASSWORD_OPTIONS[1:8] == OPTIONS[1:]
-    assert PASSWORD_OPTIONS[8:] == ("NumberOfPasswordPrompts=1", "PubkeyAuthentication=no")
+    assert PASSWORD_OPTIONS[8:] == (
+        "PreferredAuthentications=password", "KbdInteractiveAuthentication=no",
+        "NumberOfPasswordPrompts=1", "PubkeyAuthentication=no",
+    )
     assert DEFAULT_TIMEOUT_SECONDS == 120.0
 
 

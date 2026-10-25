@@ -45,6 +45,23 @@ class ReportGate(unittest.TestCase):
         self.assertEqual(rc, 0, out)
         self.assertIn("report_gate=PASS", out)
 
+    def test_seven_layer_reports_in_the_signing_format_pass(self):
+        files = self.clean()
+        base = {"candidate_commit": "a" * 40, "candidate_image": "sha256:" + "1" * 64}
+        upgrade = ("kroky-postupu", "bezi-verze-TO", "health-ready", "obnova-manifest-shodny", "CA-klic-token-beze-zmeny",
+                   "konfigurace-beze-zmeny", "data-roli-beze-zmeny", "audit-prefix", "audit-zaznam-upgrade", "mcp-tools-list",
+                   "mcp-odpovedi-roli", "token-plati-bez-tokenu-401", "connection-shodne", "druhy-start-nic-nemeni",
+                   "token-ani-heslo-v-logs", "rollback-FROM", "FROM-nedotcena-do-rollbacku")
+        files["acceptance-upgrade-fedora-amd64.json"] = dict(base, checks=[{"check": c, "status": "PASS"} for c in upgrade])
+        files["acceptance-fedora-arm64-rootless.json"] = dict(base, checks=[{"check": "selinux-enforcing", "status": "PASS"}])
+        files["acceptance-rpios-arm64-rootful.json"] = dict(base, checks=[{"check": "quickstart", "status": "PASS"}])
+        files["acceptance-syslog-load.json"] = dict(base, protocol_sha256="3" * 64, checks=[{"check": "p6", "status": "PASS"}])
+        files["acceptance-code-review.json"] = dict(base, protocol_sha256="4" * 64, checks=[{"check": "review", "status": "PASS"}])
+        files["acceptance-codex-cli-e2e.json"] = dict(base, checks=[{"check": "helper_status", "status": "NOT RUN", "detail": "no Codex tokens available"}])
+        rc, out = self.run_gate(files)
+        self.assertEqual(rc, 0, out)
+        self.assertIn("report_gate=PASS", out)
+
     def test_laboratory_wording_fails(self):
         for detail in ("fresh Ubuntu VM on VMware ESXi", "original clean snapshot", "through an SSH tunnel", "Proxmox host", "Lima instance", "hypervisor KVM"):
             files = self.clean()

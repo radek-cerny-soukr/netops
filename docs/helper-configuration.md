@@ -141,7 +141,7 @@ The other optional fields:
 | Field | Form | Limit | Default | Purpose |
 |---|---|---|---|---|
 | `read_inventory` | object of the categories above, each a list of strings | 256 values per category, 4096 for `schema_paths`; 128 characters per value | `{}` | values allowed as query parameters |
-| `sftp_roots` | list of absolute POSIX paths in canonical form: no trailing `/`, no `//`, no `..`, not `/` itself | 256 unique paths, 2000 characters each | `[]` | `sftp_stat` accepts a root and any path below it |
+| `sftp_roots` | list of absolute POSIX paths in canonical form: no trailing `/`, no `//`, no `..`, not `/` itself | 256 unique paths, 2000 characters each | `[]` | `sftp_stat` accepts a root and any path below it whose target, as the SFTP server resolves it, stays below the resolved root |
 | `rate_limit` | `{"requests": N, "window_seconds": S}`, both whole numbers, both keys required | `requests` 1–60, `window_seconds` 1–3600 | 30 requests per 60 seconds | per-target limit on accepted device operations; a follow-up page (`offset` > 0) of `ssh_read` or `schema_read` is not counted; an exceeded limit is refused with `rate_limit` and `retry_after_seconds` |
 | `fortios_output_standard_verified` | `true` or `false` | — | `false` | FortiOS `ssh_read`, `schema_read` and `fortios_diagnostics` are refused while it is `false` |
 | `role_boundary` | `"catalogue"` | only with `account_role: "admin-bounded"`, which is accepted only for `ssh_platform: "ruckus_unleashed"` | absent | required companion of `admin-bounded`; refused with `read-only` |

@@ -72,6 +72,8 @@ OPTIONS = (
 )
 GLOBAL_KNOWN_HOSTS_OPTION = "GlobalKnownHostsFile=/dev/null"
 PASSWORD_OPTIONS = ("BatchMode=no",) + OPTIONS[1:] + (
+    "PreferredAuthentications=password",
+    "KbdInteractiveAuthentication=no",
     "NumberOfPasswordPrompts=1",
     "PubkeyAuthentication=no",
 )

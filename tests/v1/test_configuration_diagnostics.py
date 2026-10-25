@@ -37,7 +37,7 @@ class StructuredConfigurationDiagnostics(unittest.TestCase):
             (state / "gateway").mkdir(mode=0o700)
             (state / role).mkdir(mode=0o700)
             write_private(state / "gateway/config.json", json.dumps({
-                "version": 1, "product_version": "1.0.0", "audit": {"mode": "local"}}).encode())
+                "version": 1, "product_version": "1.0.1", "audit": {"mode": "local"}}).encode())
             stream = io.TextIOWrapper(io.BytesIO(json.dumps(document).encode()))
             errors, output = io.StringIO(), io.StringIO()
             with patch.object(operator, "STATE", state), patch.object(operator, "demote"), \

@@ -160,6 +160,22 @@ These operator commands run with the instance stopped, like `recover` above:
 - `admin notify-retry --change-id CHANGE_ID` sends the notification of that finished operation again unless it was already sent; it needs a configured notification.
 - `admin unblock --device firewall-a --reason "TEXT"` is for a person who has inspected the operation record and the actual device. It lifts the block, clears the stored administrator-account baseline of the device and marks its undelivered notifications as `waived`. The private Admin operation log records only the length of the reason, not its text. The command prints a JSON object with `device` and `unblocked`, which is `false` when there was nothing to lift or waive.
 
+On FortiOS, a result `unknown` whose `steps` in `admin_status` end with `safeguard_kept` means that NetOps could prove neither that its timed safeguard fired nor that it was disarmed, so it left the safeguard on the device. The safeguard is three automation objects named after the first 12 characters of the change ID: the stitch `netops-sg-ID12-s`, the trigger `netops-sg-ID12-t` and the action `netops-sg-ID12-a`, where the action holds the inverse CLI script and the trigger is scheduled once at `safeguard.fire_at`. A stitch that fires late can still restore the previous object after you inspected it, so before `unblock` check for these objects through an administrator account (`show system automation-stitch netops-sg-ID12-s`, and likewise `automation-trigger` and `automation-action`) and remove them before you judge the object. Delete the stitch first, because it refers to the trigger and the action; on a device with VDOMs, run the commands inside `config global`:
+
+~~~
+config system automation-stitch
+delete "netops-sg-ID12-s"
+end
+config system automation-trigger
+delete "netops-sg-ID12-t"
+end
+config system automation-action
+delete "netops-sg-ID12-a"
+end
+~~~
+
+Then read the object again, compare it with the operation record and unblock the device only after that.
+
 Inside NetOps, the operator commands `apply`, `preview`, `doctor`, `enroll`, `status`, `recover`, `notify-retry`, `unblock` and `undo` receive `--config` with the private Admin configuration automatically; `admin enroll --help` and the other subcommand help pages still list `--config` as required, but the documented commands omit it. `plan`, `verify`, `schema-plan` and `schema-verify` are offline engine commands that take explicit file paths readable by the Admin UID, and `apply` and `preview` also need a `--request` file. NetOps 1.0 places Admin operator files only through `configure admin` (JSON on standard input), so these engine commands have no supported way to receive their input files and are not a supported operator workflow in NetOps 1.0; preview and apply changes with the MCP tools `admin_preview` and `admin_apply`.
 
 ## MCP tools

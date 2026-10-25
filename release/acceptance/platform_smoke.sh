@@ -40,8 +40,8 @@ report() { printf '{"check":"%s","status":"%s","detail":"%s"}\n' "$1" "$2" "$(pr
 report os INFO "$PRETTY_NAME $(uname -m) kernel $(uname -r)"
 install_apt() {
   base="https://download.docker.com/linux/$ID"
-  sudo apt-get update -qq >/dev/null &&
-  sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq ca-certificates curl >/dev/null &&
+  sudo apt-get -o DPkg::Lock::Timeout=600 update -qq >/dev/null &&
+  sudo DEBIAN_FRONTEND=noninteractive apt-get -o DPkg::Lock::Timeout=600 install -y -qq ca-certificates curl >/dev/null &&
   sudo install -m 0755 -d /etc/apt/keyrings &&
   sudo curl -fsSL "$base/gpg" -o /etc/apt/keyrings/docker.asc &&
   sudo chmod a+r /etc/apt/keyrings/docker.asc || return 1
@@ -57,8 +57,8 @@ Components: stable
 Architectures: $(dpkg --print-architecture)
 Signed-By: /etc/apt/keyrings/docker.asc
 EOT
-  sudo apt-get update -qq >/dev/null &&
-  sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin >/dev/null
+  sudo apt-get -o DPkg::Lock::Timeout=600 update -qq >/dev/null &&
+  sudo DEBIAN_FRONTEND=noninteractive apt-get -o DPkg::Lock::Timeout=600 install -y -qq docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin >/dev/null
 }
 install_rpm() {
   local repo=/etc/yum.repos.d/docker-ce.repo repo_tmp repo_match
@@ -88,13 +88,26 @@ install_rpm() {
   report docker-repo-key PASS "$DOCKER_RPM_FPR"
   sudo systemctl enable --now docker >/dev/null 2>&1
   if [ -f "$(dirname "$0")/fedora-daemon.json" ]; then
-    sudo install -m 0644 "$(dirname "$0")/fedora-daemon.json" /etc/docker/daemon.json && sudo systemctl restart docker
-    report docker-selinux-config INFO "$(cat "$(dirname "$0")/fedora-daemon.json")"
+    if sudo cmp -s "$(dirname "$0")/fedora-daemon.json" /etc/docker/daemon.json; then
+      report docker-selinux-config INFO "unchanged, no restart: $(cat "$(dirname "$0")/fedora-daemon.json")"
+    else
+      sudo install -m 0644 "$(dirname "$0")/fedora-daemon.json" /etc/docker/daemon.json && sudo systemctl restart docker || return 1
+      report docker-selinux-config INFO "installed, docker restarted: $(cat "$(dirname "$0")/fedora-daemon.json")"
+    fi
   fi
 }
+wait_pkg_idle() {
+  if command -v cloud-init >/dev/null 2>&1; then sudo cloud-init status --wait >/dev/null 2>&1; fi
+  local i
+  for i in $(seq 1 120); do
+    systemctl is-active --quiet apt-daily.service apt-daily-upgrade.service dnf-makecache.service || return 0
+    sleep 5
+  done
+  report package-manager FAIL "package jobs still active after 600 s"; return 1
+}
 case "$ID" in
-  ubuntu|debian) install_apt ;;
-  fedora) install_rpm ;;
+  ubuntu|debian) wait_pkg_idle && install_apt ;;
+  fedora) wait_pkg_idle && install_rpm ;;
   *) report docker-install FAIL "unsupported $ID"; exit 1 ;;
 esac
 rc=$?
@@ -108,9 +121,12 @@ if [ $src -eq 0 ] && printf '%s' "$out" | grep -q '"helper"'; then report selfte
 if [ "$ID" = fedora ]; then
   mode=$(getenforce)
   cid=$(sudo docker run -d --network none --read-only --cap-drop ALL --security-opt no-new-privileges --entrypoint python "$REF" -c 'import time; time.sleep(30)')
+  sleep 2
   label=$(sudo docker inspect --format '{{.ProcessLabel}}' "$cid")
-  plabel=$(ps -eZ | grep -m1 'container_t' | awk '{print $1}')
+  running=$(sudo docker inspect --format '{{.State.Running}}' "$cid")
+  pid=$(sudo docker inspect --format '{{.State.Pid}}' "$cid")
+  plabel=""; [ "$running" = true ] && [ "${pid:-0}" != 0 ] && plabel=$(ps -o label= -p "$pid")
   sudo docker rm -f "$cid" >/dev/null
-  case "$mode/$label" in Enforcing/*container_t*) report selinux PASS "$mode, process label $label ($plabel)" ;; *) report selinux FAIL "$mode, label $label" ;; esac
+  case "$mode/$label/$plabel" in Enforcing/*container_t*/*container_t*) report selinux PASS "$mode, running pid $pid label $plabel (config $label)" ;; *) report selinux FAIL "$mode, running $running pid $pid, process label '$plabel', config label $label" ;; esac
 fi
 exit 0

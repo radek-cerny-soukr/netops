@@ -1,3 +1,4 @@
+import gc
 import random
 import re
 import time
@@ -18,9 +19,17 @@ def corpus(fragments, count=3000, length=30):
 def scales_linearly(test, build, run, small=2000):
     def elapsed(size):
         value = build(size)
-        start = time.perf_counter()
-        run(value)
-        return time.perf_counter() - start
+        enabled = gc.isenabled()
+        gc.disable()
+        try:
+            start = time.perf_counter()
+            run(value)
+            return time.perf_counter() - start
+        finally:
+            if enabled:
+                gc.enable()
+            else:
+                gc.disable()
     first, second = elapsed(small), elapsed(small * 4)
     test.assertLess(second, max(first, 0.005) * 8, (first, second))
 

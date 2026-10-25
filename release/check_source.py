@@ -12,7 +12,7 @@ def legacy(root):
     spec = importlib.util.spec_from_file_location("source_privacy_rules", root / "scripts/check_release.py")
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
-    module.ALLOWED_DOMAINS += ("chatgpt.com", "ghcr.io", "cisecurity.org")
+    module.ALLOWED_DOMAINS += ("chatgpt.com", "claude.com", "ghcr.io", "cisecurity.org")
     return module
 
 ESCAPE_SEQUENCE = re.compile(r"\\(?:x([0-9A-Fa-f]{2})|u([0-9A-Fa-f]{4})|U([0-9A-Fa-f]{8}))")

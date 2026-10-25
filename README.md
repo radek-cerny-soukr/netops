@@ -1,8 +1,12 @@
 # NetOps
 
+This README describes NetOps 1.0.1, the current release. Changes since 1.0.0, including the fixes for [issue #6](https://github.com/radek-cerny-soukr/netops/issues/6), are listed in the [release notes](release/notes-1.0.1.md).
+
 NetOps is a self-hosted MCP server for network diagnostics, configuration audits and bounded, reversible device changes. Version 1.0 ships as one Docker image that runs the Helper, Auditor and Admin roles behind one token-protected HTTPS (Streamable HTTP) MCP endpoint. Supported, authenticated MCP traffic passes through a mandatory durable audit boundary.
 
-The image contains no AI agents. Any MCP client that verifies TLS normally can connect; the quickstart covers Claude Code and Codex.
+NetOps is an independent, open-source, multi-vendor tool. It is not a product of any vendor whose devices, software or MCP clients it supports or names, and it is not affiliated with, endorsed by or supported by any of them; see the [disclaimer](#disclaimer).
+
+The image contains no AI agents. Any MCP client that verifies TLS normally can connect; the quickstart covers Claude Code and Codex. See [Tested MCP clients](#tested-mcp-clients) for the clients and models tested for 1.0.1.
 
 **Start here:** [NetOps 1.0 quickstart](docs/quickstart-1.0.md)
 
@@ -125,8 +129,9 @@ Details: [Verified platform support](docs/verified-support.md) · [Compatibility
 
 - **Host:** Linux with Docker Engine and the Compose plugin on Ubuntu, Debian, Fedora Server (SELinux enforcing, with SELinux support enabled in the Docker daemon) or Raspberry Pi OS 64-bit, natively or in a Linux virtual machine.
 - **Architectures:** `linux/amd64` and `linux/arm64`; Raspberry Pi OS is arm64.
-- **Not supported as runtime:** Docker Desktop. Docker Engine in rootless mode is not part of the qualified platform matrix. Network-backed state storage, including NFS, is not qualified.
-- **Clients:** macOS and Windows can run MCP clients or host a supported Linux guest. MCP clients connect over the network from any system.
+- **Docker Engine:** as root or in rootless mode.
+- **Not supported as runtime:** Docker Desktop. Network-backed state storage, including NFS, is not qualified.
+- **Clients:** macOS and Windows are supported only as MCP client hosts (Claude Code, Codex), not as NetOps servers. MCP clients connect over the network from any system.
 
 ## Security model
 
@@ -137,7 +142,7 @@ Details: [Verified platform support](docs/verified-support.md) · [Compatibility
 - **Untrusted device output:** device text is data, never instructions; a diagnostic finding does not authorize a write, retry or another target.
 - **UID separation:** gateway, Helper, Auditor and Admin have separate UID/GID, private state and credentials; local IPC authenticates the peer UID in both directions. This is process and filesystem isolation inside one container, not a boundary against the host administrator or the container runtime. The runtime never mounts the Docker socket or uses host networking.
 - **Syslog over TLS:** the bounded, durable syslog queue sends to a verified TLS receiver. A successful delivery is a TLS transport hand-over, not a receiver acknowledgement; a full queue blocks new operations.
-- **Fail-closed:** an unwritable audit, an incomplete final local audit record, a full syslog queue, a second instance on the same state or a mismatched product/state version stops operations instead of continuing silently.
+- **Fail-closed:** an unwritable audit, an incomplete final local audit record, a full syslog queue, a second instance on the same state or state of another product version or state schema stops operations instead of continuing silently. The one exception is the state of the immediately preceding release: the first start of the new release converts it under the instance lock and changes only its recorded product version. There is no downgrade.
 
 Details: [Architecture](docs/architecture-1.0.md) · [Security policy](SECURITY.md) · [CIS Docker Benchmark mapping](docs/security/cis-docker-benchmark.md)
 
@@ -145,13 +150,13 @@ Details: [Architecture](docs/architecture-1.0.md) · [Security policy](SECURITY.
 
 This is a shortened version of the [quickstart](docs/quickstart-1.0.md); follow the full document for multiple instances, Fedora/SELinux, syslog receivers, backup, restore and upgrades.
 
-**1. Download and verify.** Download `compose.yaml`, `env.example`, `netops-1.0.0-manifest.json`, `netops-1.0.0-SHA256SUMS` and `netops-1.0.0-SHA256SUMS.sigstore.json` from the same GitHub release into an empty directory. Verification needs cosign 2.5 or newer.
+**1. Download and verify.** Download `compose.yaml`, `env.example`, `netops-1.0.1-manifest.json`, `netops-1.0.1-SHA256SUMS` and `netops-1.0.1-SHA256SUMS.sigstore.json` from the same GitHub release into an empty directory. Verification needs cosign 2.5 or newer.
 
 ```sh
-cosign verify-blob --bundle netops-1.0.0-SHA256SUMS.sigstore.json \
+cosign verify-blob --bundle netops-1.0.1-SHA256SUMS.sigstore.json \
   --certificate-identity 325383355+radek-cerny-soukr@users.noreply.github.com \
-  --certificate-oidc-issuer https://github.com/login/oauth netops-1.0.0-SHA256SUMS
-sha256sum -c --ignore-missing netops-1.0.0-SHA256SUMS
+  --certificate-oidc-issuer https://github.com/login/oauth netops-1.0.1-SHA256SUMS
+sha256sum -c --ignore-missing netops-1.0.1-SHA256SUMS
 ```
 
 Both commands must succeed: cosign prints `Verified OK` and sha256sum prints `OK` for every downloaded file.
@@ -163,7 +168,7 @@ umask 077
 cp env.example .env
 ```
 
-Edit `.env`: keep `NETOPS_IMAGE` exactly as pinned by digest, set `NETOPS_BIND_IP` to the host address you explicitly want to expose, `NETOPS_PORT` to the host port and `NETOPS_SERVER_NAME` to the exact DNS name your MCP clients will use (IP certificate names are refused). Then:
+Edit `.env`: keep `NETOPS_IMAGE` exactly as pinned by digest, set `NETOPS_BIND_IP` to the host address you explicitly want to expose, `NETOPS_PORT` to the host port and `NETOPS_SERVER_NAME` to the exact DNS name your MCP clients will use (IP certificate names and the unedited `env.example` placeholder are refused). Then:
 
 ```sh
 docker compose run --rm netops init && docker compose up -d --wait && docker compose ps
@@ -202,7 +207,21 @@ url = "https://<server-name>:<port>/mcp"
 bearer_token_env_var = "NETOPS_TOKEN"
 ```
 
+The [quickstart](docs/quickstart-1.0.md) adds the Codex settings and the commands for a first non-interactive `helper_status` call with either client.
+
 Other MCP clients must enable normal CA/SAN verification. Never disable TLS verification.
+
+#### Tested MCP clients
+
+Tested for 1.0.1 against a NetOps 1.0.1 instance, with each call found in the audit as a request and a response record:
+
+| Client | Version | Platform | Models |
+|---|---|---|---|
+| Claude Code | 2.1.310 | Linux (Ubuntu 26.04, blind run of the quickstart), macOS 26.6.2 arm64, Windows 11 (PowerShell 5.1) as a remote client | Claude models of the client's provider account |
+| Open WebUI | v0.12.3 | container image | Laguna XS 2.1 Q4 and gpt-oss-120b MXFP4, local, through llama.cpp `llama-server` (OpenAI-compatible API), 16,384-token context |
+| Codex | — | Linux | tested; the quickstart covers its configuration |
+
+Other MCP clients with Streamable HTTP, bearer tokens and normal TLS verification can be used; the [quickstart](docs/quickstart-1.0.md) has notes for Open WebUI.
 
 **5. Enroll devices.** Start with `helper_status` and `read_query_catalog`. Enrollment is an operator action with the instance stopped, using private JSON files (mode 600) outside the source repository:
 
@@ -219,11 +238,11 @@ See [Helper configuration](docs/helper-configuration.md), [Admin configuration](
 
 A release is the maintainer's personally signed checksum list together with the assets it covers. A candidate branch, digest, build or CI run without that signature is not a release.
 
-- **Signature:** `netops-1.0.0-SHA256SUMS` is signed with Sigstore (`netops-1.0.0-SHA256SUMS.sigstore.json`); certificate identity `325383355+radek-cerny-soukr@users.noreply.github.com`, OIDC issuer `https://github.com/login/oauth`.
+- **Signature:** `netops-1.0.1-SHA256SUMS` is signed with Sigstore (`netops-1.0.1-SHA256SUMS.sigstore.json`); certificate identity `325383355+radek-cerny-soukr@users.noreply.github.com`, OIDC issuer `https://github.com/login/oauth`.
 - **Covered assets:** the release manifest (image index and per-architecture digests), the SBOMs, the vulnerability scans and their assessments, and the acceptance reports of every tested platform.
 - **Build once:** every release candidate is built once in GitHub Actions and the same digests are tested, accepted and published without a rebuild.
-- **Vulnerabilities:** each architecture is scanned; a fixable High or Critical finding blocks the release and every other finding ships with a written assessment (`netops-1.0.0-vulnerability-assessments.json`). The digests of the latest release are rescanned daily against its assessments.
-- **Acceptance:** the signing checklist requires 79 acceptance rows. Platform runs repeat the quickstart as an ordinary docker-group operator without sudo, and Fedora Server runs add an SELinux label negative test. Download verification, installation, first MCP use, audit, restart and every supported upgrade are release gates. A successful source import or selftest is only its stated evidence scope.
+- **Vulnerabilities:** each architecture is scanned; a fixable High or Critical finding blocks the release and every other finding ships with a written assessment (`netops-1.0.1-vulnerability-assessments.json`). The digests of the latest release are rescanned daily against its assessments.
+- **Acceptance:** the signing checklist requires the evidence of the release's test layers: CI suites and engine tests on amd64 and arm64; a regression test for every fix; installation by the quickstart on Ubuntu, Debian and Fedora Server (SELinux enforcing) on amd64 and arm64 and on Raspberry Pi OS arm64, with Docker as root and rootless; a blind run of the quickstart; the upgrade from the previous release when the release changes stored state; Claude Code and Codex as MCP clients on Linux, macOS and Windows; syslog load and receiver outage when the release changes audit or syslog; an independent review of the code change. Download verification, installation, first MCP use, audit, restart and every supported upgrade are release gates.
 
 Use the image digest and configuration files from one signed release manifest. Qualification from a source checkout is described in [Qualification](docs/testing-1.0.md).
 
@@ -246,14 +265,13 @@ Use the image digest and configuration files from one signed release manifest. Q
 ## Known limitations
 
 - 1.0 starts from a clean installation; it does not upgrade or migrate 0.x installations or data.
-- Docker Engine in rootless mode is not part of the qualified platform matrix.
 - The roles are isolated as processes and files inside one container, not against the host administrator or the container runtime.
 - Authenticated requests with bodies above 64 KiB or uncertain body framing are processed one at a time across roles, so they can queue behind another large request; other authenticated requests share the remaining slots within the limit of 16.
 - An incomplete local audit write blocks further operations until `netops audit recover` runs while the instance is stopped. A full syslog queue blocks new operations, and an interrupted send can deliver records to the receiver more than once.
-- Audit records of up to 8 MiB plus framing exceed the RFC 5425 minimum interoperability baseline. The supported receiver is explicitly configured rsyslog 8.2512 with the gtls driver, `maxMessageSize="9m"` and imtcp `MaxFrameSize="9437184"`; default receiver settings do not guarantee complete records.
+- Syslog records remain bounded at 8 MiB and use numbered 1024-byte parts with a persistent record ID and whole SHA256. Messages are at most 1618 bytes including their header. Configure a dedicated receiver archive filtered by RFC5424 APP-NAME `netops`, preserving exact MSG+LF, before the first 1.0.1 start. Offline `audit reassemble --record-id` freezes the first complete SHA-valid set in archive order: later conflicts or invalid rows preserve its bytes and produce typed warnings/exit 3; earlier validation or input-read errors give exit 2 without record output. Keep older 1.0 full-record archives separately. Native default-limit storage checks verified rsyslog 8.2504 and 8.2512 with gtls and ossl and syslog-ng 4.12 on arm64 and amd64, each receiver running in a container.
 - There is no supported provisioning path for the schema registry/library files of Helper `schema_read` and `fortios_diagnostics`, the extra input files of Auditor `--suppressions`, `merge-sarif` and `schema-check`, or file-based Admin offline and schema workflows.
 - The opt-in FortiOS `managed_switch_stacking` and `managed_switch_poe` queries have no positive result on stacking- or PoE-capable hardware. Virtual device images do not establish physical hardware behavior.
-- The process-profile acceptance check samples at a nominal 50 ms interval and can miss short-lived processes; see the [release notes](release/notes-1.0.0.md) for the exact attribution rule.
+- The process-profile acceptance check samples at a nominal 50 ms interval and can miss short-lived processes; see the [release notes](release/notes-1.0.1.md) for the exact attribution rule.
 
 ## 0.x releases and packaging
 
@@ -270,5 +288,6 @@ NetOps is open-source software provided **"as is", without warranty of any kind*
 - **No liability.** The [MIT license](LICENSE) disclaims liability for the software's authors or copyright holders for claims, damages or other liability arising from the software or its use, including changes that the Admin role makes to network devices.
 - **No obligation to support or fix.** There is no service-level agreement and no commitment to provide support, answer questions, fix defects or security issues, publish updates or keep the project maintained. Any fix or release is voluntary and may never happen.
 - **Your responsibility.** Before any production use, you are responsible for evaluating NetOps in your environment, verifying device accounts and permissions, keeping configuration backups, testing changes, and following your organization's policies and applicable law.
+- **Not a vendor product.** NetOps is not a product of Fortinet, Extreme Networks, Cisco, Arista, Juniper, Ruckus or any other vendor whose devices or software it supports, nor of the vendors of the MCP clients and models named in this documentation. These vendors bear no responsibility for defects or errors in NetOps or for its effects on their devices, and they provide no support for it. Product and company names are trademarks of their respective owners and are used only to describe compatibility.
 - **No certification.** Published tests, qualification results and supported-platform lists describe their documented scope and observations. They are not a guarantee, certification or fitness-for-purpose statement for your deployment.
 - **Forks and redistributions.** Anyone may fork or redistribute NetOps under the MIT license, including commercially. Such versions are not provided, endorsed or supported by the author, and they create no obligation on the author's part toward their users.

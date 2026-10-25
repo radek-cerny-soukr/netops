@@ -60,12 +60,12 @@ def prepare():
         directory(RUNTIME / role, uid, 0o755)
 
 def serve():
-    from .files import read_private
+    from .files import read_private, write_private
     import json
-    from .state import read_state_settings
+    from .state import __version__, admin_devices, auditor_settings, read_state_settings
     if stop_requested():
         return
-    read_state_settings(STATE)
+    read_state_settings(STATE, allow_previous=True)
     prepare()
     import fcntl
     from .files import check_regular
@@ -77,7 +77,19 @@ def serve():
         fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
     except BlockingIOError:
         raise ValueError("An existing instance is using this state; stop it before starting or upgrading") from None
-    settings = read_state_settings(STATE)
+    settings = read_state_settings(STATE, allow_previous=True)
+    upgraded_from = None
+    if settings["product_version"] != __version__:
+        from .init import check_start
+        from .certificates import renewal_inputs
+        check_start(settings, STATE)
+        renewal_inputs(settings["server_name"])
+        auditor_settings(STATE / "auditor", read_private)
+        if settings["admin_enabled"]:
+            admin_devices(STATE / "admin", read_private)
+        upgraded_from = settings["product_version"]
+        settings = dict(settings, product_version=__version__)
+        write_private(STATE / "gateway" / "config.json", json.dumps(settings).encode(), UIDS["gateway"], replace=True)
     roles = ["helper", "auditor"] + (["admin"] if settings["admin_enabled"] else [])
     children = []
     try:
@@ -98,7 +110,10 @@ def serve():
         role_environment("gateway")
         from .gateway import serve as gateway_serve
         if not stop_requested():
-            gateway_serve(settings, roles, children)
+            if upgraded_from is None:
+                gateway_serve(settings, roles, children)
+            else:
+                gateway_serve(settings, roles, children, upgraded_from=upgraded_from)
     finally:
         for child in children:
             try:

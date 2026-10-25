@@ -42,23 +42,41 @@ def create_ca(name, replace=False):
     write_private(DIRECTORY / "ca.key", private_bytes(key), UIDS["gateway"], replace=replace)
     write_private(DIRECTORY / "ca.pem", certificate.public_bytes(serialization.Encoding.PEM), UIDS["gateway"], replace=replace)
 
-def renew(name, force=False):
+def renewal_inputs(name, force=False):
     san, _ = server_name(name)
-    path = DIRECTORY / "server.pem"
-    if path.exists() and not force:
-        certificate = x509.load_pem_x509_certificate(read_private(path, owner=UIDS["gateway"]))
-        remaining = certificate.not_valid_after_utc - datetime.now(timezone.utc)
-        if remaining > timedelta(days=2):
-            return False
-    ca = x509.load_pem_x509_certificate(read_private(DIRECTORY / "ca.pem", owner=UIDS["gateway"]))
+    if not force:
+        try:
+            leaf_data = read_private(DIRECTORY / "server.pem", owner=UIDS["gateway"])
+        except FileNotFoundError:
+            leaf_data = None
+        if leaf_data is not None:
+            certificate = x509.load_pem_x509_certificate(leaf_data)
+            remaining = certificate.not_valid_after_utc - datetime.now(timezone.utc)
+            if remaining > timedelta(days=2):
+                return None
+    ca = instance_ca()
     key = serialization.load_pem_private_key(read_private(DIRECTORY / "ca.key", owner=UIDS["gateway"]), password=None)
-    key_path = DIRECTORY / "server.key"
-    leaf_key = serialization.load_pem_private_key(read_private(key_path, owner=UIDS["gateway"]), password=None) if key_path.exists() else ec.generate_private_key(ec.SECP256R1())
+    try:
+        leaf_key = serialization.load_pem_private_key(read_private(DIRECTORY / "server.key", owner=UIDS["gateway"]), password=None)
+    except FileNotFoundError:
+        leaf_key = None
     now = datetime.now(timezone.utc)
     if ca.not_valid_after_utc <= now + timedelta(days=7):
         raise ValueError("Instance CA expires within 7 days and cannot renew the server certificate; " + ROTATE_HINT)
+    return san, ca, key, leaf_key, now
+
+def renew(name, force=False):
+    inputs = renewal_inputs(name, force=force)
+    if inputs is None:
+        return False
+    san, ca, key, leaf_key, now = inputs
+    path = DIRECTORY / "server.pem"
+    key_path = DIRECTORY / "server.key"
+    missing_key = leaf_key is None
+    if missing_key:
+        leaf_key = ec.generate_private_key(ec.SECP256R1())
     leaf = (x509.CertificateBuilder().subject_name(x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, name)])).issuer_name(ca.subject).public_key(leaf_key.public_key()).serial_number(x509.random_serial_number()).not_valid_before(now - timedelta(minutes=5)).not_valid_after(now + timedelta(days=7)).add_extension(x509.BasicConstraints(ca=False, path_length=None), critical=True).add_extension(x509.SubjectAlternativeName([san]), critical=False).add_extension(x509.SubjectKeyIdentifier.from_public_key(leaf_key.public_key()), critical=False).add_extension(x509.AuthorityKeyIdentifier.from_issuer_public_key(key.public_key()), critical=False).add_extension(x509.ExtendedKeyUsage([ExtendedKeyUsageOID.SERVER_AUTH]), critical=False).add_extension(x509.KeyUsage(digital_signature=True, content_commitment=False, key_encipherment=False, data_encipherment=False, key_agreement=False, key_cert_sign=False, crl_sign=False, encipher_only=False, decipher_only=False), critical=True).sign(key, hashes.SHA256()))
-    if not key_path.exists():
+    if missing_key:
         write_private(key_path, private_bytes(leaf_key), UIDS["gateway"])
     write_private(DIRECTORY / "server.pem", leaf.public_bytes(serialization.Encoding.PEM), UIDS["gateway"], replace=True)
     return True

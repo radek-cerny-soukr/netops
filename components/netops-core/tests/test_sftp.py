@@ -339,3 +339,222 @@ def test_a_path_with_a_backslash_is_refused_before_the_client_in_sequence_with_p
     assert len(run.calls) == 1
     assert call(run).kind == "file"
     assert len(run.calls) == 2
+
+
+class TreeRun:
+    def __init__(self, home):
+        self.home = str(home)
+        self.batches = []
+
+    def __call__(self, call, **kwargs):
+        batch = kwargs["input"].decode("utf-8")
+        self.batches.append(batch)
+        place = self.home
+        out, err = [], ["Connected to %s." % HOST]
+        for command in batch.splitlines():
+            out.append("sftp> " + command)
+            verb, _, rest = command.partition(" ")
+            if verb == "pwd":
+                out.append("Remote working directory: " + place)
+                continue
+            target = rest.split('"')[1]
+            if verb == "cd":
+                resolved = os.path.realpath(target)
+                if not os.path.exists(resolved):
+                    err.append("stat remote: No such file or directory")
+                elif not os.path.isdir(resolved):
+                    err.append('Can\'t change directory: "%s" is not a directory' % resolved)
+                else:
+                    place = resolved
+                continue
+            if not os.path.exists(target):
+                err.append('Can\'t ls: "%s" not found' % target)
+            elif os.path.isdir(target):
+                for entry in sorted(os.listdir(target)):
+                    out.append(self._line(os.path.join(target, entry)))
+            else:
+                out.append(self._line(target))
+        return subprocess.CompletedProcess(
+            call, 0, ("\n".join(out) + "\n").encode(), ("\n".join(err) + "\n").encode(),
+        )
+
+    @staticmethod
+    def _line(path):
+        facts = os.stat(path)
+        kind = "d" if stat.S_ISDIR(facts.st_mode) else "-"
+        bits = "".join(
+            letter if facts.st_mode & bit else "-"
+            for letter, bit in (
+                ("r", 0o400), ("w", 0o200), ("x", 0o100), ("r", 0o040), ("w", 0o020),
+                ("x", 0o010), ("r", 0o004), ("w", 0o002), ("x", 0o001),
+            )
+        )
+        return "%s%s    ? 0        0      %10d Sep 10 02:26 %s" % (
+            kind, bits, facts.st_size, path,
+        )
+
+
+@pytest.fixture
+def tree(tmp_path):
+    home = tmp_path / "home"
+    root = tmp_path / "root"
+    outside = tmp_path / "outside"
+    for folder in (home, root / "real", outside / "sub"):
+        folder.mkdir(parents=True)
+    (root / "real" / "in.txt").write_text("inside\n")
+    (outside / "secret.txt").write_text("secret-outside\n")
+    (root / "link").symlink_to(outside)
+    (root / "filelink").symlink_to(outside / "secret.txt")
+    (root / "innerlink").symlink_to(root / "real" / "in.txt")
+    (tmp_path / "rootlink").symlink_to(root)
+    return tmp_path
+
+
+def confined(tree, remote_path, roots=None):
+    run = TreeRun(tree / "home")
+    enrolled = (str(tree / "root"),) if roots is None else roots
+    return run, call(run, remote_path=str(remote_path), roots=enrolled)
+
+
+def confined_failure(tree, remote_path, roots=None):
+    run = TreeRun(tree / "home")
+    enrolled = (str(tree / "root"),) if roots is None else roots
+    with pytest.raises(SftpError) as caught:
+        call(run, remote_path=str(remote_path), roots=enrolled)
+    return run, caught.value
+
+
+def test_a_file_reached_through_an_ancestor_symlink_out_of_the_root_is_refused(tree):
+    run, error = confined_failure(tree, tree / "root" / "link" / "secret.txt")
+    assert "outside the given roots" in str(error)
+    assert "outside" not in str(error).replace("outside the given roots", "")
+    assert error.said == ""
+
+
+@pytest.mark.parametrize("name", ("link", "filelink"))
+def test_a_final_symlink_out_of_the_root_is_refused(tree, name):
+    _run, error = confined_failure(tree, tree / "root" / name)
+    assert "outside the given roots" in str(error)
+
+
+def test_a_file_and_a_directory_inside_the_root_still_answer(tree):
+    run, entry = confined(tree, tree / "root" / "real" / "in.txt")
+    assert (entry.kind, entry.size) == ("file", 7)
+    root = str(tree / "root")
+    path = str(tree / "root" / "real" / "in.txt")
+    assert run.batches[-1] == (
+        'cd "%s"\npwd\ncd "%s"\npwd\nls -ln "%s"\n' % (root, path, path)
+    )
+    _run, folder = confined(tree, tree / "root" / "real")
+    assert (folder.kind, folder.entry_count) == ("directory", 1)
+    _run, inner = confined(tree, tree / "root" / "innerlink")
+    assert inner.kind == "file"
+
+
+def test_a_root_spelled_through_a_symlink_is_resolved_too(tree):
+    roots = (str(tree / "rootlink"),)
+    _run, entry = confined(tree, tree / "rootlink" / "real" / "in.txt", roots=roots)
+    assert entry.kind == "file"
+    _run, error = confined_failure(tree, tree / "rootlink" / "link" / "secret.txt", roots=roots)
+    assert "outside the given roots" in str(error)
+
+
+def test_the_root_itself_is_listed_with_the_single_command_batch(tree):
+    run, entry = confined(tree, tree / "root")
+    assert entry.kind == "directory"
+    assert run.batches[-1] == 'ls -ln "%s"\n' % (tree / "root")
+
+
+def test_a_missing_path_below_a_root_is_refused_with_its_reason(tree):
+    _run, error = confined_failure(tree, tree / "root" / "missing")
+    assert "the remote path is not there" in str(error)
+
+
+def test_a_path_outside_every_given_root_is_refused_before_the_client(tree):
+    run = TreeRun(tree / "home")
+    with pytest.raises(SftpError):
+        call(run, remote_path=str(tree / "outside" / "secret.txt"), roots=(str(tree / "root"),))
+    with pytest.raises(SftpError):
+        call(run, remote_path=str(tree / "root-sibling"), roots=(str(tree / "root"),))
+    with pytest.raises(SftpError):
+        call(run, remote_path=str(tree / "root"), roots=str(tree / "root"))
+    assert run.batches == []
+
+
+def test_an_answer_without_the_working_directory_lines_is_refused():
+    run = FakeRun(stdout=b'sftp> cd "/safe"\nsftp> pwd\nsftp> cd "/safe/log"\n' + FILE_OUTPUT)
+    error = failure(run, roots=("/safe",))
+    assert "batch this parser does not know" in str(error)
+
+
+QUANTUM_WARNING = (
+    b"** WARNING: connection is not using a post-quantum key exchange algorithm.\n"
+    b'** This session may be vulnerable to "store now, decrypt later" attacks.\n'
+    b"** The server may need to be upgraded. See https://openssh.com/pq.html\n"
+)
+BANNER = b"This is a login banner of the device\nUnauthorized access is prohibited!\n"
+TRANSPORT_CHATTER = (QUANTUM_WARNING, BANNER, QUANTUM_WARNING + BANNER)
+
+
+class ChattyTreeRun(TreeRun):
+    def __init__(self, home, chatter):
+        super().__init__(home)
+        self.chatter = chatter
+
+    def __call__(self, call, **kwargs):
+        result = super().__call__(call, **kwargs)
+        return subprocess.CompletedProcess(
+            call, result.returncode, result.stdout, self.chatter + result.stderr,
+        )
+
+
+@pytest.mark.parametrize("chatter", TRANSPORT_CHATTER)
+def test_transport_chatter_before_the_connection_does_not_refuse_a_path_inside_the_root(
+    tree, chatter,
+):
+    roots = (str(tree / "root"),)
+    run = ChattyTreeRun(tree / "home", chatter)
+    entry = call(run, remote_path=str(tree / "root" / "real" / "in.txt"), roots=roots)
+    assert (entry.kind, entry.size) == ("file", 7)
+    folder = call(run, remote_path=str(tree / "root" / "real"), roots=roots)
+    assert (folder.kind, folder.entry_count) == ("directory", 1)
+    (tree / "root" / "empty").mkdir()
+    empty = call(run, remote_path=str(tree / "root" / "empty"), roots=roots)
+    assert (empty.kind, empty.entry_count) == ("directory", 0)
+    unconfined = call(run, remote_path=str(tree / "root" / "empty"))
+    assert (unconfined.kind, unconfined.entry_count) == ("directory", 0)
+
+
+@pytest.mark.parametrize("chatter", TRANSPORT_CHATTER)
+def test_transport_chatter_does_not_hide_a_refusal_after_the_connection(tree, chatter):
+    roots = (str(tree / "root"),)
+    run = ChattyTreeRun(tree / "home", chatter)
+    with pytest.raises(SftpError) as outside:
+        call(run, remote_path=str(tree / "root" / "link" / "secret.txt"), roots=roots)
+    assert "outside the given roots" in str(outside.value)
+    with pytest.raises(SftpError) as missing:
+        call(run, remote_path=str(tree / "root" / "missing"), roots=roots)
+    assert "the remote path is not there" in str(missing.value)
+    complaint = failure(
+        FakeRun(
+            stdout=b'sftp> ls -ln "/safe/missing"\n',
+            stderr=chatter + PROGRESS + b'Can\'t ls: "/safe/missing" not found\n',
+        ),
+        remote_path="/safe/missing",
+    )
+    assert "could not list the path" in str(complaint)
+
+
+def test_chatter_without_the_connection_line_is_still_a_refusal():
+    error = failure(
+        FakeRun(stdout=b'sftp> ls -ln "/safe/empty"\n', stderr=QUANTUM_WARNING),
+        remote_path="/safe/empty",
+    )
+    assert "could not list the path" in str(error)
+
+
+def test_the_client_keeps_the_log_level_that_prints_a_failed_negotiation():
+    run = FakeRun()
+    call(run)
+    assert not any(option.startswith("LogLevel=") for option in options_of(run.argv()))
+    assert "-q" not in run.argv()

@@ -10,7 +10,7 @@ from unittest.mock import AsyncMock, patch
 import httpx
 import jsonschema
 from fastmcp import FastMCP
-from netops import gateway
+from netops import __version__, gateway
 from netops.audit import Audit
 from netops.files import write_private
 from netops.ipc import RoleUnavailable
@@ -132,7 +132,7 @@ class ArgumentGuidance(unittest.IsolatedAsyncioTestCase):
             directory.mkdir(mode=0o700)
             token = "synthetic-gateway-token-for-public-test-only-12345"
             write_private(directory / "token", token.encode())
-            write_private(directory / "config.json", b'{"version":1,"product_version":"1.0.0","audit":{"mode":"local"}}')
+            write_private(directory / "config.json", json.dumps({"version": 1, "product_version": __version__, "audit": {"mode": "local"}}, separators=(",", ":")).encode())
             audit = Audit(directory / "audit", {"mode": "local"})
             server = FastMCP("audited-argument-contract")
             server.add_tool(self.remote("helper", Proxy._target_scope_tool()))

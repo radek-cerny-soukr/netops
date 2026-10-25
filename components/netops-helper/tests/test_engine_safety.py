@@ -786,6 +786,13 @@ if "-i" in sys.argv:
 with open({log!r}, "a") as handle:
     handle.write(json.dumps(record) + "\\n")
 sys.stderr.write({said!r})
+place = "/home/reader"
+for line in record["batch"].splitlines()[:-1]:
+    sys.stdout.write("sftp> " + line + "\\n")
+    if line.startswith("cd "):
+        place = line[4:-1]
+    elif line == "pwd":
+        sys.stdout.write("Remote working directory: " + place + "\\n")
 sys.stdout.write({answer!r})
 sys.exit({code})
 '''
@@ -838,7 +845,7 @@ def _sftp_options(argv: list) -> list:
     return [argv[index + 1] for index, item in enumerate(argv) if item == "-o"]
 
 
-def test_sftp_stat_runs_the_hardened_client_with_a_single_command_batch(
+def test_sftp_stat_runs_the_hardened_client_with_a_root_resolving_batch(
     tmp_path, monkeypatch,
 ) -> None:
     import hashlib
@@ -858,8 +865,9 @@ def test_sftp_stat_runs_the_hardened_client_with_a_single_command_batch(
     call = calls()[-1]
     assert call["argv"][:2] == ["-F", "/dev/null"]
     assert "-b" not in call["argv"]
-    assert call["batch"] == 'ls -ln "/safe/log"\n'
-    assert call["batch"].count("\n") == 1
+    assert call["batch"] == (
+        'cd "/safe"\npwd\ncd "/safe/log"\npwd\nls -ln "/safe/log"\n'
+    )
     assert call["argv"][-3:-1] == ["-P", "22"]
     assert call["argv"][-1] == f"reader@{TEST_ADDRESS}"
     assert call["known_hosts"] == HOST_KEY_LINE + "\n"
@@ -891,6 +899,62 @@ def test_sftp_stat_of_a_directory_answers_with_a_count_and_no_names(
     }
     for name in ("a.conf", "b.conf", "sub"):
         assert name not in json.dumps(result), name
+
+
+FAKE_SFTP_TREE = '''#!/usr/bin/env python3
+import os, stat, sys
+
+place = @HOME@
+out, err = [], ["Connected to 192.0.2.20."]
+for command in sys.stdin.read().splitlines():
+    out.append("sftp> " + command)
+    verb, _, rest = command.partition(" ")
+    if verb == "pwd":
+        out.append("Remote working directory: " + place)
+        continue
+    target = rest.split('"')[1]
+    if verb == "cd":
+        resolved = os.path.realpath(target)
+        if not os.path.isdir(resolved):
+            err.append("Can't change directory: \\"%s\\" is not a directory" % resolved)
+        else:
+            place = resolved
+        continue
+    facts = os.stat(target)
+    kind = "d" if stat.S_ISDIR(facts.st_mode) else "-"
+    out.append("%srw-r-----    ? 0        0      %10d Sep 10 02:26 %s" % (kind, facts.st_size, target))
+sys.stdout.write("\\n".join(out) + "\\n")
+sys.stderr.write("\\n".join(err) + "\\n")
+'''
+
+
+def test_sftp_stat_refuses_a_file_reached_through_a_symlink_out_of_the_root(
+    tmp_path, monkeypatch,
+) -> None:
+    root = tmp_path / "root"
+    outside = tmp_path / "outside"
+    root.mkdir()
+    outside.mkdir()
+    (outside / "secret.txt").write_text("secret-outside\n")
+    (root / "inside.txt").write_text("inside\n")
+    (root / "link").symlink_to(outside)
+    binaries = tmp_path / "bin"
+    binaries.mkdir()
+    client = binaries / "sftp"
+    client.write_text(FAKE_SFTP_TREE.replace("@HOME@", repr(str(tmp_path))), encoding="utf-8")
+    client.chmod(0o700)
+    monkeypatch.setenv("PATH", f"{binaries}:{os.environ['PATH']}")
+    monkeypatch.setattr(engine, "record", lambda *args, **kwargs: None)
+    target = replace(auth(), sftp_roots=(str(root),))
+
+    inside = asyncio.run(engine.sftp_stat(target, str(root / "inside.txt")))
+    assert (inside["ok"], inside["kind"], inside["size"]) == (True, "file", 7)
+
+    escaped = asyncio.run(engine.sftp_stat(target, str(root / "link" / "secret.txt")))
+    assert escaped["ok"] is False, escaped
+    assert "outside the given roots" in escaped["error"]
+    assert str(outside) not in json.dumps(escaped)
+    assert "size" not in escaped
 
 
 def test_sftp_legacy_options_appear_only_with_the_enrolled_profile(

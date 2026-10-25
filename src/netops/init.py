@@ -3,6 +3,7 @@ import ipaddress
 import json
 import os
 import secrets
+import stat
 import subprocess
 import sys
 from . import __version__
@@ -12,6 +13,8 @@ from .files import STATE, UIDS, check_regular, read_private, write_private
 
 WARNING = "Local audit is discouraged but permitted. It stores inputs and outputs; disk usage can grow quickly with NetOps use."
 NONINTERACTIVE = "init needs an interactive terminal (docker compose run --rm netops init), or choose the audit explicitly: --audit local --accept-local-audit, or --audit syslog --syslog-host HOST [--syslog-port PORT]"
+PLACEHOLDER_NAME = "replace-me-with-certificate-dns-name"
+PLACEHOLDER = "NETOPS_SERVER_NAME is still the env.example placeholder; set it in .env to the exact DNS name your MCP clients will use"
 
 def changed_identity(settings):
     name = os.environ.get("NETOPS_SERVER_NAME", "")
@@ -19,6 +22,25 @@ def changed_identity(settings):
         return ("NETOPS_SERVER_NAME is " + name + " but the instance CA and certificate are bound to " + settings["server_name"]
                 + "; restore the previous value: the server name is fixed at init and a different name needs a new instance")
     return None
+
+def check_start(settings, directory):
+    from .audit import RECOVER_HINT, audit_limits, incomplete_tail, rejection_snapshot
+    from .certificates import verify_pairs
+    audit_limits(settings["audit"])
+    audit_directory = directory / "gateway" / "audit"
+    try:
+        info = audit_directory.lstat()
+    except FileNotFoundError:
+        info = None
+    if info is not None and (not stat.S_ISDIR(info.st_mode) or info.st_uid != UIDS["gateway"] or stat.S_IMODE(info.st_mode) != 0o700):
+        raise ValueError("Unsafe audit directory ownership or permissions")
+    rejection_snapshot(audit_directory, UIDS["gateway"])
+    if settings["audit"]["mode"] == "local" and any(incomplete_tail(path, owner=UIDS["gateway"]) for path in audit_directory.glob("*.jsonl")):
+        raise ValueError("Incomplete final audit record; " + RECOVER_HINT)
+    problem = changed_identity(settings)
+    if problem:
+        raise ValueError(problem)
+    verify_pairs()
 
 def connection(settings):
     name = settings["server_name"]
@@ -89,6 +111,8 @@ def initialize(args):
     except ValueError:
         raise ValueError("NETOPS_BIND_IP must be a valid explicit IP address") from None
     server_name(name)
+    if name.encode("idna").decode("ascii").lower() == PLACEHOLDER_NAME:
+        raise ValueError(PLACEHOLDER)
     try:
         port = int(os.environ.get("NETOPS_PORT", "8443"))
     except ValueError:
@@ -99,16 +123,19 @@ def initialize(args):
         raise ValueError("Audit budget must be at least 16 MiB")
     if not 1 <= args.syslog_port <= 65535:
         raise ValueError("Syslog port must be between 1 and 65535")
-    prepare()
+    if os.geteuid() != 0:
+        raise ValueError("Initialization and the short start bootstrap require the declared container user and capabilities")
     config = STATE / "gateway" / "config.json"
-    if config.exists():
-        settings = json.loads(read_private(config, owner=UIDS["gateway"]))
+    if config.exists() or config.is_symlink():
+        from .state import read_state_settings
+        settings = read_state_settings(STATE)
         problem = changed_identity(settings)
         if problem:
             raise ValueError(problem)
         connection(settings)
         print("Already initialized; CA, token and data preserved.")
         return 0
+    prepare()
     if any((STATE / "gateway" / item).exists() for item in ("ca.key", "ca.pem", "token")):
         raise ValueError("Partial initialization found; inspect it explicitly rather than silently replacing identities")
     audit = choose_audit(args)

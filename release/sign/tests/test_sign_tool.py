@@ -25,10 +25,29 @@ ARCHES = ("amd64", "arm64")
 SUITES = ("blackbox", "redteam", "failclosed", "syslog", "device", "token-output")
 ROWS = (["actions-%s-%s" % (a, s) for a in ARCHES for s in SUITES]
         + ["actions-%s-engine-%s" % (a, r) for a in ARCHES for r in ("core", "helper", "auditor", "admin")]
-        + ["%s-%s-%s" % (o, a, s) for o in ("ubuntu", "debian", "fedora") for a in ARCHES for s in SUITES + ("after-restart",)]
-        + ["fedora-%s-selinux" % a for a in ARCHES]
-        + ["%s-%s-nonroot" % (o, a) for o in ("ubuntu", "debian", "fedora") for a in ARCHES]
-        + ["rpios-arm64-%s" % s for s in SUITES + ("after-restart",)] + ["claude-code-e2e", "codex-cli-e2e"])
+        + ["%s-%s-%s" % (o, a, d) for o in ("ubuntu", "debian", "fedora") for a in ARCHES for d in ("rootful", "rootless")]
+        + ["rpios-arm64-%s" % d for d in ("rootful", "rootless")]
+        + ["upgrade-amd64", "upgrade-arm64", "upgrade-fedora-amd64", "claude-code-e2e", "syslog-load", "code-review"])
+OPTIONAL_ROWS = ("codex-cli-e2e",)
+UPGRADE_CHECKS = ("kroky-postupu", "bezi-verze-TO", "health-ready", "obnova-manifest-shodny", "CA-klic-token-beze-zmeny",
+                  "konfigurace-beze-zmeny", "data-roli-beze-zmeny", "audit-prefix", "audit-zaznam-upgrade", "mcp-tools-list",
+                  "mcp-odpovedi-roli", "token-plati-bez-tokenu-401", "connection-shodne", "druhy-start-nic-nemeni",
+                  "token-ani-heslo-v-logs", "rollback-FROM", "FROM-nedotcena-do-rollbacku")
+
+
+def default_report(row):
+    if row.startswith("upgrade-"):
+        report = {"checks": [{"check": c, "status": "PASS"} for c in UPGRADE_CHECKS]}
+    elif row.startswith("fedora-"):
+        report = {"checks": [{"check": "selinux-enforcing", "status": "PASS"}, {"check": "x", "status": "PASS"}]}
+    else:
+        report = {"checks": [{"check": "x", "status": "PASS"}]}
+    if row in ("syslog-load", "code-review"):
+        report["protocol_sha256"] = "3" * 64
+    return report
+
+
+
 FINDING = {"id": "CVE-1", "package": "libx", "version": "1.0", "type": "apk"}
 SUMS = "netops-1.0.0-SHA256SUMS"
 BUNDLE = SUMS + ".sigstore.json"
@@ -99,7 +118,7 @@ class SignTool(unittest.TestCase):
         self.set_index([(A, "amd64"), (B, "arm64")])
         self.findings = {a: [dict(FINDING, severity="Medium", state="not-fixed")] for a in ARCHES}
         self.assessments = [dict(FINDING, exploitable=False, reasoning="unreachable", evidence="not imported")]
-        self.reports = {row: {"checks": [{"check": "x", "status": "PASS"}]} for row in ROWS}
+        self.reports = {row: default_report(row) for row in ROWS + list(OPTIONAL_ROWS)}
         self.gate_status = "needs-assessment"
         self.db_built = "2026-10-15T00:00:00Z"
         self.db_age = 1.0
@@ -262,10 +281,18 @@ class SignTool(unittest.TestCase):
         self.assertEqual(rc, 0, out)
         self.assertIn("OVERALL: PASS", out)
 
+    def test_acceptance_rows_are_the_seven_layer_rows(self):
+        rc, out = self.run_tool()
+        self.assertEqual(rc, 0, out)
+        self.assertEqual(sorted(set(re.findall(r"(?m)^acceptance (\S+)", out))), sorted(ROWS + list(OPTIONAL_ROWS)))
+        self.assertEqual(len(ROWS), 40)
+        for old in ("ubuntu-amd64-redteam", "fedora-arm64-after-restart", "fedora-amd64-selinux", "debian-arm64-nonroot", "rpios-arm64-syslog"):
+            self.assertNotIn(old, out)
+
     def test_missing_rows_are_not_run(self):
         self.reports = {r: v for r, v in self.reports.items() if not r.startswith("fedora-arm64")}
         out = self.assert_refused("OVERALL: NOT RUN")
-        self.assertIn("acceptance fedora-arm64-syslog", out)
+        self.assertRegex(out, r"(?m)^acceptance fedora-arm64-rootless\s+NOT RUN\s+no report")
 
     def test_engine_rows_are_required(self):
         del self.reports["actions-arm64-engine-admin"]
@@ -281,27 +308,82 @@ class SignTool(unittest.TestCase):
         self.assertIn("actions-amd64-device", out)
         self.assertIn("OVERALL: NOT RUN", out)
 
-    def test_nonroot_rows_are_required(self):
-        for row in ("ubuntu-amd64-nonroot", "fedora-arm64-nonroot"):
+    def test_each_layer_3_to_7_row_is_required(self):
+        for row in ("ubuntu-amd64-rootless", "debian-arm64-rootful", "fedora-amd64-rootless", "rpios-arm64-rootful", "rpios-arm64-rootless",
+                    "upgrade-amd64", "upgrade-arm64", "upgrade-fedora-amd64", "claude-code-e2e", "syslog-load", "code-review"):
             with self.subTest(row=row):
                 reports = self.reports
                 self.reports = {r: v for r, v in reports.items() if r != row}
                 rc, out = self.run_tool()
                 self.reports = reports
                 self.assertEqual(rc, 1, out)
-                self.assertIn(row, out)
+                self.assertRegex(out, r"(?m)^acceptance %s\s+NOT RUN\s+no report" % re.escape(row))
                 self.assertIn("OVERALL: NOT RUN", out)
 
-    def test_selinux_rows_are_required(self):
-        for row in ("fedora-amd64-selinux", "fedora-arm64-selinux"):
-            with self.subTest(row=row):
-                reports = self.reports
-                self.reports = {r: v for r, v in reports.items() if r != row}
-                rc, out = self.run_tool()
-                self.reports = reports
-                self.assertEqual(rc, 1, out)
-                self.assertIn(row, out)
-                self.assertIn("OVERALL: NOT RUN", out)
+    def test_codex_row_is_optional_and_states_why(self):
+        del self.reports["codex-cli-e2e"]
+        rc, out = self.run_tool()
+        self.assertEqual(rc, 0, out)
+        self.assertIn("OVERALL: PASS", out)
+        self.assertRegex(out, r"(?m)^acceptance codex-cli-e2e\s+NOT RUN\s+optional, does not block: no report")
+        self.reports["codex-cli-e2e"] = {"checks": [{"check": "helper_status", "status": "NOT RUN", "detail": "no Codex tokens available"}]}
+        rc, out = self.run_tool()
+        self.assertEqual(rc, 0, out)
+        self.assertIn("OVERALL: PASS", out)
+        self.assertRegex(out, r"(?m)^acceptance codex-cli-e2e\s+NOT RUN\s+optional, does not block: 1 of 1 checks not run: no Codex tokens available")
+
+    def test_failed_codex_row_still_refuses(self):
+        self.reports["codex-cli-e2e"] = {"checks": [{"check": "helper_status", "status": "FAIL"}]}
+        out = self.assert_refused("OVERALL: FAIL")
+        self.assertRegex(out, r"(?m)^acceptance codex-cli-e2e\s+FAIL")
+
+    def test_fedora_rows_need_selinux_enforcing(self):
+        for row in ("fedora-amd64-rootful", "fedora-arm64-rootless"):
+            for checks in ([{"check": "x", "status": "PASS"}], [{"check": "selinux-enforcing", "status": "NOT RUN"}, {"check": "x", "status": "PASS"}]):
+                with self.subTest(row=row, checks=checks):
+                    self.reports[row] = {"checks": checks}
+                    rc, out = self.run_tool()
+                    self.reports[row] = default_report(row)
+                    self.assertEqual(rc, 1, out)
+                    self.assertNotIn("OVERALL: PASS", out)
+                    self.assertRegex(out, r"(?m)^acceptance %s\s+(FAIL|NOT RUN)" % re.escape(row))
+                    if len(checks) == 1:
+                        self.assertIn("required check missing or repeated: selinux-enforcing", out)
+
+    def test_upgrade_rows_need_exactly_the_17_upgrade_checks_passed(self):
+        def checks(drop=(), fail=(), extra=()):
+            return {"checks": [{"check": c, "status": "FAIL" if c in fail else "PASS"} for c in UPGRADE_CHECKS if c not in drop]
+                    + [{"check": c, "status": "PASS"} for c in extra]}
+        cases = ((checks(fail=("rollback-FROM",)), "checks failed: rollback-FROM"),
+                 (checks(drop=("audit-zaznam-upgrade",)), "required check missing or repeated: audit-zaznam-upgrade"),
+                 (checks(extra=("kroky-postupu",)), "required check missing or repeated: kroky-postupu"),
+                 (checks(extra=("extra-check",)), "upgrade report must have exactly 17 checks"),
+                 ({"checks": [dict(c, check=c["check"].lower()) for c in checks()["checks"]]}, "required check missing or repeated: bezi-verze-TO"))
+        for row in ("upgrade-amd64", "upgrade-fedora-amd64"):
+            for report, text in cases:
+                with self.subTest(row=row, text=text):
+                    self.reports[row] = report
+                    rc, out = self.run_tool()
+                    self.reports[row] = default_report(row)
+                    self.assertEqual(rc, 1, out)
+                    self.assertRegex(out, r"(?m)^acceptance %s\s+FAIL" % re.escape(row))
+                    self.assertIn(text, out)
+
+    def test_syslog_load_and_code_review_need_a_protocol_sha256(self):
+        for row in ("syslog-load", "code-review"):
+            for value in (None, "", "3" * 63, "A" * 64, 7, "3" * 64 + "\n"):
+                with self.subTest(row=row, value=value):
+                    report = default_report(row)
+                    if value is None:
+                        del report["protocol_sha256"]
+                    else:
+                        report["protocol_sha256"] = value
+                    self.reports[row] = report
+                    rc, out = self.run_tool()
+                    self.reports[row] = default_report(row)
+                    self.assertEqual(rc, 1, out)
+                    self.assertRegex(out, r"(?m)^acceptance %s\s+FAIL" % re.escape(row))
+                    self.assertIn("no protocol SHA-256", out)
 
     def test_single_platform_is_not_enough(self):
         self.reports = {"actions-amd64-blackbox": self.reports["actions-amd64-blackbox"]}
@@ -362,9 +444,9 @@ class SignTool(unittest.TestCase):
         self.assert_refused("unknown status UNKNOWN")
 
     def test_report_without_commit_or_image_fails(self):
-        self.reports["ubuntu-amd64-redteam"] = {"checks": [{"status": "PASS"}], "candidate_commit": None}
+        self.reports["ubuntu-amd64-rootful"] = {"checks": [{"status": "PASS"}], "candidate_commit": None}
         self.assert_refused("report is not for this commit")
-        self.reports["ubuntu-amd64-redteam"] = {"checks": [{"status": "PASS"}], "candidate_image": "sha256:" + "9" * 64}
+        self.reports["ubuntu-amd64-rootful"] = {"checks": [{"status": "PASS"}], "candidate_image": "sha256:" + "9" * 64}
         self.assert_refused("report is not for this image index")
 
     def test_unsigned_report_in_directory_fails(self):
@@ -777,9 +859,9 @@ class SignTool(unittest.TestCase):
 
     def apply_case(self, kind, change):
         self.patches = {}
-        self.reports = {row: {"checks": [{"check": "x", "status": "PASS"}]} for row in ROWS}
+        self.reports = {row: default_report(row) for row in ROWS + list(OPTIONAL_ROWS)}
         if kind == "report":
-            self.reports["ubuntu-amd64-redteam"].update(change)
+            self.reports["ubuntu-amd64-rootful"].update(change)
         else:
             self.patches = {kind: lambda content, arch: change(content) if arch in (None, "amd64") else None}
 

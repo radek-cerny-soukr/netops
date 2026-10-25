@@ -10,7 +10,7 @@ from unittest.mock import AsyncMock, patch
 
 import httpx
 from fastmcp import FastMCP
-from netops import gateway, worker
+from netops import __version__, gateway, worker
 from netops.audit import Audit
 from netops.files import write_private
 from netops_core.audit import Recorder
@@ -87,7 +87,7 @@ class HelperPaginationNull(unittest.IsolatedAsyncioTestCase):
         directory.mkdir(mode=0o700)
         token = "synthetic-pagination-gateway-token-only-123456"
         write_private(directory / "token", token.encode())
-        write_private(directory / "config.json", b'{"version":1,"product_version":"1.0.0","audit":{"mode":"local"}}')
+        write_private(directory / "config.json", json.dumps({"version": 1, "product_version": __version__, "audit": {"mode": "local"}}, separators=(",", ":")).encode())
         audit = Audit(directory / "audit", {"mode": "local"})
         mcp = FastMCP("pagination-null-contract")
         for name in ("ssh_read", "schema_read"):

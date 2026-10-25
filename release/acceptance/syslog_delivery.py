@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 import argparse
+import base64
+import hashlib
 import json
 import os
 import shutil
@@ -11,7 +13,7 @@ import time
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import blackbox
 
-RECEIVER_IMAGE = "python:3.14.8-alpine3.24@sha256:f6a589d43c42b9e7f7dc67a12d37132491f362859a5d750607710cc56da3bc72"
+RECEIVER_IMAGE = "python:3.14.9-alpine3.24@sha256:dbeb11d16bb95c3a7e3c25c842cb9f20cbc8c18f8be0461a4a0dcc861ad386a0"
 HERE = os.path.dirname(os.path.abspath(__file__))
 SIZES = {"small": 100, "large": 1000000}
 
@@ -38,6 +40,28 @@ def pki(directory):
 def events(path):
     with open(path) as stream:
         return [json.loads(line) for line in stream if line.strip()]
+
+
+def part_rows(delivered):
+    return [e["text"].partition(" netops - - - ")[2] for e in delivered]
+
+
+def reassembled(delivered):
+    groups = {}
+    for text in part_rows(delivered):
+        try:
+            row = json.loads(text)
+            chunk = base64.b64decode(row["data_b64"], validate=True)
+            groups.setdefault((row["record_id"], row["parts"], row["sha256"]), {})[row["part"]] = chunk
+        except (ValueError, KeyError, TypeError):
+            continue
+    records = {}
+    for (record_id, parts, digest), chunks in groups.items():
+        if sorted(chunks) == list(range(parts)):
+            raw = b"".join(chunks[part] for part in range(parts))
+            if hashlib.sha256(raw).hexdigest() == digest:
+                records[record_id] = raw.decode("utf-8", "replace")
+    return records
 
 
 def main():
@@ -133,11 +157,17 @@ def main():
         problems = []
         if not all(e["text"].startswith("<") and " netops " in e["text"][:80] for e in delivered):
             problems.append("message without an RFC 5424 header")
+        records = reassembled(delivered)
+        archive = "".join(row + "\n" for row in part_rows(delivered))
         for label, size in [("untrusted", SIZES["small"])] + list(SIZES.items()):
             needle = "%s-%s-%s" % (marker, label, "z" * size)
-            complete = [e for e in delivered if needle in e["text"]]
+            complete = [record_id for record_id, record in records.items() if needle in record]
             if not complete:
                 problems.append("%s request record (%d B argument) not delivered complete" % (label, size))
+                continue
+            rebuilt = compose("run", "--rm", "-T", "netops", "audit", "reassemble", "--record-id", complete[0], stdin=archive)
+            if rebuilt.returncode != 0 or rebuilt.stdout != records[complete[0]]:
+                problems.append("%s request record not reassembled by netops audit reassemble (rc %d)" % (label, rebuilt.returncode))
         remaining = queue_bytes()
         if remaining:
             problems.append("queue still holds %d B" % remaining)

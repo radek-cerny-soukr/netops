@@ -1,14 +1,15 @@
 import contextlib
 import io
+import json
 import sys
 import tempfile
 from pathlib import Path
 import unittest
 from unittest.mock import patch
 
-from netops import cli, operator, health
+from netops import __version__, cli, operator, health
 from netops.diagnostics import OPERATION_SUFFIX, operation_error
-from netops.state import OperatorAccessError, StateCompatibilityError
+from netops.state import OperatorAccessError, StateCompatibilityError, read_state_settings
 
 CANARY = "SYNTHETIC-PRIVATE-OS-DETAIL"
 FAILURE = "Operation failed; inspect private state and audit before retrying"
@@ -33,8 +34,9 @@ class CliOperationScope(unittest.TestCase):
         with tempfile.TemporaryDirectory() as raw:
             state = Path(raw)
             (state / "gateway").mkdir(mode=0o700)
-            (state / "gateway/config.json").write_text("{}")
+            (state / "gateway/config.json").write_text(json.dumps({"version": 1, "product_version": __version__}))
             (state / "gateway/config.json").chmod(0o600)
+            read_state_settings(state)
             with patch.object(cli, "STATE", state), patch.object(cli.os, "geteuid", return_value=0), \
                     patch.object(module, attribute, side_effect=error), \
                     patch.object(sys, "argv", ["netops", *arguments]), \

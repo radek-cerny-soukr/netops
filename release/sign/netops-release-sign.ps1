@@ -17,14 +17,18 @@ $Suites = @("blackbox", "redteam", "failclosed", "syslog", "device", "token-outp
 $RequiredRows = New-Object System.Collections.ArrayList
 foreach ($arch in $Arches) { foreach ($suite in $Suites) { [void]$RequiredRows.Add("actions-$arch-$suite") } }
 foreach ($arch in $Arches) { foreach ($role in @("core", "helper", "auditor", "admin")) { [void]$RequiredRows.Add("actions-$arch-engine-$role") } }
+$RequiredChecks = New-Object System.Collections.Hashtable ([StringComparer]::Ordinal)
 foreach ($os in @("ubuntu", "debian", "fedora")) {
-    foreach ($arch in $Arches) { foreach ($suite in ($Suites + @("after-restart"))) { [void]$RequiredRows.Add("$os-$arch-$suite") } }
+    foreach ($arch in $Arches) { foreach ($docker in @("rootful", "rootless")) { [void]$RequiredRows.Add("$os-$arch-$docker") } }
 }
-foreach ($arch in $Arches) { [void]$RequiredRows.Add("fedora-$arch-selinux") }
-foreach ($os in @("ubuntu", "debian", "fedora")) { foreach ($arch in $Arches) { [void]$RequiredRows.Add("$os-$arch-nonroot") } }
-foreach ($suite in ($Suites + @("after-restart"))) { [void]$RequiredRows.Add("rpios-arm64-$suite") }
+foreach ($docker in @("rootful", "rootless")) { [void]$RequiredRows.Add("rpios-arm64-$docker") }
+foreach ($row in $RequiredRows) { if ($row -clike "fedora-*") { $RequiredChecks[$row] = @("selinux-enforcing") } }
+$UpgradeChecks = @("kroky-postupu", "bezi-verze-TO", "health-ready", "obnova-manifest-shodny", "CA-klic-token-beze-zmeny", "konfigurace-beze-zmeny", "data-roli-beze-zmeny", "audit-prefix", "audit-zaznam-upgrade", "mcp-tools-list", "mcp-odpovedi-roli", "token-plati-bez-tokenu-401", "connection-shodne", "druhy-start-nic-nemeni", "token-ani-heslo-v-logs", "rollback-FROM", "FROM-nedotcena-do-rollbacku")
+foreach ($row in @("upgrade-amd64", "upgrade-arm64", "upgrade-fedora-amd64")) { [void]$RequiredRows.Add($row); $RequiredChecks[$row] = $UpgradeChecks }
 [void]$RequiredRows.Add("claude-code-e2e")
-[void]$RequiredRows.Add("codex-cli-e2e")
+$ProtocolRows = @("syslog-load", "code-review")
+foreach ($row in $ProtocolRows) { [void]$RequiredRows.Add($row) }
+$OptionalRows = @("codex-cli-e2e")
 $KnownSeverities = @("Critical", "High", "Medium", "Low", "Negligible", "Unknown")
 $BlockingSeverities = @("High", "Critical")
 $ReportStatuses = @("PASS", "FAIL", "NOT RUN")
@@ -32,8 +36,8 @@ $BuildTimeFormats = [string[]]@("yyyy-MM-dd'T'HH:mm:ss'Z'", "yyyy-MM-dd'T'HH:mm:
 
 $script:Rows = New-Object System.Collections.ArrayList
 
-function Add-Row([string]$Area, [string]$Status, [string]$Detail) {
-    [void]$script:Rows.Add([pscustomobject]@{ Area = $Area; Status = $Status; Detail = $Detail })
+function Add-Row([string]$Area, [string]$Status, [string]$Detail, [bool]$Optional = $false) {
+    [void]$script:Rows.Add([pscustomobject]@{ Area = $Area; Status = $Status; Detail = $Detail; Optional = $Optional })
 }
 
 function Get-Sha256Hex([byte[]]$Bytes) {
@@ -327,9 +331,12 @@ function Test-Acceptance([string]$Dir, $Manifest, $Listed) {
     }
     $declared = New-Object System.Collections.Hashtable ([StringComparer]::Ordinal)
     foreach ($entry in $acceptance.reports) { $declared[$entry.row] = $entry }
-    foreach ($row in $RequiredRows) {
+    foreach ($row in ($RequiredRows + $OptionalRows)) {
         $label = "acceptance " + $row
-        if (-not $declared.ContainsKey($row)) { Add-Row $label "NOT RUN" "no report"; continue }
+        $optional = $OptionalRows -ccontains $row
+        $prefix = ""
+        if ($optional) { $prefix = "optional, does not block: " }
+        if (-not $declared.ContainsKey($row)) { Add-Row $label "NOT RUN" ($prefix + "no report") $optional; continue }
         $entry = $declared[$row]
         if ($entry.file -cne ("acceptance-" + $row + ".json") -or -not $Listed.ContainsKey($entry.file) -or $Listed[$entry.file] -cne $entry.sha256) {
             Add-Row $label "FAIL" "report file is not the signed one"; continue
@@ -342,9 +349,20 @@ function Test-Acceptance([string]$Dir, $Manifest, $Listed) {
         $unknown = @($checks | Where-Object { $ReportStatuses -cnotcontains $_.status })
         $failed = @($checks | Where-Object { $_.status -ceq "FAIL" })
         $notRun = @($checks | Where-Object { $_.status -ceq "NOT RUN" })
+        $required = @()
+        if ($RequiredChecks.ContainsKey($row)) { $required = @($RequiredChecks[$row]) }
+        $names = @($checks | Where-Object { (Has-Property $_ "check") -and $_.check -is [string] } | ForEach-Object { $_.check })
+        $absent = @($required | Where-Object { $name = $_; @($names | Where-Object { $_ -ceq $name }).Count -ne 1 })
         if ($unknown.Count -gt 0) { Add-Row $label "FAIL" ("unknown status " + $unknown[0].status) }
         elseif ($failed.Count -gt 0) { Add-Row $label "FAIL" ([string]$failed.Count + " of " + $checks.Count + " checks failed: " + $failed[0].check) }
-        elseif ($notRun.Count -gt 0) { Add-Row $label "NOT RUN" ([string]$notRun.Count + " of " + $checks.Count + " checks not run") }
+        elseif ($absent.Count -gt 0) { Add-Row $label "FAIL" ("required check missing or repeated: " + $absent[0]) }
+        elseif ($row -clike "upgrade-*" -and $checks.Count -ne $required.Count) { Add-Row $label "FAIL" ("upgrade report must have exactly " + $required.Count + " checks") }
+        elseif ($ProtocolRows -ccontains $row -and (-not (Has-Property $report "protocol_sha256") -or $report.protocol_sha256 -isnot [string] -or $report.protocol_sha256 -cnotmatch '^[0-9a-f]{64}\z')) { Add-Row $label "FAIL" "no protocol SHA-256 (protocol_sha256)" }
+        elseif ($notRun.Count -gt 0) {
+            $why = ""
+            if ((Has-Property $notRun[0] "detail") -and $notRun[0].detail -is [string]) { $why = ": " + $notRun[0].detail }
+            Add-Row $label "NOT RUN" ($prefix + [string]$notRun.Count + " of " + $checks.Count + " checks not run" + $why) $optional
+        }
         else { Add-Row $label "PASS" ([string]$checks.Count + " checks") }
     }
 }
@@ -354,7 +372,7 @@ New-SnapshotDir $Snapshot
 try {
     $OriginalDir = (Resolve-Path -LiteralPath $CandidateDir).Path
     if (-not (Test-CandidateDir $OriginalDir) -or -not (Copy-Snapshot $OriginalDir $Snapshot)) {
-        $script:Rows | Format-Table -AutoSize -Wrap | Out-String -Width 220 | Write-Host
+        $script:Rows | Format-Table Area, Status, Detail -AutoSize -Wrap | Out-String -Width 220 | Write-Host
         Write-Host "OVERALL: FAIL"
         Write-Host "Signing refused: every row must be PASS."
         exit 1
@@ -375,9 +393,9 @@ try {
         Test-Acceptance $CandidateDir $manifest $listed
     }
 
-    $script:Rows | Format-Table -AutoSize -Wrap | Out-String -Width 220 | Write-Host
+    $script:Rows | Format-Table Area, Status, Detail -AutoSize -Wrap | Out-String -Width 220 | Write-Host
     $failed = @($script:Rows | Where-Object { $_.Status -ceq "FAIL" -or @("PASS", "NOT RUN") -cnotcontains $_.Status })
-    $notRun = @($script:Rows | Where-Object { $_.Status -ceq "NOT RUN" })
+    $notRun = @($script:Rows | Where-Object { $_.Status -ceq "NOT RUN" -and -not $_.Optional })
     $overall = "PASS"
     if ($failed.Count -gt 0 -or $script:Rows.Count -eq 0) { $overall = "FAIL" } elseif ($notRun.Count -gt 0) { $overall = "NOT RUN" }
     Write-Host ("OVERALL: " + $overall + "   checksum list SHA-256 " + (Get-FileSha256 $sumsPath))

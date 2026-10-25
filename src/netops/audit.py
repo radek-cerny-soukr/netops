@@ -3,13 +3,17 @@ from datetime import datetime, timezone
 import fcntl
 import json
 import os
+import re
 from pathlib import Path
 import socket
 import ssl
+import stat
 import time
 import uuid
 from .files import MAX_MESSAGE, check_regular, read_private, sync_directory, write_private
 from .redaction import redact
+from .diagnostics import operation_error
+from .syslog_parts import encode_messages, frame_message
 
 def strict_pairs(pairs):
     result = {}
@@ -53,10 +57,12 @@ def file_order(path):
             return (3, int(prefix), name)
     return (0, 0, name)
 
-def incomplete_tail(path):
+def incomplete_tail(path, owner=None):
     fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC | os.O_NONBLOCK)
     try:
-        check_regular(fd)
+        info = check_regular(fd, owner)
+        if not info.st_mode & stat.S_IRUSR:
+            raise operation_error("file-mode")
         size = os.fstat(fd).st_size
         return size > 0 and os.pread(fd, 1, size - 1) != b"\n"
     finally:
@@ -126,6 +132,28 @@ def recover(directory):
         results.append({"segment": path.name, "bytes": len(fragment), "sha256": hashlib.sha256(fragment).hexdigest(), "quarantine": quarantine.name})
     return results
 
+def audit_limits(settings):
+    budget = int(settings.get("budget_bytes", 268435456))
+    segment_size = int(settings.get("segment_bytes", 16777216))
+    retention_seconds = int(settings.get("retention_seconds", 604800))
+    if budget < MAX_MESSAGE * 4 or not MAX_MESSAGE <= segment_size <= budget or retention_seconds <= 0:
+        raise ValueError("Invalid audit disk budget or retention")
+    return budget, segment_size, retention_seconds
+
+def rejection_snapshot(directory, owner):
+    counts = {"authentication_required": 0, "https_required": 0}
+    try:
+        data = read_private(Path(directory) / "rejections.json", 4096, owner)
+    except FileNotFoundError:
+        return counts, None, None
+    prior = json.loads(data)
+    for key in counts:
+        value = prior["counts"][key]
+        if type(value) is not int or not 0 <= value <= 9223372036854775807:
+            raise ValueError("Invalid rejection summary")
+        counts[key] = value
+    return counts, prior.get("first"), prior.get("last")
+
 class Audit:
     def __init__(self, directory, settings, secrets=()):
         self.directory = Path(directory)
@@ -133,29 +161,14 @@ class Audit:
         self.secrets = secrets
         self.lock = asyncio.Lock()
         self.heavy = asyncio.Semaphore(1)
-        self.budget = int(settings.get("budget_bytes", 268435456))
-        self.segment_size = int(settings.get("segment_bytes", 16777216))
-        self.retention_seconds = int(settings.get("retention_seconds", 604800))
-        if self.budget < MAX_MESSAGE * 4 or not MAX_MESSAGE <= self.segment_size <= self.budget or self.retention_seconds <= 0:
-            raise ValueError("Invalid audit disk budget or retention")
+        self.budget, self.segment_size, self.retention_seconds = audit_limits(settings)
         self.directory.mkdir(mode=0o700, exist_ok=True)
         self.current = self.directory / "current.jsonl"
         self.stop = asyncio.Event()
         self.rejections_path = self.directory / "rejections.json"
-        self.rejections = {"authentication_required": 0, "https_required": 0}
-        self.rejections_first = None
-        self.rejections_last = None
         self.rejections_due = 0.0
         self.rejections_task = None
-        if self.rejections_path.exists():
-            prior = json.loads(read_private(self.rejections_path, 4096, os.geteuid()))
-            for key in self.rejections:
-                value = prior["counts"][key]
-                if type(value) is not int or not 0 <= value <= 9223372036854775807:
-                    raise ValueError("Invalid rejection summary")
-                self.rejections[key] = value
-            self.rejections_first = prior.get("first")
-            self.rejections_last = prior.get("last")
+        self.rejections, self.rejections_first, self.rejections_last = rejection_snapshot(self.directory, os.geteuid())
 
     def _rejection_snapshot(self):
         return {"representation": "aggregated-rejections", "counts": dict(self.rejections), "first": self.rejections_first, "last": self.rejections_last, "body_read": False, "body_retained": False, "headers_retained": False, "flush_interval_seconds": 60, "crash_may_lose_latest_seconds": 60}
@@ -289,13 +302,16 @@ class Audit:
             raise asyncio.CancelledError
         return result
 
-    def _frame(self, path):
-        data = read_private(path, MAX_MESSAGE * 2, os.geteuid()).rstrip(b"\n")
-        message = b"<134>1 " + datetime.now(timezone.utc).isoformat().encode() + b" - netops - - - " + data
-        return str(len(message)).encode() + b" " + message
+    def _frames(self, path):
+        match = re.fullmatch(r"[0-9]+-([0-9a-f]{32})\.queue", path.name)
+        if match is None:
+            raise ValueError("Audit queue filename has no persistent record identity")
+        data = read_private(path, MAX_MESSAGE * 2, os.geteuid())
+        timestamp = datetime.now(timezone.utc).isoformat(timespec="microseconds")
+        return [frame_message(message) for message in encode_messages(data, match.group(1), timestamp)]
 
     def _deliver(self, paths):
-        frames = [self._frame(path) for path in paths]
+        frames = [frame for path in paths for frame in self._frames(path)]
         timeout = 10 + sum(len(frame) for frame in frames) / SYSLOG_MIN_RATE
         host = self.settings["host"]
         port = int(self.settings.get("port", 6514))

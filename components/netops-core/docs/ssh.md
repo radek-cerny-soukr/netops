@@ -17,8 +17,10 @@ open, and never falls back to a weaker setting when something fails.
 
 The options are built per authentication kind. A key uses `BatchMode=yes`. A password cannot:
 `BatchMode=yes` disables the askpass program, so password authentication uses `BatchMode=no` plus
-`NumberOfPasswordPrompts=1` and `PubkeyAuthentication=no`, which keeps a failed password a single
-failure instead of a prompt loop or a silent fallback to a key.
+`PreferredAuthentications=password`, `KbdInteractiveAuthentication=no`,
+`NumberOfPasswordPrompts=1` and `PubkeyAuthentication=no`. This permits one password attempt
+and no fallback to another method. A server offering only keyboard-interactive is refused
+without sending the password. The same options apply to command, terminal and SFTP transports.
 
 `UserKnownHostsFile` points at a file inside the workspace of this one call, written from the host key
 line the caller passes in, and `GlobalKnownHostsFile=/dev/null` follows it, so the host's own

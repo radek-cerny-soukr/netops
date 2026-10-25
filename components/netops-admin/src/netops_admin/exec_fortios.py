@@ -105,6 +105,9 @@ def safeguard_disarmed(access, record) -> bool:
         return False
 
 
+FIRING_OBSERVED = False
+
+
 def safeguard_fired(access, record) -> bool:
     return True
 

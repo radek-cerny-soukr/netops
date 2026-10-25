@@ -12,6 +12,7 @@ persist=exec_fortios.persist
 ports=exec_fortios.ports
 prechecks=exec_fortios.prechecks
 safeguard_fired=exec_fortios.safeguard_fired
+FIRING_OBSERVED=exec_fortios.FIRING_OBSERVED
 
 def hostname(access,text):
     return access.hostname

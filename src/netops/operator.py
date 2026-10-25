@@ -53,7 +53,7 @@ def _validate_helper_inventory(path, store):
         raise _configuration_message("helper-inventory") from None
 
 def acquire_state():
-    read_state_settings(STATE)
+    read_state_settings(STATE, allow_previous=True)
     descriptor = os.open(STATE / "gateway" / "instance.lock", os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW | os.O_CLOEXEC, 0o600)
     if os.fstat(descriptor).st_uid == 0:
         os.fchown(descriptor, UIDS["gateway"], UIDS["gateway"])

@@ -6,7 +6,7 @@ Compatibility is scoped to the exact platform, firmware build, model, account po
 
 ## Host operating system
 
-NetOps deployment hosts run Linux with Docker Engine and Compose. Supported host families are Ubuntu, Debian, Fedora Server and Raspberry Pi OS 64, on amd64 or arm64 where the distribution supports the architecture. Fedora requires Docker SELinux support with the host enforcing. Docker Engine in rootless mode is not part of the qualified platform matrix. Windows and macOS can run MCP clients; deployment requires a supported Linux guest. The [single-product quickstart](quickstart-1.0.md) is the only installation path. Engines are not separately installed. Support is bounded by the exact current release qualification; no platform inherits PASS from an older candidate.
+NetOps deployment hosts run Linux with Docker Engine and Compose. Supported host families are Ubuntu, Debian and Fedora Server on amd64 and arm64, and Raspberry Pi OS 64-bit on arm64. Fedora requires Docker SELinux support with the host enforcing. Docker Engine runs as root or in rootless mode. macOS and Windows are supported only as MCP client hosts (Claude Code, Codex); they are not supported or tested as NetOps servers. The [single-product quickstart](quickstart-1.0.md) is the only installation path. Engines are not separately installed. Support is bounded by the exact current release qualification; no platform inherits PASS from an older candidate.
 
 ## FortiOS bounds
 
@@ -30,7 +30,7 @@ Linux read and diagnostic paths retain their documented distribution, architectu
 
 ## Clock and state boundaries
 
-FortiOS and ExtremeXOS safeguards can follow device-clock changes. Admin requires verified removal or return evidence tied to its own safeguard. Incomplete listings or missing proof do not establish success; unverified return leaves the operation unknown and the device blocked. A forward clock jump before a FortiOS safeguard is loaded can leave an unreturned change as revert-failed.
+FortiOS and ExtremeXOS safeguards can follow device-clock changes. Admin requires verified removal or return evidence tied to its own safeguard. Incomplete listings or missing proof do not establish success; unverified return leaves the operation unknown and the device blocked. FortiOS gives Admin no device proof that its stitch ran: when the state after the fire time and grace differs from the state before the change, Admin keeps a still installed stitch and reports unknown with the device blocked; only when the stitch is no longer installed does the operation end as revert-failed. A person removes a kept stitch after checking the device; a new change is refused while it is installed. A forward clock jump before a FortiOS safeguard is loaded can therefore leave an unreturned change as unknown, with a stitch that may never run.
 
 Host-side elapsed budgets use monotonic time within one boot; across reboot, trusted elapsed time is not guaranteed. Shared admission locks and the journal preserve request identity, but separate journal/index files do not imply filesystem atomicity between those files.
 

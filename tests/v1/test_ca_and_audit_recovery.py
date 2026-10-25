@@ -7,6 +7,7 @@ import tempfile
 import unittest
 from datetime import datetime, timedelta, timezone
 from unittest.mock import patch
+from netops import __version__
 from netops.audit import Audit, AuditUnavailable, incomplete_tail, recover
 from netops.files import UIDS, write_private
 
@@ -139,7 +140,7 @@ class AuditRecovery(unittest.IsolatedAsyncioTestCase):
             audit = Path(directory) / "gateway" / "audit"
             audit.mkdir(parents=True)
             write_private(audit.parent / "config.json", json.dumps({
-                "version": 1, "product_version": "1.0.0", "server_name": NAME,
+                "version": 1, "product_version": __version__, "server_name": NAME,
                 "external_port": 8443, "admin_enabled": True,
                 "audit": {"mode": "local", "budget_bytes": 268435456,
                           "segment_bytes": 16777216, "retention_seconds": 604800},
@@ -177,7 +178,7 @@ class PendingAndIdentity(unittest.TestCase):
             audit = Path(directory) / "gateway" / "audit"
             audit.mkdir(parents=True)
             write_private(audit.parent / "config.json", json.dumps({
-                "version": 1, "product_version": "1.0.0", "server_name": NAME,
+                "version": 1, "product_version": __version__, "server_name": NAME,
                 "external_port": 8443, "admin_enabled": True,
                 "audit": {"mode": "local", "budget_bytes": 268435456,
                           "segment_bytes": 16777216, "retention_seconds": 604800},
