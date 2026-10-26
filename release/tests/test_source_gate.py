@@ -137,6 +137,86 @@ class Privacy(unittest.TestCase):
                                 capture_output=True, text=True, timeout=20)
         self.assertEqual(result.returncode,0,result.stdout+result.stderr)
 
+SCHEMA_DIR = "release/schema/cyclonedx-1.7/"
+SCHEMA_FILES = ("PROVENANCE.json", "bom-1.7.schema.json", "cryptography-defs.schema.json",
+                "jsf-0.82.schema.json", "spdx.schema.json")
+
+class VendoredSchemas(unittest.TestCase):
+    def setUp(self):
+        self.rules = gate.legacy(ROOT)
+
+    def scan(self, relative, text):
+        return gate.privacy_text(self.rules, relative, text)
+
+    def source(self, name):
+        return (ROOT / SCHEMA_DIR / name).read_bytes().decode("utf-8")
+
+    def test_pinned_vendored_schemas_pass_only_their_domain_scan(self):
+        for name in SCHEMA_FILES:
+            with self.subTest(name=name):
+                text = self.source(name)
+                self.assertTrue(self.rules._address_errors(SCHEMA_DIR + name, text, True))
+                self.assertEqual(self.scan(SCHEMA_DIR + name, text), [])
+
+    def test_any_changed_byte_restores_the_domain_scan(self):
+        for name in SCHEMA_FILES:
+            text = self.source(name)
+            index = text.index('"', len(text) // 2)
+            for changed in (text + chr(10), text[:-1], text[:index] + "'" + text[index + 1:]):
+                with self.subTest(name=name, size=len(changed)):
+                    self.assertIn("network or domain material in " + SCHEMA_DIR + name,
+                                  self.scan(SCHEMA_DIR + name, changed))
+
+    def test_other_privacy_checks_still_apply_to_vendored_paths(self):
+        import hashlib, ipaddress
+        from unittest import mock
+        relative = SCHEMA_DIR + "spdx.schema.json"
+        text = self.source("spdx.schema.json")
+        for payload, reason in (
+            ('"rpi' + '5-master"', "private marker in "),
+            ('"gh' + 'p_' + "A" * 36 + '"', "credential-shaped material in "),
+            ('"' + str(ipaddress.ip_address(0xC0A80A14)) + '"', "network or domain material in "),
+            ('"' + str(ipaddress.ip_address((0xFD12 << 112) + (0x3456 << 96) + 1)) + '"', "network or domain material in "),
+            ('"' + ":".join("%02x" % part for part in (0x3C, 0x2A, 0xF4, 0x11, 0x22, 0x33)) + '"',
+             "network or domain material in "),
+        ):
+            changed = text.replace('"enum": [', '"enum": [' + payload + ", ", 1)
+            self.assertNotEqual(changed, text)
+            with self.subTest(payload=payload):
+                self.assertIn(reason + relative, self.scan(relative, changed))
+                repinned = {relative: hashlib.sha256(changed.encode("utf-8")).hexdigest()}
+                with mock.patch.dict(gate.VENDORED_SCHEMA_PINS, repinned):
+                    self.assertIn(reason + relative, self.scan(relative, changed))
+        domain_only = text.replace('"enum": [', '"enum": ["operator-domain' + '.cz", ', 1)
+        repinned = {relative: hashlib.sha256(domain_only.encode("utf-8")).hexdigest()}
+        with mock.patch.dict(gate.VENDORED_SCHEMA_PINS, repinned):
+            self.assertEqual(self.scan(relative, domain_only), [])
+
+    def test_identical_content_outside_the_pinned_paths_is_scanned(self):
+        text = self.source("bom-1.7.schema.json")
+        for relative in ("docs/bom-1.7.schema.json", SCHEMA_DIR + "copy/bom-1.7.schema.json",
+                         SCHEMA_DIR + "extra.schema.json", "release/schema/bom-1.7.schema.json"):
+            with self.subTest(relative=relative):
+                self.assertIn("network or domain material in " + relative, self.scan(relative, text))
+        self.assertIn("network or domain material in docs/source.json",
+                      self.scan("docs/source.json", '{"source": "https://operator-domain' + '.cz/x"}'))
+
+    def test_pins_match_provenance_and_the_sbom_gate(self):
+        import ast, hashlib, json
+        provenance = json.loads(self.source("PROVENANCE.json"))
+        recorded = {SCHEMA_DIR + item["file"]: item["sha256"]
+                    for item in provenance["files"] if item["file"].endswith(".json")}
+        tree = ast.parse((ROOT / "release/sbom_gate.py").read_text())
+        pins = next(ast.literal_eval(node.value) for node in tree.body if isinstance(node, ast.Assign)
+                    and any(isinstance(t, ast.Name) and t.id == "PINS" for t in node.targets))
+        self.assertEqual(recorded, {SCHEMA_DIR + name: sha for name, sha in pins.items()})
+        provenance_path = SCHEMA_DIR + "PROVENANCE.json"
+        expected = dict(recorded)
+        expected[provenance_path] = hashlib.sha256((ROOT / provenance_path).read_bytes()).hexdigest()
+        self.assertEqual(gate.VENDORED_SCHEMA_PINS, expected)
+        for relative, sha in expected.items():
+            self.assertEqual(hashlib.sha256((ROOT / relative).read_bytes()).hexdigest(), sha)
+
 class BuildInputs(unittest.TestCase):
 
     def test_runtime_bootstrap_source_is_in_the_narrow_build_context(self):
@@ -210,6 +290,44 @@ class SharedProductBoundaries(unittest.TestCase):
         p=self.root/"components/netops-helper/src/netops_helper/__init__.py"
         p.write_text('__version__ = "1.0.0"\n')
         self.assertIn("component does not import product version: helper",gate.check(self.root))
+
+    def test_clean_tree_with_vendored_schemas_passes_and_a_changed_byte_fails(self):
+        import shutil, subprocess
+        for name in SCHEMA_FILES:
+            target = self.root / SCHEMA_DIR / name
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(ROOT / SCHEMA_DIR / name, target)
+        subprocess.run(["git", "-C", str(self.root), "add", "."], check=True, capture_output=True)
+        self.assertEqual(gate.check(self.root), [])
+        target = self.root / SCHEMA_DIR / "jsf-0.82.schema.json"
+        target.write_bytes(target.read_bytes() + b"\n")
+        self.assertEqual(gate.check(self.root),
+                         ["network or domain material in " + SCHEMA_DIR + "jsf-0.82.schema.json"])
+        shutil.copy2(ROOT / SCHEMA_DIR / "jsf-0.82.schema.json", target)
+        self.assertEqual(gate.check(self.root), [])
+        provenance = self.root / SCHEMA_DIR / "PROVENANCE.json"
+        provenance.write_bytes(provenance.read_bytes().replace(b'"unmodified": true', b'"unmodified": false'))
+        self.assertEqual(gate.check(self.root),
+                         ["network or domain material in " + SCHEMA_DIR + "PROVENANCE.json"])
+        shutil.copy2(ROOT / SCHEMA_DIR / "PROVENANCE.json", provenance)
+        for extra in (SCHEMA_DIR + "bom-1.8.schema.json", "docs/bom-1.7.schema.json"):
+            path = self.root / extra
+            path.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(ROOT / SCHEMA_DIR / "bom-1.7.schema.json", path)
+            subprocess.run(["git", "-C", str(self.root), "add", extra], check=True, capture_output=True)
+            with self.subTest(extra=extra):
+                self.assertEqual(gate.check(self.root), ["network or domain material in " + extra])
+            subprocess.run(["git", "-C", str(self.root), "rm", "-q", "--cached", extra], check=True, capture_output=True)
+            path.unlink()
+        self.assertEqual(gate.check(self.root), [])
+        outside = self.root / "outside-bom.json"
+        shutil.copy2(ROOT / SCHEMA_DIR / "bom-1.7.schema.json", outside)
+        linked = self.root / SCHEMA_DIR / "bom-1.7.schema.json"
+        linked.unlink()
+        linked.symlink_to(outside)
+        errors = gate.check(self.root)
+        self.assertIn("tracked path is not a single regular file: " + SCHEMA_DIR + "bom-1.7.schema.json", errors)
+        self.assertTrue(errors)
 
     def test_tracked_source_refuses_symlinks_nul_and_invalid_utf8(self):
         import ipaddress, subprocess

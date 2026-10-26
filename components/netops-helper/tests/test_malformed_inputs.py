@@ -454,7 +454,7 @@ def _verdict(result, codes):
 
 
 def _matrix(cases, codes):
-    with ThreadPoolExecutor(max_workers=max(2, os.cpu_count() or 2)) as pool:
+    with ThreadPoolExecutor(max_workers=guard.workers()) as pool:
         results = list(pool.map(lambda item: _launch(*item), cases.values()))
     return {name: found for name, result in zip(cases, results) if (found := _verdict(result, codes))}
 
@@ -999,6 +999,37 @@ def test_the_server_refusal_check_leaves_closing_stdin_to_communicate() -> None:
         test_the_server_process_answers_a_refusal_without_a_traceback_in_its_log()
     finally:
         subprocess.Popen = original
+
+
+def test_workers_never_exceed_the_cgroup_cpu_quota() -> None:
+    cases = {
+        "200000 100000\n": 2, "150000 100000\n": 2, "50000 100000\n": 1, "1600000 100000\n": 8,
+        "max 100000\n": 8, None: 8, "directory": 8, "nonsense\n": 8, "abc 100000\n": 8,
+        "100000 0\n": 8, b"\xff\xfe": 8,
+    }
+    saved = os.__dict__.get("process_cpu_count"), os.cpu_count
+    os.process_cpu_count, os.cpu_count = (lambda: 8), (lambda: 16)
+    try:
+        with tempfile.TemporaryDirectory() as directory:
+            for index, (content, expected) in enumerate(cases.items()):
+                cpu_max = Path(directory) / ("cpu.max.%d" % index)
+                if content == "directory":
+                    cpu_max.mkdir()
+                elif isinstance(content, bytes):
+                    cpu_max.write_bytes(content)
+                elif content is not None:
+                    cpu_max.write_text(content)
+                assert guard.workers(cpu_max) == expected, (content, guard.workers(cpu_max))
+            os.process_cpu_count, os.cpu_count = (lambda: None), (lambda: 4)
+            assert guard.workers(Path(directory) / "missing") == 4
+            os.cpu_count = lambda: None
+            assert guard.workers(Path(directory) / "missing") == 1
+    finally:
+        if saved[0] is None:
+            del os.process_cpu_count
+        else:
+            os.process_cpu_count = saved[0]
+        os.cpu_count = saved[1]
 
 
 def main() -> int:

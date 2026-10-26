@@ -1,3 +1,5 @@
+import base64
+import hashlib
 import json
 import os
 import pathlib
@@ -271,6 +273,243 @@ class ReportGate(unittest.TestCase):
                 self.assertIn(kind, out)
                 self.assertNotIn(token, out)
                 self.assertNotIn(host, out)
+
+
+    def test_base64_private_paths_and_markers_fail_without_printing_values(self):
+        for private in (HOME_PATH, "rpi" + "5-master", "private" + "-" + "lab"):
+            value = "???" + private
+            for encode in (base64.b64encode, base64.urlsafe_b64encode):
+                padded = encode(value.encode("utf-8")).decode("ascii")
+                for hidden in (padded, padded.rstrip("=")):
+                    with self.subTest(encoder=encode.__name__, padded=hidden.endswith("=")):
+                        files = self.clean()
+                        files["acceptance-ubuntu-amd64-blackbox.json"] = report("evidence: " + hidden)
+                        rc, out = self.run_gate(files)
+                        self.assertEqual(rc, 1, out)
+                        self.assertIn("private", out)
+                        self.assertNotIn(hidden, out)
+                        self.assertNotIn(private, out)
+
+    def test_base64_composes_with_percent_and_escape_decoding(self):
+        private = HOME_PATH
+        encoded = base64.b64encode(private.encode("utf-8")).decode("ascii")
+        percent = "".join("%%%02X" % b for b in private.encode("utf-8"))
+        escaped = "".join(chr(92) + "x%02x" % b for b in private.encode("utf-8"))
+        cases = (
+            "".join("%%%02X" % ord(c) for c in encoded),
+            "".join(chr(92) + "x%02x" % ord(c) for c in encoded),
+            base64.b64encode(percent.encode("ascii")).decode("ascii"),
+            base64.urlsafe_b64encode(escaped.encode("ascii")).decode("ascii").rstrip("="),
+            base64.b64encode(encoded.encode("ascii")).decode("ascii"),
+        )
+        for hidden in cases:
+            for name in ("env.example", "acceptance-ubuntu-amd64-blackbox.json"):
+                with self.subTest(name=name, hidden_length=len(hidden)):
+                    files = self.clean()
+                    files[name] = "VALUE=" + hidden + "\n" if name == "env.example" else report(hidden)
+                    rc, out = self.run_gate(files)
+                    self.assertEqual(rc, 1, out)
+                    self.assertIn("private path", out)
+                    self.assertNotIn(private, out)
+                    self.assertNotIn(hidden, out)
+
+    def test_base64_vendor_values_and_json_keys_are_checked(self):
+        hidden = base64.urlsafe_b64encode(("???" + HOME_PATH).encode("utf-8")).decode("ascii")
+        cases = (
+            ("netops-1.0.0-linux-amd64.cdx.json",
+             {"bomFormat": "CycloneDX", "components": [{"name": "pkg", "description": hidden}]}),
+            ("netops-1.0.0-linux-amd64-grype.json",
+             {"matches": [{"vulnerability": {"description": hidden}}], "descriptor": {"name": "grype"}}),
+            ("acceptance-ubuntu-amd64-blackbox.json", {hidden: "ok"}),
+        )
+        for name, content in cases:
+            with self.subTest(name=name):
+                files = self.clean()
+                files[name] = content
+                rc, out = self.run_gate(files)
+                self.assertEqual(rc, 1, out)
+                self.assertIn("private path", out)
+                self.assertNotIn(HOME_PATH, out)
+                self.assertNotIn(hidden, out)
+
+    def test_base64_benign_hashes_hex_text_and_binary_remain_allowed(self):
+        values = (
+            "a" * 40, "1" * 64,
+            "0123456789abcdef" * 4,
+            base64.b64encode(b"all checks passed").decode("ascii"),
+            base64.urlsafe_b64encode(b"public release evidence").decode("ascii").rstrip("="),
+            base64.b64encode(bytes((255, 254, 253, 252, 251, 250))).decode("ascii"),
+            "not!a!base64!token",
+        )
+        files = self.clean()
+        files["acceptance-ubuntu-amd64-blackbox.json"] = report(" ".join(values))
+        rc, out = self.run_gate(files)
+        self.assertEqual(rc, 0, out)
+        self.assertIn("report_gate=PASS", out)
+
+
+    def test_base64_utf16_and_binary_hide_no_private_values(self):
+        windows = "C:" + chr(92) + "Users" + chr(92) + "operator" + chr(92) + "bundle"
+        marker = "private" + "-" + "lab"
+        cases = (
+            (windows.encode("utf-16-le"), "private path"),
+            (windows.encode("utf-16"), "private path"),
+            (HOME_PATH.encode("utf-16-be"), "private path"),
+            (bytes((0, 255, 254, 1)) + HOME_PATH.encode("ascii") + bytes((0, 159, 146)), "private path"),
+            (bytes((128, 255)) + (" " + marker + " ").encode("ascii") + bytes((0, 192)), "private marker"),
+            (marker.encode("utf-16-le"), "private marker"),
+        )
+        for raw, expected in cases:
+            for encode in (base64.b64encode, base64.urlsafe_b64encode):
+                hidden = encode(raw).decode("ascii")
+                with self.subTest(raw=raw, encoder=encode.__name__):
+                    files = self.clean()
+                    files["acceptance-ubuntu-amd64-blackbox.json"] = report("evidence " + hidden)
+                    rc, out = self.run_gate(files)
+                    self.assertEqual(rc, 1, out)
+                    self.assertIn(expected, out)
+                    self.assertNotIn(hidden, out)
+                    self.assertNotIn("operator", out)
+
+    def test_base64_binary_digests_stay_allowed_without_spending_the_budget(self):
+        digests = [hashlib.sha256(b"%d" % index).digest() for index in range(6000)]
+        values = [base64.b64encode(digest).decode("ascii") for digest in digests]
+        values += [base64.urlsafe_b64encode(hashlib.sha512(digest).digest()).decode("ascii").rstrip("=") for digest in digests[:2000]]
+        self.assertGreater(sum(len(value) for value in values) * 3 // 4, 2 * 128 * 1024)
+        files = self.clean()
+        files["acceptance-ubuntu-amd64-blackbox.json"] = report(" ".join(values))
+        rc, out = self.run_gate(files)
+        self.assertEqual(rc, 0, out)
+        self.assertIn("report_gate=PASS", out)
+
+    def test_base64_separate_path_and_encoded_runs_do_not_mask_each_other(self):
+        private_path = "/" + "srv" + "/fixture-record"
+        marker = "private" + "-" + "lab"
+        hidden = base64.b64encode(marker.encode("ascii")).decode("ascii")
+        files = self.clean()
+        files["acceptance-ubuntu-amd64-blackbox.json"] = report(
+            "record " + private_path + " evidence " + hidden)
+        rc, out = self.run_gate(files)
+        self.assertEqual(rc, 1, out)
+        self.assertIn("private path", out)
+        self.assertIn("private marker", out)
+        self.assertNotIn(private_path, out)
+        self.assertNotIn(hidden, out)
+        self.assertNotIn(marker, out)
+
+        benign = base64.urlsafe_b64encode(b"all checks passed").decode("ascii").rstrip("=")
+        files = self.clean()
+        files["acceptance-ubuntu-amd64-blackbox.json"] = report(
+            "record /usr/share/fixture-record evidence " + benign)
+        rc, out = self.run_gate(files)
+        self.assertEqual(rc, 0, out)
+        self.assertIn("report_gate=PASS", out)
+
+    def docker_metadata_scan(self, architecture="amd64", source_label="https://github.com/example/image"):
+        manifest = {"schemaVersion": 2,
+                    "mediaType": "application/vnd.docker.distribution.manifest.v2+json",
+                    "config": {"mediaType": "application/vnd.docker.container.image.v1+json",
+                               "size": 1, "digest": "sha256:" + "1" * 64},
+                    "layers": [{"mediaType": "application/vnd.docker.image.rootfs.diff.tar.gzip",
+                                "size": 1, "digest": "sha256:" + "2" * 64}]}
+        config = {"architecture": architecture, "os": "linux",
+                  "config": {"Labels": {"org.opencontainers.image.source": source_label}},
+                  "history": [{"created_by": "update ca-certificates.crt"}],
+                  "rootfs": {"type": "layers", "diff_ids": ["sha256:" + "3" * 64]}}
+        encode = lambda value: base64.b64encode(json.dumps(value).encode("utf-8")).decode("ascii")
+        return {"matches": [], "descriptor": {"name": "grype"},
+                "source": {"target": {"manifest": encode(manifest), "config": encode(config)}}}
+
+    def test_base64_docker_metadata_remains_allowed(self):
+        for architecture in ("amd64", "arm64"):
+            with self.subTest(architecture=architecture):
+                files = self.clean()
+                files["netops-1.0.0-linux-" + architecture + "-grype.json"] = self.docker_metadata_scan(architecture)
+                rc, out = self.run_gate(files)
+                self.assertEqual(rc, 0, out)
+                self.assertIn("report_gate=PASS", out)
+
+    def test_base64_docker_metadata_keeps_private_and_original_guards(self):
+        for label, expected in ((HOME_PATH, "private path"),
+                                ("private" + "-" + "lab", "private marker")):
+            with self.subTest(encoded=expected):
+                files = self.clean()
+                files["netops-1.0.0-linux-amd64-grype.json"] = self.docker_metadata_scan(source_label=label)
+                rc, out = self.run_gate(files)
+                self.assertEqual(rc, 1, out)
+                self.assertIn(expected, out)
+                self.assertNotIn(label, out)
+        for field, value, expected in (
+            ("unexpected_field", "safe", "unexpected vendor field"),
+            ("labels", {"org.opencontainers.image.source": "https://fixture-host.home/docs"}, "host name"),
+        ):
+            with self.subTest(original_field=field):
+                files = self.clean()
+                scan = self.docker_metadata_scan()
+                scan["source"]["target"][field] = value
+                files["netops-1.0.0-linux-amd64-grype.json"] = scan
+                rc, out = self.run_gate(files)
+                self.assertEqual(rc, 1, out)
+                self.assertIn(expected, out)
+
+    def test_base64_nesting_beyond_shared_limit_fails_closed(self):
+        hidden = HOME_PATH
+        for _ in range(9):
+            hidden = base64.b64encode(hidden.encode("utf-8")).decode("ascii")
+        files = self.clean()
+        files["acceptance-ubuntu-amd64-blackbox.json"] = report(hidden)
+        rc, out = self.run_gate(files)
+        self.assertEqual(rc, 1, out)
+        self.assertIn("unusable text encoding", out)
+        self.assertNotIn(HOME_PATH, out)
+        self.assertNotIn(hidden, out)
+
+    def test_base64_candidate_and_total_decoded_size_are_bounded(self):
+        cases = (
+            base64.b64encode(b"a" * (48 * 1024 + 3)).decode("ascii"),
+            " ".join(base64.b64encode(b"a" * (16 * 1024 - 1) + bytes((97 + i,))).decode("ascii") for i in range(9)),
+        )
+        for hidden in cases:
+            with self.subTest(encoded_length=len(hidden)):
+                files = self.clean()
+                files["acceptance-ubuntu-amd64-blackbox.json"] = report(hidden)
+                rc, out = self.run_gate(files)
+                self.assertEqual(rc, 1, out)
+                self.assertIn("unusable text encoding", out)
+                self.assertNotIn(hidden, out)
+
+    def large_escaped_sbom(self, suffix):
+        files = self.clean()
+        name = "netops-1.0.0-linux-amd64.cdx.json"
+        document = files[name]
+        document["components"][0]["description"] = "ok " * 225000 + "ESCAPED_SUFFIX"
+        content = json.dumps(document).replace("ESCAPED_SUFFIX", suffix)
+        self.assertGreater(len(content.encode("utf-8")), 650000)
+        files[name] = content
+        return files
+
+    def test_large_sbom_percent_and_unicode_escapes_do_not_spend_base64_budget(self):
+        for suffix in ("a%20b", r"a\u0020b"):
+            with self.subTest(suffix=suffix):
+                rc, out = self.run_gate(self.large_escaped_sbom(suffix))
+                self.assertEqual(rc, 0, out)
+                self.assertIn("report_gate=PASS", out)
+                self.assertNotIn("unusable text encoding", out)
+
+    def test_large_sbom_still_finds_private_markers_after_unescape(self):
+        for suffix in ("private" + "%2dlab", "private" + r"\u002d" + "lab"):
+            with self.subTest(suffix=suffix):
+                rc, out = self.run_gate(self.large_escaped_sbom(suffix))
+                self.assertEqual(rc, 1, out)
+                self.assertIn("private marker", out)
+                self.assertNotIn("private" + "-" + "lab", out)
+
+    def test_large_escaped_sbom_keeps_base64_decoded_budget(self):
+        hidden = " ".join(base64.b64encode(b"a" * (16 * 1024 - 1) + bytes((97 + i,))).decode("ascii") for i in range(9))
+        rc, out = self.run_gate(self.large_escaped_sbom("a%20b " + hidden))
+        self.assertEqual(rc, 1, out)
+        self.assertIn("unusable text encoding", out)
+        self.assertNotIn(hidden, out)
 
     def test_escape_nesting_beyond_the_limit_fails_closed(self):
         value = chr(92) + "u0070"

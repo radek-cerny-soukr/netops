@@ -1,5 +1,36 @@
 # NetOps changelog
 
+## 1.0.3 - 2026-10-26
+
+### Fixed
+
+- Gateway: the ASGI delivery of a buffered, audited response has one absolute 60-second deadline. During body delivery a receive watcher also detects http.disconnect, which the shipped uvicorn h11 send can otherwise report silently. Body writes are bounded to 32 KiB and a final nonterminal send checks backpressure. An observed disconnect attempts the interrupted audit tail and returns without an application exception; timeout, cancellation and unexpected receive- or send-channel errors are audited when possible and still propagate. Buffered response sequences are validated before the response audit commit. See [Response delivery](release/notes-1.0.3.md#response-delivery).
+- Helper: the SSH connection to a runner host keeps the OpenSSH client message about a failed algorithm negotiation (log level `INFO` instead of `ERROR`) and reports it as `ssh_negotiation`, without the host or the offered algorithms. An SSH category (`ssh_host_key`, `ssh_negotiation`, `ssh_authentication`, `ssh_connection`) is reported only when the SSH client itself fails with exit status 255; any other exit status comes from the remote command and is reported as `remote_exec` or `ssh_transport`, as in 1.0.2. The category is decided by the last line of the client standard error other than the closing `Disconnected from ...` line of OpenSSH, matched against the exact OpenSSH client messages, and the Helper keeps the last 64 KiB of that output instead of the first, so a login banner of the runner, which the `INFO` level prints, neither changes the category nor pushes the real error out unless its last line reproduces such an OpenSSH message.
+- Gateway: the delivery deadline starts after the response and its audit commit are recorded; it does not cover admission waiting, operation execution, audit persistence, or direct gateway error and health responses. Small buffered sends and a close after the monitored phase may go unobserved; completion is not proof that the client received or read the response. Inspect audit pending, the recorded response and the device before repeating an operation; never retry writes automatically.
+- Health: `netops health` queries the roles at the same time and waits up to 5 seconds instead of 2 in total for their status answers, so single runs of the container healthcheck no longer fail while the Helper redacts an SSH output of 2 MB to 16 MiB on a slow CPU; a role that does not answer within these 5 seconds still fails the check, within the 10-second timeout of the container healthcheck.
+
+### Changed
+
+- Upgrade the state of NetOps 1.0.2: the first start of 1.0.3 converts its state under the instance lock and changes only the recorded product version, as the upgrade from 1.0.1 to 1.0.2 did. State of NetOps 1.0.1 is refused; it is upgraded to 1.0.2 first. The syslog audit format stays that of 1.0.2.
+
+### Release process
+
+- Remove the unused portable Helper contract runner `components/netops-helper/tests/run_tests.py`; nothing ran it since 1.0.0, which removed tests it still called.
+- The privacy gate of the release reports also decodes canonical standard and URL-safe base64 text, within shared layer and byte limits, for its private marker and private path checks; decoded content that is not UTF-8 text is checked without its NUL bytes (UTF-16) and by its printable runs of at least 8 characters; the public host-name checks do not decode it, which avoids false host findings in Docker metadata embedded in Grype reports.
+- The platform smoke check installs `python3` on hosts with apt before its checks.
+- Each architecture SBOM is validated offline against the complete, pinned CycloneDX 1.7 JSON schema before a release candidate is written; the SBOM must list components and its root container must match the exact image name and architecture digest.
+- The source privacy gate (`release/check_source.py`) skips only its domain check for the five vendored CycloneDX 1.7 schema files in `release/schema/cyclonedx-1.7/`, including the SPDX license schema, and only while each file matches its pinned SHA-256; every other check still applies to them.
+- Open placeholders in the public documentation (`release/placeholder_gate.py`): the candidate workflow refuses to build a release candidate while its release notes are missing, its changelog has no section of its version or its public documentation carries a placeholder other than the acceptance placeholder of that version (`acceptance-X.Y.Z`) and the release-date placeholder (`release-date`) in the heading of its changelog section; these two are filled after the acceptance of the candidate digests, and the signing tool refuses to sign while the Markdown of the source checkout given with `-SourceDir` still carries any placeholder, its release notes are missing or the changelog section of its version has no date.
+
+### Documentation
+
+- Quickstart: script forms of steps 7 and 8, the Compose `Container ... Creating`/`Created` lines named as Compose progress on standard error, and an authenticated `tools/list` over `curl` in step 9 with how to find the step 9 requests in the audit.
+- Quickstart upgrade: a `jq` filter that lists the `instance_start` records, `umask 077` in the variable block, the `-p` hint of `connection` explained for the new instance directory, and the directory of the previous instance found from its Compose label.
+- Document the upgrade from 1.0.2 to 1.0.3 in the quickstart, including a 1.0.2 instance that was upgraded from 1.0.1 (`~/netops-1.0.2`, project `netops-102`).
+- Helper tools and README: `ftp_list` is refused in the shipped profile, and its engine path check over `sftp_roots` is lexical, unlike `sftp_stat`.
+- Admin configuration: how NetOps reaches `unknown` with `safeguard_kept`, and how to prove a firing of the safeguard stitch on the FortiGate.
+- README: the covered assets of the signed checksum list are named by kind.
+
 ## 1.0.2 - 2026-10-25
 
 ### Security

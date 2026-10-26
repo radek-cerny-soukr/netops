@@ -1168,13 +1168,13 @@ def check_ssh_stderr_classification(module) -> None:
         ),
         (
             "Permission denied while reading /srv/docker/config.json",
-            "ssh_authentication",
-            "SSH authentication to the runner failed.",
+            "ssh_transport",
+            module.SSH_TRANSPORT_FAILURE_MESSAGE,
         ),
         (
             "permission denied while invoking a container runtime",
-            "ssh_authentication",
-            "SSH authentication to the runner failed.",
+            "ssh_transport",
+            module.SSH_TRANSPORT_FAILURE_MESSAGE,
         ),
         (
             "sh: 1: podman: not found",
@@ -1205,8 +1205,10 @@ class _RecordingStream(io.BytesIO):
 
 def check_ssh_stderr_is_read_in_bounded_chunks(module) -> None:
     kept = 65_536
-    first = b"Permission denied (publickey,password).\n"
-    stream = _RecordingStream(first + b"E" * (8 * 1024 * 1024) + b"\nlast line\n")
+    first = b"Connection timed out in a runner banner.\n"
+    middle = b"E" * (8 * 1024 * 1024) + b"\n" + b"F" * 100 + b"\n"
+    last = b"Permission denied (publickey,password).\n"
+    stream = _RecordingStream(first + middle + last)
     state = {"emitted": False}
     module._drain_stderr(stream, (), state)
     unbounded = sorted({
@@ -1215,7 +1217,8 @@ def check_ssh_stderr_is_read_in_bounded_chunks(module) -> None:
     })
     assert not unbounded, "stderr read without a bound: %s" % ", ".join(unbounded)
     assert stream.tell() == len(stream.getvalue()), "stderr was not drained to its end"
-    assert state["captured"] == (first + b"E" * (kept - len(first))).decode()
+    assert state["captured"] == (b"F" * 100 + b"\n" + last).decode()
+    assert len(state["captured"]) <= kept
     log = io.StringIO()
     with contextlib.redirect_stderr(log):
         module._exit_diagnostic(255, False, state)
@@ -1385,7 +1388,7 @@ def check_ssh_launch_hardening(module, directory: Path) -> None:
         "GlobalKnownHostsFile": "/dev/null",
         "VerifyHostKeyDNS": "no",
         "CanonicalizeHostname": "no",
-        "LogLevel": "ERROR",
+        "LogLevel": "INFO",
         "ConnectTimeout": "10",
     }
     assert not any(

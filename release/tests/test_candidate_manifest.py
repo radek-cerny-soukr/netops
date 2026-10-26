@@ -27,7 +27,9 @@ class CandidateManifest(unittest.TestCase):
         self.write("digest-amd64.txt", A + "\n")
         self.write("digest-arm64.txt", B + "\n")
         for arch in ("amd64", "arm64"):
-            self.write("sbom-%s.cdx.json" % arch, '{"sbom": "%s"}' % arch)
+            self.write("sbom-%s.cdx.json" % arch, json.dumps({"bomFormat": "CycloneDX", "specVersion": "1.7",
+                "metadata": {"component": {"type": "container", "name": IMAGE, "version": A if arch == "amd64" else B}},
+                "components": [{"type": "library", "name": "synthetic-package", "version": "1.0"}]}))
             self.write("grype-%s.json" % arch, "{}")
             self.write("gate-%s.json" % arch, json.dumps({"status": "pass"}))
         self.write("index.json", json.dumps(index([(A, "linux", "amd64"), (B, "linux", "arm64")])))

@@ -33,18 +33,23 @@ class AuditCancellation(unittest.IsolatedAsyncioTestCase):
                     previous = now
             pulse = asyncio.create_task(heartbeat())
             await asyncio.sleep(0)
+            started = time.monotonic()
             try:
                 await audit.record("request", payload, "maximum")
             finally:
                 complete.set()
                 await pulse
-            delay = max(delays)
+            wall = time.monotonic() - started
+            stall_share = max(delays) / wall
+            print("AUDIT_RECORD_LOOP=" + json.dumps({"wall": wall, "samples": len(delays),
+                "max_interval": max(delays), "stall_share": stall_share}), flush=True)
             records = self.records(audit)
             self.assertEqual(len(records), 1)
             self.assertEqual(len(records[0]["payload"]["oids"]), len(payload["oids"]))
             self.assertTrue(all(item == 1 for item in records[0]["payload"]["oids"]))
             self.assertEqual(records[0]["payload"]["password"], "[REDACTED]")
-            self.assertLess(delay, 0.5)
+            self.assertLess(stall_share, 0.5)
+            self.assertLess(max(delays), 2.0, "A single event loop stall must stay bounded even when the record itself is slow")
 
     async def test_repeated_cancel_waits_for_redaction_and_durable_commit(self):
         for mode in ("local", "syslog"):

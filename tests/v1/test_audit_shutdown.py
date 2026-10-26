@@ -30,6 +30,7 @@ def shutdown_child(phase, directory):
     original_http_app = gateway.FastMCP.http_app
     original_write = audit_module.write_private
     holder = {}
+    timeline = []
 
     def proof(stage, **extra):
         if stage == "complete":
@@ -58,6 +59,7 @@ def shutdown_child(phase, directory):
                 if not release.wait(4):
                     raise TimeoutError("Synthetic append gate deadline")
             original_append(event)
+            timeline.append(("audit", event["direction"]))
 
         audit._append = append
         return audit
@@ -132,6 +134,9 @@ def shutdown_child(phase, directory):
 
             async def send(event):
                 sent.append(event)
+                timeline.append(("send", event["type"]))
+                if phase == "barrier":
+                    await asyncio.sleep(0.05)
 
             boundary.app = business
             scope = {"type": "http", "scheme": "https", "method": "POST", "path": "/mcp",
@@ -157,7 +162,16 @@ def shutdown_child(phase, directory):
                 calls = [item for item in rows if item["direction"] in ("request", "response", "connection_end")]
                 assert [item["direction"] for item in calls] == ["request", "response", "connection_end"]
                 assert len({item["correlation"] for item in calls}) == 1
-                assert rows[-1]["direction"] == "instance_stop" and len(sent) == 2
+                assert rows[-1]["direction"] == "instance_stop"
+                assert sent[0] == {"type": "http.response.start", "status": 200, "headers": []}
+                bodies = sent[1:]
+                assert bodies and all(event["type"] == "http.response.body" for event in bodies)
+                assert [event.get("more_body", False) for event in bodies] == [True] * (len(bodies) - 1) + [False]
+                assert bodies[-1]["body"] == b""
+                assert b"".join(event["body"] for event in bodies) == b'{"result":"synthetic"}'
+                order = [entry for entry in timeline if entry[0] == "send" or entry[1] in ("connection_end", "instance_stop")]
+                sends = [entry for entry in order if entry[0] == "send"]
+                assert order == [("audit", "connection_end")] + sends + [("audit", "instance_stop")], order
                 proof("complete")
             elif phase == "rejections":
                 rejected_scope = {**scope, "headers": []}

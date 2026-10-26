@@ -653,7 +653,7 @@ def test_stderr_is_classified_without_raw_topology_or_secrets(
     state = {"emitted": False}
     MODULE._drain_stderr(
         io.BytesIO(
-            b"Permission denied for selected-user at selected-host selected-secret\n"
+            b"selected-user@selected-host: Permission denied (publickey,selected-secret).\n"
         ),
         ("selected-secret",),
         state,
@@ -1249,3 +1249,31 @@ def test_unicode_json_escaped_secret_is_redacted_in_unlabeled_text() -> None:
             assert MODULE.sanitize_object({"display": text}, (secret,)) == {
                 "display": expected,
             }
+
+
+def _drained(data: bytes) -> str | None:
+    state: dict = {"emitted": False}
+    MODULE._drain_stderr(io.BytesIO(data), (), state)
+    return state.get("captured")
+
+
+def test_stderr_window_starting_on_a_line_boundary_keeps_its_first_line() -> None:
+    kept = MODULE.MAX_STDERR_CAPTURE_BYTES
+    tail = b"Permission denied (publickey).\n"
+    first = b"A" * (kept - len(tail) - 1) + b"\n"
+    assert len(first + tail) == kept
+    assert _drained(b"dropped prefix\n" + first + tail) == (first + tail).decode()
+
+
+def test_stderr_single_line_of_exactly_the_window_size_is_kept() -> None:
+    kept = MODULE.MAX_STDERR_CAPTURE_BYTES
+    only = b"B" * (kept - 1) + b"\n"
+    assert _drained(b"dropped prefix\n" + only) == only.decode()
+
+
+def test_stderr_window_starting_mid_line_still_drops_the_partial_line() -> None:
+    kept = MODULE.MAX_STDERR_CAPTURE_BYTES
+    tail = b"Permission denied (publickey).\n"
+    partial = b"C" * (kept - len(tail) - 1) + b"\n"
+    assert _drained(b"head of the cut line " + partial + tail) == tail.decode()
+    assert _drained(b"x" + b"D" * (kept - 1) + b"\n") is None

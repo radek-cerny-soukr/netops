@@ -1,6 +1,6 @@
 # NetOps 1.0 quickstart
 
-This guide installs NetOps 1.0.2 on one Linux host and checks it before any MCP client or device is involved. Follow the steps in order. Each step ends with a check; continue only when it succeeds.
+This guide installs NetOps 1.0.3 on one Linux host and checks it before any MCP client or device is involved. Follow the steps in order. Each step ends with a check; continue only when it succeeds.
 
 | Step | What you do |
 |---|---|
@@ -57,6 +57,8 @@ sudo systemctl enable --now docker
 ```
 
 `docker-ce` brings the container runtime package of Docker's repository as a dependency. `dnf` imports Docker's signing key during the installation; its fingerprint is `060A 61C5 1B55 8A7F 742B 77AA C52F EB6B 621E 9F35`.
+
+On Fedora 44 the installation can print SELinux policy messages such as `libsepol.context_from_string: could not create context structure`, `invalid context system_u:object_r:systemd_coredump_var_run_t:s0` and `Failed to commit changes to booleans: Success` while the package scripts load their policy. They do not stop the installation; [step 2](#2-fedora-enable-selinux-support-in-docker) checks that Docker runs with SELinux.
 
 Check on every host:
 
@@ -205,24 +207,24 @@ On a default Fedora installation `dnf` may print `Warning: skipped OpenPGP check
 
 ## 5. Download and verify the release
 
-The block creates an empty, private instance directory `~/netops`, downloads `compose.yaml`, `env.example`, the release manifest `netops-1.0.2-manifest.json`, `netops-1.0.2-SHA256SUMS` and `netops-1.0.2-SHA256SUMS.sigstore.json` from the GitHub release into it and verifies the maintainer's signature and every downloaded file. Run every following command in `~/netops`. The block stops at the first failed command: when `~/netops` already exists, nothing is downloaded, and cosign never runs on an incomplete download:
+The block creates an empty, private instance directory `~/netops`, downloads `compose.yaml`, `env.example`, the release manifest `netops-1.0.3-manifest.json`, `netops-1.0.3-SHA256SUMS` and `netops-1.0.3-SHA256SUMS.sigstore.json` from the GitHub release into it and verifies the maintainer's signature and every downloaded file. Run every following command in `~/netops`. The block stops at the first failed command: when `~/netops` already exists, nothing is downloaded, and cosign never runs on an incomplete download:
 
 ```sh
 mkdir -m 700 ~/netops && cd ~/netops &&
 (
-  for f in compose.yaml env.example netops-1.0.2-manifest.json netops-1.0.2-SHA256SUMS netops-1.0.2-SHA256SUMS.sigstore.json; do
-    curl -fLO "https://github.com/radek-cerny-soukr/netops/releases/download/v1.0.2/$f" || exit 1
+  for f in compose.yaml env.example netops-1.0.3-manifest.json netops-1.0.3-SHA256SUMS netops-1.0.3-SHA256SUMS.sigstore.json; do
+    curl -fLO "https://github.com/radek-cerny-soukr/netops/releases/download/v1.0.3/$f" || exit 1
   done
 ) &&
-cosign verify-blob --bundle netops-1.0.2-SHA256SUMS.sigstore.json \
+cosign verify-blob --bundle netops-1.0.3-SHA256SUMS.sigstore.json \
   --certificate-identity 325383355+radek-cerny-soukr@users.noreply.github.com \
-  --certificate-oidc-issuer https://github.com/login/oauth netops-1.0.2-SHA256SUMS &&
-sha256sum -c --ignore-missing netops-1.0.2-SHA256SUMS
+  --certificate-oidc-issuer https://github.com/login/oauth netops-1.0.3-SHA256SUMS &&
+sha256sum -c --ignore-missing netops-1.0.3-SHA256SUMS
 ```
 
-cosign prints `Verified OK` and sha256sum prints `OK` for `compose.yaml`, `env.example` and `netops-1.0.2-manifest.json`; cosign covers the checksum file and its bundle. If a download or a check fails, do not continue: remove the new directory with `cd ~ && rm -r ~/netops` and run the block again. If `mkdir` fails because `~/netops` already exists, do not remove it, since it can hold an existing instance; check what it holds first. Skipping the check does not make the files verified. `env.example` already pins the image by the index digest recorded in the manifest; keep that digest pin.
+cosign prints `Verified OK` and sha256sum prints `OK` for `compose.yaml`, `env.example` and `netops-1.0.3-manifest.json`; cosign covers the checksum file and its bundle. If a download or a check fails, do not continue: remove the new directory with `cd ~ && rm -r ~/netops` and run the block again. If `mkdir` fails because `~/netops` already exists, do not remove it, since it can hold an existing instance; check what it holds first. Skipping the check does not make the files verified. `env.example` already pins the image by the index digest recorded in the manifest; keep that digest pin.
 
-The manifest field `vulnerability_gate` summarizes the release scan. `needs-assessment` means that the scan found no fixable High or Critical vulnerability, which would be `fail` and block the release, and that every remaining finding ships with a written assessment in `netops-1.0.2-vulnerability-assessments.json` on the same release page; `pass` means that the scan found nothing. A release is never published with `fail`.
+The manifest field `vulnerability_gate` summarizes the release scan. `needs-assessment` means that the scan found no fixable High or Critical vulnerability, which would be `fail` and block the release, and that every remaining finding ships with a written assessment in `netops-1.0.3-vulnerability-assessments.json` on the same release page; `pass` means that the scan found nothing. A release is never published with `fail`.
 
 ## 6. Configure .env
 
@@ -265,7 +267,7 @@ Run init, start the instance and show its state:
 docker compose run --rm netops init && docker compose up -d --wait && docker compose ps
 ```
 
-The first command downloads the image from `ghcr.io`; no registry login is needed. Interactive `init` asks in this order:
+The first command downloads the image from `ghcr.io`; no registry login is needed. Docker Compose reports its own progress on standard error, mixed with the output of `init` in a terminal: the first `run` lists the network, the volume and the image download, each `docker compose run` may print `Container netops-netops-run-<id> Creating` and `Container netops-netops-run-<id> Created` before the output of NetOps, and `up` prints such lines for `netops-netops-1`. These lines come from Compose, not from NetOps; the outputs that this guide describes are those of NetOps. Interactive `init` asks in this order:
 
 1. `TLS syslog receiver (recommended; leave blank to choose local audit):` — enter the DNS name of the receiver, or press Enter for local audit.
 2. With a receiver: `TLS syslog port [6514]:` — press Enter for 6514 or enter the port.
@@ -275,7 +277,11 @@ The first command downloads the image from `ghcr.io`; no registry login is neede
 
 Without a terminal, for example in a script, choose the audit explicitly: `init --audit syslog --syslog-host <host> [--syslog-port <port>]` or `init --audit local --accept-local-audit`. Ending the input at an interactive prompt (EOF) stops init with `init needs an interactive terminal`.
 
-**Commands in scripts.** Typed by hand in a terminal, the commands of this guide run as shown. In a script, or whenever standard input is not your terminal, add `-T` to `docker compose run` and `docker compose exec` and redirect a command that needs no input with `< /dev/null`, for example `docker compose run --rm -T netops init --audit local --accept-local-audit < /dev/null`; keep intentional JSON or snapshot input redirections on commands that read those inputs. Run scripts from a file: when a shell script itself arrives through stdin, Compose run can consume its later lines even with `-T`. The check blocks from step 9 on already use this form; the blocks of steps 7 and 8 are meant to be typed in a terminal and are shown without it.
+**Commands in scripts.** Typed by hand in a terminal, the commands of this guide run as shown. In a script, or whenever standard input is not your terminal, add `-T` to `docker compose run` and `docker compose exec` and redirect every other `docker compose` command, such as `up` and `ps`, with `< /dev/null` as well; keep intentional JSON or snapshot input redirections on commands that read those inputs. Run scripts from a file: when a shell script itself arrives through stdin, Compose run can consume its later lines even with `-T`. The check blocks from step 9 on already use this form; the blocks of steps 7 and 8 are meant to be typed in a terminal and are shown without it. In a script, step 7 with local audit is:
+
+```sh
+docker compose run --rm -T netops init --audit local --accept-local-audit < /dev/null && docker compose up -d --wait < /dev/null && docker compose ps < /dev/null
+```
 
 Both audit inputs and outputs consume disk. The default local budget is 256 MiB, rotating 16 MiB segments, with a maximum age of seven days; the budget can shorten retained history. A syslog queue does not drop old records to make room: once full, new operations are blocked. With local audit, measure usage with `netops audit stats`; on an instance initialized with syslog audit it shows only the local queue of records not yet delivered, so measure on the receiver. Size the deployment for its actual traffic. TLS delivery alone does not prove receiver persistence. Repeating init preserves CA, token and data. On an initialized instance it still checks `.env`, `--audit-budget` and `--syslog-port` as above and refuses a changed `NETOPS_SERVER_NAME`, but does not check `--syslog-host`, so an invalid value is accepted; otherwise it prints the connection details and `Already initialized; CA, token and data preserved.` and exits 0 without a warning: it does not apply `--audit`, `--accept-local-audit`, `--syslog-host`, `--syslog-port`, `--audit-budget` or `--disable-admin`. To move a local-audit instance to a syslog receiver, use `configure syslog` as described below; the audit budget and the Admin choice stay as chosen at the first init.
 
@@ -292,7 +298,18 @@ docker compose run --rm netops connection
 
 Run the complete block and check its exit status (`echo $?` prints `0`) before continuing; each command runs only after the preceding one succeeds. `connection` prints the MCP URL, for example `MCP URL: https://localhost:8443/mcp`, and the expiry of the instance CA. The token lives only in this shell: in a new shell, `cd ~/netops`, run `umask 077` and repeat the block. Never write the token into a file, a command line or a client configuration file.
 
-With the `umask 077` set above in the same shell, `netops-ca.pem` is created with mode 600. It holds only the public instance CA certificate; an MCP client that runs under another local account needs read access to this file.
+In a script, the same block is:
+
+```sh
+cd ~/netops &&
+umask 077 &&
+docker compose run --rm -T netops ca < /dev/null > netops-ca.pem &&
+NETOPS_TOKEN="$(docker compose run --rm -T netops token show < /dev/null)" &&
+export NETOPS_TOKEN &&
+docker compose run --rm -T netops connection < /dev/null
+```
+
+With `umask 077` on the first line of the script block, or set above in the same interactive shell, a new `netops-ca.pem` is created with mode 600; an existing file keeps its mode. It holds only the public instance CA certificate; an MCP client that runs under another local account needs read access to this file.
 
 ## 9. Check the instance without an MCP client
 
@@ -303,7 +320,7 @@ docker compose exec -T netops netops health < /dev/null
 docker compose exec -T netops netops version < /dev/null
 ```
 
-`health` prints `ready` and `version` prints `1.0.2`. Set `NETOPS_URL` to the MCP URL printed by `connection`; for a client on the same host:
+`health` prints `ready` and `version` prints `1.0.3`. Set `NETOPS_URL` to the MCP URL printed by `connection`; for a client on the same host:
 
 ```sh
 NETOPS_URL=https://localhost:8443/mcp
@@ -328,13 +345,34 @@ printf 'Authorization: Bearer %s\n' "$NETOPS_TOKEN" |
 
 It prints `200`. A curl error instead of a status code means that the client did not reach NetOps: a name that does not resolve, a port blocked by a firewall, or a CA file that does not match. Run the same two requests from a client machine, with `netops-ca.pem` copied there, to check the network path of a remote client.
 
+The tool list needs no MCP session. Request it with the token and count the tools:
+
+```sh
+printf 'Authorization: Bearer %s\n' "$NETOPS_TOKEN" |
+  curl -sS --cacert netops-ca.pem -H @- \
+  -H 'Content-Type: application/json' -H 'Accept: application/json, text/event-stream' \
+  -X POST "$NETOPS_URL" -d '{"jsonrpc":"2.0","id":2,"method":"tools/list"}' |
+  jq '.result.tools | length'
+```
+
+It prints `26`: 13 Helper, 7 Auditor and 6 Admin tools. On an instance initialized with `init --disable-admin` it prints `20`, without the Admin tools.
+
 Finally read the audit summary:
 
 ```sh
 docker compose run --rm -T netops audit stats < /dev/null
 ```
 
-It prints one JSON object. With local audit, `records` counts the stored audit records, including the `initialize` request and its response above; with syslog audit it counts only the records not yet delivered to the receiver. `unauthenticated_rejections` summarizes refused requests without a valid token: it is `null` until the first such request has been refused, and after the 401 check above it is an object whose `counts` include `authentication_required`. Refused requests are counted, never stored.
+It prints one JSON object. With local audit, `records` counts the stored audit records, including the `initialize` and `tools/list` requests and their responses above; with syslog audit it counts only the records not yet delivered to the receiver. `unauthenticated_rejections` summarizes refused requests without a valid token: it is `null` until the first such request has been refused, and after the 401 check above it is an object whose `counts` include `authentication_required`. Refused requests are counted, never stored.
+
+List the audited requests with their time and method:
+
+```sh
+docker compose run --rm -T netops audit export < /dev/null |
+  jq -r 'select(.direction == "request" and (.payload | type) == "object") | [.time, .payload.method] | @tsv'
+```
+
+With local audit it prints one line for `initialize` and one for `tools/list`. The filter in [First call and its audit record](#first-call-and-its-audit-record) lists only tool calls (`tools/call`).
 
 ## 10. Connect an MCP client
 
@@ -671,73 +709,83 @@ docker compose -f "$RESTORED_COMPOSE" -p "$RESTORED_PROJECT" run --rm -T netops 
 docker compose -f "$RESTORED_COMPOSE" -p "$RESTORED_PROJECT" run --rm -T netops audit stats < /dev/null
 ~~~
 
-All commands must exit successfully; the service must be healthy and connection must show the original server name and port. Check the local history reported by audit stats, or, for syslog audit, verify the retained history at the receiver: on an instance initialized with syslog audit, audit stats then describes only the undelivered local queue; an instance switched to syslog audit after init still counts its frozen local segments in that history (see above). Use the original public CA, token and existing MCP client configuration to repeat the role reads used before the backup, including Auditor findings when present. Health alone does not verify role data. Confirm the expected role configuration and data before removing the source or backup. The [upgrade from the previous release](#upgrade-from-the-previous-release) uses this restore with the files of the new release.
+All commands must exit successfully; the service must be healthy and connection must show the server name and port of the source instance (in the upgrade, the MCP URL noted before the backup). Check the local history reported by audit stats, or, for syslog audit, verify the retained history at the receiver: on an instance initialized with syslog audit, audit stats then describes only the undelivered local queue; an instance switched to syslog audit after init still counts its frozen local segments in that history (see above). Use the original public CA, token and existing MCP client configuration to repeat the role reads used before the backup, including Auditor findings when present. Health alone does not verify role data. Confirm the expected role configuration and data before removing the source or backup. The [upgrade from the previous release](#upgrade-from-the-previous-release) uses this restore with the files of the new release.
 
 ## Upgrade from the previous release
 
-NetOps 1.0.2 upgrades the state of NetOps 1.0.1, the immediately preceding release. It refuses state of any other product version or state schema; there is no upgrade that skips a release and no downgrade. An instance of NetOps 1.0.0 is upgraded to 1.0.1 first, with the [upgrade procedure of the 1.0.1 quickstart](https://github.com/radek-cerny-soukr/netops/blob/v1.0.1/docs/quickstart-1.0.md#upgrade-from-the-previous-release), including its switch of the syslog receiver, and verified before the upgrade to 1.0.2. NetOps 1.0.2 sends syslog audit in the same format as 1.0.1: a receiver configured for 1.0.1 stays as it is. The upgrade restores a backup of the 1.0.1 instance into a new, separate 1.0.2 instance and leaves the 1.0.1 instance, its directory and its state volume unchanged for a rollback. The new instance keeps the server name and port, the CA, the token, role configuration and data, and the audit of the backup; MCP clients keep their configuration, token and CA file. The upgrade has four steps:
+NetOps 1.0.3 upgrades the state of NetOps 1.0.2, the immediately preceding release. It refuses state of any other product version or state schema; there is no upgrade that skips a release and no downgrade. An instance of NetOps 1.0.1 is upgraded to 1.0.2 first, with the [upgrade procedure of the 1.0.2 quickstart](https://github.com/radek-cerny-soukr/netops/blob/v1.0.2/docs/quickstart-1.0.md#upgrade-from-the-previous-release), and verified before the upgrade to 1.0.3; an instance of NetOps 1.0.0 is upgraded to 1.0.1 first, as that procedure describes. NetOps 1.0.3 sends syslog audit in the same format as 1.0.2: a receiver configured for 1.0.2 stays as it is. The upgrade restores a backup of the 1.0.2 instance into a new, separate 1.0.3 instance and leaves the 1.0.2 instance, its directory and its state volume unchanged for a rollback. The new instance keeps the server name and port, the CA, the token, role configuration and data, and the audit of the backup; MCP clients keep their configuration, token and CA file. The upgrade has four steps:
 
-1. Check the 1.0.1 instance, stop it and back it up, as described in [Before the upgrade](#before-the-upgrade).
-2. [Download and verify the new release](#download-and-verify-the-new-release), then prepare a clean 1.0.2 instance in a new directory, with the same server name and port and a `.env` with the 1.0.2 image, as described in [Prepare the 1.0.2 instance](#prepare-the-102-instance).
-3. Restore the backup into it, as described in [Restore and start the 1.0.2 instance](#restore-and-start-the-102-instance).
-4. Start it: the last command of the restore block starts the 1.0.2 instance. Then [verify the upgrade](#verify-the-upgrade).
+1. Check the 1.0.2 instance, stop it and back it up, as described in [Before the upgrade](#before-the-upgrade).
+2. [Download and verify the new release](#download-and-verify-the-new-release), then prepare a clean 1.0.3 instance in a new directory, with the same server name and port and a `.env` with the 1.0.3 image, as described in [Prepare the 1.0.3 instance](#prepare-the-103-instance).
+3. Restore the backup into it, as described in [Restore and start the 1.0.3 instance](#restore-and-start-the-103-instance).
+4. Start it: the last command of the restore block starts the 1.0.3 instance. Then [verify the upgrade](#verify-the-upgrade).
 
-Run the blocks of this section in order in one shell; they use the variables that the following block sets. Its values fit a 1.0.1 instance in `~/netops` with the default project `netops`, as this guide installs it. If the 1.0.1 instance is in another directory, change `OLD_INSTANCE`; if it uses another project name, through `-p` or `COMPOSE_PROJECT_NAME`, set `SOURCE_PROJECT` to that name (an instance upgraded from 1.0.0 by the example of the 1.0.1 quickstart uses `netops-restored`). The 1.0.2 instance gets the new project `netops-102` in the new directory `~/netops-1.0.2`; see [Explicit project names](#explicit-project-names). In a new shell, run this block again before you continue:
+The 1.0.2 quickstart installs a new instance in `~/netops` with the default project `netops`; its upgrade from 1.0.1 puts the instance in `~/netops-1.0.2` with the project `netops-102`. While their containers exist, also stopped ones, Docker shows the project and the directory of the `compose.yaml` of every NetOps instance on the host:
 
 ```sh
+docker ps -a --filter label=com.docker.compose.service=netops --format '{{.Label "com.docker.compose.project"}} {{.Label "com.docker.compose.project.working_dir"}} {{.Status}}'
+```
+
+Each line prints a project, its directory and the container status, for example `netops /home/<user>/netops` followed by the status. A line with the project `netops-102` is a 1.0.2 instance upgraded from 1.0.1; the line with the project `netops` then belongs to the stopped 1.0.1 instance that this upgrade kept for its rollback, not to the 1.0.2 instance. Without a `netops-102` line, the 1.0.2 instance uses the project `netops` or the project name that you gave it. Its directory is `OLD_INSTANCE` below and its project is `SOURCE_PROJECT`; the `version` check in [Before the upgrade](#before-the-upgrade) must print `1.0.2`.
+
+Run the blocks of this section in order in one shell; they use the variables that the following block sets. The blocks of [Back up and restore state](#back-up-and-restore-state) are not part of this sequence: they set `BACKUP_FILE` to another file. Its values fit a 1.0.2 instance in `~/netops` with the default project `netops`, as this guide installs it. If the 1.0.2 instance is in another directory, change `OLD_INSTANCE`; if it uses another project name, through `-p` or `COMPOSE_PROJECT_NAME`, set `SOURCE_PROJECT` to that name (an instance upgraded from 1.0.1 by the 1.0.2 quickstart is in `~/netops-1.0.2` and uses `netops-102`). The 1.0.3 instance gets the new project `netops-103` in the new directory `~/netops-1.0.3`; see [Explicit project names](#explicit-project-names). You may change these values too: `NEW_RELEASE` and `NEW_INSTANCE` to absolute paths of directories that do not exist yet, `BACKUP_DIR` to another absolute path, and `RESTORED_PROJECT` to another valid Compose project name that no existing project uses, because the restore needs an empty volume. The following blocks use only these variables; where this section names `~/netops-1.0.3-release`, `~/netops-1.0.3` or `~/netops-backup`, or says that a command prints `netops-103`, read your value instead. `umask 077` keeps the files that the following blocks create private, including `netops-ca.pem` in [Verify the upgrade](#verify-the-upgrade). In a new shell, run this block again before you continue:
+
+```sh
+umask 077
 OLD_INSTANCE="$HOME/netops"
 SOURCE_COMPOSE="$OLD_INSTANCE/compose.yaml"
 SOURCE_PROJECT=netops
-NEW_RELEASE="$HOME/netops-1.0.2-release"
-NEW_INSTANCE="$HOME/netops-1.0.2"
+NEW_RELEASE="$HOME/netops-1.0.3-release"
+NEW_INSTANCE="$HOME/netops-1.0.3"
 RESTORED_COMPOSE="$NEW_INSTANCE/compose.yaml"
-RESTORED_PROJECT=netops-102
+RESTORED_PROJECT=netops-103
 BACKUP_DIR="$HOME/netops-backup"
-BACKUP_FILE="$BACKUP_DIR/netops-1.0.1-state.tar"
+BACKUP_FILE="$BACKUP_DIR/netops-1.0.2-state.tar"
 mkdir -p -m 700 "$BACKUP_DIR"
 ```
 
 ### Before the upgrade
 
-First check that the 1.0.1 instance runs NetOps 1.0.1 and is healthy:
+First check that the 1.0.2 instance runs NetOps 1.0.2 and is healthy:
 
 ```sh
 docker compose -f "$SOURCE_COMPOSE" -p "$SOURCE_PROJECT" ps
 docker compose -f "$SOURCE_COMPOSE" -p "$SOURCE_PROJECT" exec -T netops netops version < /dev/null
 docker compose -f "$SOURCE_COMPOSE" -p "$SOURCE_PROJECT" exec -T netops netops health < /dev/null
+docker compose -f "$SOURCE_COMPOSE" -p "$SOURCE_PROJECT" run --rm -T netops connection < /dev/null
 docker compose -f "$SOURCE_COMPOSE" -p "$SOURCE_PROJECT" run --rm -T netops audit pending < /dev/null
 ```
 
-`version` prints `1.0.1` and `health` prints `ready`. If the instance reports an incomplete final audit record, run `audit recover` as described in [Day-to-day operation](#day-to-day-operation) with the previous release before the upgrade. Note the entries that `audit pending` lists (it prints nothing when there are none); the upgrade keeps every entry. Before it converts the state, the first start of the new release makes the checks listed in [Refused first start](#refused-first-start).
+`version` prints `1.0.2` and `health` prints `ready`. If the instance reports an incomplete final audit record, run `audit recover` as described in [Day-to-day operation](#day-to-day-operation) with the previous release before the upgrade. Note the MCP URL that `connection` prints: the verification of the new instance compares it. Note the entries that `audit pending` lists (NetOps prints nothing when there are none, Compose may print `Container ... Creating` and `Container ... Created` lines on standard error, see step 7); the upgrade keeps every entry. Before it converts the state, the first start of the new release makes the checks listed in [Refused first start](#refused-first-start).
 
-Back up the instance: run the backup block of [Back up and restore state](#back-up-and-restore-state), the block that starts with `STATE_MANIFEST=`, unchanged in this shell. It uses `SOURCE_COMPOSE`, `SOURCE_PROJECT` and `BACKUP_FILE` from the block at the start of the upgrade; do not run the block before it, which sets the values of a routine backup. The backup block stops the instance. Keep the 1.0.1 instance directory with its `compose.yaml` and `.env` and its state volume unchanged, do not start the 1.0.1 instance again and do not remove it until the upgraded instance is verified: it is the rollback. Keep the backup as well.
+Back up the instance: run the backup block of [Back up and restore state](#back-up-and-restore-state), the block that starts with `STATE_MANIFEST=`, unchanged in this shell. It uses `SOURCE_COMPOSE`, `SOURCE_PROJECT` and `BACKUP_FILE` from the block at the start of the upgrade; do not run the block before it, which sets the values of a routine backup. The backup block stops the instance. Keep the 1.0.2 instance directory with its `compose.yaml` and `.env` and its state volume unchanged, do not start the 1.0.2 instance again and do not remove it until the upgraded instance is verified: it is the rollback. Keep the backup as well.
 
 ### Syslog receiver
 
-NetOps 1.0.2 does not change the syslog audit format or the receiver requirements of 1.0.1. Keep the receiver, its configuration and its part archive unchanged. Do not empty the NetOps queue: the backup holds it, and 1.0.2 sends the retained records in the same part format.
+NetOps 1.0.3 does not change the syslog audit format or the receiver requirements of 1.0.2. Keep the receiver, its configuration and its part archive unchanged. Do not empty the NetOps queue: the backup holds it, and 1.0.3 sends the retained records in the same part format.
 
 ### Download and verify the new release
 
-The block creates the new, empty directory `~/netops-1.0.2-release` (`NEW_RELEASE`), downloads `compose.yaml`, `env.example`, `netops-1.0.2-manifest.json`, `netops-1.0.2-SHA256SUMS` and `netops-1.0.2-SHA256SUMS.sigstore.json` from the 1.0.2 GitHub release into it, not into the instance directory, and verifies them there in the same way as for a new installation. It stops at the first failed command, also when the directory already exists:
+The block creates the new, empty directory `~/netops-1.0.3-release` (`NEW_RELEASE`), downloads `compose.yaml`, `env.example`, `netops-1.0.3-manifest.json`, `netops-1.0.3-SHA256SUMS` and `netops-1.0.3-SHA256SUMS.sigstore.json` from the 1.0.3 GitHub release into it, not into the instance directory, and verifies them there in the same way as for a new installation. It stops at the first failed command, also when the directory already exists:
 
 ```sh
 mkdir -m 700 "$NEW_RELEASE" && cd "$NEW_RELEASE" &&
 (
-  for f in compose.yaml env.example netops-1.0.2-manifest.json netops-1.0.2-SHA256SUMS netops-1.0.2-SHA256SUMS.sigstore.json; do
-    curl -fLO "https://github.com/radek-cerny-soukr/netops/releases/download/v1.0.2/$f" || exit 1
+  for f in compose.yaml env.example netops-1.0.3-manifest.json netops-1.0.3-SHA256SUMS netops-1.0.3-SHA256SUMS.sigstore.json; do
+    curl -fLO "https://github.com/radek-cerny-soukr/netops/releases/download/v1.0.3/$f" || exit 1
   done
 ) &&
-cosign verify-blob --bundle netops-1.0.2-SHA256SUMS.sigstore.json \
+cosign verify-blob --bundle netops-1.0.3-SHA256SUMS.sigstore.json \
   --certificate-identity 325383355+radek-cerny-soukr@users.noreply.github.com \
-  --certificate-oidc-issuer https://github.com/login/oauth netops-1.0.2-SHA256SUMS &&
-sha256sum -c --ignore-missing netops-1.0.2-SHA256SUMS
+  --certificate-oidc-issuer https://github.com/login/oauth netops-1.0.3-SHA256SUMS &&
+sha256sum -c --ignore-missing netops-1.0.3-SHA256SUMS
 ```
 
-All commands must succeed: cosign prints `Verified OK` and sha256sum prints `OK` for `compose.yaml`, `env.example` and `netops-1.0.2-manifest.json`.
+All commands must succeed: cosign prints `Verified OK` and sha256sum prints `OK` for `compose.yaml`, `env.example` and `netops-1.0.3-manifest.json`.
 
-### Prepare the 1.0.2 instance
+### Prepare the 1.0.3 instance
 
-The block creates the new, empty instance directory `~/netops-1.0.2` (`NEW_INSTANCE`), copies `compose.yaml` and `env.example` from the verified release directory into it and writes its `.env`: `NETOPS_IMAGE` exactly as pinned in the verified 1.0.2 `env.example`, which pins the index digest recorded in `netops-1.0.2-manifest.json`, the lines `NETOPS_BIND_IP`, `NETOPS_PORT` and `NETOPS_SERVER_NAME` of the `.env` of the 1.0.1 instance, and `COMPOSE_PROJECT_NAME` with the project of the new instance. It only reads the files of the 1.0.1 instance and stops at the first failed command, also when the directory already exists:
+The block creates the new, empty instance directory `~/netops-1.0.3` (`NEW_INSTANCE`), copies `compose.yaml` and `env.example` from the verified release directory into it and writes its `.env`: `NETOPS_IMAGE` exactly as pinned in the verified 1.0.3 `env.example`, which pins the index digest recorded in `netops-1.0.3-manifest.json`, the lines `NETOPS_BIND_IP`, `NETOPS_PORT` and `NETOPS_SERVER_NAME` of the `.env` of the 1.0.2 instance, and `COMPOSE_PROJECT_NAME` with the project of the new instance. It only reads the files of the 1.0.2 instance and stops at the first failed command, also when the directory already exists:
 
 ```sh
 mkdir -m 700 "$NEW_INSTANCE" && cd "$NEW_INSTANCE" &&
@@ -749,28 +797,28 @@ printf 'COMPOSE_PROJECT_NAME=%s\n' "$RESTORED_PROJECT" >> .env &&
 cat .env
 ```
 
-`cat .env` prints five lines: the 1.0.2 image, the bind address, port and server name of the 1.0.1 instance and `COMPOSE_PROJECT_NAME=netops-102`. Check the image pin and the project name of the new directory:
+`cat .env` prints five lines: the 1.0.3 image, the bind address, port and server name of the 1.0.2 instance and `COMPOSE_PROJECT_NAME=netops-103`. Check the image pin and the project name of the new directory:
 
 ```sh
 grep '^NETOPS_IMAGE=' "$NEW_RELEASE/env.example" .env
 docker compose config --format json | jq -r .name
 ```
 
-The two image lines are identical apart from the file name in front of them, and the second command prints `netops-102`. If it fails with `Set NETOPS_BIND_IP`, `Set NETOPS_PORT` or `Set NETOPS_SERVER_NAME`, the `.env` of the 1.0.1 instance lacks that line; add it to the new `.env` with the value that the 1.0.1 instance uses.
+The two image lines are identical apart from the file name in front of them, and the second command prints `netops-103`. If it fails with `Set NETOPS_BIND_IP`, `Set NETOPS_PORT` or `Set NETOPS_SERVER_NAME`, the `.env` of the 1.0.2 instance lacks that line; add it to the new `.env` with the value that the 1.0.2 instance uses.
 
 Do not run `init` in the new instance.
 
-### Restore and start the 1.0.2 instance
+### Restore and start the 1.0.3 instance
 
 Restore the backup: run the restore block of [Back up and restore state](#back-up-and-restore-state), the block that starts with `STATE_MANIFEST=` and ends with `up -d --wait`, unchanged in this shell, then the check block that follows it. They use `BACKUP_FILE`, `RESTORED_COMPOSE` and `RESTORED_PROJECT` from the block at the start of the upgrade; do not run the block before the restore block, which sets the values of a plain restore. The restore block starts the instance as its last command, after the restored state matches the manifest of the backup.
 
-Do not run `init` and do not run `docker compose down -v` at any point of the upgrade. The first start of the new release converts the restored state: it makes the checks in [Refused first start](#refused-first-start), the later ones under the instance lock after it reads the gateway configuration again, and then replaces only its recorded product version, `1.0.1`, with `1.0.2`. Every other setting, the CA, the token, role data and the existing audit records stay as they are, and later starts do not change the configuration again. A process of the new release started while another process still runs on the same state, for example with `docker compose run` or `docker run`, is refused with `An existing instance is using this state; stop it before starting or upgrading` and changes nothing.
+Do not run `init` and do not run `docker compose down -v` at any point of the upgrade. The first start of the new release converts the restored state: it makes the checks in [Refused first start](#refused-first-start), the later ones under the instance lock after it reads the gateway configuration again, and then replaces only its recorded product version, `1.0.2`, with `1.0.3`. Every other setting, the CA, the token, role data and the existing audit records stay as they are, and later starts do not change the configuration again. A process of the new release started while another process still runs on the same state, for example with `docker compose run` or `docker run`, is refused with `An existing instance is using this state; stop it before starting or upgrading` and changes nothing.
 
-Until this first start, the restored state still belongs to 1.0.1. Operator commands of the new release that change state, including `init`, `token rotate`, `configure`, `ca rotate` and `audit recover`, refuse it with `State belongs to NetOps 1.0.1; start NetOps 1.0.2 to upgrade it before running this command. Do not reinitialize existing state` and change nothing; `connection`, `ca`, `token show` and the `audit` reads keep working. Run the start that this message asks for in the 1.0.2 instance directory, where `.env` names the 1.0.2 project, for example `cd "$NEW_INSTANCE" && docker compose up -d --wait`. An interrupted procedure can be completed by repeating its remaining steps.
+Until this first start, the restored state still belongs to 1.0.2. Operator commands of the new release that change state, including `init`, `token rotate`, `configure`, `ca rotate` and `audit recover`, refuse it with `State belongs to NetOps 1.0.2; start NetOps 1.0.3 to upgrade it before running this command. Do not reinitialize existing state` and change nothing; `connection`, `ca`, `token show` and the `audit` reads keep working. Run the start that this message asks for in the 1.0.3 instance directory, where `.env` names the 1.0.3 project, for example `cd "$NEW_INSTANCE" && docker compose up -d --wait`. An interrupted procedure can be completed by repeating its remaining steps.
 
 ### Verify the upgrade
 
-Run these commands in the directory of the 1.0.2 instance. They need no `-p`: its `.env` names the project `netops-102`, and every later command of this guide in that directory addresses the 1.0.2 instance in the same way:
+Run these commands in the directory of the 1.0.3 instance. They need no `-p`: its `.env` names the project `netops-103`, and every later command of this guide in that directory addresses the 1.0.3 instance in the same way:
 
 ```sh
 cd "$NEW_INSTANCE"
@@ -782,21 +830,29 @@ docker compose run --rm -T netops audit pending < /dev/null
 docker compose run --rm -T netops ca < /dev/null > netops-ca.pem
 ```
 
-`version` prints `1.0.2`, `health` prints `ready` and `connection` prints the same MCP URL as before. The upgrade keeps the instance CA, and the last command exports it into the 1.0.2 directory; point MCP clients that read `netops-ca.pem` from the old directory, for example through `NODE_EXTRA_CA_CERTS`, to `$NEW_INSTANCE/netops-ca.pem` before you remove the old directory. The `instance_start` audit record of the converting start names both versions as `"upgrade": {"from": "1.0.1", "to": "1.0.2"}`; later starts have no `upgrade` field. The converting start writes this record only after every role is ready. If it stops before it writes the record, for example because a role refused to start (see [Refused first start](#refused-first-start)) or after an interruption, no audit record has the `upgrade` field: later starts do not convert again. No audit record then names the upgrade or its time. Only indirect evidence remains that the instance changed release: the last `instance_start` or `instance_stop` record before the upgrade names `"version": "1.0.1"`, and the next `instance_start` record names `"version": "1.0.2"`. Look for these records in audit history that you kept: the backup from [Before the upgrade](#before-the-upgrade), an `audit export` or, with syslog audit, the archive of the receiver. `audit tail` shows only the last 100 records by default, and local audit removes old segments after the retention period and when the audit budget is full, so the record from before the upgrade can be missing. The syslog header carries no host name, so at a receiver that several instances share the header does not show which instance the records belong to. Without such kept history the audit cannot show the change. After a first start that was not interrupted and that no role refused, a missing `upgrade` field is a defect; report it. With local audit `audit pending` still lists the entries from before the upgrade; with syslog audit an entry leaves the local queue once it is delivered, so look for it at the receiver. Then make one call with each MCP client without changing its configuration, for example the first `helper_status` call above, and find its request and response: with local audit in `audit tail` or `audit export`, with syslog audit at the receiver.
+`version` prints `1.0.3`, `health` prints `ready` and `connection` prints the same MCP URL as the `connection` of the 1.0.2 instance that you noted before the backup. The hint `(add -p <instance> before run for an additional instance)` that `connection` prints does not apply in this directory: its `.env` names the project, so the commands need no `-p`. The upgrade keeps the instance CA, and the last command exports it into the 1.0.3 directory; point MCP clients that read `netops-ca.pem` from the old directory, for example through `NODE_EXTRA_CA_CERTS`, to `$NEW_INSTANCE/netops-ca.pem` before you remove the old directory. The `instance_start` audit record of the converting start names both versions as `"upgrade": {"from": "1.0.2", "to": "1.0.3"}`; later starts have no `upgrade` field. With local audit, list the `instance_start` records with their time and content:
+
+```sh
+docker compose run --rm -T netops audit export < /dev/null | jq -c 'select(.direction == "instance_start") | {time, payload}'
+```
+
+The line of the converting start contains `"upgrade":{"from":"1.0.2","to":"1.0.3"}`; the lines before it are earlier starts that the audit still retains. For a 1.0.2 instance upgraded from 1.0.1 they include the starts of the 1.0.1 instance and the converting start of that upgrade with its own `"upgrade":{"from":"1.0.1","to":"1.0.2"}`; retention and the audit budget can have removed older lines. With syslog audit, `audit export` holds only the records not yet delivered (and, after a switch from local audit, the earlier local segments), so the line of the converting start is usually not there: look for the `instance_start` record with the `upgrade` field in the archive of the receiver instead.
+
+The converting start writes this record only after every role is ready. If it stops before it writes the record, for example because a role refused to start (see [Refused first start](#refused-first-start)) or after an interruption, no audit record has the `upgrade` field: later starts do not convert again. No audit record then names the upgrade or its time. Only indirect evidence remains that the instance changed release: the last `instance_start` or `instance_stop` record before the upgrade names `"version": "1.0.2"`, and the next `instance_start` record names `"version": "1.0.3"`. Look for these records in audit history that you kept: the backup from [Before the upgrade](#before-the-upgrade), an `audit export` or, with syslog audit, the archive of the receiver. `audit tail` shows only the last 100 records by default, and local audit removes old segments after the retention period and when the audit budget is full, so the record from before the upgrade can be missing. The syslog header carries no host name, so at a receiver that several instances share the header does not show which instance the records belong to. Without such kept history the audit cannot show the change. After a first start that was not interrupted and that no role refused, a missing `upgrade` field is a defect; report it. With local audit `audit pending` still lists the entries from before the upgrade; with syslog audit an entry leaves the local queue once it is delivered, so look for it at the receiver. Then make one call with each MCP client without changing its configuration, for example the first `helper_status` call above, and find its request and response: with local audit in `audit tail` or `audit export`, with syslog audit at the receiver.
 
 ### Explicit project names
 
-The 1.0.1 instance keeps its project: `netops`, or the name it uses with `-p` or `COMPOSE_PROJECT_NAME`; it is `SOURCE_PROJECT` of the backup. The 1.0.2 instance uses the new project `netops-102`, because the restore needs an empty volume, and its `.env` names it as `COMPOSE_PROJECT_NAME`. Compose reads that line from the `.env` beside the `compose.yaml` it uses, so every `docker compose` command for the 1.0.2 instance directory, also without `-p` and also the commands quoted in NetOps messages, addresses the 1.0.2 instance and its volume; `-p` overrides it. A command for the 1.0.1 instance directory, or for any other directory whose `.env` names no project, addresses the project `netops` and its volume. Do not run `init` in a project with an empty volume.
+The 1.0.2 instance keeps its project: `netops`, or the name it uses with `-p` or `COMPOSE_PROJECT_NAME`; it is `SOURCE_PROJECT` of the backup. The 1.0.3 instance uses the new project `netops-103`, because the restore needs an empty volume, and its `.env` names it as `COMPOSE_PROJECT_NAME`. Compose reads that line from the `.env` beside the `compose.yaml` it uses, so every `docker compose` command for the 1.0.3 instance directory, also without `-p` and also the commands quoted in NetOps messages, addresses the 1.0.3 instance and its volume; `-p` overrides it. A command for a directory whose `.env` names no project, such as the 1.0.2 instance directory `~/netops` of this guide, addresses the project `netops` and its volume. The directory `~/netops-1.0.2` of a 1.0.2 instance upgraded from 1.0.1 names `netops-102` in its `.env` and addresses that project; in that case the project `netops` is the stopped 1.0.1 instance. Do not run `init` in a project with an empty volume.
 
 ### Several operators of one instance
 
-The default Compose project `netops` is shared by every directory and every user on the host. A previous `compose.yaml` and `.env` in another directory or account still address the 1.0.1 instance: `docker compose` there can start it again on its unchanged 1.0.1 state and the same port, and its `token rotate` changes only the token of the 1.0.1 state. All operators of one instance switch to the 1.0.2 instance directory, whose `.env` names its project, and coordinate the downtime. Keep the 1.0.1 instance stopped while 1.0.2 runs. An independent instance uses its own explicit `-p` project and its own port.
+The default Compose project `netops` is shared by every directory and every user on the host. A previous `compose.yaml` and `.env` in another directory or account still address the project `netops`: the 1.0.2 instance or, for a 1.0.2 instance upgraded from 1.0.1 (project `netops-102`), the stopped 1.0.1 instance. `docker compose` there can start that instance again on its unchanged state and the same port, and its `token rotate` changes only the token of that state. A `compose.yaml` and `.env` copied from `~/netops-1.0.2` address the project `netops-102` of the 1.0.2 instance in the same way. All operators of one instance switch to the 1.0.3 instance directory, whose `.env` names its project, and coordinate the downtime. Keep the 1.0.2 instance stopped while 1.0.3 runs. An independent instance uses its own explicit `-p` project and its own port.
 
 ### Refused first start
 
-Before the first start of the new release converts the state, it checks the state in the order of the list below and stops at the first check that fails. A refused first start does not convert the state: the gateway configuration still records `1.0.1`, and `docker compose logs netops` reports the reason as `netops: <reason>; operation failed without automatic retry`. As for an incomplete audit record, the supplied restart policy can leave Compose showing `Restarting`, and `up --wait` then fails. The first start refuses:
+Before the first start of the new release converts the state, it checks the state in the order of the list below and stops at the first check that fails. A refused first start does not convert the state: the gateway configuration still records `1.0.2`, and `docker compose logs netops` reports the reason as `netops: <reason>; operation failed without automatic retry`. As for an incomplete audit record, the supplied restart policy can leave Compose showing `Restarting`, and `up --wait` then fails. The first start refuses:
 
-- a gateway configuration `gateway/config.json` that is missing: `NetOps is not initialized; run docker compose run --rm netops init first`; that cannot be read as a private file of the gateway user or is not valid JSON or holds a duplicate key, NaN or Infinity: `Initialized private state cannot be read safely; initialize a new instance or use the matching release to inspect existing state`; or that records another state schema or a product version other than `1.0.1` and `1.0.2`: `Unsupported state schema; use the matching NetOps release and its verified recovery procedure` or `State belongs to another product version; automatic upgrade or downgrade is refused. Use the verified release procedure`. A container that runs as a user other than root and the gateway user, for example with a `--user` override, cannot read an existing gateway configuration and is refused here with the second message;
+- a gateway configuration `gateway/config.json` that is missing: `NetOps is not initialized; run docker compose run --rm netops init first`; that cannot be read as a private file of the gateway user or is not valid JSON or holds a duplicate key, NaN or Infinity: `Initialized private state cannot be read safely; initialize a new instance or use the matching release to inspect existing state`; or that records another state schema or a product version other than `1.0.2` and `1.0.3`: `Unsupported state schema; use the matching NetOps release and its verified recovery procedure` or `State belongs to another product version; automatic upgrade or downgrade is refused. Use the verified release procedure`. A container that runs as a user other than root and the gateway user, for example with a `--user` override, cannot read an existing gateway configuration and is refused here with the second message;
 - what every start of NetOps 1.0 checks before it uses the state: a container that does not run as root but can read the gateway configuration, for example with `--user 51000`: `Initialization and the short start bootstrap require the declared container user and capabilities`; a state path `/var/lib/netops` that is a symbolic link to a directory: `State must be a real directory`; data in it other than the role directories `gateway`, `helper`, `auditor` and `admin`: `State contains data outside the NetOps 1.x layout; 0.x volumes are not migrated or modified`; a runtime directory `/run/netops` that is missing: `Operation failed; inspect private state and audit before retrying`, or that is not a real directory: `State and runtime must be real directories`; a role directory in `/var/lib/netops` that is not a directory owned by its role user with mode 0700, or in `/run/netops` with mode 0755: `Unsafe state directory ownership or permissions`. Before it checks the role directories, the start gives `/var/lib/netops` and `/run/netops` owner root and mode 0711, and it creates a missing role directory;
 - an instance lock `gateway/instance.lock` that is not a single regular file, is owned by a user other than the gateway user or root, or has permissions for group or others, with the messages for files below; a missing lock is created and a lock owned by root is given to the gateway user. A lock that another process of the same state holds: `An existing instance is using this state; stop it before starting or upgrading`. Under the lock the start reads the gateway configuration again, with the messages of the first item;
 - audit limits in the gateway configuration outside the supported range: `Invalid audit disk budget or retention`;
@@ -810,19 +866,19 @@ Before the first start of the new release converts the state, it checks the stat
 
 A private file is a single regular file, neither a symbolic link nor a file with further hard links, owned by the user of its role (gateway 51000, Auditor 51002, Admin 51003), readable by that user and without permissions for group or others; modes 0600 and 0400 are private. Unless the list names another message, a file that is not private is refused with `Unexpected file owner`, `Private file permissions are required` or `A single-link regular file is required`, a file above its size limit with `File exceeds its documented size limit`, a file that changes while it is read with `File changed during read` or `File length changed during read`, and a symbolic link or a file that cannot be opened for a reason other than being missing with `Operation failed; inspect private state and audit before retrying`, or with `NetOps could not access required files; check ownership and permissions` when access is denied. In the same way, unless the list names another message, content that the JSON parser refuses is reported with the message of the parser, and other invalid content with only an error type: a missing key such as `counts`, `tenant` or `catalog` with `KeyError`, a JSON value of the wrong type, for example a list instead of an object or a number instead of text, with `TypeError` and, for the Admin configuration, with `AttributeError`, and very deep nesting with `RecursionError`. A gateway configuration edited by hand is refused only where a check in the list cannot use a setting, in the same way, with the text of the error or only its error type, for example a removed `audit` setting or its `mode`, or a removed `server_name` or `admin_enabled` setting, with `KeyError`. A removed audit limit `budget_bytes`, `segment_bytes` or `retention_seconds` uses its default, and an audit limit is converted to an integer before the range check. These messages do not name the file; check the files and directories in the order of the list. A missing audit directory, a missing rejection summary and a missing Auditor configuration pass; the Auditor then uses the default tenant and catalog.
 
-State that NetOps created passes the checks of files and directories in this list: NetOps writes these files with mode 0600 for the user of their role and creates the audit directory with mode 0700 for the gateway user. A refusal by one of these checks therefore points to a file or directory that was changed by hand, for example its owner, its mode or a symbolic link in its place, or to state restored with other owners or modes; NetOps does not correct them. NetOps 1.0.1 makes the checks of the gateway state in this list, from the audit limits to the CA and server certificate files, on every start, so they refuse state of a 1.0.1 instance that started and reported `ready` only when it was changed or restored with other owners or modes after that start. Stop the instance, give the file or directory from the list the owner and mode described here and start the new release again. Do not run `init`, and keep the backup until the upgraded instance is verified.
+State that NetOps created passes the checks of files and directories in this list: NetOps writes these files with mode 0600 for the user of their role and creates the audit directory with mode 0700 for the gateway user. A refusal by one of these checks therefore points to a file or directory that was changed by hand, for example its owner, its mode or a symbolic link in its place, or to state restored with other owners or modes; NetOps does not correct them. NetOps 1.0.2 makes the checks of the gateway state in this list, from the audit limits to the CA and server certificate files, on every start, so they refuse state of a 1.0.2 instance that started and reported `ready` only when it was changed or restored with other owners or modes after that start. Stop the instance, give the file or directory from the list the owner and mode described here and start the new release again. Do not run `init`, and keep the backup until the upgraded instance is verified.
 
-The first start checks the Auditor and the Admin configuration only as far as the list says: as a private file of the role user that holds a JSON object and, for the Auditor, text values for `tenant` and `catalog`. The roles of the previous release refuse such a configuration when they start; the new release refuses it already before the conversion, so the state is not converted. Everything else that the roles need is checked only by the roles after the conversion, when they start or when they handle a call, for example the values of `tenant` and `catalog`, such as a value with a NUL character or an unknown catalog, the Auditor store `auditor/store.sqlite` and, when the Admin configuration lists devices, the complete Admin configuration. A first start that a role refuses when it starts has already converted the state to 1.0.2, and the instance does not start: `docker compose logs netops` reports `RuntimeError` for the gateway and, for the role, one of the messages above or only an error type such as `ConfigurationError`. Such a start writes no `instance_start` audit record: the converting start writes that record, with the `upgrade` field, only after every role is ready. After the correction the next start does not convert again and records no `upgrade` field, so no audit record names the upgrade; [Verify the upgrade](#verify-the-upgrade) describes the indirect evidence that remains without that field. Stop the instance, correct the configuration and start the instance again, or restore the backup as described in [Rollback](#rollback).
+The first start checks the Auditor and the Admin configuration only as far as the list says: as a private file of the role user that holds a JSON object and, for the Auditor, text values for `tenant` and `catalog`. The roles of the previous release refuse such a configuration when they start; the new release refuses it already before the conversion, so the state is not converted. Everything else that the roles need is checked only by the roles after the conversion, when they start or when they handle a call, for example the values of `tenant` and `catalog`, such as a value with a NUL character or an unknown catalog, the Auditor store `auditor/store.sqlite` and, when the Admin configuration lists devices, the complete Admin configuration. A first start that a role refuses when it starts has already converted the state to 1.0.3, and the instance does not start: `docker compose logs netops` reports `RuntimeError` for the gateway and, for the role, one of the messages above or only an error type such as `ConfigurationError`. Such a start writes no `instance_start` audit record: the converting start writes that record, with the `upgrade` field, only after every role is ready. After the correction the next start does not convert again and records no `upgrade` field, so no audit record names the upgrade; [Verify the upgrade](#verify-the-upgrade) describes the indirect evidence that remains without that field. Stop the instance, correct the configuration and start the instance again, or restore the backup as described in [Rollback](#rollback).
 
 ### Interrupted first start
 
-After a power loss or a killed container during the first start of the new release, the gateway configuration is either still the previous one or completely converted. A private temporary file whose name starts with `.netops-` can remain in the state volume. It is not authoritative state and not a commit; NetOps neither reads nor removes it automatically. Start the instance again with the new release and verify it as above. If the configuration was still the previous one, that start converts it and, once every role is ready, records the `upgrade` field. The audit lacks the `instance_start` record that names the previous version whenever the configuration was converted but the converting start stopped before it wrote that record, which it writes only after every role is ready, for example after an interruption or because a role refused to start; a later start then does not convert again and does not record an `upgrade` field. [Verify the upgrade](#verify-the-upgrade) describes the indirect evidence that remains for such an upgrade. A first start that one of the checks in [Refused first start](#refused-first-start) refuses, for example because of an incomplete final audit record, a changed `NETOPS_SERVER_NAME`, missing, unreadable or mismatched CA and server certificate files, a CA that expires too soon to renew the server certificate, an audit directory or a state file with a changed owner or mode, or an unreadable Auditor or Admin configuration, is refused before the conversion: the gateway configuration still records `1.0.1`. Recover an incomplete final audit record with the release that the state belongs to: `audit recover` of the new release refuses state that is not yet converted, with the message above, and changes nothing.
+After a power loss or a killed container during the first start of the new release, the gateway configuration is either still the previous one or completely converted. A private temporary file whose name starts with `.netops-` can remain in the state volume. It is not authoritative state and not a commit; NetOps neither reads nor removes it automatically. Start the instance again with the new release and verify it as above. If the configuration was still the previous one, that start converts it and, once every role is ready, records the `upgrade` field. The audit lacks the `instance_start` record that names the previous version whenever the configuration was converted but the converting start stopped before it wrote that record, which it writes only after every role is ready, for example after an interruption or because a role refused to start; a later start then does not convert again and does not record an `upgrade` field. [Verify the upgrade](#verify-the-upgrade) describes the indirect evidence that remains for such an upgrade. A first start that one of the checks in [Refused first start](#refused-first-start) refuses, for example because of an incomplete final audit record, a changed `NETOPS_SERVER_NAME`, missing, unreadable or mismatched CA and server certificate files, a CA that expires too soon to renew the server certificate, an audit directory or a state file with a changed owner or mode, or an unreadable Auditor or Admin configuration, is refused before the conversion: the gateway configuration still records `1.0.2`. Recover an incomplete final audit record with the release that the state belongs to: `audit recover` of the new release refuses state that is not yet converted, with the message above, and changes nothing.
 
 ### Rollback
 
-A release refuses state that a newer release has started on. Setting `NETOPS_IMAGE` back to the previous digest is not a rollback: NetOps 1.0.1 then does not start, its log reports `State belongs to another product version; automatic upgrade or downgrade is refused. Use the verified release procedure`, and the state does not change. Do not edit the product version recorded in the state by hand; that is not a rollback either.
+A release refuses state that a newer release has started on. Setting `NETOPS_IMAGE` back to the previous digest is not a rollback: NetOps 1.0.2 then does not start, its log reports `State belongs to another product version; automatic upgrade or downgrade is refused. Use the verified release procedure`, and the state does not change. Do not edit the product version recorded in the state by hand; that is not a rollback either.
 
-The way back is the 1.0.1 instance that the upgrade left unchanged. Its state is that of the backup and does not contain audit records written after it. Keep them before the rollback: stop the 1.0.2 instance and, with its project and Compose file, write the export to a new private file:
+The way back is the 1.0.2 instance that the upgrade left unchanged. Its state is that of the backup and does not contain audit records written after it. Keep them before the rollback: stop the 1.0.3 instance and, with its project and Compose file, write the export to a new private file:
 
 ```sh
 docker compose -f "$RESTORED_COMPOSE" -p "$RESTORED_PROJECT" stop &&
@@ -833,18 +889,18 @@ docker compose -f "$RESTORED_COMPOSE" -p "$RESTORED_PROJECT" stop &&
 )
 ```
 
-With local audit the export holds the records written after the backup. With syslog audit, records already delivered are no longer in the export; keep the receiver archive, which holds them, together with the export, which holds only the records still queued and, after `configure syslog`, the earlier local segments. Keep the 1.0.2 instance stopped.
+With local audit the export holds the records written after the backup. With syslog audit, records already delivered are no longer in the export; keep the receiver archive, which holds them, together with the export, which holds only the records still queued and, after `configure syslog`, the earlier local segments. Keep the 1.0.3 instance stopped.
 
-With syslog audit the receiver keeps its configuration and its part archive. The 1.0.1 instance sends the records of its queue again, also those that 1.0.2 already delivered; the persistent record ID identifies each repeated record.
+With syslog audit the receiver keeps its configuration and its part archive. The 1.0.2 instance sends the records of its queue again, also those that 1.0.3 already delivered; the persistent record ID identifies each repeated record.
 
-Then start the 1.0.1 instance with its own Compose file and project and check it with the commands of [Before the upgrade](#before-the-upgrade):
+Then start the 1.0.2 instance with its own Compose file and project and check it with the commands of [Before the upgrade](#before-the-upgrade):
 
 ```sh
 docker compose -f "$SOURCE_COMPOSE" -p "$SOURCE_PROJECT" up -d --wait &&
 docker compose -f "$SOURCE_COMPOSE" -p "$SOURCE_PROJECT" ps
 ```
 
-The 1.0.1 instance has the state, CA, token and audit of the backup; the records written after the backup exist only in the export and, with syslog audit, in the receiver archive. Both instances use the same port: keep the 1.0.2 instance stopped and never run both at once. Remove the 1.0.2 instance and its volume with `docker compose -f "$RESTORED_COMPOSE" -p "$RESTORED_PROJECT" down -v` only after the rollback is verified and the export is kept. If the 1.0.1 instance or its volume was changed, restore the backup as described in [Back up and restore state](#back-up-and-restore-state) with the 1.0.1 release files instead.
+The 1.0.2 instance has the state, CA, token and audit of the backup; the records written after the backup exist only in the export and, with syslog audit, in the receiver archive. Both instances use the same port: keep the 1.0.3 instance stopped and never run both at once. Remove the 1.0.3 instance and its volume with `docker compose -f "$RESTORED_COMPOSE" -p "$RESTORED_PROJECT" down -v` only after the rollback is verified and the export is kept. If the 1.0.2 instance or its volume was changed, restore the backup as described in [Back up and restore state](#back-up-and-restore-state) with the 1.0.2 release files instead.
 
 ## Auditor operator workflows
 
@@ -892,7 +948,7 @@ For the file collection channel, set the Auditor inventory source to the printed
 
 Run Docker commands as the host operator authorized to control Docker. Inside the image, initialization and operator workflows use the default container user for their short permission setup; role work then runs under its isolated UID. Do not add a --user override to these operator commands. A non-root container UID is refused before an operator write.
 
-Admin is enabled on a new instance by default. To omit its worker and MCP tools, use init --disable-admin during the first initialization; the offline `configure admin` and `admin` operator commands remain available and `admin doctor` still contacts the configured device, with the same audit selection as the normal init workflow. Repeating init preserves this initial choice and existing state; the flag is not a request to discard or recreate a configured volume.
+Admin is enabled on a new instance by default. To omit its worker and MCP tools, use `init --disable-admin` during the first initialization (the tool count of step 9 is then `20` instead of `26`); the offline `configure admin` and `admin` operator commands remain available and `admin doctor` still contacts the configured device, with the same audit selection as the normal init workflow. Repeating init preserves this initial choice and existing state; the flag is not a request to discard or recreate a configured volume.
 
 Helper, Auditor and Admin configure workflows first record only the intended role and configure action through the gateway audit identity. No submitted configuration or credentials are copied into that intent event. Audit failure refuses installation of role inputs. The intent event alone does not certify successful validation or installation.
 

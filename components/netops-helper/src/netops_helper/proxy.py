@@ -97,6 +97,12 @@ DEFAULT_RATE_WINDOW_SECONDS = helper_inventory.DEFAULT_RATE_WINDOW_SECONDS
 MAX_REQUEST_BYTES = 1_048_576
 MAX_SERVER_FRAME_BYTES = 33_554_432
 MAX_STDERR_CAPTURE_BYTES = 65_536
+SSH_CLIENT_PREFIXES = (
+    "ssh: ", "kex_exchange_identification: ", "banner exchange: ",
+    "client_loop: ", "ssh_dispatch_run_fatal: ",
+)
+SSH_CLIENT_TRAILER = re.compile(r"disconnected from \S+ port [0-9]+")
+SSH_CLIENT_FAILURE_EXIT = 255
 MAX_JSON_NESTING = 128
 MAX_PENDING_REQUESTS = 64
 PENDING_RESPONSE_TIMEOUT_SECONDS = 300.0
@@ -2517,7 +2523,7 @@ def _ssh_command(
         "-o", "GlobalKnownHostsFile=/dev/null",
         "-o", "VerifyHostKeyDNS=no",
         "-o", "CanonicalizeHostname=no",
-        "-o", "LogLevel=ERROR",
+        "-o", "LogLevel=INFO",
         "-o", "ConnectTimeout=10",
         "-p", str(int(runner["port"])),
         "-l", login,
@@ -2554,49 +2560,68 @@ def _write_refusal_diagnostic(category: str, method: str | None = None) -> None:
     sys.stderr.flush()
 
 
-def _classify_ssh_stderr(value: str) -> tuple[str, str]:
-    lowered = value.lower()
-    if any(item in lowered for item in (
-        "remote host identification has changed", "host key verification failed",
-        "no host key is known", "offending key",
-    )):
-        return "ssh_host_key", "SSH host-key verification failed."
-    lines = tuple(line.strip() for line in lowered.splitlines())
-    docker_permission_denied = any(
-        "permission denied" in line
-        and (
-            "docker daemon" in line
-            or re.search(r"(?:^|/)docker[.]sock(?:[^a-z0-9_.-]|$)", line)
-        )
-        for line in lines
+def _decisive_stderr_line(value: str) -> str:
+    for line in reversed(value.lower().splitlines()):
+        line = line.strip()
+        if line and not SSH_CLIENT_TRAILER.fullmatch(line):
+            return line
+    return ""
+
+
+def _remote_command_failed(line: str) -> bool:
+    docker_permission_denied = "permission denied" in line and (
+        "docker daemon" in line
+        or re.search(r"(?:^|/)docker[.]sock(?:[^a-z0-9_.-]|$)", line)
     )
-    docker_command_missing = any(
-        re.fullmatch(
-            r"(?:/bin/)?sh:\s+(?:(?:line\s+)?[0-9]+:\s+)?docker:\s+not found",
-            line,
-        )
-        or re.fullmatch(
-            r"(?:(?:-|/bin/)?(?:ba|da|z|k)?sh:\s+)?docker:\s+command not found",
-            line,
-        )
-        for line in lines
+    docker_command_missing = re.fullmatch(
+        r"(?:/bin/)?sh:\s+(?:(?:line\s+)?[0-9]+:\s+)?docker:\s+not found",
+        line,
+    ) or re.fullmatch(
+        r"(?:(?:-|/bin/)?(?:ba|da|z|k)?sh:\s+)?docker:\s+command not found",
+        line,
     )
-    if docker_permission_denied or docker_command_missing or any(
-        item in lowered for item in (
+    return bool(docker_permission_denied or docker_command_missing or any(
+        item in line for item in (
             "error response from daemon", "no such container",
             "oci runtime exec failed", "executable file not found",
             "netops_helper.server",
         )
-    ):
+    ))
+
+
+def _classify_ssh_stderr(value: str, exit_code: int = SSH_CLIENT_FAILURE_EXIT) -> tuple[str, str]:
+    line = _decisive_stderr_line(value)
+    if _remote_command_failed(line):
         return "remote_exec", "The fixed remote container command could not start."
-    if any(item in lowered for item in (
-        "permission denied", "authentication failed", "too many authentication failures",
-    )):
+    if exit_code != SSH_CLIENT_FAILURE_EXIT:
+        return "ssh_transport", SSH_TRANSPORT_FAILURE_MESSAGE
+    if line == "host key verification failed." or re.match(
+        r"@+\s*warning: remote host identification has changed"
+        r"|no (?:\S+ )?host key is known for "
+        r"|offending (?:\S+ )?key in ",
+        line,
+    ):
+        return "ssh_host_key", "SSH host-key verification failed."
+    if line.startswith("unable to negotiate with ") and ": no matching " in line:
+        return "ssh_negotiation", "SSH algorithm negotiation with the runner failed. Update the runner SSH service or review its allowed algorithms."
+    if re.match(
+        r"(?:\S+@\S+: )?permission denied \("
+        r"|received disconnect from \S+ port [0-9]+:[0-9]+: too many authentication failures",
+        line,
+    ):
         return "ssh_authentication", "SSH authentication to the runner failed."
-    if any(item in lowered for item in (
-        "timed out", "no route to host", "connection refused", "could not resolve hostname",
-        "connection closed", "connection reset",
-    )):
+    if re.match(
+        r"connection (?:closed|reset) by "
+        r"|connection to \S+ (?:port [0-9]+ )?(?:timed out|closed by remote host)"
+        r"|connection timed out during banner exchange",
+        line,
+    ) or (
+        line.startswith(SSH_CLIENT_PREFIXES)
+        and any(item in line for item in (
+            "timed out", "no route to host", "connection refused", "could not resolve hostname",
+            "connection closed", "connection reset",
+        ))
+    ):
         return "ssh_connection", "The SSH connection to the runner failed."
     return "ssh_transport", SSH_TRANSPORT_FAILURE_MESSAGE
 
@@ -2605,9 +2630,16 @@ def _drain_stderr(
     stream: Any, secrets: tuple[str, ...] = (), state: dict[str, Any] | None = None,
 ) -> None:
     captured = bytearray()
+    starts_mid_line = False
     for line in iter(lambda: stream.readline(MAX_STDERR_CAPTURE_BYTES), b""):
-        if len(captured) < MAX_STDERR_CAPTURE_BYTES:
-            captured.extend(line[:MAX_STDERR_CAPTURE_BYTES - len(captured)])
+        captured.extend(line)
+        if len(captured) > MAX_STDERR_CAPTURE_BYTES:
+            excess = len(captured) - MAX_STDERR_CAPTURE_BYTES
+            starts_mid_line = captured[excess - 1] != 0x0A
+            del captured[:excess]
+    if starts_mid_line:
+        cut = captured.find(b"\n")
+        del captured[:cut + 1 if cut >= 0 else len(captured)]
     if captured and state is not None:
         state["captured"] = sanitize_text(captured.decode(errors="replace"), secrets)
 
@@ -2623,7 +2655,7 @@ def _exit_diagnostic(exit_code: int, timed_out: bool, state: dict[str, Any]) -> 
         return
     captured = state.get("captured", "")
     if captured:
-        category, message = _classify_ssh_stderr(captured)
+        category, message = _classify_ssh_stderr(captured, exit_code)
     else:
         category, message = "ssh_transport", SSH_TRANSPORT_FAILURE_MESSAGE
     _write_transport_diagnostic(category, message)

@@ -59,7 +59,7 @@ class RoleConfigAdmission(unittest.TestCase):
         self.put(path, None)
         path.symlink_to(path.parent / "missing-role-config-target")
 
-    def upgrade(self, admin_enabled=False, product_version="1.0.1"):
+    def upgrade(self, admin_enabled=False, product_version="1.0.2"):
         self.store(dict(self.settings, admin_enabled=admin_enabled, product_version=product_version))
         self.children.reset_mock()
         self.gateway_start.reset_mock()
@@ -96,7 +96,7 @@ class RoleConfigAdmission(unittest.TestCase):
         for name in before:
             if name != "gateway/config.json":
                 self.assertEqual(after[name], before[name], name)
-        self.assertEqual(json.loads(self.path.read_bytes())["product_version"], "1.0.2")
+        self.assertEqual(json.loads(self.path.read_bytes())["product_version"], "1.0.3")
         self.gateway_start.assert_called_once()
 
     def test_upgrade_refuses_corrupt_auditor_config_before_commit(self):
@@ -185,7 +185,7 @@ class RoleConfigAdmission(unittest.TestCase):
 
     def test_current_start_keeps_role_config_refusal_in_the_worker(self):
         with self.roles_owned_by_caller():
-            self.upgrade(product_version="1.0.2")
+            self.upgrade(product_version="1.0.3")
             self.put(self.auditor, b'{"tenant":')
             try:
                 self.start()

@@ -137,6 +137,50 @@ asyncio.run(main())
                                 capture_output=True, text=True, timeout=10)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
+    def test_role_answering_status_after_two_and_a_half_seconds_is_ready(self):
+        from netops.health import check_roles
+        async def slow(role, message):
+            await asyncio.sleep(2.5)
+            return {"ready": True}
+        with patch("netops.health.rpc", new=slow):
+            asyncio.run(check_roles(["helper"]))
+
+    def test_role_that_never_answers_status_fails_within_the_container_healthcheck_timeout(self):
+        import time
+        from netops.health import check_roles
+        async def silent(role, message):
+            await asyncio.Event().wait()
+        start = time.monotonic()
+        with patch("netops.health.rpc", new=silent):
+            with self.assertRaises(TimeoutError):
+                asyncio.run(check_roles(["helper"]))
+        self.assertLess(time.monotonic() - start, 10)
+
+    def test_roles_each_answering_within_five_seconds_are_ready_within_one_deadline(self):
+        import time
+        from netops.health import check_roles
+        async def slow(role, message):
+            await asyncio.sleep(3.5)
+            return {"ready": True}
+        start = time.monotonic()
+        with patch("netops.health.rpc", new=slow):
+            asyncio.run(check_roles(["helper", "auditor", "admin"]))
+        self.assertLess(time.monotonic() - start, 5.5)
+
+    def test_silent_role_after_slow_roles_fails_within_the_container_healthcheck_timeout(self):
+        import time
+        from netops.health import check_roles
+        async def mixed(role, message):
+            if role == "admin":
+                await asyncio.Event().wait()
+            await asyncio.sleep(3)
+            return {"ready": True}
+        start = time.monotonic()
+        with patch("netops.health.rpc", new=mixed):
+            with self.assertRaises(TimeoutError):
+                asyncio.run(check_roles(["helper", "auditor", "admin"]))
+        self.assertLess(time.monotonic() - start, 5.5)
+
 class AuditGate(unittest.IsolatedAsyncioTestCase):
     async def invoke(self, app, audit):
         boundary = AuditBoundary(app, audit)

@@ -1,5 +1,6 @@
 import argparse
 import ast
+import hashlib
 import importlib.util
 import json
 from pathlib import Path
@@ -14,6 +15,18 @@ def legacy(root):
     spec.loader.exec_module(module)
     module.ALLOWED_DOMAINS += ("chatgpt.com", "claude.com", "ghcr.io", "cisecurity.org")
     return module
+
+VENDORED_SCHEMA_PINS = {
+    "release/schema/cyclonedx-1.7/PROVENANCE.json": "1582c046da37af18f27008d49761e5a94efff65e0ebdde56cacd73672c99b778",
+    "release/schema/cyclonedx-1.7/bom-1.7.schema.json": "df472ef4aaf593904c479293723a1a5c191d6672715c93b3c0b5c318f3914221",
+    "release/schema/cyclonedx-1.7/spdx.schema.json": "54a6288292bc6c90b0d3952f5f939f17436fa76704ffe68a46e5b78539c7cc1b",
+    "release/schema/cyclonedx-1.7/jsf-0.82.schema.json": "8bae002c25e723db7ee1f26afde680ae1a2b1a8f6b4b4b0fd65dc3becb090aae",
+    "release/schema/cyclonedx-1.7/cryptography-defs.schema.json": "018ea7f78b5208ec647cfd10f669cc9c26aba6aceb79c4da7f9c0ef4c99b60de",
+}
+
+def pinned_vendored_schema(relative, text):
+    expected = VENDORED_SCHEMA_PINS.get(relative)
+    return expected is not None and hashlib.sha256(text.encode("utf-8")).hexdigest() == expected
 
 ESCAPE_SEQUENCE = re.compile(r"\\(?:x([0-9A-Fa-f]{2})|u([0-9A-Fa-f]{4})|U([0-9A-Fa-f]{8}))")
 
@@ -39,7 +52,7 @@ def decoded_json_strings(value):
     elif isinstance(value, str):
         yield value
 
-def privacy_text_once(rules, relative, text):
+def privacy_text_once(rules, relative, text, domains=True):
     checked = re.sub(r"(?i)\braspberry\s+pi\s+os(?:\s+64)?\b", "Supported ARM operating system", text)
     errors = []
     if any(marker.search(relative) for marker in rules.PRIVATE_MARKERS):
@@ -49,11 +62,12 @@ def privacy_text_once(rules, relative, text):
     if any(marker.search(text) for marker in rules.CREDENTIAL_MARKERS):
         errors.append("credential-shaped material in " + relative)
     errors.extend(rules._pem_material_errors(relative, text))
-    if rules._address_errors(relative, text, Path(relative).suffix.lower() in rules.DOMAIN_SUFFIXES):
+    if rules._address_errors(relative, text, domains and Path(relative).suffix.lower() in rules.DOMAIN_SUFFIXES):
         errors.append("network or domain material in " + relative)
     return errors
 
 def privacy_text(rules, relative, text):
+    domains = not pinned_vendored_schema(relative, text)
     variants = [text]
     if Path(relative).suffix.lower() == ".json":
         try:
@@ -69,7 +83,7 @@ def privacy_text(rules, relative, text):
         except ValueError:
             errors.append("unusable text escape in " + relative)
     for variant in dict.fromkeys(variants):
-        errors.extend(privacy_text_once(rules, relative, variant))
+        errors.extend(privacy_text_once(rules, relative, variant, domains))
     return list(dict.fromkeys(errors))
 
 def check(root):

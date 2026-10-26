@@ -88,7 +88,7 @@ EXACT = {
     "requirements-release.lock", "sbom.cdx.json",
 }
 TESTS = {
-    "tests/conftest.py", "tests/run_tests.py", "tests/test_apply_egress_rules.py",
+    "tests/conftest.py", "tests/test_apply_egress_rules.py",
     "tests/test_t127_contracts.py",
     "tests/test_mutation_helper_engine.py",
     "tests/test_mutation_helper_proxy_arguments.py",

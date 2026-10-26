@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 import argparse
+import base64
+import binascii
 import collections
 import hashlib
 import importlib.util
@@ -109,6 +111,10 @@ IDENTIFIER_SUFFIXES = set(VENDOR_SCHEMA["identifier_suffixes"])
 
 ESCAPE = re.compile(r"\\(?:u([0-9a-fA-F]{4})|x([0-9a-fA-F]{2})|U([0-9a-fA-F]{8}))")
 DECODE_LIMIT = 8
+BASE64_CANDIDATE = re.compile(r"(?<![A-Za-z0-9+/_-])[A-Za-z0-9+/_-]{8,}={0,2}(?![A-Za-z0-9+/_=-])")
+BASE64_CANDIDATE_LIMIT = 64 * 1024
+DECODE_BYTES_LIMIT = 128 * 1024
+OPAQUE_TEXT_RUN = re.compile(rb"[\x20-\x7e]{8,}")
 
 
 def unescaped(text):
@@ -118,22 +124,80 @@ def unescaped(text):
     return urllib.parse.unquote(ESCAPE.sub(character, text))
 
 
-def variants(text):
+def base64_text(token):
+    if len(token) % 4 == 1 or ("=" in token and len(token) % 4):
+        return None
+    normalized = token.replace("-", "+").replace("_", "/")
+    try:
+        raw = base64.b64decode(normalized + "=" * (-len(normalized) % 4), validate=True)
+        if base64.b64encode(raw).decode("ascii").rstrip("=") != normalized.rstrip("="):
+            return None
+    except (binascii.Error, ValueError):
+        return None
+    raw = raw.replace(b"\x00", b"")
+    try:
+        return raw.decode("utf-8"), True
+    except UnicodeDecodeError:
+        runs = OPAQUE_TEXT_RUN.findall(raw)
+        return (b"\n".join(runs).decode("ascii"), False) if runs else None
+
+
+def variants(text, decode_base64=True):
     found = [text]
-    for _ in range(DECODE_LIMIT):
-        decoded = unescaped(found[-1])
-        if decoded == found[-1]:
-            return found, False
-        found.append(decoded)
-    return found, unescaped(found[-1]) != found[-1]
+    seen = {text}
+    pending = [(text, 0)]
+    decoded_bytes = 0
+    index = 0
+    while index < len(pending):
+        current, depth = pending[index]
+        index += 1
+        def next_variants():
+            decoded = unescaped(current)
+            if decoded != current:
+                yield decoded, "unusable text escape", False
+            if not decode_base64:
+                return
+            for match in BASE64_CANDIDATE.finditer(current):
+                token = match.group(0)
+                if len(token) > BASE64_CANDIDATE_LIMIT:
+                    yield None, "unusable text encoding", True
+                    return
+                decoded = base64_text(token)
+                if decoded is None:
+                    continue
+                decoded, textual = decoded
+                if not textual:
+                    yield decoded, None, None
+                elif decoded != current:
+                    yield decoded, "unusable text encoding", True
+
+        for decoded, failure, is_base64 in next_variants():
+            if decoded is None:
+                return found, failure
+            if decoded in seen:
+                continue
+            if is_base64 is None:
+                seen.add(decoded)
+                found.append(decoded)
+                continue
+            if depth >= DECODE_LIMIT:
+                return found, failure
+            if is_base64:
+                decoded_bytes += len(decoded.encode("utf-8"))
+                if decoded_bytes > DECODE_BYTES_LIMIT:
+                    return found, "unusable text encoding"
+            seen.add(decoded)
+            found.append(decoded)
+            pending.append((decoded, depth + 1))
+    return found, None
 
 
-def all_variants(texts, found):
+def all_variants(texts, found, decode_base64=True):
     result = []
     for text in texts:
-        decoded, exceeded = variants(text)
+        decoded, exceeded = variants(text, decode_base64=decode_base64)
         if exceeded:
-            found["unusable text escape"] += 1
+            found[exceeded] += 1
         result.extend(decoded)
     return list(dict.fromkeys(result))
 
@@ -181,7 +245,7 @@ def check_file(path, markers, asset_names):
         document = json.loads(text)
         kind = vendor_kind(name, document)
         if kind is None:
-            found.update(public_text_findings("\n".join(all_variants(strings(document), found)), asset_names))
+            found.update(public_text_findings("\n".join(all_variants(strings(document), found, decode_base64=False)), asset_names))
         else:
             schema = VENDOR_SCHEMA[kind]
             found["unexpected vendor field"] += len(key_paths(document) - set(schema["key_paths"]))
@@ -189,13 +253,13 @@ def check_file(path, markers, asset_names):
             strict = []
             for value_path, value in values(document):
                 if value_path in fields:
-                    for variant in all_variants([value], found):
+                    for variant in all_variants([value], found, decode_base64=False):
                         found.update(vendor_field_findings(fields[value_path], variant, asset_names))
                 else:
                     strict.append(value)
-            found.update(public_text_findings("\n".join(all_variants(strict, found)), asset_names))
+            found.update(public_text_findings("\n".join(all_variants(strict, found, decode_base64=False)), asset_names))
     else:
-        found.update(public_text_findings("\n".join(all_variants([text], collections.Counter())), asset_names))
+        found.update(public_text_findings("\n".join(all_variants([text], collections.Counter(), decode_base64=False)), asset_names))
     return {kind: count for kind, count in found.items() if count}
 
 

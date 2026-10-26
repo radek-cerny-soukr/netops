@@ -27,10 +27,10 @@ Every rule reads a saved configuration (`show` output) only. A setting that `sho
 
 ## Not covered
 
-- **Runtime state or an outside source**, not visible in a configuration file: 2.1.6 (latest firmware), 4.2.1 and the other FortiGuard database items, the Security Fabric item of section 5.2, 6.1.1 (trusted certificate for the VPN portal).
+- **Runtime state or an outside source**, not visible in a configuration file: 2.1.6 (latest firmware), the FortiGuard database state behind section 4, the Security Fabric item of section 5.2, 6.1.1 (trusted certificate for the VPN portal).
 - **A judgement about the organisation**: 1.2 (intra-zone traffic), 2.1.1 and 2.1.2 (banners), 2.1.3 (timezone), 2.1.5 (hostname), 2.3.2 (SNMP trusted hosts), 2.4.2 (trusted hosts on every login), 2.4.3 (profiles per administrator), 3.1 (unused policies), 4.5.1 (high-risk application categories).
-- **Readable from the configuration, but reporting the default of almost every device**: 2.4.7 (default admin ports) and 7.3.2 and 7.3.3 (encrypted syslog). Not implemented; such a rule would need a way to state an accepted default first.
-- **Readable from the configuration, not implemented yet**: 2.1.11 to 2.1.13, 2.2.1 (password policy), 2.3.3 and 2.3.4, 2.4.6 and 2.4.8 (local-in policies and virtual patching), the high-availability items of 2.5, 3.3, the security profile items of section 4, 5.1.1, 6.1.2, 7.1.1 and 7.3.1.
+- **Readable from the configuration, but reporting the default of almost every device**: 1.1 (DNS servers), 2.4.7 (default admin ports) and 7.3.2 and 7.3.3 (encrypted syslog). Not implemented; such a rule would need a way to state an accepted default first.
+- **Readable from the configuration, not implemented yet**: 2.1.11 to 2.1.13, 2.2.1 (password policy), 2.3.3 and 2.3.4, 2.4.6 and 2.4.8 (local-in policies and virtual patching), the high-availability items of 2.5, 3.3, 4.2.1 (automatic signature updates), the security profile items of section 4, 5.1.1, 6.1.2, 7.1.1 and 7.3.1.
 
 ## Measured schema rules
 

@@ -140,6 +140,18 @@ def run(*args, memory_limit=768 * 1024 * 1024, input=None, capture_output=False,
         return subprocess.CompletedProcess(child.args, child.returncode, out, err)
 
 
+def workers(cpu_max="/sys/fs/cgroup/cpu.max"):
+    count = os.process_cpu_count() if hasattr(os, "process_cpu_count") else None
+    count = count or os.cpu_count() or 1
+    try:
+        quota, period = Path(cpu_max).read_text().split()
+        if quota != "max":
+            count = min(count, -(-int(quota) // int(period)))
+    except (OSError, ValueError, ZeroDivisionError):
+        pass
+    return max(1, count)
+
+
 if __name__ == "__main__":
     if len(sys.argv) != 6 or sys.argv[1] != "--watch":
         raise SystemExit(2)

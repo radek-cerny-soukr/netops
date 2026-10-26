@@ -7,6 +7,8 @@ import re
 import shutil
 import sys
 
+from sbom_gate import SBOMError, validate_sbom
+
 DIGEST = re.compile(r"sha256:[0-9a-f]{64}")
 COMMIT = re.compile(r"[0-9a-f]{40}")
 VERSION = re.compile(r"[0-9]+\.[0-9]+\.[0-9]+")
@@ -75,6 +77,8 @@ def build(args):
         raise ManifestError("architectures share one digest")
     with open(args.index_raw, encoding="utf-8") as stream:
         check_index(json.load(stream), digests)
+    for arch in ARCHES:
+        validate_sbom(os.path.join(args.dir, "sbom-%s.cdx.json" % arch), args.image, digests[arch])
     prefix = "netops-%s" % args.version
     os.makedirs(args.release_dir, exist_ok=True)
     if os.listdir(args.release_dir):
@@ -129,7 +133,7 @@ def main():
     args = parser.parse_args()
     try:
         manifest, name = build(args)
-    except (ManifestError, OSError, ValueError) as error:
+    except (ManifestError, SBOMError, OSError, ValueError) as error:
         print("candidate_manifest=failed: %s" % error, file=sys.stderr)
         return 1
     print("candidate_manifest=written %s vulnerability_gate=%s index=%s" % (name, manifest["vulnerability_gate"], args.index_digest))

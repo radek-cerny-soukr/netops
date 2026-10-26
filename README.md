@@ -1,6 +1,6 @@
 # NetOps
 
-This README describes NetOps 1.0.2, the current release. Changes since 1.0.1 are listed in the [release notes](release/notes-1.0.2.md); the fixes for [issue #6](https://github.com/radek-cerny-soukr/netops/issues/6) came with [1.0.1](release/notes-1.0.1.md).
+This README describes NetOps 1.0.3, the current release. Changes since 1.0.2 are listed in the [release notes](release/notes-1.0.3.md); the Core SFTP security fix came with [1.0.2](release/notes-1.0.2.md) and the fixes for [issue #6](https://github.com/radek-cerny-soukr/netops/issues/6) with [1.0.1](release/notes-1.0.1.md). To upgrade an existing 1.0.2 instance, follow [Upgrade from the previous release](docs/quickstart-1.0.md#upgrade-from-the-previous-release).
 
 NetOps is a self-hosted MCP server for network diagnostics, configuration audits and bounded, reversible device changes. Version 1.0 ships as one Docker image that runs the Helper, Auditor and Admin roles behind one token-protected HTTPS (Streamable HTTP) MCP endpoint. Supported, authenticated MCP traffic passes through a mandatory durable audit boundary.
 
@@ -143,6 +143,7 @@ Details: [Verified platform support](docs/verified-support.md) · [Compatibility
 - **UID separation:** gateway, Helper, Auditor and Admin have separate UID/GID, private state and credentials; local IPC authenticates the peer UID in both directions. This is process and filesystem isolation inside one container, not a boundary against the host administrator or the container runtime. The runtime never mounts the Docker socket or uses host networking.
 - **Syslog over TLS:** the bounded, durable syslog queue sends to a verified TLS receiver. A successful delivery is a TLS transport hand-over, not a receiver acknowledgement; a full queue blocks new operations.
 - **Fail-closed:** an unwritable audit, an incomplete final local audit record, a full syslog queue, a second instance on the same state or state of another product version or state schema stops operations instead of continuing silently. The one exception is the state of the immediately preceding release: the first start of the new release converts it under the instance lock and changes only its recorded product version. There is no downgrade.
+- **CIS:** the container architecture and the release tests are inspired by the recommendations of the CIS Docker Benchmark; NetOps does not claim compliance with CIS.
 
 Details: [Architecture](docs/architecture-1.0.md) · [Security policy](SECURITY.md) · [CIS Docker Benchmark mapping](docs/security/cis-docker-benchmark.md)
 
@@ -157,14 +158,14 @@ This is a shortened version of the [quickstart](docs/quickstart-1.0.md). Follow 
 ```sh
 mkdir -m 700 ~/netops && cd ~/netops &&
 (
-  for f in compose.yaml env.example netops-1.0.2-manifest.json netops-1.0.2-SHA256SUMS netops-1.0.2-SHA256SUMS.sigstore.json; do
-    curl -fLO "https://github.com/radek-cerny-soukr/netops/releases/download/v1.0.2/$f" || exit 1
+  for f in compose.yaml env.example netops-1.0.3-manifest.json netops-1.0.3-SHA256SUMS netops-1.0.3-SHA256SUMS.sigstore.json; do
+    curl -fLO "https://github.com/radek-cerny-soukr/netops/releases/download/v1.0.3/$f" || exit 1
   done
 ) &&
-cosign verify-blob --bundle netops-1.0.2-SHA256SUMS.sigstore.json \
+cosign verify-blob --bundle netops-1.0.3-SHA256SUMS.sigstore.json \
   --certificate-identity 325383355+radek-cerny-soukr@users.noreply.github.com \
-  --certificate-oidc-issuer https://github.com/login/oauth netops-1.0.2-SHA256SUMS &&
-sha256sum -c --ignore-missing netops-1.0.2-SHA256SUMS
+  --certificate-oidc-issuer https://github.com/login/oauth netops-1.0.3-SHA256SUMS &&
+sha256sum -c --ignore-missing netops-1.0.3-SHA256SUMS
 ```
 
 cosign must print `Verified OK`, and sha256sum `OK` for `compose.yaml`, `env.example` and the release manifest; cosign authenticates the checksum list using the signature bundle.
@@ -206,7 +207,7 @@ curl -sS -o /dev/null -w '%{http_code}\n' --cacert netops-ca.pem \
   -X POST https://localhost:8443/mcp -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'
 ```
 
-They print `ready`, `1.0.2` and `401`: a request without the token is refused. Use the URL printed by `connection` when it is not `https://localhost:8443/mcp`. [Step 9](docs/quickstart-1.0.md#9-check-the-instance-without-an-mcp-client) adds a request with the token.
+They print `ready`, `1.0.3` and `401`: a request without the token is refused. Use the URL printed by `connection` when it is not `https://localhost:8443/mcp`. [Step 9](docs/quickstart-1.0.md#9-check-the-instance-without-an-mcp-client) adds requests with the token, including the MCP tool list, and how to find them in the audit.
 
 **6. Connect a client.** Use the URL printed by `connection`.
 
@@ -263,11 +264,11 @@ See [Helper configuration](docs/helper-configuration.md), [Admin configuration](
 
 A release is the maintainer's personally signed checksum list together with the assets it covers. A candidate branch, digest, build or CI run without that signature is not a release.
 
-- **Signature:** `netops-1.0.2-SHA256SUMS` is signed with Sigstore (`netops-1.0.2-SHA256SUMS.sigstore.json`); certificate identity `325383355+radek-cerny-soukr@users.noreply.github.com`, OIDC issuer `https://github.com/login/oauth`.
-- **Covered assets:** the release manifest (image index and per-architecture digests), the SBOMs, the vulnerability scans and their assessments, and the acceptance reports listed below.
+- **Signature:** `netops-1.0.3-SHA256SUMS` is signed with Sigstore (`netops-1.0.3-SHA256SUMS.sigstore.json`); certificate identity `325383355+radek-cerny-soukr@users.noreply.github.com`, OIDC issuer `https://github.com/login/oauth`.
+- **Covered assets:** `compose.yaml`, `env.example`, the release manifest (image index and per-architecture digests), the acceptance manifest, the per-architecture SBOMs, vulnerability scans and scan gate results, the vulnerability assessments and the acceptance reports (`acceptance-*.json`). The signed checksum list itself is the complete list of covered files.
 - **Build once:** every release candidate is built once in GitHub Actions and the same digests are tested, accepted and published without a rebuild.
-- **Vulnerabilities:** each architecture is scanned; a fixable High or Critical finding blocks the release and every other finding ships with a written assessment (`netops-1.0.2-vulnerability-assessments.json`). The digests of the latest release are rescanned daily against its assessments.
-- **Acceptance of 1.0.2:** this corrective release is accepted in proportion to its change. The signing checklist requires the CI suites and engine tests of the candidate image in GitHub Actions on amd64 and arm64; a blind installation on Fedora Server 44 amd64 and on Debian 13 amd64, in which a tester without the project's context follows only this README and the quickstart and records the signature and checksum verification, a healthy instance reporting the candidate version, a request without the token refused with 401, the MCP tool list returned with the token, and an audit record of the call that does not contain the token; a blind upgrade on amd64 from the published NetOps 1.0.1 image (`ghcr.io/radek-cerny-soukr/netops@sha256:082ba2fd7384c5d3d5708753eed6c9ca532926b821ea7a4f8ffb431aa9c1652a`) to the candidate by the quickstart, with the data, token and CA preserved; and an independent review of the code change since 1.0.1. A run of Codex as MCP client is recorded when available and does not block. Ubuntu, Raspberry Pi OS, arm64 hosts and rootless Docker were not installed by a blind run for 1.0.2: the quickstart commands for them are newly written in 1.0.2, while the product code on these paths is unchanged since 1.0.1, whose acceptance covered them.
+- **Vulnerabilities:** each architecture is scanned; a fixable High or Critical finding blocks the release and every other finding ships with a written assessment (`netops-1.0.3-vulnerability-assessments.json`). The digests of the latest release are rescanned daily against its assessments.
+- **Acceptance of 1.0.3:** this corrective release is accepted in proportion to its change. The signing checklist requires the CI suites and engine tests of the candidate image in GitHub Actions on amd64 and arm64; a blind installation on Fedora Server 44 amd64 and on Debian 13 amd64, in which a tester without the project's context follows only this README and the quickstart and records the signature and checksum verification, a healthy instance reporting the candidate version, a request without the token refused with 401, the MCP tool list returned with the token, and an audit record of the call that does not contain the token; a blind upgrade on amd64 from the published NetOps 1.0.2 image (`ghcr.io/radek-cerny-soukr/netops@sha256:432040717c7630ee5f08347d0c59682bec9f896dc3728ac0690bb8f86aa13413`) to the candidate by the quickstart, with the data, token and CA preserved; and an independent review of the code change since 1.0.2. A run of Codex as MCP client is recorded when available and does not block. Ubuntu, Raspberry Pi OS, arm64 hosts and rootless Docker were not installed by a blind run for 1.0.3; the product code on these paths changed in 1.0.3 only by the fixes listed in the release notes, which the CI suites cover on amd64 and arm64. The acceptance of 1.0.2 is described in its [release notes](release/notes-1.0.2.md#acceptance).
 
 Use the image digest and configuration files from one signed release manifest. Qualification from a source checkout is described in [Qualification](docs/testing-1.0.md).
 
@@ -292,9 +293,11 @@ Use the image digest and configuration files from one signed release manifest. Q
 - 1.0 starts from a clean installation; it does not upgrade or migrate 0.x installations or data.
 - The roles are isolated as processes and files inside one container, not against the host administrator or the container runtime.
 - Authenticated requests with bodies above 64 KiB or uncertain body framing are processed one at a time across roles, so they can queue behind another large request; other authenticated requests share the remaining slots within the limit of 16.
+- The request body has a 60-second receipt deadline. Since 1.0.3 the gateway has a separate 60-second deadline for the whole buffered, audited MCP response send sequence, not for each chunk. This does not bound execution time or prove that the client application read the response. During body delivery a receive watcher also detects ASGI disconnect events. An observed disconnect, timeout, cancellation, receive-channel or send-channel failure attempts an interruption record when the audit is writable, and the operation slot is released. A small buffered send or a close after the monitored phase may go unobserved; inspect `audit pending` before repeating an operation. See the [1.0.3 response-delivery notes](release/notes-1.0.3.md#response-delivery).
 - An incomplete local audit write blocks further operations until `netops audit recover` runs while the instance is stopped. A full syslog queue blocks new operations, and an interrupted send can deliver records to the receiver more than once.
 - Syslog records remain bounded at 8 MiB and use numbered 1024-byte parts with a persistent record ID and whole SHA256. Messages are at most 1618 bytes including their header. Configure a dedicated receiver archive filtered by RFC5424 APP-NAME `netops`, preserving exact MSG+LF, before the first start. Offline `audit reassemble --record-id` freezes the first complete SHA-valid set in archive order: later conflicts or invalid rows preserve its bytes and produce typed warnings/exit 3; earlier validation or input-read errors give exit 2 without record output. Keep older 1.0 full-record archives separately. Native default-limit storage checks verified rsyslog 8.2504 and 8.2512 with gtls and ossl and syslog-ng 4.12 on arm64 and amd64, each receiver running in a container.
 - There is no supported provisioning path for the schema registry/library files of Helper `schema_read` and `fortios_diagnostics`, the extra input files of Auditor `--suppressions`, `merge-sarif` and `schema-check`, or file-based Admin offline and schema workflows.
+- `ftp_list` is refused in the shipped SSH/HTTPS-only profile before any device contact, and no configuration enables it. Its engine checks the requested path against the target's `sftp_roots` only lexically, as a canonical absolute path equal to a root or below it; unlike `sftp_stat`, it does not let the server resolve the path, so a symbolic link below a root that leads out of it would not be refused.
 - The opt-in FortiOS `managed_switch_stacking` and `managed_switch_poe` queries have no positive result on stacking- or PoE-capable hardware. Virtual device images do not establish physical hardware behavior.
 - The process-profile acceptance check samples at a nominal 50 ms interval and can miss short-lived processes; see the [1.0.1 release notes](release/notes-1.0.1.md) for the exact attribution rule.
 

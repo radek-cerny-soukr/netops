@@ -1,5 +1,6 @@
 param(
     [Parameter(Mandatory = $true)][string]$CandidateDir,
+    [Parameter(Mandatory = $true)][string]$SourceDir,
     [Parameter(Mandatory = $true)][string]$Cosign,
     [string]$Identity = "325383355+radek-cerny-soukr@users.noreply.github.com",
     [string]$Issuer = "https://github.com/login/oauth",
@@ -18,13 +19,13 @@ $RequiredRows = New-Object System.Collections.ArrayList
 foreach ($arch in $Arches) { foreach ($suite in $Suites) { [void]$RequiredRows.Add("actions-$arch-$suite") } }
 foreach ($arch in $Arches) { foreach ($role in @("core", "helper", "auditor", "admin")) { [void]$RequiredRows.Add("actions-$arch-engine-$role") } }
 $RequiredChecks = New-Object System.Collections.Hashtable ([StringComparer]::Ordinal)
-$MinimumVersion = [version]"1.0.2"
+$MinimumVersion = [version]"1.0.3"
 $BlindInstallChecks = @("cosign-verify-blob", "sha256sum-check", "container-healthy", "health-ready", "version-is-candidate", "unauthenticated-401", "mcp-tools-list", "audit-without-token")
 $BlindUpgradeChecks = @("upgrade-steps-from-docs", "health-ready", "version-is-candidate", "data-preserved", "token-preserved", "ca-preserved")
 $BlindRows = @("blind-install-fedora-amd64", "blind-install-debian-amd64", "blind-upgrade-amd64")
 $UpgradeRow = "blind-upgrade-amd64"
-$UpgradeFromVersion = "1.0.1"
-$UpgradeFromImage = "ghcr.io/radek-cerny-soukr/netops@sha256:082ba2fd7384c5d3d5708753eed6c9ca532926b821ea7a4f8ffb431aa9c1652a"
+$UpgradeFromVersion = "1.0.2"
+$UpgradeFromImage = "ghcr.io/radek-cerny-soukr/netops@sha256:432040717c7630ee5f08347d0c59682bec9f896dc3728ac0690bb8f86aa13413"
 foreach ($row in $BlindRows) {
     [void]$RequiredRows.Add($row)
     if ($row -clike "blind-install-*") { $RequiredChecks[$row] = $BlindInstallChecks } else { $RequiredChecks[$row] = $BlindUpgradeChecks }
@@ -173,6 +174,36 @@ function Test-CandidateDir([string]$Dir) {
     }
     Add-Row "candidate directory" "PASS" "regular files only, no links, reparse points or directories"
     return $true
+}
+
+function Test-ReleaseDocs([string]$Root, [string]$Version) {
+    $open = New-Object System.Collections.ArrayList
+    if (-not (Test-Path -LiteralPath $Root -PathType Container)) { Add-Row "release documentation" "FAIL" ("source checkout not found: " + $Root); return }
+    $base = (Resolve-Path -LiteralPath $Root).Path.TrimEnd([char[]]@('/', '\'))
+    $notes = "release/notes-" + $Version + ".md"
+    if (-not (Test-Path -LiteralPath (Join-Path $base $notes) -PathType Leaf)) { [void]$open.Add($notes + " is missing") }
+    $changelog = Join-Path $base "CHANGELOG.md"
+    $heading = '\A## ' + [regex]::Escape($Version) + ' - [0-9]{4}-[0-9]{2}-[0-9]{2}\z'
+    if (-not (Test-Path -LiteralPath $changelog -PathType Leaf) -or @([IO.File]::ReadAllLines($changelog) | Where-Object { $_ -cmatch $heading }).Count -eq 0) { [void]$open.Add("CHANGELOG.md has no dated section ## " + $Version + " - YYYY-MM-DD") }
+    $dirs = New-Object System.Collections.Queue
+    $dirs.Enqueue($base)
+    while ($dirs.Count -gt 0) {
+        foreach ($entry in @(Get-ChildItem -LiteralPath $dirs.Dequeue() -Force | Sort-Object Name)) {
+            $relative = $entry.FullName.Substring($base.Length + 1).Replace('\', '/')
+            if ($entry.PSIsContainer) {
+                if (-not (Test-Link $entry) -and @(".git", "node_modules") -cnotcontains $entry.Name -and $relative -cne "docs/archive") { $dirs.Enqueue($entry.FullName) }
+            }
+            elseif ($entry.Name -clike "*.md") {
+                $number = 0
+                foreach ($line in [IO.File]::ReadAllLines($entry.FullName)) {
+                    $number++
+                    foreach ($match in [regex]::Matches($line, 'TODO\(([^)\s]{0,64})\)?')) { [void]$open.Add($relative + ":" + $number + ": open placeholder TODO(" + $match.Groups[1].Value + ")") }
+                }
+            }
+        }
+    }
+    if ($open.Count -eq 0) { Add-Row "release documentation" "PASS" ("notes, dated changelog section and no TODO( placeholder in the Markdown of " + $base) }
+    else { Add-Row "release documentation" "FAIL" ($open -join "; ") }
 }
 
 function Read-Sums([string]$Dir, [string]$SumsPath) {
@@ -402,6 +433,7 @@ try {
         Test-Vulnerabilities $CandidateDir $manifest $listed
         Test-Acceptance $CandidateDir $manifest $listed
     }
+    Test-ReleaseDocs $SourceDir $manifest.version
 
     $script:Rows | Format-Table Area, Status, Detail -AutoSize -Wrap | Out-String -Width 220 | Write-Host
     $failed = @($script:Rows | Where-Object { $_.Status -ceq "FAIL" -or @("PASS", "NOT RUN") -cnotcontains $_.Status })

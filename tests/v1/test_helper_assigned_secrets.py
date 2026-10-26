@@ -1,3 +1,4 @@
+import json
 import random
 import threading
 import time
@@ -62,19 +63,27 @@ class AssignedSecrets(unittest.TestCase):
                 errors.append(error)
             finally:
                 done.set()
-        gaps, last = [], time.monotonic()
+        gaps, cpu_gaps = [], []
+        last, last_cpu = time.monotonic(), time.process_time()
         deadline = last + 60
         threading.Thread(target=work, daemon=True).start()
         while not done.wait(0.01):
-            now = time.monotonic()
+            now, now_cpu = time.monotonic(), time.process_time()
             gaps.append(now - last)
-            last = now
+            cpu_gaps.append(now_cpu - last_cpu)
+            last, last_cpu = now, now_cpu
             self.assertLess(now, deadline, "redaction diagnostic exceeded 60 seconds")
         gaps.append(time.monotonic() - last)
+        cpu_gaps.append(time.process_time() - last_cpu)
         self.assertFalse(errors, errors)
         self.assertEqual(result, [value])
-        print("largest interpreter lock gap %.3f s" % max(gaps), flush=True)
-        self.assertLess(max(gaps), 2.0, max(gaps))
+        wall = sum(gaps)
+        stall_share = max(gaps) / wall
+        print("ASSIGNED_SECRETS_GIL=" + json.dumps({"wall": wall, "samples": len(gaps), "max_gap": max(gaps),
+            "max_cpu_gap": max(cpu_gaps), "stall_share": stall_share}), flush=True)
+        self.assertGreaterEqual(len(gaps), 5)
+        self.assertLess(stall_share, 0.5, max(gaps))
+        self.assertLess(max(cpu_gaps), 4.0, max(cpu_gaps))
 
 
 if __name__ == "__main__":

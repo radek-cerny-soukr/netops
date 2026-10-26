@@ -8,11 +8,13 @@ from .bootstrap import demote
 from .files import STATE, UIDS, read_private
 from .ipc import rpc
 
+async def check_role(role):
+    result = await rpc(role, {"action": "status"})
+    if not result.get("ready"):
+        raise ValueError("A role is not ready")
+
 async def check_roles(roles):
-    for role in roles:
-        result = await asyncio.wait_for(rpc(role, {"action": "status"}), timeout=2)
-        if not result.get("ready"):
-            raise ValueError("A role is not ready")
+    await asyncio.wait_for(asyncio.gather(*(check_role(role) for role in roles)), timeout=5)
 
 def check():
     if os.geteuid() == 0:

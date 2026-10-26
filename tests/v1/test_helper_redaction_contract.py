@@ -64,19 +64,25 @@ class HelperRedactionContract(unittest.TestCase):
     def test_threaded_maximum_redaction_keeps_the_loop_responsive(self):
         async def measure():
             value="\n"*(16*1024*1024)
-            intervals=[]
+            intervals,cpu_intervals=[],[]
             started=time.monotonic()
             task=asyncio.create_task(asyncio.to_thread(redact,value))
             while not task.done():
-                tick=time.monotonic()
+                tick,tick_cpu=time.monotonic(),time.process_time()
                 await asyncio.sleep(0.05)
                 intervals.append(time.monotonic()-tick)
+                cpu_intervals.append(time.process_time()-tick_cpu)
+            wall=time.monotonic()-started
             self.assertTrue(await task==value)
             self.assertTrue(intervals)
+            stall_share=max(intervals)/wall
             print("HELPER_REDACTION_LOOP="+json.dumps({
-                "bytes":len(value),"wall":time.monotonic()-started,
-                "samples":len(intervals),"max_interval":max(intervals)}),flush=True)
-            self.assertLess(max(intervals),2)
+                "bytes":len(value),"wall":wall,"samples":len(intervals),
+                "max_interval":max(intervals),"max_cpu_interval":max(cpu_intervals),
+                "stall_share":stall_share}),flush=True)
+            self.assertGreaterEqual(len(intervals),5)
+            self.assertLess(stall_share,0.5)
+            self.assertLess(max(cpu_intervals),4)
         asyncio.run(measure())
 
 

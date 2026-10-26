@@ -1410,7 +1410,6 @@ def main() -> int:
     test_ssh_continuation_cache_uses_absolute_capture_ttl()
     test_a_continuation_without_its_snapshot_writes_no_audit_record()
     test_phase1_server_and_engine_expose_no_generic_body_reads()
-    test_mcp_server_identity_is_the_helper_distribution()
     test_initialize_reports_the_helper_distribution()
     test_server_start_makes_no_network_lookup_or_connection()
     print("engine_contract_tests=passed")

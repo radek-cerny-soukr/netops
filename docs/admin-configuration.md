@@ -176,6 +176,23 @@ end
 
 Then read the object again, compare it with the operation record and unblock the device only after that.
 
+NetOps 1.0 reads no firing record from FortiOS. After an expired safeguard it waits until `safeguard.fire_at` plus 20 seconds, reads the configuration and ends with `unknown` and `safeguard_kept` when the object is not the previous one and the stitch `netops-sg-ID12-s` still exists. A once trigger stays configured after it has fired, so `safeguard_kept` does not mean that the stitch did not fire. The device itself shows whether it fired, through an administrator account:
+
+~~~
+diagnose test application autod 3
+~~~
+
+lists every stitch; for `netops-sg-ID12-s`, a stitch that fired shows `local hit` of at least 1, the time in `last trigger` and `next scheduled trigger:trigger expired`. The event log records each firing:
+
+~~~
+execute log filter reset
+execute log filter category event
+execute log filter field logid 0100046600
+execute log display
+~~~
+
+Each firing is one line with `logid="0100046600"`, `logdesc="Automation stitch triggered"` and `stitch="netops-sg-ID12-s"`. Such a line proves that the stitch was triggered, not that its inverse script restored the object; compare the object as above either way. In a measurement of 21 once triggers, 10 on a FortiGate 80F with FortiOS 8.0.2 build0251 and 11 on a FortiGate 60F with FortiOS 7.6.7 build3704, each trigger fired between 0.1 and 5 seconds after its `trigger-datetime`, within the 20 seconds that NetOps waits.
+
 Inside NetOps, the operator commands `apply`, `preview`, `doctor`, `enroll`, `status`, `recover`, `notify-retry`, `unblock` and `undo` receive `--config` with the private Admin configuration automatically; `admin enroll --help` and the other subcommand help pages still list `--config` as required, but the documented commands omit it. `plan`, `verify`, `schema-plan` and `schema-verify` are offline engine commands that take explicit file paths readable by the Admin UID, and `apply` and `preview` also need a `--request` file. NetOps 1.0 places Admin operator files only through `configure admin` (JSON on standard input), so these engine commands have no supported way to receive their input files and are not a supported operator workflow in NetOps 1.0; preview and apply changes with the MCP tools `admin_preview` and `admin_apply`.
 
 ## MCP tools

@@ -25,6 +25,9 @@ jobs:
       - name: Check the public source for private data and product identity
         run: python -B release/check_source.py
 
+      - name: Install locked SBOM validation tooling
+        run: 'python3 -m pip install --only-binary=:all: --require-hashes -r release/requirements-sbom.lock'
+
       - name: Test the release and acceptance tooling
         run: |
           set -euo pipefail

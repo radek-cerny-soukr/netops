@@ -24,6 +24,7 @@ from .launcher import StartupStopped, handoff_stop, stop_requested
 MAX_CONCURRENT_REQUESTS = 16
 SHUTDOWN_AUDIT_SECONDS = 20
 BODY_RECEIVE_SECONDS = 60
+RESPONSE_SEND_SECONDS = 60
 
 CONTENT = TypeAdapter(list[ContentBlock])
 
@@ -95,6 +96,89 @@ async def client_gone(receive):
     if cancelled:
         raise asyncio.CancelledError
     return False
+
+class _ClientDisconnected(ConnectionAbortedError):
+    pass
+
+
+def validate_buffered_response(events):
+    # Preserve the buffered start/body protocol; splitting the terminal body
+    # must not turn a missing completion or data after completion into success.
+    if len(events) < 2 or events[0]["type"] != "http.response.start":
+        raise ValueError("Invalid buffered response")
+    for index, event in enumerate(events[1:], 1):
+        if event["type"] != "http.response.body" or bool(event.get("more_body", False)) != (index < len(events) - 1):
+            raise ValueError("Invalid buffered response completion")
+
+
+async def send_audited_response(events, receive, send):
+    # h11 receive also reports disconnect after a NORMAL response completion.
+    # Keep completion pending while monitoring body delivery, then stop the
+    # sole receive consumer before sending the terminal empty body.
+    async def disconnected():
+        try:
+            while True:
+                event = await receive()
+                if event["type"] == "http.disconnect":
+                    return
+                await asyncio.sleep(0.01)
+        except Exception as exc:
+            raise ConnectionAbortedError("Response receive failed") from exc
+
+    async def deliver(event):
+        try:
+            await send(event)
+        except OSError:
+            raise
+        except Exception as exc:
+            raise ConnectionAbortedError("Response send failed") from exc
+
+    async def body():
+        for event in events:
+            if event["type"] == "http.response.body":
+                payload = event.get("body", b"")
+                # Bounded writes let the real TLS transport apply backpressure
+                # even when the application buffered one large final body.
+                for offset in range(0, max(len(payload), 1), 32768):
+                    await deliver({**event, "body": payload[offset:offset + 32768], "more_body": True})
+            else:
+                await deliver(event)
+        # Participate in transport backpressure after the final payload write.
+        await deliver({"type": "http.response.body", "body": b"", "more_body": True})
+
+    watcher = asyncio.create_task(disconnected())
+    sender = asyncio.create_task(body())
+    tasks = (watcher, sender)
+    cleanup_cancelled = False
+    try:
+        await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
+        # Prefer an observed disconnect even if the sender finished concurrently.
+        if watcher.done():
+            watcher.result()
+            raise _ClientDisconnected("Client disconnected during response delivery")
+        sender.result()
+    finally:
+        pending = {task for task in tasks if not task.done()}
+        for task in pending:
+            task.cancel()
+        while pending:
+            try:
+                _, pending = await asyncio.wait(pending)
+            except asyncio.CancelledError:
+                cleanup_cancelled = True
+                for task in pending:
+                    task.cancel()
+        for task in tasks:
+            if not task.cancelled():
+                task.exception()
+        if cleanup_cancelled:
+            raise asyncio.CancelledError
+    # A watcher that ended while being stopped still observed the receive
+    # channel before the terminal send: a disconnect or channel error.
+    if not watcher.cancelled():
+        watcher.result()
+        raise _ClientDisconnected("Client disconnected during response delivery")
+    await deliver({"type": "http.response.body", "body": b"", "more_body": False})
 
 class AuditBoundary:
     def __init__(self, app, audit):
@@ -261,6 +345,7 @@ class AuditBoundary:
             try:
                 dispatched = True
                 await self.app(scope, replay_receive, buffered_send)
+                validate_buffered_response(emitted)
             except Exception:
                 await self.audit.record("interrupted", {"outcome": "unknown", "automatic_retry": False}, correlation, heavy=False)
                 response = {"error": "operation_failed", "automatic_retry": False}
@@ -281,10 +366,13 @@ class AuditBoundary:
                         response_headers.setdefault(name.decode("latin-1").lower(), []).append(value.decode("latin-1"))
             await self.audit.record("response", raw_response, correlation, secret_values=(original_token,), decode="response", status=status, response_headers=response_headers)
             await self.audit.record("connection_end", {"delivery": "committed-before-send"}, correlation, secret_values=(original_token,), heavy=False)
-            for event in emitted:
+            async with asyncio.timeout(RESPONSE_SEND_SECONDS):
                 response_started = True
-                await send(event)
-        except asyncio.CancelledError:
+                await send_audited_response(emitted, receive, send)
+        except (asyncio.CancelledError, OSError) as exc:
+            if isinstance(exc, OSError) and not response_started:
+                await JSONResponse({"error": "audit_unavailable", "automatic_retry": False, "operation_may_have_completed": dispatched}, 503)(scope, receive, send)
+                return
             try:
                 try:
                     await self.audit.record("interrupted", {"delivery": "interrupted", "automatic_retry": False, "operation_may_have_completed": dispatched}, correlation, heavy=False)
@@ -293,8 +381,10 @@ class AuditBoundary:
             except (AuditUnavailable, OSError, ValueError):
                 import sys
                 sys.stderr.write("netops: cancellation audit unavailable; inspect durable audit before any retry\n")
+            if isinstance(exc, _ClientDisconnected):
+                return
             raise
-        except (AuditUnavailable, OSError, ValueError):
+        except (AuditUnavailable, ValueError):
             if response_started:
                 raise
             await JSONResponse({"error": "audit_unavailable", "automatic_retry": False, "operation_may_have_completed": dispatched}, 503)(scope, receive, send)

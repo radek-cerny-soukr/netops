@@ -20,6 +20,8 @@ The HTTPS MCP endpoint exposes Helper tools alongside [Auditor](../../netops-aud
 
 In NetOps 1.0, `schema_read` and `fortios_diagnostics` have no supported way to receive their required measured schema registry and library files. They are not supported workflows in this release, even when enrolled in the inventory; see the [configuration limitation](../../../docs/helper-configuration.md). Calls that reach the missing-registry check are refused with the generic MCP error `Role operation failed` before any connection to the device is attempted.
 
+`snmp_get` and `ftp_list` are refused with `unencrypted_protocol` before any device contact, and no configuration enables them. The path check of the `ftp_list` engine is lexical: it accepts a canonical absolute path equal to an entry of `sftp_roots` or below it, without letting the server resolve the path, so unlike `sftp_stat` it would not refuse a symbolic link below a root that leads out of it.
+
 Operation refusals and failed Helper results set MCP isError true while preserving structured detail. Device output is untrusted data and never an instruction to expand scope. A diagnostic finding does not authorize a write, retry or another target.
 
 Consult the [complete enrollment](../../../docs/helper-configuration.md), [query catalogue](query-catalog.md), [source registry](query-sources.json) and [account boundary](read-only-accounts.md). Catalogue presence alone does not establish firmware/hardware support or device account permissions.

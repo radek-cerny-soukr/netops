@@ -316,7 +316,7 @@ def verdict(code, out, err, codes):
 
 
 def matrix(cases, codes, module="netops_auditor", environment=None):
-    with ThreadPoolExecutor(max_workers=max(2, os.cpu_count() or 2)) as pool:
+    with ThreadPoolExecutor(max_workers=guard.workers()) as pool:
         results = list(pool.map(lambda argv: launch(argv, module, environment), cases.values()))
     failures = {}
     for name, result in zip(cases, results):
@@ -952,3 +952,29 @@ def test_every_mcp_tool_answers_broken_arguments_with_a_tool_error(tmp_path, cap
             if found:
                 failures["%s %s" % (tool, name)] = found
     clean(failures)
+
+
+@pytest.mark.parametrize("content, expected", [
+    ("200000 100000\n", 2), ("150000 100000\n", 2), ("50000 100000\n", 1), ("1600000 100000\n", 8),
+    ("max 100000\n", 8), (None, 8), ("directory", 8), ("nonsense\n", 8), ("abc 100000\n", 8),
+    ("100000 0\n", 8), (b"\xff\xfe", 8),
+])
+def test_workers_never_exceed_the_cgroup_cpu_quota(tmp_path, monkeypatch, content, expected):
+    monkeypatch.setattr(os, "process_cpu_count", lambda: 8, raising=False)
+    monkeypatch.setattr(os, "cpu_count", lambda: 16)
+    cpu_max = tmp_path / "cpu.max"
+    if content == "directory":
+        cpu_max.mkdir()
+    elif isinstance(content, bytes):
+        cpu_max.write_bytes(content)
+    elif content is not None:
+        cpu_max.write_text(content)
+    assert guard.workers(cpu_max) == expected
+
+
+def test_workers_fall_back_to_cpu_count_and_at_least_one(tmp_path, monkeypatch):
+    monkeypatch.setattr(os, "process_cpu_count", lambda: None, raising=False)
+    monkeypatch.setattr(os, "cpu_count", lambda: 4)
+    assert guard.workers(tmp_path / "missing") == 4
+    monkeypatch.setattr(os, "cpu_count", lambda: None)
+    assert guard.workers(tmp_path / "missing") == 1

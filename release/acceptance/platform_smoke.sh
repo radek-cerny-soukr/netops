@@ -41,7 +41,7 @@ report os INFO "$PRETTY_NAME $(uname -m) kernel $(uname -r)"
 install_apt() {
   base="https://download.docker.com/linux/$ID"
   sudo apt-get -o DPkg::Lock::Timeout=600 update -qq >/dev/null &&
-  sudo DEBIAN_FRONTEND=noninteractive apt-get -o DPkg::Lock::Timeout=600 install -y -qq ca-certificates curl >/dev/null &&
+  sudo DEBIAN_FRONTEND=noninteractive apt-get -o DPkg::Lock::Timeout=600 install -y -qq ca-certificates curl python3 >/dev/null &&
   sudo install -m 0755 -d /etc/apt/keyrings &&
   sudo curl -fsSL "$base/gpg" -o /etc/apt/keyrings/docker.asc &&
   sudo chmod a+r /etc/apt/keyrings/docker.asc || return 1
