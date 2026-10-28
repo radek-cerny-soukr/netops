@@ -262,7 +262,16 @@ def transition_facts(reason, facts, shim_pid):
     first, second = facts.get("first_argv"), facts.get("second_argv")
     runtime, health = ["runc", "init"], list(HEALTH)
     if reason == "runtime-exec-transition-during-retry":
-        return first == runtime and second == health
+        if first == runtime:
+            return second == health
+        read = facts.get("retry_read")
+        return (first == second == health and type(read) is dict and read.get("argv") == health and
+                identity(read.get("key_before")) == identity(read.get("key_after")) == identity(facts["key"]) and
+                read.get("cgroup_before") == read.get("cgroup_after") == facts["cgroup"] and
+                executable_identity(read.get("exe_identity_before")) == executable_identity(read.get("exe_identity_after")) and
+                type(read.get("parent_pid_before")) is int and type(read.get("parent_pid_after")) is int and
+                read["parent_pid_before"] == read["parent_pid_after"] == shim_pid and
+                0 <= instant(read.get("time")) - instant(read.get("read_started_at")) <= .050000001)
     if reason == "runtime-exec-transition-parent-exited":
         return first == health and type(facts.get("first_parent")) is int and facts["first_parent"] != shim_pid
     if reason == "runtime-exec-transition-empty-command":
@@ -285,14 +294,16 @@ def transition_facts(reason, facts, shim_pid):
     return False
 
 
-def partial_observations(partial, key, trace, previous, facts=None):
+def partial_observations(partial, key, trace, previous, facts=None, *, runtime_retry=False):
     require(type(partial) is dict and
             all(identity(partial[name]) == key for name in ("key", "second_key") if name in partial) and
             ("cgroup_before" not in partial or partial["cgroup_before"] == trace["cgroup"]), "unverified-exec-transition")
     observed = []
     if "argv" in partial:
         argv = tuple(partial["argv"])
-        require(facts is None or list(argv) == facts["first_argv"], "unverified-exec-transition")
+        require(facts is None or list(argv) == facts["first_argv"] or
+                runtime_retry and argv == ("runc", "init") and facts["first_argv"] == list(HEALTH),
+                "unverified-exec-transition")
         if argv == ("runc", "init"):
             require("permissions" not in partial or partial.get("cgroup_before") == trace["cgroup"], "unverified-exec-transition")
             proof = partial.get("runtime_executable")
@@ -340,6 +351,12 @@ def verified_attempts(attempts, key, cgroup, trace, shim_pid, limit, binding, be
                 transition_facts(attempt["reason"], facts, shim_pid) and attempt["binding"] == binding and
                 number(binding["bound_at"]) <= number(attempt["time"]) <= number(before),
                 "unverified-exec-transition")
+        stable_retry = attempt["reason"] == "runtime-exec-transition-during-retry" and facts.get("first_argv") == list(HEALTH)
+        if stable_retry:
+            read, partial = facts["retry_read"], attempt["partial"]
+            require(type(partial) is dict and partial.get("argv") == ["runc", "init"] and
+                    number(binding["bound_at"]) <= number(read["read_started_at"]) <=
+                    number(read["time"]) <= number(attempt["time"]), "unverified-exec-transition")
         if attempt["reason"] == "runtime-exec-transition-retry-empty-command":
             read, partial = facts["retry_read"], attempt["partial"]
             proof = partial.get("runtime_executable") if type(partial) is dict else None
@@ -347,7 +364,7 @@ def verified_attempts(attempts, key, cgroup, trace, shim_pid, limit, binding, be
                     read["exe_identity_before"] == proof["file"]["stat_before"][:2] and
                     number(binding["bound_at"]) <= number(read["read_started_at"]) and
                     number(read["fresh_finished_at"]) <= number(attempt["time"]), "unverified-exec-transition")
-        observed.extend(partial_observations(attempt["partial"], key, trace, previous, facts))
+        observed.extend(partial_observations(attempt["partial"], key, trace, previous, facts, runtime_retry=stable_retry))
     return observed
 
 
@@ -381,6 +398,7 @@ def assess_legacy_trace(trace, *, admin_enabled=True):
         samples = trace["samples"]
         require(type(samples) is list and samples, "empty-trace")
         previous, retired, health, fixed_roles, bindings = {}, set(), {}, None, {}
+        external_health = {}
         shim_key, shim_profile = None, None
         last, root_samples = begin, 0
         expected = {k: v for k, v in ROLES.items() if admin_enabled or k != "admin"}
@@ -476,6 +494,15 @@ def assess_legacy_trace(trace, *, admin_enabled=True):
                     require(health[key]["seen_health"], "runc-exit-without-health-proof")
                     require(now - key[1] / hz <= 10, "bootstrap-exceeded-health-timeout")
                     health[key]["closed"] = True
+            pending_health = {}
+            for key, observed_at in external_health.items():
+                require(0 <= now - observed_at <= .200000001, "health-runtime-parent-not-reparented")
+                if key not in exited:
+                    require(key in rows and tuple(rows[key]["argv"]) == HEALTH,
+                            "health-runtime-parent-not-reparented")
+                    if identity(rows[key]["parent"]) != shim_key:
+                        pending_health[key] = observed_at
+            external_health = pending_health
             require(init in rows and identity(rows[init]["parent"]) == shim_key and
                     tuple(rows[init]["argv"]) == SERVE and rows[init]["uids"] == [51000] * 4,
                     "missing-or-changed-gateway")
@@ -497,8 +524,10 @@ def assess_legacy_trace(trace, *, admin_enabled=True):
                     root_samples += 1
                     require(key not in role_uids, "root-in-role-tree")
                     if parent != shim_key:
-                        require(cmd == ("runc", "init"), "root-in-role-tree")
+                        require(cmd in (HEALTH, ("runc", "init")), "root-in-role-tree")
                         verified_runtime_parent(row, trace, shim, rows, now)
+                        if cmd == HEALTH:
+                            external_health.setdefault(key, now)
                     require(cmd in (HEALTH, ("runc", "init")), "unknown-root-command")
                     if cmd != ("runc", "init"):
                         require(row["gids"] in ([0] * 4, [51000] * 4) and set(row["groups"]) <= {0}, "unsafe-bootstrap-groups")
@@ -523,7 +552,7 @@ def assess_legacy_trace(trace, *, admin_enabled=True):
                         require(now - key[1] / hz <= 10, "bootstrap-exceeded-health-timeout")
                         state["root"] = True
                     require(not (state["seen_health"] and cmd == ("runc", "init")), "health-reverted-to-runtime")
-                    state["seen_health"] |= parent == shim_key and cmd == HEALTH
+                    state["seen_health"] |= cmd == HEALTH
                     if uid == 0:
                         require(now - key[1] / hz <= 10, "bootstrap-exceeded-health-timeout")
                         state["root"] = True
@@ -610,13 +639,26 @@ def verified_helper(item, key, trace, shim, host, begin, start, finish):
 
 
 def verified_link(item, key, parent_key, parent, begin, at):
-    require(type(item.get("parent_link")) is dict and identity(item["parent_link"]["key"]) == parent_key and
-            identity(item["parent_link"]["child_restat_key"]) == key and
-            type(item["parent_link"]["child_restat_parent"]) is int and
-            item["parent_link"]["child_restat_parent"] == item["parent_pid"] and
-            begin <= number(item["parent_link"]["child_stat_at"]) <= number(item["parent_link"]["child_restat_at"]) and
-            number(parent["read_finished_at"]) <= number(item["parent_link"]["child_restat_at"]) <=
-            number(item["parent_link"]["parent_alive_at"]) <= at, "unproven-exited-runtime-helper")
+    require(type(item.get("parent_link")) is dict, "unproven-exited-runtime-helper")
+    link = item["parent_link"]
+    require(identity(link["key"]) == parent_key and identity(link["child_restat_key"]) == key and
+            type(link["child_restat_parent"]) is int and link["child_restat_parent"] == item["parent_pid"] and
+            begin <= number(link["child_stat_at"]) <= number(link["child_restat_at"]) <=
+            number(link["parent_alive_at"]) <= at, "unproven-exited-runtime-helper")
+    if "method" in link:
+        require(link["method"] == "child-restat-under-pinned-parent" and type(link.get("parent_pin")) is dict,
+                "unproven-exited-runtime-helper")
+        pin = link["parent_pin"]
+        require(pin["method"] == "procdir+pidfd" and identity(pin["key"]) == parent_key and
+                identity(pin["procdir_identity"]) == identity(parent["procdir_identity"]) ==
+                identity(parent["procdir_identity_after"]) and pin["alive_after_proof"] is True and
+                begin <= number(pin["pinned_at"]) <= number(link["child_restat_at"]) <=
+                number(parent["read_started_at"]) <= number(parent["read_finished_at"]) <=
+                number(pin["alive_polled_at"]) == number(link["parent_alive_at"]),
+                "unproven-exited-runtime-helper")
+    else:
+        require(number(parent["read_finished_at"]) <= number(link["child_restat_at"]),
+                "unproven-exited-runtime-helper")
 
 
 def verified_helper_reads(item, key, trace, runtime, host, at):
@@ -653,7 +695,7 @@ def namespace_mount(value):
 def assess_namespace_scope(trace):
     require(trace["collector_schema"] == "health-bootstrap-trace-v5", "mandatory-namespace-scope-missing")
     header = trace["scope"]
-    require(header["method"] == "procfs-nsfs-pidfd-v1" and header["max_capture_passes"] == 2 and
+    require(header["method"] == "procfs-nsfs-pidfd-v1" and type(header["max_capture_passes"]) is int and header["max_capture_passes"] in (2, 3) and
             header["snapshot_budget_seconds"] == .2, "unreviewed-namespace-scope-method")
     init, observer = identity(header["init"]), identity(header["observer"])
     require(init == identity(trace["init"]) and observer != init, "namespace-init-or-observer-unbound")
@@ -679,7 +721,7 @@ def assess_namespace_scope(trace):
                 "namespace-snapshot-budget-or-closure")
         count = proof["capture_passes"]
         inventories = proof["inventories"]
-        require(type(count) is int and 0 <= count <= 2 and type(inventories) is list and
+        require(type(count) is int and 0 <= count <= header["max_capture_passes"] and type(inventories) is list and
                 len(inventories) == count + 2, "unbounded-namespace-discovery")
         all_mappings, observed_keys, sample_pids, sample_unobserved, sample_reaped = {}, set(), set(), [], []
         exits = {identity(row["key"]) for row in sample["exit_proofs"]}

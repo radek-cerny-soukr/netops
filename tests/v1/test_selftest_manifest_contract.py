@@ -13,6 +13,7 @@ HELPER_TOOLS = {
     "helper_status", "target_scope", "read_query_catalog", "dns_probe",
     "tcp_probe", "icmp_probe", "tls_probe", "ssh_read", "schema_read",
     "fortios_diagnostics", "sftp_stat", "snmp_get", "ftp_list",
+    "config_read", "config_diff",
 }
 
 
@@ -22,11 +23,11 @@ class SelftestManifestContract(unittest.IsolatedAsyncioTestCase):
         with contextlib.redirect_stdout(output):
             self.assertEqual(await cli.selftest(), 0)
         value = json.loads(output.getvalue())
-        self.assertEqual(value["version"], "1.0.3")
+        self.assertEqual(value["version"], "1.0.4")
         roles = value["roles"]
         self.assertEqual(set(roles), {"helper", "auditor", "admin"})
         self.assertEqual(set(roles["helper"]["names"]), HELPER_TOOLS)
-        for role, count in (("helper", 13), ("auditor", 7), ("admin", 6)):
+        for role, count in (("helper", 15), ("auditor", 7), ("admin", 6)):
             self.assertEqual(roles[role]["tools"], count)
             self.assertEqual(len(roles[role]["names"]), count)
             self.assertEqual(len(set(roles[role]["names"])), count)

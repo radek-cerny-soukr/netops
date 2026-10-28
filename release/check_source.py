@@ -86,6 +86,23 @@ def privacy_text(rules, relative, text):
         errors.extend(privacy_text_once(rules, relative, variant, domains))
     return list(dict.fromkeys(errors))
 
+RELEASE_FILE_VERSION = re.compile(r"(?:netops-|releases/download/v)(\d+\.\d+\.\d+)[-/]")
+
+def readme_version_errors(text, version):
+    errors = ["README does not state release " + version + ": " + marker
+              for marker in ("This README describes NetOps " + version + ",", "**Acceptance of " + version + ":**")
+              if marker not in text]
+    errors += ["README names release files of " + found + ", not " + version
+               for found in sorted(set(RELEASE_FILE_VERSION.findall(text))) if found != version]
+    return errors
+CANDIDATE_BRANCH = re.compile(r"release/[^\s\"']*-candidate")
+
+def workflow_branch_errors(texts, version):
+    expected = "release/" + version + "-candidate"
+    return [name + " names candidate branch " + found + ", not " + expected
+            for name, text in sorted(texts.items())
+            for found in sorted(set(CANDIDATE_BRANCH.findall(text)) or {"(none)"}) if found != expected]
+
 def check(root):
     rules = legacy(root)
     proc = subprocess.run(["git", "-C", str(root), "ls-files", "-z"], capture_output=True, check=True)
@@ -112,6 +129,9 @@ def check(root):
     product_versions = [node.value.value for node in product_tree.body if isinstance(node, ast.Assign) and isinstance(node.value, ast.Constant) and any(isinstance(target, ast.Name) and target.id == "__version__" for target in node.targets)]
     if product_versions != [version]:
         errors.append("installed product version differs from project metadata")
+    errors.extend(readme_version_errors((root / "README.md").read_text(encoding="utf-8"), version))
+    errors.extend(workflow_branch_errors({name: (root / ".github/workflows" / name).read_text(encoding="utf-8")
+                                          for name in ("ci.yml", "candidate.yml", "codeql.yml")}, version))
     for role in ("core", "helper", "auditor", "admin"):
         component = root / "components" / ("netops-" + role)
         metadata = tomllib.loads((component / "pyproject.toml").read_text())

@@ -1,5 +1,31 @@
 # NetOps changelog
 
+## 1.0.4 - 2026-10-27
+
+### Added
+
+- Helper: opted-in FortiOS `config_read` and `config_diff`, with live identity and single-root VDOM checks, conservative streamed redaction, bounded in-memory captures, paged results and opaque comparison of hidden values.
+- Helper: bounded FortiOS ping, traceroute, sniffer, session and flow diagnostics without a schema registry. Exact identity, interface, inventory and cleanup checks remain required; FortiGate-VM64 on FortiOS 8.0.2 build 0251 is an explicit measured identity.
+- Helper: a separate FortiADC platform with live product identification. The first qualified read is `system_status` on FortiADC-KVM 7.6.7 build 0676; Auditor collection and Admin writes are not qualified.
+
+### Fixed
+
+- Helper configuration streaming accepts the initial FortiOS exec prompt and matching final prompt while refusing unexpected framing. Configuration tools can complete within the proxy deadline.
+- Configuration captures bound memory and redacted bytes, retain completed pages without device rereads and compare hidden records by private object identity.
+- Admin: FortiOS 8.0.2 build 0251 is refused during profile validation before safeguard installation or a device change; rollback on that build is not qualified.
+
+### Changed
+
+- The first start of 1.0.4 upgrades state of 1.0.3 under the instance lock and changes only its recorded product version. Older state must follow the preceding release procedures. The syslog audit format stays unchanged.
+- `read_query_catalog` supports platform/query-prefix filters and bounded pages with `next_offset` and `catalog_sha256`. A default call returns the first page, so clients must follow pagination.
+- Helper has 15 MCP tools; the product has 28 with Admin enabled and 22 with Admin disabled.
+
+### Documentation and release process
+
+- Explain the separate device credentials for Helper, Auditor and Admin and limit the FortiOS automation finding to the measured 8.0.2 build 0251.
+- Clarify the quickstart's Compose failure handling, private audit exports, five-record audit tail and separate backup/restore variable blocks. Describe the upgrade from 1.0.3 to 1.0.4.
+- Bound signing-test subprocesses, validate the test worker mode and retain unittest outcomes.
+
 ## 1.0.3 - 2026-10-26
 
 ### Fixed

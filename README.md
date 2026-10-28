@@ -1,6 +1,6 @@
 # NetOps
 
-This README describes NetOps 1.0.3, the current release. Changes since 1.0.2 are listed in the [release notes](release/notes-1.0.3.md); the Core SFTP security fix came with [1.0.2](release/notes-1.0.2.md) and the fixes for [issue #6](https://github.com/radek-cerny-soukr/netops/issues/6) with [1.0.1](release/notes-1.0.1.md). To upgrade an existing 1.0.2 instance, follow [Upgrade from the previous release](docs/quickstart-1.0.md#upgrade-from-the-previous-release).
+This README describes NetOps 1.0.4, the current release. Changes since 1.0.3 are listed in the [release notes](release/notes-1.0.4.md); the response delivery fixes came with [1.0.3](release/notes-1.0.3.md), the Core SFTP security fix with [1.0.2](release/notes-1.0.2.md) and the fixes for [issue #6](https://github.com/radek-cerny-soukr/netops/issues/6) with [1.0.1](release/notes-1.0.1.md). To upgrade an existing 1.0.3 instance, follow [Upgrade from the previous release](docs/quickstart-1.0.md#upgrade-from-the-previous-release).
 
 NetOps is a self-hosted MCP server for network diagnostics, configuration audits and bounded, reversible device changes. Version 1.0 ships as one Docker image that runs the Helper, Auditor and Admin roles behind one token-protected HTTPS (Streamable HTTP) MCP endpoint. Supported, authenticated MCP traffic passes through a mandatory durable audit boundary.
 
@@ -24,7 +24,7 @@ The image contains no AI agents. Any MCP client that verifies TLS normally can c
 
 ## Roles and what they can do
 
-`netops selftest` prints the MCP tool names of each role: **13 Helper, 7 Auditor and 6 Admin tools**. Core has no MCP tools.
+`netops selftest` prints the MCP tool names of each role: **15 Helper, 7 Auditor and 6 Admin tools**. Core has no MCP tools.
 
 ### Core
 
@@ -32,7 +32,7 @@ The shared engine used by the other roles: inventory and credential-vault schema
 
 ### Helper — read-only diagnostics
 
-Read-only queries against enrolled targets, using a named query catalogue of **289 query templates across 10 platform profiles** (`linux`, `fortinet`, `extreme_exos`, `cisco_ios`, `cisco_xe`, `cisco_nxos`, `arista_eos`, `juniper_junos`, `juniper_junos_els`, `ruckus_unleashed`). The catalogue excludes running/startup/full configuration, arbitrary CLI, debug activation, packet capture, shells and every write or lifecycle action. Query parameters are accepted only when their value is listed in the target's `read_inventory`.
+Read-only queries against enrolled targets, using a named query catalogue of **290 query templates across 11 platform profiles** (`linux`, `fortinet`, `extreme_exos`, `cisco_ios`, `cisco_xe`, `cisco_nxos`, `arista_eos`, `juniper_junos`, `juniper_junos_els`, `ruckus_unleashed`, `fortiadc`). The catalogue excludes running/startup/full configuration, arbitrary CLI, debug activation, packet capture, shells and every write or lifecycle action. Query parameters are accepted only when their value is listed in the target's `read_inventory`.
 
 | Tool | Behavior |
 |---|---|
@@ -43,7 +43,7 @@ Read-only queries against enrolled targets, using a named query catalogue of **2
 | `tcp_probe` | Enrolled TCP port reachability |
 | `icmp_probe` | Explicitly permitted bounded diagnostics |
 | `tls_probe` | Verified peer certificate and enrolled SNI/port |
-| `ssh_read` | Enabled named query, pinned SSH host key, bounded/paginated output |
+| `ssh_read` | Enabled named query, pinned SSH host key, bounded/paginated output; FortiOS and FortiADC targets are first checked to be the selected product (`product_identity`) |
 | `sftp_stat` | Metadata within enrolled roots; no file content |
 | `schema_read` | Not a supported workflow in 1.0 (see [Known limitations](#known-limitations)) |
 | `fortios_diagnostics` | Not a supported workflow in 1.0 (see [Known limitations](#known-limitations)) |
@@ -136,7 +136,7 @@ Details: [Verified platform support](docs/verified-support.md) · [Compatibility
 ## Security model
 
 - **Endpoint:** HTTPS only with a bearer token. The token is checked before any request body is read; unauthenticated rejections are only counted, not stored.
-- **Instance CA:** private, constrained to the configured DNS subtree, all IPv4/IPv6 names excluded (so the server name must be a DNS name). The server leaf lasts seven days and renews automatically; the CA is valid for 730 days and is rotated explicitly with `netops ca rotate`.
+- **Instance CA:** private, constrained to the configured DNS subtree, all IPv4/IPv6 names excluded (so the server name must be a DNS name). The server leaf lasts seven days and renews automatically; the CA is valid for 730 days from init or its last rotation (`connection` shows the remaining whole days, so 729 right after init) and is rotated explicitly with `netops ca rotate`.
 - **Audit boundary:** every supported request, notification, response and connection boundary is audited, with requests durable before dispatch and responses before delivery. A failed audit refuses the operation; a failed response audit reports that the operation may have completed and forbids automatic retry. Offline operator workflows first record an allowlisted workflow name through a gateway-UID preflight.
 - **Redaction:** explicit. Known token values, secret-bearing fields, private-key blocks and documented password forms are redacted; worker-side credentials are removed before reaching the gateway. Audit is parsed protocol content, not a raw byte transcript, and output is escaped for terminals. Device output remains sensitive after redaction.
 - **Untrusted device output:** device text is data, never instructions; a diagnostic finding does not authorize a write, retry or another target.
@@ -158,14 +158,14 @@ This is a shortened version of the [quickstart](docs/quickstart-1.0.md). Follow 
 ```sh
 mkdir -m 700 ~/netops && cd ~/netops &&
 (
-  for f in compose.yaml env.example netops-1.0.3-manifest.json netops-1.0.3-SHA256SUMS netops-1.0.3-SHA256SUMS.sigstore.json; do
-    curl -fLO "https://github.com/radek-cerny-soukr/netops/releases/download/v1.0.3/$f" || exit 1
+  for f in compose.yaml env.example netops-1.0.4-manifest.json netops-1.0.4-SHA256SUMS netops-1.0.4-SHA256SUMS.sigstore.json; do
+    curl -fLO "https://github.com/radek-cerny-soukr/netops/releases/download/v1.0.4/$f" || exit 1
   done
 ) &&
-cosign verify-blob --bundle netops-1.0.3-SHA256SUMS.sigstore.json \
+cosign verify-blob --bundle netops-1.0.4-SHA256SUMS.sigstore.json \
   --certificate-identity 325383355+radek-cerny-soukr@users.noreply.github.com \
-  --certificate-oidc-issuer https://github.com/login/oauth netops-1.0.3-SHA256SUMS &&
-sha256sum -c --ignore-missing netops-1.0.3-SHA256SUMS
+  --certificate-oidc-issuer https://github.com/login/oauth netops-1.0.4-SHA256SUMS &&
+sha256sum -c --ignore-missing netops-1.0.4-SHA256SUMS
 ```
 
 cosign must print `Verified OK`, and sha256sum `OK` for `compose.yaml`, `env.example` and the release manifest; cosign authenticates the checksum list using the signature bundle.
@@ -186,7 +186,13 @@ For clients on other machines, set `NETOPS_BIND_IP` to the host address you expl
 docker compose run --rm netops init && docker compose up -d --wait && docker compose ps
 ```
 
-`init` asks for the audit target: a TLS syslog receiver (recommended), or, when you leave it blank, local audit, which you accept by typing `LOCAL`. Without a terminal, choose explicitly with `init --audit syslog --syslog-host <host> [--syslog-port <port>]` or `init --audit local --accept-local-audit`. `docker compose ps` must show the service as `healthy`.
+`init` asks for the audit target: a TLS syslog receiver (recommended), or, when you leave it blank, local audit, which you accept by typing `LOCAL`. `docker compose ps` must show the service as `healthy`.
+
+Without a terminal, for example in a script or over `ssh` without a terminal, choose the audit explicitly, add `-T` to every `docker compose run` and `docker compose exec`, redirect every other `docker compose` command with `< /dev/null`, and run the commands from a file, not from standard input. For local audit the block is the following; for a TLS syslog receiver replace `--audit local --accept-local-audit` with `--audit syslog --syslog-host <host> [--syslog-port <port>]`:
+
+```sh
+docker compose run --rm -T netops init --audit local --accept-local-audit < /dev/null && docker compose up -d --wait < /dev/null && docker compose ps < /dev/null
+```
 
 **4. Export the CA and the token.**
 
@@ -196,6 +202,8 @@ NETOPS_TOKEN="$(docker compose run --rm netops token show)" &&
 export NETOPS_TOKEN &&
 docker compose run --rm netops connection
 ```
+
+Without a terminal use the script form in [step 8](docs/quickstart-1.0.md#8-export-the-ca-and-the-token) of the quickstart; the token stays in the shell, so run it and the token requests of quickstart [step 9](docs/quickstart-1.0.md#9-check-the-instance-without-an-mcp-client) in the same script file.
 
 **5. Check without an MCP client.**
 
@@ -207,7 +215,7 @@ curl -sS -o /dev/null -w '%{http_code}\n' --cacert netops-ca.pem \
   -X POST https://localhost:8443/mcp -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'
 ```
 
-They print `ready`, `1.0.3` and `401`: a request without the token is refused. Use the URL printed by `connection` when it is not `https://localhost:8443/mcp`. [Step 9](docs/quickstart-1.0.md#9-check-the-instance-without-an-mcp-client) adds requests with the token, including the MCP tool list, and how to find them in the audit.
+They print `ready`, `1.0.4` and `401`: a request without the token is refused. Use the URL printed by `connection` when it is not `https://localhost:8443/mcp`. [Step 9](docs/quickstart-1.0.md#9-check-the-instance-without-an-mcp-client) adds requests with the token, including the MCP tool list, and how to find them in the audit.
 
 **6. Connect a client.** Use the URL printed by `connection`.
 
@@ -264,11 +272,11 @@ See [Helper configuration](docs/helper-configuration.md), [Admin configuration](
 
 A release is the maintainer's personally signed checksum list together with the assets it covers. A candidate branch, digest, build or CI run without that signature is not a release.
 
-- **Signature:** `netops-1.0.3-SHA256SUMS` is signed with Sigstore (`netops-1.0.3-SHA256SUMS.sigstore.json`); certificate identity `325383355+radek-cerny-soukr@users.noreply.github.com`, OIDC issuer `https://github.com/login/oauth`.
+- **Signature:** `netops-1.0.4-SHA256SUMS` is signed with Sigstore (`netops-1.0.4-SHA256SUMS.sigstore.json`); certificate identity `325383355+radek-cerny-soukr@users.noreply.github.com`, OIDC issuer `https://github.com/login/oauth`.
 - **Covered assets:** `compose.yaml`, `env.example`, the release manifest (image index and per-architecture digests), the acceptance manifest, the per-architecture SBOMs, vulnerability scans and scan gate results, the vulnerability assessments and the acceptance reports (`acceptance-*.json`). The signed checksum list itself is the complete list of covered files.
 - **Build once:** every release candidate is built once in GitHub Actions and the same digests are tested, accepted and published without a rebuild.
-- **Vulnerabilities:** each architecture is scanned; a fixable High or Critical finding blocks the release and every other finding ships with a written assessment (`netops-1.0.3-vulnerability-assessments.json`). The digests of the latest release are rescanned daily against its assessments.
-- **Acceptance of 1.0.3:** this corrective release is accepted in proportion to its change. The signing checklist requires the CI suites and engine tests of the candidate image in GitHub Actions on amd64 and arm64; a blind installation on Fedora Server 44 amd64 and on Debian 13 amd64, in which a tester without the project's context follows only this README and the quickstart and records the signature and checksum verification, a healthy instance reporting the candidate version, a request without the token refused with 401, the MCP tool list returned with the token, and an audit record of the call that does not contain the token; a blind upgrade on amd64 from the published NetOps 1.0.2 image (`ghcr.io/radek-cerny-soukr/netops@sha256:432040717c7630ee5f08347d0c59682bec9f896dc3728ac0690bb8f86aa13413`) to the candidate by the quickstart, with the data, token and CA preserved; and an independent review of the code change since 1.0.2. A run of Codex as MCP client is recorded when available and does not block. Ubuntu, Raspberry Pi OS, arm64 hosts and rootless Docker were not installed by a blind run for 1.0.3; the product code on these paths changed in 1.0.3 only by the fixes listed in the release notes, which the CI suites cover on amd64 and arm64. The acceptance of 1.0.2 is described in its [release notes](release/notes-1.0.2.md#acceptance).
+- **Vulnerabilities:** each architecture is scanned; a fixable High or Critical finding blocks the release and every other finding ships with a written assessment (`netops-1.0.4-vulnerability-assessments.json`). The digests of the latest release are rescanned daily against its assessments.
+- **Acceptance of 1.0.4:** this release is accepted in proportion to its change; the [release notes](release/notes-1.0.4.md#acceptance) list the checks, and the acceptance reports covered by the signed checksum list record the results. The acceptance of 1.0.3 is described in its [release notes](release/notes-1.0.3.md#acceptance).
 
 Use the image digest and configuration files from one signed release manifest. Qualification from a source checkout is described in [Qualification](docs/testing-1.0.md).
 

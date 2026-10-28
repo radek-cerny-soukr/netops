@@ -5,7 +5,7 @@ import json
 import sys
 from pathlib import Path
 
-from netops_admin import __version__
+from netops_admin import __version__, fortiadc
 from netops_admin.engine import build_plan, verify
 from netops_admin.errors import Rejected, shown
 from netops_admin.jsontext import loads
@@ -17,6 +17,7 @@ MAX_FILE_BYTES = 16 * 1024 * 1024 + 1
 POLICY_FIELDS = frozenset(("protected",))
 EXIT_MISMATCH = 1
 EXIT_REJECTED = 3
+EXIT_UNKNOWN = 7
 
 
 def _read(path: Path) -> bytes:
@@ -63,6 +64,27 @@ def _emit(document) -> None:
 EXIT_NOT_CONFIRMED = 4
 EXIT_NOT_READY = 5
 EXIT_CONFIRMED_BLOCKED = 6
+
+
+def open_access(device):
+    from netops_admin.access import DeviceAccess
+
+    return DeviceAccess(device)
+
+
+def _pool_member(args) -> int:
+    from netops_admin.config import load_config
+
+    device = load_config(args.config).devices.get(args.device)
+    if device is None or device.platform != "fortiadc":
+        raise Rejected(["device %s is not a configured FortiADC" % shown(args.device)])
+    try:
+        access = open_access(device)
+    except Exception as exc:
+        raise Rejected(["the device cannot be reached (%s)" % type(exc).__name__]) from None
+    record = fortiadc.run(access, args.pool, args.member, args.status)
+    _emit(dict(record, device=device.name))
+    return fortiadc.exit_code(record)
 
 
 def build_runtime(config, *, require_export=True):
@@ -200,8 +222,16 @@ def main(argv=None, *, require_export=True) -> int:
     back.add_argument("--config", required=True, type=Path)
     back.add_argument("--change-id", required=True)
     back.add_argument("--reason", required=True)
+    member = commands.add_parser("pool-member", help="FortiADC: set the status of one real-server pool member and verify it")
+    member.add_argument("--config", required=True, type=Path)
+    member.add_argument("--device", required=True)
+    member.add_argument("--pool", required=True)
+    member.add_argument("--member", required=True, help="the number of the pool member entry")
+    member.add_argument("--status", required=True, help="one of: " + ", ".join(fortiadc.STATUSES))
     args = parser.parse_args(argv)
     try:
+        if args.command == "pool-member":
+            return _pool_member(args)
         if args.command in ("apply", "status", "recover", "unblock", "notify-retry", "undo", "enroll",
                             "preview", "doctor"):
             return _operate(args, require_export=require_export)

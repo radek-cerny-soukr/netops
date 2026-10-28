@@ -11,7 +11,7 @@
     "fortinet": {
       "source_type": "official_vendor",
       "vendor": "Fortinet",
-      "baseline": "FortiOS 7.6.x and 8.0.0",
+      "baseline": "FortiOS 7.6.x, 8.0.0 and 8.0.2",
       "reference_document": "docs/vendor-cli-references/fortinet-fortios.md"
     },
     "extreme_exos": {
@@ -62,6 +62,12 @@
       "baseline": "Unleashed 200.13",
       "reference_document": "docs/vendor-cli-references/ruckus-unleashed.md",
       "source_note": "Vendor guide behind a support login; documented command syntax; verify exact firmware and account permissions."
+    },
+    "fortiadc": {
+      "source_type": "official_vendor",
+      "vendor": "Fortinet",
+      "baseline": "FortiADC 7.6.7",
+      "reference_document": "docs/vendor-cli-references/fortinet-fortiadc.md"
     }
   },
   "sources": {
@@ -443,6 +449,18 @@
       "baseline": "Switch Engine 33.7.1",
       "url": "https://documentation.extremenetworks.com/Switch%20Engine%20v33.7.1%20Command%20References/content/documents/Switch_Operating_Systems/Switch_Engine/Command_References/show_vlan.shtml"
     },
+    "F-ADC-CLI-76": {
+      "vendor": "Fortinet",
+      "title": "FortiADC 7.6.7 CLI Reference",
+      "baseline": "FortiADC 7.6.7",
+      "url": "https://docs.fortinet.com/document/fortiadc/7.6.7/cli-reference"
+    },
+    "F-ADC-GET-SYSTEM-STATUS-76": {
+      "vendor": "Fortinet",
+      "title": "FortiADC 7.6.7 CLI Reference: get system status",
+      "baseline": "FortiADC 7.6.7",
+      "url": "https://docs.fortinet.com/document/fortiadc/7.6.7/cli-reference/379949/get-system-status"
+    },
     "F-BFD-80": {
       "vendor": "Fortinet",
       "title": "FortiOS 8.0.0 Administration Guide: BFD",
@@ -485,6 +503,12 @@
       "baseline": "FortiOS 7.6.x and 8.0.0",
       "url": "https://docs.fortinet.com/document/fortigate/8.0.0/cli-troubleshooting-cheat-sheet/420966/cli-troubleshooting-cheat-sheet"
     },
+    "F-CHEAT-802": {
+      "vendor": "Fortinet",
+      "title": "FortiOS 8.0.2 CLI troubleshooting cheat sheet",
+      "baseline": "FortiOS 8.0.2",
+      "url": "https://docs.fortinet.com/document/fortigate/8.0.2/cli-troubleshooting-cheat-sheet"
+    },
     "F-CLI-76": {
       "vendor": "Fortinet",
       "title": "FortiGate / FortiOS 7.6.4 CLI Reference",
@@ -496,6 +520,12 @@
       "title": "FortiGate / FortiOS 8.0.0 CLI Reference",
       "baseline": "FortiOS 7.6.x and 8.0.0",
       "url": "https://docs.fortinet.com/document/fortigate/8.0.0/cli-reference"
+    },
+    "F-CLI-802": {
+      "vendor": "Fortinet",
+      "title": "FortiGate / FortiOS 8.0.2 CLI Reference",
+      "baseline": "FortiOS 8.0.2",
+      "url": "https://docs.fortinet.com/document/fortigate/8.0.2/cli-reference"
     },
     "F-CONFIG-SYSTEM-INTERFACE-80": {
       "vendor": "Fortinet",
@@ -2267,6 +2297,15 @@
         "E-VLAN"
       ]
     },
+    "fortiadc/system_status": {
+      "profile": "fortiadc",
+      "query": "system_status",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "F-ADC-CLI-76",
+        "F-ADC-GET-SYSTEM-STATUS-76"
+      ]
+    },
     "fortinet/arp_table": {
       "profile": "fortinet",
       "query": "arp_table",
@@ -2274,8 +2313,10 @@
       "source_ids": [
         "F-CLI-76",
         "F-CLI-80",
+        "F-CLI-802",
         "F-CHEAT-76",
-        "F-CHEAT-80"
+        "F-CHEAT-80",
+        "F-CHEAT-802"
       ]
     },
     "fortinet/autoupdate_status": {
@@ -2283,7 +2324,8 @@
       "query": "autoupdate_status",
       "source_type": "official_vendor",
       "source_ids": [
-        "F-CLI-80"
+        "F-CLI-80",
+        "F-CLI-802"
       ]
     },
     "fortinet/autoupdate_versions": {
@@ -2291,7 +2333,8 @@
       "query": "autoupdate_versions",
       "source_type": "official_vendor",
       "source_ids": [
-        "F-CLI-80"
+        "F-CLI-80",
+        "F-CLI-802"
       ]
     },
     "fortinet/av_outbreak_stats": {
@@ -2299,7 +2342,8 @@
       "query": "av_outbreak_stats",
       "source_type": "official_vendor",
       "source_ids": [
-        "F-CLI-80"
+        "F-CLI-80",
+        "F-CLI-802"
       ]
     },
     "fortinet/bfd_neighbors": {
@@ -2309,7 +2353,8 @@
       "source_ids": [
         "F-BFD-80",
         "F-CLI-76",
-        "F-CLI-80"
+        "F-CLI-80",
+        "F-CLI-802"
       ]
     },
     "fortinet/bgp_summary": {
@@ -2320,7 +2365,8 @@
         "F-BGP-76",
         "F-BGP-80",
         "F-CLI-76",
-        "F-CLI-80"
+        "F-CLI-80",
+        "F-CLI-802"
       ]
     },
     "fortinet/bridge_mac_table": {
@@ -2354,7 +2400,8 @@
       "source_type": "official_vendor",
       "source_ids": [
         "F-DIAG-HW-76",
-        "F-CLI-80"
+        "F-CLI-80",
+        "F-CLI-802"
       ]
     },
     "fortinet/firewall_auth_users": {
@@ -2362,7 +2409,8 @@
       "query": "firewall_auth_users",
       "source_type": "official_vendor",
       "source_ids": [
-        "F-CLI-80"
+        "F-CLI-80",
+        "F-CLI-802"
       ]
     },
     "fortinet/ha_checksum": {
@@ -2391,6 +2439,7 @@
       "source_ids": [
         "F-CHEAT-76",
         "F-CHEAT-80",
+        "F-CHEAT-802",
         "F-HA-76"
       ]
     },
@@ -2400,7 +2449,8 @@
       "source_type": "official_vendor",
       "source_ids": [
         "F-DIAG-HW-76",
-        "F-CLI-80"
+        "F-CLI-80",
+        "F-CLI-802"
       ]
     },
     "fortinet/interface_details": {
@@ -2411,6 +2461,7 @@
         "F-DIAG-INDEX-76",
         "F-CLI-76",
         "F-CLI-80",
+        "F-CLI-802",
         "F-NETLINK-INTERFACE-80",
         "F-CONFIG-SYSTEM-INTERFACE-80",
         "F-TEXT-STRINGS-80",
@@ -2441,7 +2492,8 @@
       "query": "ips_anomaly_status",
       "source_type": "official_vendor",
       "source_ids": [
-        "F-CLI-80"
+        "F-CLI-80",
+        "F-CLI-802"
       ]
     },
     "fortinet/ips_filter_status": {
@@ -2449,7 +2501,8 @@
       "query": "ips_filter_status",
       "source_type": "official_vendor",
       "source_ids": [
-        "F-CLI-80"
+        "F-CLI-80",
+        "F-CLI-802"
       ]
     },
     "fortinet/ipsec_status": {
@@ -2467,6 +2520,7 @@
       "source_ids": [
         "F-CLI-76",
         "F-CLI-80",
+        "F-CLI-802",
         "F-IPSEC-80",
         "F-IPSEC-ALIAS-80"
       ]
@@ -2478,7 +2532,8 @@
       "source_ids": [
         "F-BFD-80",
         "F-CLI-76",
-        "F-CLI-80"
+        "F-CLI-80",
+        "F-CLI-802"
       ]
     },
     "fortinet/ipv6_bgp_summary": {
@@ -2489,7 +2544,8 @@
         "F-BGP-76",
         "F-BGP-80",
         "F-CLI-76",
-        "F-CLI-80"
+        "F-CLI-80",
+        "F-CLI-802"
       ]
     },
     "fortinet/ipv6_neighbors": {
@@ -2508,7 +2564,8 @@
       "source_ids": [
         "F-OSPF-80",
         "F-CLI-76",
-        "F-CLI-80"
+        "F-CLI-80",
+        "F-CLI-802"
       ]
     },
     "fortinet/ipv6_ospf_status": {
@@ -2518,7 +2575,8 @@
       "source_ids": [
         "F-OSPF-80",
         "F-CLI-76",
-        "F-CLI-80"
+        "F-CLI-80",
+        "F-CLI-802"
       ]
     },
     "fortinet/ipv6_route_protocols": {
@@ -2527,7 +2585,8 @@
       "source_type": "official_vendor",
       "source_ids": [
         "F-CLI-76",
-        "F-CLI-80"
+        "F-CLI-80",
+        "F-CLI-802"
       ]
     },
     "fortinet/lldp_summary": {
@@ -2544,7 +2603,8 @@
       "query": "managed_switch_lldp",
       "source_type": "official_vendor",
       "source_ids": [
-        "F-CHEAT-80"
+        "F-CHEAT-80",
+        "F-CHEAT-802"
       ]
     },
     "fortinet/managed_switch_mac": {
@@ -2552,7 +2612,8 @@
       "query": "managed_switch_mac",
       "source_type": "official_vendor",
       "source_ids": [
-        "F-CHEAT-80"
+        "F-CHEAT-80",
+        "F-CHEAT-802"
       ]
     },
     "fortinet/managed_switch_poe": {
@@ -2560,7 +2621,8 @@
       "query": "managed_switch_poe",
       "source_type": "official_vendor",
       "source_ids": [
-        "F-CHEAT-80"
+        "F-CHEAT-80",
+        "F-CHEAT-802"
       ]
     },
     "fortinet/managed_switch_stacking": {
@@ -2568,7 +2630,8 @@
       "query": "managed_switch_stacking",
       "source_type": "official_vendor",
       "source_ids": [
-        "F-CHEAT-80"
+        "F-CHEAT-80",
+        "F-CHEAT-802"
       ]
     },
     "fortinet/managed_switch_status": {
@@ -2576,7 +2639,8 @@
       "query": "managed_switch_status",
       "source_type": "official_vendor",
       "source_ids": [
-        "F-CHEAT-80"
+        "F-CHEAT-80",
+        "F-CHEAT-802"
       ]
     },
     "fortinet/ntp_status": {
@@ -2585,7 +2649,8 @@
       "source_type": "official_vendor",
       "source_ids": [
         "F-DIAG-SYS-80",
-        "F-CLI-80"
+        "F-CLI-80",
+        "F-CLI-802"
       ]
     },
     "fortinet/ospf_neighbors": {
@@ -2595,7 +2660,8 @@
       "source_ids": [
         "F-OSPF-80",
         "F-CLI-76",
-        "F-CLI-80"
+        "F-CLI-80",
+        "F-CLI-802"
       ]
     },
     "fortinet/ospf_status": {
@@ -2605,7 +2671,8 @@
       "source_ids": [
         "F-OSPF-80",
         "F-CLI-76",
-        "F-CLI-80"
+        "F-CLI-80",
+        "F-CLI-802"
       ]
     },
     "fortinet/performance": {
@@ -2615,8 +2682,10 @@
       "source_ids": [
         "F-CLI-76",
         "F-CLI-80",
+        "F-CLI-802",
         "F-CHEAT-76",
-        "F-CHEAT-80"
+        "F-CHEAT-80",
+        "F-CHEAT-802"
       ]
     },
     "fortinet/physical_interfaces": {
@@ -2626,8 +2695,10 @@
       "source_ids": [
         "F-CLI-76",
         "F-CLI-80",
+        "F-CLI-802",
         "F-CHEAT-76",
-        "F-CHEAT-80"
+        "F-CHEAT-80",
+        "F-CHEAT-802"
       ]
     },
     "fortinet/ping_options": {
@@ -2645,8 +2716,10 @@
       "source_ids": [
         "F-CLI-76",
         "F-CLI-80",
+        "F-CLI-802",
         "F-CHEAT-76",
-        "F-CHEAT-80"
+        "F-CHEAT-80",
+        "F-CHEAT-802"
       ]
     },
     "fortinet/route_protocols": {
@@ -2655,7 +2728,8 @@
       "source_type": "official_vendor",
       "source_ids": [
         "F-CLI-76",
-        "F-CLI-80"
+        "F-CLI-80",
+        "F-CLI-802"
       ]
     },
     "fortinet/routing_table": {
@@ -2665,8 +2739,10 @@
       "source_ids": [
         "F-CLI-76",
         "F-CLI-80",
+        "F-CLI-802",
         "F-CHEAT-76",
-        "F-CHEAT-80"
+        "F-CHEAT-80",
+        "F-CHEAT-802"
       ]
     },
     "fortinet/sdwan_health": {
@@ -2695,7 +2771,8 @@
         "F-DIAG-SYS-76",
         "F-DIAG-SYS-80",
         "F-CHEAT-76",
-        "F-CHEAT-80"
+        "F-CHEAT-80",
+        "F-CHEAT-802"
       ]
     },
     "fortinet/sslvpn_sessions": {
@@ -2703,7 +2780,8 @@
       "query": "sslvpn_sessions",
       "source_type": "official_vendor",
       "source_ids": [
-        "F-CLI-80"
+        "F-CLI-80",
+        "F-CLI-802"
       ]
     },
     "fortinet/sslvpn_statistics": {
@@ -2711,7 +2789,8 @@
       "query": "sslvpn_statistics",
       "source_type": "official_vendor",
       "source_ids": [
-        "F-CLI-80"
+        "F-CLI-80",
+        "F-CLI-802"
       ]
     },
     "fortinet/system_status": {
@@ -2721,8 +2800,10 @@
       "source_ids": [
         "F-CLI-76",
         "F-CLI-80",
+        "F-CLI-802",
         "F-CHEAT-76",
-        "F-CHEAT-80"
+        "F-CHEAT-80",
+        "F-CHEAT-802"
       ]
     },
     "fortinet/system_top": {
@@ -2731,7 +2812,8 @@
       "source_type": "official_vendor",
       "source_ids": [
         "F-DIAG-SYS-80",
-        "F-CLI-80"
+        "F-CLI-80",
+        "F-CLI-802"
       ]
     },
     "fortinet/traceroute_options": {

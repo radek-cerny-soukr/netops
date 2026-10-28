@@ -355,7 +355,8 @@ When the device prints no prompt the cleaner does nothing and both hashes are eq
   over `system admin` need exactly those. The auditor then holds an account that could write; the
   read-only boundary is the step table above (`get system console`, `show`), the pinned host key
   and the absence of any other command in this channel - not the profile. Restrict the account
-  with `trusthost` to the collector and log its sessions on the device.
+  with `trusthost` to the collector and log its sessions on the device. The accounts of all roles
+  are compared in the [device account model](../../../docs/account-model.md).
 - **An EXOS snapshot is audited by four base rules and five configuration-management rules.** The
   catalogue `exos.json` exists, `run --platform exos` and `collect` over an `exos` entry both work;
   what the four base rules do and do not see is [below](#what-the-exos-catalogue-reads), and the five

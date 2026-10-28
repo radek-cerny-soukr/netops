@@ -114,7 +114,7 @@ WITHHELD_CLIENT_CAPABILITIES = ("sampling", "elicitation", "roots")
 CLIENT_CAPABILITIES_META_KEY = "io.modelcontextprotocol/clientCapabilities"
 SSH_TRANSPORT_FAILURE_MESSAGE = "The remote MCP SSH transport failed."
 SSH_HOST_KEY_FAILURE_MESSAGE = "SSH host-key verification failed."
-SSH_TOOLS = {"ssh_read", "sftp_stat", "schema_read", "fortios_diagnostics"}
+SSH_TOOLS = {"ssh_read", "sftp_stat", "schema_read", "fortios_diagnostics", "config_read", "config_diff"}
 CONTROL_TOOLS = {"helper_status", "read_query_catalog", "target_scope"}
 LOGGED_SERVER_METHODS = {"sampling/createMessage", "elicitation/create", "roots/list"}
 SERVER_REQUEST_REFUSAL_MESSAGE = (
@@ -133,6 +133,7 @@ PLATFORM_MAP = {
     "juniper_junos": "juniper_junos",
     "juniper_junos_els": "juniper_junos_els",
     "ruckus_unleashed": "ruckus_unleashed",
+    "fortiadc": "fortiadc",
 }
 SUPPORTED_SSH_PLATFORMS = set(PLATFORM_MAP)
 READ_QUERY_NAMES = {
@@ -444,6 +445,9 @@ READ_QUERY_NAMES = {
         "ethernet_info",
         "system_info",
         "wlans",
+    )),
+    "fortiadc": frozenset((
+        "system_status",
     )),
 }
 SAFE_QUERY_NAME = re.compile(r"[a-z][a-z0-9_]{0,127}")
@@ -853,6 +857,7 @@ READ_QUERY_SLOTS = {
         },
     },
     "ruckus_unleashed": {},
+    "fortiadc": {},
 }
 SAFE_INTERFACE_VALUE = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.:/-]{0,63}")
 SAFE_SERVICE_VALUE = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.@-]{0,127}")
@@ -1188,11 +1193,11 @@ GENERIC_INVENTORY_KINDS = {
 }
 DEVICE_TOOLS = {
     "dns_probe", "tcp_probe", "icmp_probe", "tls_probe", "ssh_read",
-    "snmp_get", "sftp_stat", "ftp_list", "schema_read", "fortios_diagnostics",
+    "snmp_get", "sftp_stat", "ftp_list", "schema_read", "fortios_diagnostics", "config_read", "config_diff",
 }
 TOOL_ARGUMENT_SCHEMAS = {
     "helper_status": (frozenset(), frozenset()),
-    "read_query_catalog": (frozenset(), frozenset()),
+    "read_query_catalog": (frozenset(), frozenset({"platform", "query_prefix", "offset", "limit"})),
     "target_scope": (frozenset({"target"}), frozenset()),
     "dns_probe": (frozenset({"target"}), frozenset()),
     "tcp_probe": (frozenset({"target", "port"}), frozenset({"timeout"})),
@@ -1203,6 +1208,8 @@ TOOL_ARGUMENT_SCHEMAS = {
         frozenset({"parameters", "offset", "max_bytes", "content_sha256"}),
     ),
     "fortios_diagnostics": (frozenset({"target","recipe","address","interface"}), frozenset({"count","timeout","max_bytes","vdom"})),
+    "config_read": (frozenset({"target","platform","section"}), frozenset({"include_all","snapshot_id","offset","limit"})),
+    "config_diff": (frozenset({"target","platform","base_snapshot","other_snapshot"}), frozenset({"offset","limit","secret_offset"})),
     "schema_read": (frozenset({"target","path"}), frozenset({"view","vdom","owners","offset","max_bytes","content_sha256"})),
     "snmp_get": (frozenset({"target", "oids"}), frozenset({"port"})),
     "sftp_stat": (frozenset({"target", "remote_path"}), frozenset()),
@@ -1587,6 +1594,17 @@ class Proxy:
             raise ToolArgumentsError()
 
         normalized = dict(args)
+        if tool == "read_query_catalog":
+            if (not isinstance(normalized.get("platform", ""), str)
+                    or not re.fullmatch(r"[A-Za-z0-9_.-]{0,64}", normalized.get("platform", ""))
+                    or not isinstance(normalized.get("query_prefix", ""), str)
+                    or not re.fullmatch(r"[a-z0-9_]{0,64}", normalized.get("query_prefix", ""))
+                    or type(normalized.get("offset", 0)) is not int
+                    or not 0 <= normalized.get("offset", 0) <= 1073741824
+                    or type(normalized.get("limit", 25)) is not int
+                    or not 1 <= normalized.get("limit", 25) <= 100):
+                raise ToolArgumentsError()
+            return normalized
         if "target" in normalized and not cls._valid_alias(normalized["target"]):
             raise ToolArgumentsError()
 
@@ -1651,6 +1669,34 @@ class Proxy:
                 not isinstance(server_name, str) or not 1 <= len(server_name) <= 253
                 or any(ord(char) < 32 or ord(char) == 127 for char in server_name)
             ):
+                raise ToolArgumentsError()
+
+        if tool in ("config_read", "config_diff"):
+            from .configuration import page_arguments
+            try:
+                page_arguments(normalized.get("offset", 0), normalized.get("limit", 48000))
+            except ValueError:
+                raise ToolArgumentsError() from None
+            if "snapshot_id" in normalized and (not isinstance(normalized["snapshot_id"], str) or
+                    not re.fullmatch("cfg_[0-9a-f]{32}", normalized["snapshot_id"])):
+                raise ToolArgumentsError()
+            if tool == "config_read" and normalized.get("offset", 0) and not normalized.get("snapshot_id"):
+                raise ToolArgumentsError()
+            if normalized.get("platform") not in ("fortios", "fortinet"):
+                raise ToolArgumentsError()
+            if tool == "config_read":
+                from .configuration import read_command
+                try:
+                    read_command(normalized.get("section"), normalized.get("include_all", False))
+                except ValueError:
+                    raise ToolArgumentsError() from None
+            if "secret_offset" in normalized and (type(normalized["secret_offset"]) is not int or
+                    not 0 <= normalized["secret_offset"] <= 1073741824):
+                raise ToolArgumentsError()
+            if tool == "config_diff" and any(
+                    not isinstance(normalized.get(k), str) or not re.fullmatch(
+                        "cfg_[0-9a-f]{32}", normalized[k])
+                    for k in ("base_snapshot", "other_snapshot")):
                 raise ToolArgumentsError()
 
         if tool == "fortios_diagnostics":
@@ -1744,6 +1790,15 @@ class Proxy:
             return
         if tool == "icmp_probe":
             if not egress["allow_icmp"]:
+                raise PolicyScopeError()
+            return
+        if tool in ("config_read", "config_diff"):
+            permission = "read" if tool == "config_read" else "compare"
+            if (section.catalog_platform() != "fortinet" or
+                    args.get("platform") not in ("fortios", "fortinet") or
+                    permission not in section.read_inventory.get("config_access", ())):
+                raise PolicyScopeError()
+            if not cls._port_allowed(entry.port, egress, "tcp"):
                 raise PolicyScopeError()
             return
         if tool == "fortios_diagnostics":
@@ -2117,6 +2172,8 @@ class Proxy:
         if has_id:
             with self.pending_lock:
                 self.pending_tools[request_id] = tool
+                if tool in {"config_read", "config_diff"}:
+                    self.pending_deadlines[request_id] = time.monotonic() + 670.0
         if tool == "target_scope":
             if set(args) != {"target"} or not self._valid_alias(args.get("target")):
                 self._emit_error(

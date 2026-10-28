@@ -15,7 +15,7 @@ from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.x509.oid import NameOID, ExtensionOID
 from netops import cli, operator
-from netops.files import write_private
+from netops.files import UIDS, write_private
 import test_configuration_diagnostics as base
 
 CANARY = "SYNTHETIC-PRIVATE-INPUT-MUST-NOT-APPEAR"
@@ -32,12 +32,13 @@ class ConfigureGuidanceBoundary(unittest.TestCase):
             state = Path(temporary)
             (state / "gateway").mkdir(mode=0o700)
             (state / role).mkdir(mode=0o700, exist_ok=True)
-            settings = {"version": 1, "product_version": "1.0.3", "audit": {"mode": "local"}}
+            settings = {"version": 1, "product_version": "1.0.4", "audit": {"mode": "local"}}
             write_private(state / "gateway/config.json", json.dumps(settings).encode())
             before = {str(p.relative_to(state)): p.read_bytes() for p in state.rglob("*") if p.is_file()}
             errors, output = io.StringIO(), io.StringIO()
             with contextlib.ExitStack() as stack:
                 stack.enter_context(patch.object(operator, "STATE", state))
+                stack.enter_context(patch.dict(UIDS, {"gateway": uid}))
                 stack.enter_context(patch.object(operator, "demote"))
                 stack.enter_context(patch.object(operator, "role_environment"))
                 stack.enter_context(patch.object(operator.os, "geteuid", side_effect=itertools.chain([0], itertools.repeat(uid))))
@@ -129,7 +130,7 @@ class ConfigureGuidanceBoundary(unittest.TestCase):
         uid = os.geteuid()
         with tempfile.TemporaryDirectory() as temporary:
             state = Path(temporary); (state / "gateway").mkdir(mode=0o700)
-            write_private(state / "gateway/config.json", json.dumps({"version": 1, "product_version": "1.0.3"}).encode())
+            write_private(state / "gateway/config.json", json.dumps({"version": 1, "product_version": "1.0.4"}).encode())
             lock = os.open(state / "gateway/instance.lock", os.O_RDWR | os.O_CREAT, 0o600)
             try:
                 fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)

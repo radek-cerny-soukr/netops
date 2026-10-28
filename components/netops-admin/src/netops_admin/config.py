@@ -101,7 +101,7 @@ def _device(name, data) -> Device:
              "device %s has unknown fields" % name, field='config.devices[]', code='unknown-fields')
     for field in ("platform", "address", "host_key_fingerprint", "vault", "credential", "check_credential"):
         _require(field in data, "device %s needs %s" % (name, field), field="config.devices[]." + field, code='required')
-    _require(data["platform"] in ("fortios", "exos"), "device %s platform must be fortios or exos" % name, field='config.devices[].platform', code='admin-platform')
+    _require(data["platform"] in ("fortios", "exos", "fortiadc"), "device %s platform must be fortios, exos or fortiadc" % name, field='config.devices[].platform', code='admin-platform')
     _require(PIN.fullmatch(str(data["host_key_fingerprint"])) is not None,
              "device %s host_key_fingerprint must be an OpenSSH SHA256 pin" % name, field='config.devices[].host_key_fingerprint', code='ssh-pin')
     protected = data.get("protected", {})

@@ -48,15 +48,17 @@ class HelperRedactionContract(unittest.TestCase):
     def test_ssh_read_applies_the_existing_size_cap_after_redaction(self):
         auth=types.SimpleNamespace(alias="synthetic",secrets=())
         pem="-----BEGIN PRIVATE KEY-----\n"+"x"*2_000_001+"\n-----END PRIVATE KEY-----"
+        status="Version: FortiGate-VM64-KVM v7.6.7,build3704,release\n"
+        reader=lambda body:lambda target,platform,command:(0,status if command=="get system status" else body)
         with patch.object(engine,"_ssh_read_state",
                           return_value=("fortinet","show system status",("synthetic",))), \
-             patch.object(engine,"read_from_device",return_value=(0,pem)):
+             patch.object(engine,"read_from_device",side_effect=reader(pem)):
             result=engine.ssh_read.__wrapped__(auth,"fortinet","system_status",None,0,16000)
         self.assertTrue(result["ok"])
         self.assertEqual(result["untrusted_device_output"],"<PRIVATE-KEY-REDACTED>")
         with patch.object(engine,"_ssh_read_state",
                           return_value=("fortinet","show system status",("synthetic",))), \
-             patch.object(engine,"read_from_device",return_value=(0,"x"*2_000_001)):
+             patch.object(engine,"read_from_device",side_effect=reader("x"*2_000_001)):
             result=engine.ssh_read.__wrapped__(auth,"fortinet","system_status",None,0,16000)
         self.assertFalse(result["ok"])
         self.assertEqual(result["error"],"SSH output exceeds the 2000000-byte safety cap")

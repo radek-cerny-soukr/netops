@@ -1,6 +1,6 @@
 # Read-only target accounts
 
-The NetOps Helper engine assumes that every target account is prevented from mutating the target by authorization enforced on the target or its external AAA service. Client validation, named templates, redaction, and egress rules are additional containment. They are not substitutes for device-side permissions.
+The NetOps Helper engine assumes that every target account is prevented from mutating the target by authorization enforced on the target or its external AAA service. Client validation, named templates, redaction, and egress rules are additional containment. They are not substitutes for device-side permissions. The accounts of all roles are compared in the [device account model](../../../docs/account-model.md).
 
 No universal vendor configuration recipe is provided here. Role names, privilege semantics, command authorization, and inherited permissions vary by platform, release, feature license, VDOM/virtual system, and AAA backend. Build the role from current vendor guidance, review the effective rules, and test the exact deployed path.
 
@@ -31,6 +31,12 @@ Before enrollment, a separate administrator must persistently set console output
 The FortiOS 8.0.0 profile independently restricts permissions for enabled get/diagnose queries; persistent configuration changes and full export must remain denied; separately enrolled diagnostic actions retain their explicit permission boundary. A read-profile prompt can use `$` instead of `#`. FortiOS connections use a per-device lane with five-second spacing and a pinned-key scan cache of ten minutes; those transport limits do not prove read-only permission.
 
 A FortiOS 8.0.1 profile with `cli-show enable` can expose full configuration even when secrets are masked. Helper uses get/diagnose commands rather than show; keep `cli-show disable` and independently verify remaining permissions. A profile label does not establish the deny boundary.
+
+The read-only profile must also allow `get system status`: before a fresh `ssh_read` on a FortiOS target the Helper runs it to confirm that the device is a FortiGate or FortiWiFi (`FortiGateRugged-` and `FortiFirewall-` hardware is refused for now). A refusal, a non-zero exit status or another product ends as `product_identity` without device output. Every fresh query other than `system_status` therefore uses one more SSH connection and waits at least five more seconds on the lane spacing.
+
+### FortiADC
+
+On FortiADC-KVM 7.6.7 build0676 `system_status` passed with a dedicated account bound to a read profile; device-side denial of mutation was not tested, so the read-only boundary is not verified. The first slice offers only `system_status` (`get system status`), which the Helper also uses to confirm that the target is a FortiADC (hardware beginning `FortiADC-`) before it returns anything; any other product, a refused command or a missing `Version:` record ends as `product_identity`. The FortiADC answer is framed by the shell prompt on the exec channel; the Helper removes it before the check. Test the account on a laboratory FortiADC first, see the [FortiADC reference](vendor-cli-references/fortinet-fortiadc.md).
 
 ### Extreme Switch Engine / ExtremeXOS
 

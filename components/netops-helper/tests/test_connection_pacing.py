@@ -27,10 +27,12 @@ import pytest
 
 from conftest import (
     EXEC_CLIENT,
+    FORTIOS_STATUS,
     HOST_KEY_PIN,
     KNOWN_HOSTS_LINE,
     LOOPBACK,
     PORT,
+    READ_QUERIES,
     _calls,
     _plain_query,
     _ruckus_wire,
@@ -89,10 +91,18 @@ def _keyscans(wire) -> list[dict]:
     return [call for call in _calls(wire) if "stdin_isatty" not in call]
 
 
+def _fortios_wire(wire) -> None:
+    _write_client(
+        wire["binaries"], "ssh",
+        EXEC_CLIENT.format(log=str(wire["log"]), output=FORTIOS_STATUS, code=0),
+    )
+
+
 def test_two_fortinet_reads_are_spaced_five_seconds_apart(wire, monkeypatch) -> None:
     clock = _install_clock(monkeypatch)
     _warm_host_key_cache(clock)
-    query_name, _ = _plain_query("fortinet")
+    query_name = "system_status"
+    _fortios_wire(wire)
     target = _target("fortinet", query_name)
 
     first = engine.ssh_read(target, "fortinet", query_name, {}, 0, 16_000)
@@ -105,6 +115,38 @@ def test_two_fortinet_reads_are_spaced_five_seconds_apart(wire, monkeypatch) -> 
     assert len(clock.sleeps) == 1
     assert clock.sleeps[0] == pytest.approx(5.0 - 1.5)
     assert _keyscans(wire) == []
+
+
+def test_a_fortinet_query_other_than_system_status_takes_a_second_connection_after_five_seconds(
+    wire, monkeypatch,
+) -> None:
+    clock = _install_clock(monkeypatch)
+    _warm_host_key_cache(clock)
+    _fortios_wire(wire)
+    query_name, command = next(
+        (name, item.command) for name, item in sorted(READ_QUERIES["fortinet"].items())
+        if not item.slots and item.command != engine._IDENTITY_COMMAND
+    )
+    target = _target("fortinet", query_name)
+
+    result = engine.ssh_read(target, "fortinet", query_name, {}, 0, 16_000)
+    assert result["ok"] is True
+    assert [call["argv"][-1] for call in _calls(wire)] == [engine._IDENTITY_COMMAND, command]
+    assert clock.sleeps == [pytest.approx(5.0)]
+
+
+def test_the_fortinet_system_status_query_is_one_connection_without_a_wait(
+    wire, monkeypatch,
+) -> None:
+    clock = _install_clock(monkeypatch)
+    _warm_host_key_cache(clock)
+    _fortios_wire(wire)
+    target = _target("fortinet", "system_status")
+
+    result = engine.ssh_read(target, "fortinet", "system_status", {}, 0, 16_000)
+    assert result["ok"] is True
+    assert [call["argv"][-1] for call in _calls(wire)] == [engine._IDENTITY_COMMAND]
+    assert clock.sleeps == []
 
 
 def test_extreme_exos_reads_never_wait(wire, monkeypatch) -> None:
@@ -120,7 +162,8 @@ def test_extreme_exos_reads_never_wait(wire, monkeypatch) -> None:
 
 def test_two_different_fortinet_devices_do_not_wait_on_each_other(wire, monkeypatch) -> None:
     clock = _install_clock(monkeypatch)
-    query_name, _ = _plain_query("fortinet")
+    query_name = "system_status"
+    _fortios_wire(wire)
     first_target = _target("fortinet", query_name, host="127.0.0.2")
     second_target = _target("fortinet", query_name, host="127.0.0.3")
     _warm_host_key_cache(clock, host="127.0.0.2")
@@ -136,7 +179,7 @@ def test_three_threads_on_one_fortinet_device_serialize_with_spacing(
 ) -> None:
     clock = _install_clock(monkeypatch)
     _warm_host_key_cache(clock)
-    query_name, _ = _plain_query("fortinet")
+    query_name = "system_status"
     target = _target("fortinet", query_name)
 
     fake_starts: list[float] = []
@@ -152,7 +195,7 @@ def test_three_threads_on_one_fortinet_device_serialize_with_spacing(
             fake_starts.append(fake_started)
             real_windows.append((real_started, real_finished))
         return engine.core_ssh.Result(
-            rc=0, stdout=b"", said="", started_at="", finished_at="",
+            rc=0, stdout=FORTIOS_STATUS.encode(), said="", started_at="", finished_at="",
         )
 
     monkeypatch.setattr(engine.core_ssh, "run_command", fake_run_command)
@@ -268,7 +311,8 @@ def test_the_first_keyscan_of_a_device_is_paced_like_any_other_connection(
     wire, monkeypatch,
 ) -> None:
     clock = _install_clock(monkeypatch)
-    query_name, _ = _plain_query("fortinet")
+    query_name = "system_status"
+    _fortios_wire(wire)
     target = _target("fortinet", query_name)
 
     first = engine.ssh_read(target, "fortinet", query_name, {}, 0, 16_000)

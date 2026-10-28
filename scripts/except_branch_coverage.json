@@ -82,14 +82,14 @@
       }
     },
     "netops-helper": {
-      "branches": 92,
-      "covered": 85,
+      "branches": 94,
+      "covered": 87,
       "min_percent": 92,
       "modules": {
         "netops_helper/engine.py": {
-          "branches": 38,
-          "branches_in_source": 38,
-          "covered": 37,
+          "branches": 40,
+          "branches_in_source": 40,
+          "covered": 39,
           "min_percent": 97
         },
         "netops_helper/proxy.py": {

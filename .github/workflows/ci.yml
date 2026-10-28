@@ -2,6 +2,10 @@ name: CI
 
 on:
   push:
+    branches-ignore:
+      - "release/1.0.4-candidate"
+    tags:
+      - "**"
   pull_request:
 
 permissions:
@@ -29,6 +33,8 @@ jobs:
         run: 'python3 -m pip install --only-binary=:all: --require-hashes -r release/requirements-sbom.lock'
 
       - name: Test the release and acceptance tooling
+        env:
+          NETOPS_SIGN_TEST_WORKERS: "2"
         run: |
           set -euo pipefail
           for test in release/tests/test_*.py release/acceptance/tests/test_*.py release/sign/tests/test_*.py; do

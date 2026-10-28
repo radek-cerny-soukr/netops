@@ -29,7 +29,7 @@ FILE_RULES = {
     "access.py": (
         EXECUTION_MODULES,
         {
-            "netops_core": frozenset(("hostkey", "prompt", "session", "ssh", "vault", "schema", "fortios")),
+            "netops_core": frozenset(("hostkey", "platforms", "prompt", "session", "ssh", "vault", "schema", "fortios")),
             "netops_auditor": frozenset(("collect",)),
         },
     ),

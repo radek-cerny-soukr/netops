@@ -248,7 +248,8 @@ class SharedProductBoundaries(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
-        files = ["pyproject.toml", "src/netops/__init__.py", "scripts/check_release.py"]
+        files = ["pyproject.toml", "src/netops/__init__.py", "scripts/check_release.py", "README.md",
+                 ".github/workflows/ci.yml", ".github/workflows/candidate.yml", ".github/workflows/codeql.yml"]
         for role in ("core","helper","auditor","admin"):
             files += ["components/netops-"+role+"/pyproject.toml",
                       "components/netops-"+role+"/src/netops_"+role+"/__init__.py"]
@@ -358,6 +359,44 @@ class SharedProductBoundaries(unittest.TestCase):
                 self.assertIn(reason + relative, gate.check(self.root))
         path.write_text("# public fixture\n", encoding="utf-8")
         self.assertEqual(gate.check(self.root), [])
+
+class ReleaseVersionText(unittest.TestCase):
+    def setUp(self):
+        import tomllib
+        self.version = tomllib.loads((ROOT / "pyproject.toml").read_text())["project"]["version"]
+        self.readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    def test_current_readme_matches_the_version(self):
+        self.assertEqual(gate.readme_version_errors(self.readme, self.version), [])
+    def test_readme_of_another_release_is_refused(self):
+        v = self.version
+        for old, new in (("This README describes NetOps " + v + ",", "This README describes NetOps 0.9.9,"),
+                         ("releases/download/v" + v + "/", "releases/download/v0.9.9/"),
+                         ("netops-" + v + "-SHA256SUMS ", "netops-0.9.9-SHA256SUMS "),
+                         ("**Acceptance of " + v + ":**", "**Acceptance of 0.9.9:**")):
+            with self.subTest(old=old):
+                self.assertIn(old, self.readme)
+                self.assertTrue(gate.readme_version_errors(self.readme.replace(old, new, 1), v))
+
+class CandidateBranchTriggers(unittest.TestCase):
+    def setUp(self):
+        import tomllib
+        self.version = tomllib.loads((ROOT / "pyproject.toml").read_text())["project"]["version"]
+        self.texts = {name: (ROOT / ".github/workflows" / name).read_text(encoding="utf-8")
+                      for name in ("ci.yml", "candidate.yml", "codeql.yml")}
+    def test_current_workflows_name_the_same_candidate_branch(self):
+        self.assertEqual(gate.workflow_branch_errors(self.texts, self.version), [])
+    def test_wildcard_or_stale_candidate_branch_is_refused(self):
+        branch = "release/" + self.version + "-candidate"
+        for name, new in (("ci.yml", "release/*-candidate"), ("candidate.yml", "release/0.9.9-candidate"),
+                          ("codeql.yml", "release/0.9.9-candidate")):
+            with self.subTest(name=name, new=new):
+                self.assertIn(branch, self.texts[name])
+                texts = dict(self.texts, **{name: self.texts[name].replace(branch, new)})
+                self.assertTrue(gate.workflow_branch_errors(texts, self.version))
+    def test_workflow_without_candidate_branch_is_refused(self):
+        branch = "release/" + self.version + "-candidate"
+        texts = dict(self.texts, **{"ci.yml": self.texts["ci.yml"].replace(branch, "main")})
+        self.assertTrue(gate.workflow_branch_errors(texts, self.version))
 
 if __name__ == "__main__":
     unittest.main()

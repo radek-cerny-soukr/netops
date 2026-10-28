@@ -265,3 +265,25 @@ Host-key algorithms, authentication methods and permitted legacy profiles are pl
 Exit status 255 is a transport refusal. Other command statuses remain a `Result` with their output, rather than being discarded as transport errors. An ExtremeXOS command can return status 250 with complete output; the caller must distinguish a command status, a device CLI error and the completeness of the returned answer. Neither a nonzero status nor a complete answer alone establishes semantic success.
 
 Credentials and temporary workspaces keep the cleanup and interrupted-call boundaries documented above. [Generic platform boundaries](../../../docs/verified-support.md#operator-responsibility) and [compatibility evidence limits](../../../docs/compatibility-boundaries.md#catalogue-and-parser-coverage) describe the scope without deployment identities or execution logs.
+
+## Streaming standard output
+
+An internal caller can pass a callable stdout_consumer to run_command. The
+built-in client loop delivers each stdout byte chunk synchronously and retains
+no complete raw stdout buffer; Result.stdout is empty on success. The byte cap
+still counts the whole stream. Credential workspaces, strict host pinning,
+authentication and process-group cleanup follow the ordinary transport path.
+Custom run injection cannot be combined with a consumer.
+
+An optional positive idle_timeout_seconds counts elapsed monotonic time since
+actual bytes arrived on stdout or stderr. Polling and exit notifications do not
+refresh it. The overall timeout remains independent. Consumer failure, byte cap,
+idle expiry or overall deadline aborts the call and cleans up; callers must not
+publish a partial capture. Consumer exceptions become a generic withheld error.
+
+Diagnostic excerpts remain bounded to 200 characters plus an ellipsis when
+needed. If a long banner would hide a recognized failure marker, the excerpt
+preserves that marker (and the negotiation marker for an algorithm refusal).
+This avoids reporting an unknown reason when a long OpenSSH warning precedes
+the actual authentication, pin or negotiation error. Unknown banners keep the
+existing bounded-head behavior.

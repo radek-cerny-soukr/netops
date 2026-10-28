@@ -28,6 +28,7 @@ PROFILE_DOCUMENTS = {
     "juniper_junos": "juniper-junos.md",
     "juniper_junos_els": "juniper-junos.md",
     "ruckus_unleashed": "ruckus-unleashed.md",
+    "fortiadc": "fortinet-fortiadc.md",
 }
 LOGIN_ONLY_DOCUMENTS = {"ruckus-unleashed.md"}
 LOGIN_SOURCE_TITLE = "Ruckus Unleashed 200.13 CLI Reference Guide"
@@ -44,6 +45,7 @@ CANONICAL_KEYS_AND_ALIASES = {
     "juniper_junos",
     "juniper_junos_els",
     "ruckus_unleashed",
+    "fortiadc",
 }
 ALLOWED_HOSTS = {
     "docs.fortinet.com",
@@ -140,7 +142,7 @@ def _validate_source_document(
     text: str, query_names: set[str], login_only: bool = False,
 ) -> None:
     assert re.search(
-        r"(?:Audit|Verification) date:\s*2026-09-(?:09|16)\.",
+        r"(?:Audit|Verification) date:\s*2026-(?:09-(?:09|16)|10-27)\.",
         text,
         re.IGNORECASE,
     )
@@ -269,6 +271,11 @@ def test_fortinet_and_extreme_tables_match_catalogue_and_registry() -> None:
         "extreme_exos",
         registry,
     )
+    _validate_detailed_table(
+        _read(SOURCE_DIR / "fortinet-fortiadc.md"),
+        "fortiadc",
+        registry,
+    )
 
 
 def test_mutations_cannot_remove_query_tokens_or_change_source_ids() -> None:
@@ -368,6 +375,59 @@ def test_a_login_only_source_may_not_invent_a_public_url() -> None:
     )
 
 
+FORTIADC_BASELINE = "FortiADC 7.6.7"
+FORTIADC_DOCUMENT_ROOT = "https://docs.fortinet.com/document/fortiadc/7.6.7/"
+FORTIADC_PROVENANCE = {
+    "F-ADC-CLI-76": (
+        "https://docs.fortinet.com/document/fortiadc/7.6.7/cli-reference",
+        ("ea7ac3cda6140e5e98cb6a8750b4ffc2c162e351211e4e5a2b9798c421c6f7a8",),
+    ),
+    "F-ADC-GET-SYSTEM-STATUS-76": (
+        "https://docs.fortinet.com/document/fortiadc/7.6.7/cli-reference/379949/get-system-status",
+        (
+            "311be651a39bcfc5db2ade9b3ca269ab1c4eb0dafa6d76faed1b61aef240fae9",
+            "0573f62380b5945754ce8dcbcb3b80da333dde5451ce59a988dbf8ef023d4142",
+        ),
+    ),
+}
+
+
+def _section(text: str, heading: str) -> str:
+    start = text.index(f"\n## {heading}\n")
+    end = text.find("\n## ", start + 1)
+    return text[start:] if end < 0 else text[start:end]
+
+
+def test_fortiadc_sources_name_one_exact_version_with_its_fortirag_provenance() -> None:
+    registry = RENDERER.load_registry()
+    assert registry["profiles"]["fortiadc"]["baseline"] == FORTIADC_BASELINE
+    used = {
+        source_id
+        for query_name in READ_QUERIES["fortiadc"]
+        for source_id in registry["queries"][f"fortiadc/{query_name}"]["source_ids"]
+    }
+    assert used == set(FORTIADC_PROVENANCE)
+    text = _read(SOURCE_DIR / "fortinet-fortiadc.md")
+    assert f"- Reviewed version: {FORTIADC_BASELINE}." in text
+    for url in URL_RE.findall(text):
+        if "/document/fortiadc/" in url:
+            assert url.startswith(FORTIADC_DOCUMENT_ROOT), url
+    provenance = _section(text, "FortiRAG provenance")
+    for phrase in ("Product: FortiADC", "Exact version: 7.6.7", "Compared on: 2026-10-27",
+                   "The vector index of FortiRAG was not verified"):
+        assert phrase in provenance, phrase
+    for source_id, (url, digests) in FORTIADC_PROVENANCE.items():
+        source = registry["sources"][source_id]
+        assert source["baseline"] == FORTIADC_BASELINE
+        assert source["url"] == url
+        assert source["title"].startswith(FORTIADC_BASELINE + " ")
+        assert source_id in provenance and url in provenance
+        for digest in digests:
+            assert digest in provenance, digest
+    index_row = next(line for line in _read(INDEX).splitlines() if line.startswith("| `fortiadc` |"))
+    assert f"| {FORTIADC_BASELINE} |" in index_row
+
+
 def main() -> int:
     test_index_keys_and_vendor_links()
     test_source_documents_cover_profiles_sections_urls_and_catalog_link()
@@ -377,6 +437,7 @@ def main() -> int:
     test_mutations_cannot_introduce_foreign_or_insecure_urls()
     test_only_this_release_repository_links_are_accepted_besides_vendors()
     test_a_login_only_source_may_not_invent_a_public_url()
+    test_fortiadc_sources_name_one_exact_version_with_its_fortirag_provenance()
     print("vendor_reference_tests=passed")
     return 0
 

@@ -26,7 +26,7 @@ class CollectInventoryGuidance(unittest.TestCase):
             state = Path(raw)
             for role in ("gateway", "auditor"):
                 (state / role).mkdir(mode=0o700)
-            write_private(state / "gateway/config.json", b'{"version":1,"product_version":"1.0.3","audit":{"mode":"local"}}')
+            write_private(state / "gateway/config.json", b'{"version":1,"product_version":"1.0.4","audit":{"mode":"local"}}')
             write_private(state / "auditor/config.json", b'{"tenant":"default","catalog":"fortios"}')
             if data is not None:
                 write_private(state / "auditor/inventory.json", data)

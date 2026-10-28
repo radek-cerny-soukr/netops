@@ -3,7 +3,7 @@ from __future__ import annotations
 import re
 
 from netops_auditor import collect
-from netops_core import hostkey, prompt, session, ssh, vault, schema
+from netops_core import hostkey, platforms, prompt, session, ssh, vault, schema
 from netops_core import fortios as core_fortios
 from netops_admin import schema_runtime
 from netops_admin.errors import Rejected
@@ -152,10 +152,11 @@ class SchemaAccess:
         self.base=base;self.device=device;self.credential=base.credential;self.check_credential=base.check_credential
         self.lib,_=schema_runtime.policy(device)
         status=base.query("get system status")
-        identities=re.findall(r"(?m)^Version:\s+([A-Za-z0-9_.+-]+)\s+v(\d+\.\d+\.\d+),\s*build(\d{4,6})(?:,|\s|$)",status)
+        try:identity=platforms.version_record(status)
+        except platforms.VersionRecordError:identity=None
         names=re.findall(r"(?m)^Hostname:\s+([A-Za-z0-9][A-Za-z0-9_.-]{0,63})\s*$",status)
-        if len(identities)!=1 or len(names)!=1:raise Rejected(["schema live identity cannot be established"])
-        try:self.lib.require_identity(*identities[0])
+        if identity is None or len(names)!=1:raise Rejected(["schema live identity cannot be established"])
+        try:self.lib.require_identity(*identity)
         except ValueError:raise Rejected(["schema live identity differs from the measured library"]) from None
         self.hostname=names[0]
         self.spec=schema_runtime.exec_fortios.prompt_spec(self.hostname)

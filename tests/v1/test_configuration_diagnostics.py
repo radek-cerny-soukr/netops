@@ -12,7 +12,7 @@ from unittest.mock import patch
 
 from netops import cli, operator
 from netops.diagnostics import configuration_error
-from netops.files import write_private
+from netops.files import UIDS, write_private
 
 CANARY = "SYNTHETIC-PRIVATE-INPUT-MUST-NOT-APPEAR"
 
@@ -37,10 +37,10 @@ class StructuredConfigurationDiagnostics(unittest.TestCase):
             (state / "gateway").mkdir(mode=0o700)
             (state / role).mkdir(mode=0o700)
             write_private(state / "gateway/config.json", json.dumps({
-                "version": 1, "product_version": "1.0.3", "audit": {"mode": "local"}}).encode())
+                "version": 1, "product_version": "1.0.4", "audit": {"mode": "local"}}).encode())
             stream = io.TextIOWrapper(io.BytesIO(json.dumps(document).encode()))
             errors, output = io.StringIO(), io.StringIO()
-            with patch.object(operator, "STATE", state), patch.object(operator, "demote"), \
+            with patch.dict(UIDS, {"gateway": current_uid}), patch.object(operator, "STATE", state), patch.object(operator, "demote"), \
                     patch.object(operator, "role_environment"), \
                     patch.object(operator.os, "geteuid", side_effect=itertools.chain([0], itertools.repeat(current_uid))), \
                     patch.object(sys, "stdin", stream), patch.object(sys, "argv", ["netops", "configure", role]), \

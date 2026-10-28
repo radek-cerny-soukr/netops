@@ -5,14 +5,13 @@ import os
 from pathlib import Path
 import re
 
-from netops_core import fortios, schema
+from netops_core import fortios, platforms, schema
 from netops_core.inputs import InputError, read_regular
 
 from .inventory import unique_object
 from .sanitize import redact
 
 MAX_SNAPSHOT = 2_000_000
-STATUS = re.compile(r"(?m)^Version:\s+([A-Za-z0-9_.+-]+)\s+v(\d+\.\d+\.\d+),\s*build(\d{4,6})(?:,|\s|$)")
 CURRENT_VDOM = re.compile(r"(?m)^Current virtual domain:([^\r\n]+)(?=\n|\Z)")
 SECRET_ATTRIBUTE = re.compile(r"(?:^|[-_])(?:password|passwd|passphrase|pwd|psk|psksecret|secret|token|private.key|community|api.key)(?:$|[-_])",re.I)
 
@@ -48,10 +47,11 @@ def binding(auth, registry_path=None):
 def verify_status(library,text):
     if not isinstance(text,str) or len(text.encode("utf-8"))>65536:
         raise schema.SchemaError("the device identity response exceeds its limit")
-    matches=STATUS.findall(text)
-    if len(matches)!=1:
-        raise schema.SchemaError("the device did not return one exact FortiOS identity")
-    library.require_identity(*matches[0])
+    try:
+        identity=platforms.version_record(text)
+    except platforms.VersionRecordError:
+        raise schema.SchemaError("the device did not return one exact FortiOS identity") from None
+    library.require_identity(*identity)
     domains=[value.strip() for value in CURRENT_VDOM.findall(text)]
     if len(domains)!=1 or not domains[0] or not domains[0].isprintable() or len(domains[0].encode("utf-8"))>128:
         raise schema.SchemaError("the device did not return one verified current VDOM")

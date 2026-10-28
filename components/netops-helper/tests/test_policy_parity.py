@@ -297,6 +297,7 @@ class PolicyParityTests(unittest.TestCase):
             "juniper_junos": "juniper_junos",
             "juniper_junos_els": "juniper_junos_els",
             "ruckus_unleashed": "ruckus_unleashed",
+            "fortiadc": "fortiadc",
         }
         expected_counts = {
             "linux": 16,
@@ -309,6 +310,7 @@ class PolicyParityTests(unittest.TestCase):
             "juniper_junos": 25,
             "juniper_junos_els": 29,
             "ruckus_unleashed": 4,
+            "fortiadc": 1,
         }
         self.assertEqual(read_policy.PLATFORM_MAP, expected_aliases)
         self.assertEqual(
@@ -318,7 +320,7 @@ class PolicyParityTests(unittest.TestCase):
             },
             expected_counts,
         )
-        self.assertEqual(sum(expected_counts.values()), 289)
+        self.assertEqual(sum(expected_counts.values()), 290)
         expected_names = {
             platform: frozenset(queries)
             for platform, queries in read_policy.READ_QUERIES.items()

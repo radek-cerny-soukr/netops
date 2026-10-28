@@ -1,3 +1,10 @@
+import concurrent.futures
+import contextlib
+import io
+import multiprocessing
+import sys
+import time
+import traceback
 import hashlib
 import json
 import os
@@ -20,7 +27,7 @@ COMMIT = "a" * 40
 IMAGE = "ghcr.io/radek-cerny-soukr/netops"
 A = "sha256:" + "1" * 64
 B = "sha256:" + "2" * 64
-V = "1.0.3"
+V = "1.0.4"
 ARCHES = ("amd64", "arm64")
 SUITES = ("blackbox", "redteam", "failclosed", "syslog", "device", "token-output")
 BLIND_INSTALL_ROWS = ("blind-install-fedora-amd64", "blind-install-debian-amd64")
@@ -36,8 +43,8 @@ INSTALL_CHECKS = ("cosign-verify-blob", "sha256sum-check", "container-healthy", 
                   "unauthenticated-401", "mcp-tools-list", "audit-without-token")
 UPGRADE_CHECKS = ("upgrade-steps-from-docs", "health-ready", "version-is-candidate", "data-preserved", "token-preserved", "ca-preserved")
 UPGRADE_ROW = "blind-upgrade-amd64"
-FROM_VERSION = "1.0.2"
-FROM_IMAGE = IMAGE + "@sha256:432040717c7630ee5f08347d0c59682bec9f896dc3728ac0690bb8f86aa13413"
+FROM_VERSION = "1.0.3"
+FROM_IMAGE = IMAGE + "@sha256:0ddf246ca5e22f7df89abb9cf8f7c9fd10920eec39b4a02ad7fddac04a3b65ce"
 
 
 def release_docs():
@@ -443,7 +450,7 @@ class SignTool(unittest.TestCase):
 
     def test_blind_report_must_name_the_candidate_version(self):
         for row in BLIND_ROWS:
-            for value in ("1.0.2", V + " ", "v" + V, 103, None, MISSING):
+            for value in ("1.0.3", V + " ", "v" + V, 103, None, MISSING):
                 with self.subTest(row=row, value=value):
                     report = default_report(row)
                     if value is MISSING:
@@ -456,9 +463,9 @@ class SignTool(unittest.TestCase):
                     self.assertEqual(rc, 1, out)
                     self.assertRegex(out, r"(?m)^acceptance %s\s+FAIL\s+report does not name version %s" % (re.escape(row), re.escape(V)))
 
-    def test_blind_upgrade_must_start_from_the_1_0_2_release_image(self):
-        cases = [("from_version", v) for v in ("1.0.3", "1.0.1", FROM_VERSION + " ", "v" + FROM_VERSION, 102, None, MISSING)]
-        cases += [("from_image", v) for v in (IMAGE + "@" + A, IMAGE + ":1.0.2", IMAGE + "@sha256:" + "0" * 64, FROM_IMAGE.split("@")[1],
+    def test_blind_upgrade_must_start_from_the_1_0_3_release_image(self):
+        cases = [("from_version", v) for v in ("1.0.4", "1.0.2", FROM_VERSION + " ", "v" + FROM_VERSION, 102, None, MISSING)]
+        cases += [("from_image", v) for v in (IMAGE + "@" + A, IMAGE + ":1.0.3", IMAGE + "@sha256:" + "0" * 64, FROM_IMAGE.split("@")[1],
                                               FROM_IMAGE.upper(), FROM_IMAGE + " ", None, MISSING)]
         for field, value in cases:
             with self.subTest(field=field, value=value):
@@ -492,18 +499,18 @@ class SignTool(unittest.TestCase):
                     self.assertEqual(rc, 1, out)
                     self.assertRegex(out, r"(?m)^acceptance %s\s+FAIL\s+%s" % (re.escape(row), re.escape(text)))
 
-    def test_tool_signs_only_1_0_3_and_later(self):
+    def test_tool_signs_only_1_0_4_and_later(self):
         global V
         saved = V
         try:
-            for version, expected in (("1.0.2", 1), ("1.0.1", 1), ("0.9.9", 1), ("1.0.3", 0), ("1.0.10", 0), ("1.1.0", 0)):
+            for version, expected in (("1.0.3", 1), ("1.0.2", 1), ("0.9.9", 1), ("1.0.4", 0), ("1.0.10", 0), ("1.1.0", 0)):
                 with self.subTest(version=version):
                     V = version
                     self.reports = {row: default_report(row) for row in ROWS + list(OPTIONAL_ROWS)}
                     rc, out = self.run_tool()
                     self.assertEqual(rc, expected, out)
                     if expected:
-                        self.assertRegex(out, r"(?m)^manifest\s+FAIL\s+this signing tool signs netops 1\.0\.3 and later, not %s" % re.escape(version))
+                        self.assertRegex(out, r"(?m)^manifest\s+FAIL\s+this signing tool signs netops 1\.0\.4 and later, not %s" % re.escape(version))
                     else:
                         self.assertIn("OVERALL: PASS", out)
         finally:
@@ -546,17 +553,17 @@ class SignTool(unittest.TestCase):
     def test_null_matches_fail(self):
         self.build()
         for arch in ARCHES:
-            name = "netops-1.0.3-linux-%s-grype.json" % arch
+            name = "netops-1.0.4-linux-%s-grype.json" % arch
             scan = json.load(open(os.path.join(self.dir, name)))
             scan["matches"] = None
             self.write(name, scan)
-        manifest = json.load(open(os.path.join(self.dir, "netops-1.0.3-manifest.json")))
+        manifest = json.load(open(os.path.join(self.dir, "netops-1.0.4-manifest.json")))
         for arch in ARCHES:
-            name = "netops-1.0.3-linux-%s-grype.json" % arch
+            name = "netops-1.0.4-linux-%s-grype.json" % arch
             manifest["image"]["platforms"][arch]["files"]["scan"]["sha256"] = sha(open(os.path.join(self.dir, name), "rb").read())
-        self.write("netops-1.0.3-manifest.json", manifest)
-        lines = ["%s  %s" % (sha(open(os.path.join(self.dir, n), "rb").read()), n) for n in sorted(os.listdir(self.dir)) if n != "netops-1.0.3-SHA256SUMS"]
-        self.write("netops-1.0.3-SHA256SUMS", "\n".join(lines) + "\n")
+        self.write("netops-1.0.4-manifest.json", manifest)
+        lines = ["%s  %s" % (sha(open(os.path.join(self.dir, n), "rb").read()), n) for n in sorted(os.listdir(self.dir)) if n != "netops-1.0.4-SHA256SUMS"]
+        self.write("netops-1.0.4-SHA256SUMS", "\n".join(lines) + "\n")
         rc, out = self.run_tool(build=False)
         self.assertEqual(rc, 1, out)
         self.assertIn("matches is not a JSON array", out)
@@ -588,7 +595,7 @@ class SignTool(unittest.TestCase):
         self.assert_refused("not in the signed checksum list")
 
     def test_traversal_absolute_and_duplicate_lines_fail(self):
-        for line in ("%s  ../outside.json" % ("0" * 64), "%s  /etc/passwd" % ("0" * 64), "%s  netops-1.0.3-manifest.json" % ("0" * 64)):
+        for line in ("%s  ../outside.json" % ("0" * 64), "%s  /etc/passwd" % ("0" * 64), "%s  netops-1.0.4-manifest.json" % ("0" * 64)):
             self.extra_lines = [line]
             self.assert_refused("checksums")
 
@@ -608,13 +615,13 @@ class SignTool(unittest.TestCase):
     def test_bundle_name_link_fails(self):
         for target in ("compose.yaml", "missing-target"):
             self.build()
-            os.symlink(target, os.path.join(self.dir, "netops-1.0.3-SHA256SUMS.sigstore.json"))
+            os.symlink(target, os.path.join(self.dir, "netops-1.0.4-SHA256SUMS.sigstore.json"))
             rc, out = self.run_tool(build=False)
             self.assertEqual(rc, 1, out)
             self.assertIn("is a link or reparse point", out)
 
     def test_linked_sums_and_manifest_fail_before_reading(self):
-        for name in ("netops-1.0.3-SHA256SUMS", "netops-1.0.3-manifest.json"):
+        for name in ("netops-1.0.4-SHA256SUMS", "netops-1.0.4-manifest.json"):
             self.build()
             path = os.path.join(self.dir, name)
             os.rename(path, path + ".real")
@@ -625,7 +632,7 @@ class SignTool(unittest.TestCase):
 
     def test_directory_in_candidate_fails(self):
         self.build()
-        os.mkdir(os.path.join(self.dir, "netops-1.0.3-SHA256SUMS.sigstore.json"))
+        os.mkdir(os.path.join(self.dir, "netops-1.0.4-SHA256SUMS.sigstore.json"))
         rc, out = self.run_tool(build=False)
         self.assertEqual(rc, 1, out)
         self.assertIn("is a directory", out)
@@ -639,7 +646,7 @@ class SignTool(unittest.TestCase):
 
     def test_existing_bundle_passes_check_but_is_never_overwritten(self):
         self.build()
-        self.write("netops-1.0.3-SHA256SUMS.sigstore.json", "{}")
+        self.write("netops-1.0.4-SHA256SUMS.sigstore.json", "{}")
         rc, out = self.run_tool(build=False)
         self.assertEqual(rc, 0, out)
         rc, out = self.run_tool(check_only=False, stdin="SIGN\n", build=False)
@@ -649,7 +656,7 @@ class SignTool(unittest.TestCase):
 
     def test_manifest_version_with_path_fails(self):
         self.build()
-        path = os.path.join(self.dir, "netops-1.0.3-manifest.json")
+        path = os.path.join(self.dir, "netops-1.0.4-manifest.json")
         manifest = json.load(open(path))
         manifest["version"] = "../" + V
         with open(path, "w") as stream:
@@ -660,7 +667,7 @@ class SignTool(unittest.TestCase):
 
     def test_tampered_file_fails(self):
         self.build()
-        self.write("netops-1.0.3-linux-arm64.cdx.json", '{"x":1}')
+        self.write("netops-1.0.4-linux-arm64.cdx.json", '{"x":1}')
         rc, out = self.run_tool(build=False)
         self.assertEqual(rc, 1, out)
         self.assertIn("SHA-256 differs", out)
@@ -672,15 +679,15 @@ class SignTool(unittest.TestCase):
     def test_scan_of_other_digest_fails(self):
         self.digests = {"amd64": A, "arm64": B}
         self.build()
-        scan_name = "netops-1.0.3-linux-amd64-grype.json"
+        scan_name = "netops-1.0.4-linux-amd64-grype.json"
         scan = json.load(open(os.path.join(self.dir, scan_name)))
         scan["source"]["target"]["userInput"] = IMAGE + "@" + B
         self.write(scan_name, scan)
-        manifest = json.load(open(os.path.join(self.dir, "netops-1.0.3-manifest.json")))
+        manifest = json.load(open(os.path.join(self.dir, "netops-1.0.4-manifest.json")))
         manifest["image"]["platforms"]["amd64"]["files"]["scan"]["sha256"] = sha(open(os.path.join(self.dir, scan_name), "rb").read())
-        self.write("netops-1.0.3-manifest.json", manifest)
-        lines = ["%s  %s" % (sha(open(os.path.join(self.dir, n), "rb").read()), n) for n in sorted(os.listdir(self.dir)) if n != "netops-1.0.3-SHA256SUMS"]
-        self.write("netops-1.0.3-SHA256SUMS", "\n".join(lines) + "\n")
+        self.write("netops-1.0.4-manifest.json", manifest)
+        lines = ["%s  %s" % (sha(open(os.path.join(self.dir, n), "rb").read()), n) for n in sorted(os.listdir(self.dir)) if n != "netops-1.0.4-SHA256SUMS"]
+        self.write("netops-1.0.4-SHA256SUMS", "\n".join(lines) + "\n")
         rc, out = self.run_tool(build=False)
         self.assertEqual(rc, 1, out)
         self.assertIn("raw scan is not of", out)
@@ -743,11 +750,11 @@ class SignTool(unittest.TestCase):
     def test_unpinned_env_fails(self):
         self.build()
         self.write("env.example", "NETOPS_IMAGE=%s:latest\n" % IMAGE)
-        manifest = json.load(open(os.path.join(self.dir, "netops-1.0.3-manifest.json")))
+        manifest = json.load(open(os.path.join(self.dir, "netops-1.0.4-manifest.json")))
         manifest["release_files"]["env.example"] = sha(open(os.path.join(self.dir, "env.example"), "rb").read())
-        self.write("netops-1.0.3-manifest.json", manifest)
-        lines = ["%s  %s" % (sha(open(os.path.join(self.dir, n), "rb").read()), n) for n in sorted(os.listdir(self.dir)) if n != "netops-1.0.3-SHA256SUMS"]
-        self.write("netops-1.0.3-SHA256SUMS", "\n".join(lines) + "\n")
+        self.write("netops-1.0.4-manifest.json", manifest)
+        lines = ["%s  %s" % (sha(open(os.path.join(self.dir, n), "rb").read()), n) for n in sorted(os.listdir(self.dir)) if n != "netops-1.0.4-SHA256SUMS"]
+        self.write("netops-1.0.4-SHA256SUMS", "\n".join(lines) + "\n")
         rc, out = self.run_tool(build=False)
         self.assertEqual(rc, 1, out)
         self.assertIn("does not pin", out)
@@ -1036,5 +1043,76 @@ NON_STRING_CASES = (
 )
 
 
+class _ParallelResult(unittest.TextTestResult):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.seen = []
+
+    def startTest(self, test):
+        self.seen.append(test._testMethodName)
+        super().startTest(test)
+
+
+def _run_parallel_test(name):
+    log = io.StringIO()
+    with contextlib.redirect_stdout(log), contextlib.redirect_stderr(log):
+        result = unittest.TextTestRunner(stream=log, verbosity=2, resultclass=_ParallelResult).run(
+            unittest.TestSuite([SignTool(name)]))
+    counts = (result.testsRun, len(result.failures), len(result.errors), len(result.skipped),
+              len(result.expectedFailures), len(result.unexpectedSuccesses))
+    return result.seen, counts, log.getvalue()
+
+
+def _suite_tests(suite):
+    for test in suite:
+        if isinstance(test, unittest.TestSuite):
+            yield from _suite_tests(test)
+        else:
+            yield test
+
+
+def _parallel_main(workers):
+    started = time.monotonic()
+    discovered = list(_suite_tests(unittest.defaultTestLoader.loadTestsFromModule(sys.modules[__name__])))
+    if any(type(test) is not SignTool for test in discovered):
+        raise SystemExit("Parallel signing tests support only SignTool; use NETOPS_SIGN_TEST_WORKERS=1")
+    names = [test._testMethodName for test in discovered]
+    if len(names) != len(set(names)):
+        raise SystemExit("Parallel signing test discovery contains duplicate test IDs")
+    seen, counts = [], [0] * 6
+    with concurrent.futures.ProcessPoolExecutor(
+            max_workers=workers, mp_context=multiprocessing.get_context("spawn")) as pool:
+        pending = {pool.submit(_run_parallel_test, name): name for name in names}
+        for future in concurrent.futures.as_completed(pending):
+            name = pending[future]
+            try:
+                actual, measured, log = future.result()
+            except Exception:
+                counts[2] += 1
+                for line in traceback.format_exc().splitlines():
+                    print("[%s] %s" % (name, line), flush=True)
+                continue
+            seen.extend(actual)
+            counts = [a + b for a, b in zip(counts, measured)]
+            for line in log.splitlines():
+                print("[%s] %s" % (name, line), flush=True)
+    complete = bool(names) and sorted(seen) == sorted(names) and counts[0] == len(names)
+    failed = not complete or any(counts[i] for i in (1, 2, 3, 5))
+    if not complete:
+        print("Incomplete test coverage: expected %r; observed %r" % (names, seen))
+    print("\nRan %d tests in %.3fs\n" % (counts[0], time.monotonic() - started))
+    labels = ("failures", "errors", "skipped", "expected failures", "unexpected successes")
+    details = ", ".join("%s=%d" % (label, n) for label, n in zip(labels, counts[1:]) if n)
+    print("FAILED (%s)" % (details or "incomplete coverage") if failed else
+          ("OK (%s)" % details if details else "OK"), flush=True)
+    return int(failed)
+
+
 if __name__ == "__main__":
-    unittest.main()
+    requested = os.environ.get("NETOPS_SIGN_TEST_WORKERS", "1")
+    if requested not in ("1", "2", "3", "4"):
+        raise SystemExit("NETOPS_SIGN_TEST_WORKERS must be 1, 2, 3 or 4")
+    if len(sys.argv) > 1 or requested == "1":
+        unittest.main()
+    else:
+        raise SystemExit(_parallel_main(int(requested)))

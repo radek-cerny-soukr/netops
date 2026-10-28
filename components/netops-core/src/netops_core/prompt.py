@@ -6,9 +6,11 @@ MARKERS = "#$"
 PATTERN = r"^([^%s\n]+ [%s] )" % (MARKERS, MARKERS)
 PLATFORM_FORTIOS = "fortios"
 PLATFORM_EXOS = "exos"
+PLATFORM_FORTIADC = "fortiadc"
 PREFIXES = {
     PLATFORM_FORTIOS: re.compile(PATTERN),
     PLATFORM_EXOS: re.compile(PATTERN),
+    PLATFORM_FORTIADC: re.compile(PATTERN),
 }
 ALIASES = {
     "fortinet": PLATFORM_FORTIOS,

@@ -15,6 +15,8 @@ from netops_core.audit import Recorder
 from netops_core.hostkey import fingerprint_of
 import pytest
 
+from conftest import FORTIOS_STATUS
+
 import netops_helper.audit as audit
 from netops_helper.audit import AuditPostOperationError, AuditPreflightError
 
@@ -255,6 +257,7 @@ def test_transport_table_matches_the_canonical_authority() -> None:
     (
         "linux", "fortinet", "extreme_exos", "cisco_ios", "cisco_xe", "cisco_nxos",
         "arista_eos", "juniper_junos", "juniper_junos_els",
+        "fortiadc",
     ),
 )
 def test_every_exec_platform_sends_only_its_preamble_and_the_query(
@@ -285,6 +288,8 @@ def test_ssh_continuation_uses_cache_without_second_login(monkeypatch) -> None:
     calls = []
 
     def fake_read(target, platform, command):
+        if command == engine._IDENTITY_COMMAND:
+            return 0, FORTIOS_STATUS
         calls.append(command)
         return 0, "x" * 1500
 
@@ -308,6 +313,8 @@ def test_a_continuation_reads_only_the_snapshot_named_by_its_content_sha256(monk
     events: list[str] = []
 
     def fake_read(target, platform, command):
+        if command == engine._IDENTITY_COMMAND:
+            return 0, FORTIOS_STATUS
         calls.append(command)
         return 0, next(outputs)
 

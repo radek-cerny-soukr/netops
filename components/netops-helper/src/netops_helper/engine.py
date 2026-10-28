@@ -25,6 +25,7 @@ from typing import Any
 from icmplib import ping
 from netops_core import hostkey as core_hostkey
 from netops_core import legacy_ssh as core_legacy_ssh
+from netops_core import platforms as core_platforms
 from netops_core import prompt as core_prompt
 from netops_core import session as core_session
 from netops_core import sftp as core_sftp
@@ -88,6 +89,7 @@ _SSH_TRANSPORTS = {
     "juniper_junos": _TRANSPORT_EXEC,
     "juniper_junos_els": _TRANSPORT_EXEC,
     "ruckus_unleashed": _TRANSPORT_PTY,
+    "fortiadc": _TRANSPORT_EXEC,
 }
 _PLATFORM_PREAMBLE: dict[str, tuple[str, ...]] = {}
 _RUCKUS_LOGIN_PROMPT = b"Please login:"
@@ -310,7 +312,10 @@ def _exec_command(
     credential: DeviceCredential,
     command: str,
     platform: str,
+    stdout_consumer=None,
 ) -> core_ssh.Result:
+    stream_options = ({"stdout_consumer": stdout_consumer, "idle_timeout_seconds": 30, "capture_max_bytes": 256*1024*1024}
+                      if stdout_consumer is not None else {})
     try:
         with _paced_connection(address, auth.port, platform):
             return core_ssh.run_command(
@@ -321,20 +326,26 @@ def _exec_command(
                 known_hosts_line,
                 command,
                 legacy_ssh=auth.legacy_ssh,
-                timeout_seconds=_SSH_READ_TIMEOUT_SECONDS,
+                timeout_seconds=600 if stdout_consumer is not None else _SSH_READ_TIMEOUT_SECONDS,
+                **stream_options,
             )
     except core_ssh.SshError as exc:
         _forget_host_key_line(address, auth.port)
         raise _exec_failure(auth, exc) from exc
 
 
-def _exec_read(auth: TargetAuth, platform: str, command: str) -> tuple[int | None, str]:
+def _exec_read(auth: TargetAuth, platform: str, command: str, stdout_consumer=None) -> tuple[int | None, str]:
     address = _resolve_target_ipv4(auth)[0]
     known_hosts_line = host_key_line(auth, address, platform)
     credential = DeviceCredential(auth)
     for preamble in _PLATFORM_PREAMBLE.get(platform, ()):
         _exec_command(auth, address, known_hosts_line, credential, preamble, platform)
-    result = _exec_command(auth, address, known_hosts_line, credential, command, platform)
+    options = {'stdout_consumer': stdout_consumer} if stdout_consumer is not None else {}
+    result = _exec_command(auth, address, known_hosts_line, credential, command, platform, **options)
+    if stdout_consumer is not None:
+        if result.stdout:
+            raise ValueError('streaming transport returned unexpected accumulated output')
+        return result.rc, ''
     return result.rc, core_prompt.cleaned(
         result.stdout.decode("utf-8", "replace"), platform,
     )
@@ -395,14 +406,17 @@ def _pty_read(auth: TargetAuth, platform: str, command: str) -> tuple[int | None
 
 
 def read_from_device(
-    auth: TargetAuth, platform: str, command: str,
+    auth: TargetAuth, platform: str, command: str, *, stdout_consumer=None,
 ) -> tuple[int | None, str]:
     normalized = normalize_platform(platform)
+    if stdout_consumer is not None and (normalized != 'fortinet' or not callable(stdout_consumer)):
+        raise ValueError('streaming is supported only for verified FortiOS exec reads')
     if normalized == "fortinet" and not auth.fortios_output_standard_verified:
         raise ValueError("FortiOS output standard must be independently verified before enrollment")
     if _SSH_TRANSPORTS[normalized] == _TRANSPORT_PTY:
         return _pty_read(auth, normalized, command)
-    return _exec_read(auth, normalized, command)
+    options = {"stdout_consumer": stdout_consumer} if stdout_consumer is not None else {}
+    return _exec_read(auth, normalized, command, **options)
 
 
 _CISCO_AUTOCOMMAND_REFUSAL = re.compile(
@@ -440,6 +454,38 @@ _CLI_REFUSALS = {
 def _cli_refused(platform: str, output: str) -> bool:
     pattern = _CLI_REFUSALS.get(platform)
     return pattern is not None and pattern.search(output) is not None
+
+
+_IDENTITY_COMMAND = "get system status"
+_IDENTITY_PLATFORMS = frozenset({"fortinet", "fortiadc"})
+
+
+class _ProductIdentityError(Exception):
+    def __init__(self, platform: str, rc: int | None) -> None:
+        super().__init__(
+            "The live device did not identify itself as the selected product "
+            f"({core_platforms.normalize(platform)}); no query output was returned"
+        )
+        self.rc = rc
+
+
+def _require_product(platform: str, rc: int | None, status: str) -> None:
+    try:
+        if rc not in (0, None) or _cli_refused(platform, status):
+            raise core_platforms.PlatformError("the identity command was refused")
+        core_platforms.require_identity(platform, status)
+    except core_platforms.PlatformError:
+        raise _ProductIdentityError(platform, rc) from None
+
+
+def _verified_read(auth: TargetAuth, platform: str, command: str) -> tuple[int | None, str]:
+    if platform not in _IDENTITY_PLATFORMS:
+        return read_from_device(auth, platform, command)
+    rc, status = read_from_device(auth, platform, _IDENTITY_COMMAND)
+    _require_product(platform, rc, status)
+    if command == _IDENTITY_COMMAND:
+        return rc, status
+    return read_from_device(auth, platform, command)
 
 
 def _safe_error(exc: Exception, auth: TargetAuth) -> str:
@@ -721,7 +767,13 @@ def ssh_read(
         pagination_source = "cached"
     else:
         try:
-            rc, output = read_from_device(auth, normalized, command)
+            rc, output = _verified_read(auth, normalized, command)
+        except _ProductIdentityError as exc:
+            return {
+                "ok": False, "target": auth.alias, "platform": normalized,
+                "query": query, "transport": transport, "rc": exc.rc,
+                "error_code": "product_identity", "error": str(exc),
+            }
         except Exception as exc:
             return {
                 "ok": False, "target": auth.alias, "platform": normalized,
@@ -804,10 +856,8 @@ class _FortiosDiagnosticShell:
 def fortios_diagnostics(auth: TargetAuth, recipe: str, address: str, interface: str,
                         count: int = 3, timeout: int = 5, max_bytes: int = 16000, vdom: str | None = None) -> dict[str, Any]:
     from . import fortios_diagnostics as diagnostics
-    from . import schema_read as reader
     diagnostics.validate(recipe, address, interface, count, timeout, max_bytes, vdom)
     diagnostics.authorize(auth, recipe, address, interface, vdom)
-    library = reader.binding(auth)
     target_address = _resolve_target_ipv4(auth)[0]
     known_hosts = host_key_line(auth, target_address, "fortinet")
     try:
@@ -816,8 +866,10 @@ def fortios_diagnostics(auth: TargetAuth, recipe: str, address: str, interface: 
                                       known_hosts, legacy_ssh=auth.legacy_ssh,
                                       timeout_seconds=30, capture_max_bytes=131072) as session:
                 shell = _FortiosDiagnosticShell(session)
-                raw, timed_out = diagnostics.run(shell, library, recipe, address, interface, count, timeout, vdom)
-    except Exception:
+                raw, timed_out, identity, domain = diagnostics.run(shell, recipe, address, interface, count, timeout, vdom)
+    except Exception as error:
+        if isinstance(error, diagnostics.UnsupportedPlatform):
+            raise
         raise ValueError("bounded FortiOS diagnostic failed; the session was closed") from None
     cleaned = redact(raw, auth.secrets)
     data = cleaned.encode("utf-8")
@@ -826,9 +878,9 @@ def fortios_diagnostics(auth: TargetAuth, recipe: str, address: str, interface: 
         if len(parts) > count + 1:
             cleaned = "".join(parts[:count + 1])
     returned = cleaned.encode("utf-8")[:max_bytes].decode("utf-8", "ignore")
-    return {"ok": True, "target": auth.alias, "recipe": recipe, "schema_sha256": library.sha256,
+    return {"ok": True, "target": auth.alias, "recipe": recipe, "vdom": domain,
             "content_sha256": digest_text(cleaned),
-            "identity": library.identity, "deadline_reached": timed_out,
+            "identity": identity, "deadline_reached": timed_out,
             "cleanup": "verified", "total_bytes": len(data), "returned_bytes": len(returned.encode("utf-8")),
             "truncated": returned != redact(raw, auth.secrets),
             "untrusted_device_output": returned}
@@ -1458,3 +1510,67 @@ def ftp_list(
         "entries": [redact(PurePosixPath(name).name, auth.secrets) for name in names],
         "truncated": truncated,
     }
+
+
+@_audit_device_call
+def config_read(auth: TargetAuth, platform: str, section: str, include_all: bool = False,
+                snapshot_id: str = '', offset: int = 0, limit: int = 48000) -> dict[str, Any]:
+    from . import configuration
+    configuration.require(auth, platform, 'read')
+    command = configuration.read_command(section, include_all)
+    configuration.page_arguments(offset, limit)
+    with configuration.capture():
+        if snapshot_id:
+            capture = configuration.get_snapshot(auth, snapshot_id, section)
+            text, count, firmware, identity = capture.text, capture.redacted_count, capture.firmware, snapshot_id
+        else:
+            if snapshot_id != '' or offset != 0:
+                raise ValueError('a nonzero page offset requires an existing snapshot')
+            try:
+                identity_rc, status = read_from_device(auth, 'fortinet', 'get system status')
+            except Exception:
+                raise ValueError('configuration identity read failed; output withheld') from None
+            if identity_rc != 0:
+                raise ValueError('configuration identity read refused; output withheld')
+            firmware = configuration.require_single_vdom(status)
+            if _cli_refused('fortinet', status):
+                raise ValueError('configuration identity read refused; output withheld')
+            capture = configuration.StreamRedactor(auth.secrets, section)
+            try:
+                rc, raw = read_from_device(auth, 'fortinet', command, stdout_consumer=capture.feed)
+                if rc != 0 or raw:
+                    raise ValueError('configuration read refused; output withheld')
+                text, hidden, count = capture.finish()
+            except Exception:
+                raise ValueError('configuration read failed; output withheld') from None
+            finally:
+                capture.close()
+            identity = configuration.store(auth, text, hidden, count, section, firmware)
+        response = {'ok': True, 'target': auth.alias, 'platform': 'fortios', 'view': 'running',
+                'snapshot_id': identity, 'snapshot_sha256': configuration.content_digest(text),
+                'redaction_profile': configuration.PROFILE, 'redacted_count': count,
+                'section': section, 'command': command,
+                'firmware': dict(zip(('model', 'version', 'build'), firmware)),
+                **configuration.payload(text, offset, limit)}
+        text = capture = hidden = None
+        return response
+
+
+@_audit_device_call
+def config_diff(auth: TargetAuth, platform: str, base_snapshot: str,
+                other_snapshot: str, offset: int = 0, limit: int = 48000, secret_offset: int = 0) -> dict[str, Any]:
+    from . import configuration
+    configuration.require(auth, platform, 'compare')
+    configuration.page_arguments(offset, limit)
+    if type(secret_offset) is not int or not 0 <= secret_offset <= 1073741824:
+        raise ValueError('invalid secret change page')
+    with configuration.capture():
+        text, changed, identical = configuration.compare(auth, base_snapshot, other_snapshot)
+        changes, next_secret = changed.page(secret_offset)
+        response = {'ok': True, 'target': auth.alias, 'platform': 'fortios',
+                'base_snapshot': base_snapshot, 'other_snapshot': other_snapshot,
+                'identical': identical, 'secrets_changed': changes,
+                'secret_offset': secret_offset, 'next_secret_offset': next_secret,
+                'secrets_changed_count': len(changed), **configuration.payload(text, offset, limit)}
+        text = changed = None
+        return response

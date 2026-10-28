@@ -28,7 +28,7 @@ def test_800_build0167_runs_the_measured_group_and_dhcp_operations(tmp_path, tab
     assert not device.actions and not device.triggers and not device.stitches
 
 
-@pytest.mark.parametrize(("release", "build"), [("8.0.0", "0168"), ("8.0.1", "0245")])
+@pytest.mark.parametrize(("release", "build"), [("8.0.0", "0168"), ("8.0.1", "0245"), ("8.0.2", "0251")])
 @pytest.mark.parametrize(("table", "op", "key", "changes"), GROUP_AND_DHCP)
 def test_other_800_builds_refuse_group_and_dhcp_before_any_device_write(tmp_path, release, build, table, op, key, changes):
     class OtherFirmware(FortiOS800):
@@ -44,7 +44,7 @@ def test_other_800_builds_refuse_group_and_dhcp_before_any_device_write(tmp_path
     assert not device.actions and not device.triggers and not device.stitches
 
 
-@pytest.mark.parametrize("configured", ["7.6.7 build3704", "8.0.0 build0168", "8.0.1 build0245"])
+@pytest.mark.parametrize("configured", ["7.6.7 build3704", "8.0.0 build0168", "8.0.1 build0245", "8.0.2 build0251"])
 def test_live_snapshot_version_cannot_be_overridden_by_configuration(tmp_path, configured):
     device = FakeFortiOS()
     runtime = make_runtime(tmp_path, device)
@@ -55,7 +55,7 @@ def test_live_snapshot_version_cannot_be_overridden_by_configuration(tmp_path, c
     assert not device.applied_blocks
 
 
-@pytest.mark.parametrize(("release", "build"), [("8.0.0", "0168"), ("8.0.1", "0245"), ("8.1.0", "0001")])
+@pytest.mark.parametrize(("release", "build"), [("8.0.0", "0168"), ("8.0.1", "0245"), ("8.0.2", "0251"), ("8.1.0", "0001")])
 def test_unmeasured_fortios_build_never_inherits_800_command_support(tmp_path, release, build):
     class OtherFirmware(FakeFortiOS):
         def snapshot(self):

@@ -53,11 +53,27 @@ def test_the_trailing_newline_of_the_answer_is_kept():
     assert prompt.cleaned("device-a $ one\ntwo", "fortios") == "one\ntwo"
 
 
-def test_the_table_names_the_two_measured_platforms_and_their_aliases():
-    assert prompt.PLATFORMS == ("fortios", "exos")
+def test_the_table_names_the_three_measured_platforms_and_their_aliases():
+    assert prompt.PLATFORMS == ("fortios", "exos", "fortiadc")
     assert prompt.prefix("fortinet") is prompt.prefix("fortios")
     assert prompt.prefix("extreme_exos") is prompt.prefix("exos")
+    assert prompt.prefix("fortiadc") is not None
     assert prompt.prefix("junos") is None
+
+
+def test_the_measured_fortiadc_answer_loses_the_first_prompt_and_the_closing_prompt_without_newline():
+    text = "%s # Version: 1\nSerial: x\n\n\n%s # " % (NAME, NAME)
+    assert prompt.cleaned(text, "fortiadc") == "Version: 1\nSerial: x\n\n\n"
+
+
+def test_the_fortiadc_crlf_answer_keeps_every_crlf_and_loses_both_prompts():
+    text = "%s # Version: 1\r\nSerial: x\r\n\r\n%s # " % (NAME, NAME)
+    assert prompt.cleaned(text, "fortiadc") == "Version: 1\r\nSerial: x\r\n\r\n"
+
+
+def test_a_fortiadc_answer_without_a_prompt_is_unchanged():
+    text = "Version: 1\nSerial: x\n"
+    assert prompt.cleaned(text, "fortiadc") == text
 
 
 MIDDLE_SEPARATORS = ("\r", "\x0b", "\x0c", "\x1c", "\x1d", "\x1e", "\x85", " ", " ")

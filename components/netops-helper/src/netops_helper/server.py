@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 import functools
+import hashlib
+import json
+import re
 import inspect
 from typing import Annotated, Any
 
@@ -20,11 +23,13 @@ from .engine import (
     snmp_get as engine_snmp_get,
     ssh_read as engine_ssh_read,
     schema_read as engine_schema_read,
+    config_read as engine_config_read,
+    config_diff as engine_config_diff,
     fortios_diagnostics as engine_fortios_diagnostics,
     tcp_probe as engine_tcp_probe,
     tls_probe as engine_tls_probe,
 )
-from .read_policy import public_query_catalog, public_query_metadata
+from .read_policy import public_query_catalog, public_query_metadata, normalize_platform
 
 
 SERVER_NAME = "netops-helper"
@@ -90,18 +95,57 @@ def helper_status() -> dict[str, Any]:
     }
 
 
-def _query_catalog_payload() -> dict[str, Any]:
-    return {
-        "ok": True,
-        "queries": public_query_catalog(),
-        "query_metadata": public_query_metadata(),
-    }
+def _query_catalog_payload(platform="", query_prefix="", offset=0, limit=25) -> dict[str, Any]:
+    if (not isinstance(platform, str) or not re.fullmatch(r"[A-Za-z0-9_.-]{0,64}", platform)
+            or not isinstance(query_prefix, str) or not re.fullmatch(r"[a-z0-9_]{0,64}", query_prefix)
+            or type(offset) is not int or not 0 <= offset <= 1073741824
+            or type(limit) is not int or not 1 <= limit <= 100):
+        raise ValueError("invalid catalogue page or filter")
+    catalogue, metadata = public_query_catalog(), public_query_metadata()
+    if platform:
+        try:
+            platform = normalize_platform(platform)
+        except ValueError:
+            raise ValueError("unknown catalogue platform") from None
+        if platform not in catalogue:
+            raise ValueError("unknown catalogue platform")
+    rows = [(name, query) for name, queries in sorted(catalogue.items())
+            if not platform or name == platform
+            for query in sorted(queries) if query.startswith(query_prefix)]
+    if offset > len(rows):
+        raise ValueError("catalogue offset is beyond the filtered result")
+    revision = hashlib.sha256(json.dumps(
+        [catalogue, metadata], sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+    page = {"ok": True, "queries": {}, "query_metadata": {}, "total": len(rows),
+            "offset": offset, "returned": 0, "next_offset": None, "catalog_sha256": revision}
+    for name, query in rows[offset:offset+limit]:
+        page["queries"].setdefault(name, {})[query] = catalogue[name][query]
+        page["query_metadata"].setdefault(name, {})[query] = metadata[name][query]
+        page["returned"] += 1
+        end = offset + page["returned"]
+        page["next_offset"] = end if end < len(rows) else None
+        if len(json.dumps(page, separators=(",", ":")).encode()) > 48000:
+            for field in ("queries", "query_metadata"):
+                del page[field][name][query]
+                if not page[field][name]:
+                    del page[field][name]
+            page["returned"] -= 1
+            if not page["returned"]:
+                raise ValueError("one catalogue entry exceeds the page byte limit")
+            page["next_offset"] = offset + page["returned"]
+            break
+    return page
 
 
 @mcp.tool
-def read_query_catalog() -> dict[str, Any]:
-    """List names, informative command templates, and typed metadata without device data."""
-    return _query_catalog_payload()
+@_refusals
+def read_query_catalog(
+    platform: str = "", query_prefix: str = "",
+    offset: Annotated[int, Field(strict=True, ge=0, le=1073741824)] = 0,
+    limit: Annotated[int, Field(strict=True, ge=1, le=100)] = 25,
+) -> dict[str, Any]:
+    """Return a bounded catalogue page, optionally filtered by platform and query-name prefix."""
+    return _query_catalog_payload(platform, query_prefix, offset, limit)
 
 
 @mcp.tool
@@ -211,6 +255,23 @@ def ftp_list(
         _auth(target, auth_context), remote_path, use_tls, port, acknowledge_unencrypted,
     )
 
+
+@mcp.tool
+@_refusals
+def config_read(target: str, platform: str, section: str, include_all: bool = False,
+                snapshot_id: str = "", offset: int = 0, limit: int = 48000,
+                auth_context: str = "") -> dict[str, Any]:
+    """Capture an opted-in FortiOS running configuration with conservative value redaction."""
+    return engine_config_read(_auth(target, auth_context), platform, section, include_all, snapshot_id, offset, limit)
+
+
+@mcp.tool
+@_refusals
+def config_diff(target: str, platform: str, base_snapshot: str,
+                other_snapshot: str, offset: int = 0, limit: int = 48000, secret_offset: int = 0,
+                auth_context: str = "") -> dict[str, Any]:
+    """Compare two redacted captures belonging to this authenticated target."""
+    return engine_config_diff(_auth(target, auth_context), platform, base_snapshot, other_snapshot, offset, limit, secret_offset)
 
 def main() -> None:
     mcp.run(show_banner=False)

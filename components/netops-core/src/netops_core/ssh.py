@@ -215,6 +215,15 @@ def _said(result) -> str:
     if not text:
         return ""
     if len(text) > SAID_CHARS:
+        for marker, meaning in REASONS:
+            index = text.find(marker)
+            if index < 0:
+                continue
+            if index + len(marker) > SAID_CHARS:
+                prefix = NEGOTIATION_MARKER + " " if NEGOTIATION_MARKER in text and not marker.startswith(NEGOTIATION_MARKER) else ""
+                text = prefix + text[index:]
+            break
+    if len(text) > SAID_CHARS:
         text = text[:SAID_CHARS] + "..."
     return text
 
@@ -327,7 +336,8 @@ def _exit_watch(proc):
         return None
 
 
-def _run_capped(call, max_bytes, *, timeout, env, stdin_bytes):
+def _run_capped(call, max_bytes, *, timeout, env, stdin_bytes, stdout_consumer=None,
+                idle_timeout=None):
     deadline = None if timeout is None else time.monotonic() + timeout
     proc = subprocess.Popen(
         call,
@@ -351,6 +361,8 @@ def _run_capped(call, max_bytes, *, timeout, env, stdin_bytes):
                 except OSError:
                     pass
         out = bytearray()
+        out_size = 0
+        last_data = time.monotonic()
         err = bytearray()
         open_streams = 2
         overrun = False
@@ -367,7 +379,13 @@ def _run_capped(call, max_bytes, *, timeout, env, stdin_bytes):
                 remaining = _remaining(deadline)
                 if remaining is not None and remaining <= 0:
                     raise subprocess.TimeoutExpired(call, timeout)
-                ready = selector.select(0 if ended else remaining)
+                wait = remaining
+                if idle_timeout is not None and not ended:
+                    idle_remaining = idle_timeout - (time.monotonic() - last_data)
+                    if idle_remaining <= 0:
+                        raise SshError("ssh produced no bytes within its idle timeout")
+                    wait = idle_remaining if wait is None else min(wait, idle_remaining)
+                ready = selector.select(0 if ended else wait)
                 if ended and not ready:
                     break
                 for key, _ in ready:
@@ -380,11 +398,19 @@ def _run_capped(call, max_bytes, *, timeout, env, stdin_bytes):
                         selector.unregister(key.fileobj)
                         open_streams -= 1
                         continue
+                    last_data = time.monotonic()
                     if key.data == "out":
-                        out += chunk
-                        if len(out) > max_bytes:
+                        out_size += len(chunk)
+                        if out_size > max_bytes:
                             overrun = True
                             break
+                        if stdout_consumer is None:
+                            out += chunk
+                        else:
+                            try:
+                                stdout_consumer(chunk)
+                            except Exception:
+                                raise SshError("SSH output consumer failed; output withheld") from None
                     elif len(err) < STDERR_MAX_BYTES:
                         err += chunk[: STDERR_MAX_BYTES - len(err)]
         finally:
@@ -406,9 +432,10 @@ def _run_capped(call, max_bytes, *, timeout, env, stdin_bytes):
             _stopped(proc, group)
 
 
-def _capped_runner(max_bytes):
+def _capped_runner(max_bytes, stdout_consumer=None, idle_timeout=None):
     def runner(call, *, capture_output=True, timeout=None, env=None, check=False, input=None):
-        return _run_capped(call, max_bytes, timeout=timeout, env=env, stdin_bytes=input)
+        return _run_capped(call, max_bytes, timeout=timeout, env=env, stdin_bytes=input,
+                           stdout_consumer=stdout_consumer, idle_timeout=idle_timeout)
 
     return runner
 
@@ -565,6 +592,8 @@ def run_command(
     legacy_ssh=None,
     timeout_seconds=DEFAULT_TIMEOUT_SECONDS,
     capture_max_bytes=CAPTURE_MAX_BYTES,
+    stdout_consumer=None,
+    idle_timeout_seconds=None,
     run=None,
     now=None,
 ) -> Result:
@@ -577,7 +606,10 @@ def run_command(
     seconds = _checked_timeout(timeout_seconds)
     budget = _checked_capture(capture_max_bytes)
     clock = _clock(now)
-    runner = run if run is not None else _capped_runner(budget)
+    if stdout_consumer is not None and (not callable(stdout_consumer) or run is not None):
+        raise SshError("stdout_consumer requires the built-in SSH runner and a callable consumer")
+    idle = None if idle_timeout_seconds is None else _checked_timeout(idle_timeout_seconds)
+    runner = run if run is not None else _capped_runner(budget, stdout_consumer, idle)
     if not callable(runner):
         raise SshError("run must be callable, got %s" % type(run).__name__)
     _abandoned_removed()

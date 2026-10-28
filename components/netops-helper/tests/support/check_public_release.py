@@ -225,35 +225,30 @@ def _schema_snapshot_allowed(tree: ast.AST) -> bool:
 
 
 def _diagnostic_vdom_allowed(tree: ast.AST) -> bool:
-    functions=[n for n in getattr(tree,"body",()) if isinstance(n,ast.FunctionDef) and n.name=="run"]
-    if len(functions)!=1:
+    functions = {n.name: n for n in getattr(tree, "body", ()) if isinstance(n, ast.FunctionDef)}
+    run, identity = functions.get("run"), functions.get("status_identity")
+    if run is None or identity is None:
         return False
-    function=functions[0]
-    calls=[n for n in ast.walk(function) if isinstance(n,ast.Call)]
-    reads=[n for n in calls if isinstance(n.func,ast.Attribute) and isinstance(n.func.value,ast.Name)
-           and n.func.value.id=="shell" and n.func.attr=="command" and n.args
-           and isinstance(n.args[0],ast.Constant) and n.args[0].value=="show full-configuration system vdom-property"]
-    if len(reads)!=1:
+    def raising_guard(function, expression):
+        expected = ast.dump(ast.parse(expression, mode="eval").body)
+        return [n for n in ast.walk(function) if isinstance(n, ast.If)
+                and ast.dump(n.test) == expected
+                and any(isinstance(child, ast.Raise) for child in n.body)]
+    for expression in ('domains != ["root"]',
+                       'markers != ["Virtual domain configuration: disable"]'):
+        if len(raising_guard(identity, expression)) != 1:
+            return False
+    explicit = raising_guard(run, "vdom is not None")
+    measured = raising_guard(run, "identity not in IDENTITIES")
+    owner = raising_guard(run, 'interfaces is None or set(interfaces.entries)!={interface} or interfaces.entries[interface].value("vdom")!=domain')
+    calls = [n for n in ast.walk(run) if isinstance(n, ast.Call)]
+    expected = ast.dump(ast.parse('status_identity(shell.command("get system status"))', mode="eval").body)
+    status = [n for n in calls if ast.dump(n) == expected]
+    if any(isinstance(n.func, ast.Attribute) and isinstance(n.func.value, ast.Name)
+           and n.func.value.id == "shell" and n.func.attr == "navigate" for n in calls):
         return False
-    expected=ast.parse('table is None or domain not in table.entries',mode="eval").body
-    checks=[n for n in ast.walk(function) if isinstance(n,ast.If) and ast.dump(n.test)==ast.dump(expected)
-            and any(isinstance(child,ast.Raise) for child in n.body)]
-    if len(checks)!=1:
-        return False
-    assignments=[n for n in ast.walk(function) if isinstance(n,ast.Name) and n.id=="table" and isinstance(n.ctx,ast.Store)]
-    if len(assignments)!=1:
-        return False
-    parents={child:parent for parent in ast.walk(function) for child in ast.iter_child_nodes(parent)}
-    expected_value=ast.parse('fortios.parse(shell.command("show full-configuration system vdom-property")).section("system vdom-property")',mode="eval").body
-    assignment=parents.get(assignments[0])
-    if not isinstance(assignment,ast.Assign) or ast.dump(assignment.value)!=ast.dump(expected_value):
-        return False
-    edits=[n for n in calls if isinstance(n.func,ast.Attribute) and isinstance(n.func.value,ast.Name)
-           and n.func.value.id=="shell" and n.func.attr=="navigate" and n.args
-           and any(isinstance(part,ast.Constant) and isinstance(part.value,str) and part.value.startswith('edit "') for part in ast.walk(n.args[0]))]
-    if len(edits)!=1 or not any(isinstance(part,ast.Name) and part.id=="domain" for part in ast.walk(edits[0].args[0])):
-        return False
-    return reads[0].lineno<checks[0].lineno<edits[0].lineno
+    return (len(explicit) == len(measured) == len(owner) == len(status) == 1
+            and explicit[0].lineno < status[0].lineno < measured[0].lineno < owner[0].lineno)
 
 
 def _diagnostic_wrapper_allowed(tree: ast.AST) -> bool:
@@ -265,8 +260,7 @@ def _diagnostic_wrapper_allowed(tree: ast.AST) -> bool:
         return False
     expected={"diagnostics.validate": ["recipe","address","interface","count","timeout","max_bytes","vdom"],
               "diagnostics.authorize": ["auth","recipe","address","interface","vdom"],
-              "reader.binding": ["auth"],
-              "diagnostics.run": ["shell","library","recipe","address","interface","count","timeout","vdom"]}
+              "diagnostics.run": ["shell","recipe","address","interface","count","timeout","vdom"]}
     found={}
     for call in (n for n in ast.walk(function) if isinstance(n,ast.Call)):
         if isinstance(call.func,ast.Attribute) and isinstance(call.func.value,ast.Name):
@@ -356,7 +350,7 @@ def _phase1_surface_errors(root: Path) -> list[str]:
         engine=source_trees.get(source_root/"engine.py")
         recipes=source_trees.get(source_root/"fortios_diagnostics.py")
         if engine is None or recipes is None or not _diagnostic_wrapper_allowed(engine) or not _diagnostic_vdom_allowed(recipes):
-            errors.append("bounded diagnostic audit, grants, binding or VDOM controls are incomplete")
+            errors.append("bounded diagnostic audit, grants, identity or single-VDOM controls are incomplete")
 
     removed_body_read_identifiers = {
         "https_get",
@@ -461,12 +455,10 @@ def _phase1_surface_errors(root: Path) -> list[str]:
             if bounded.count("show full-configuration")==1 and source_text.count("show full-configuration")==1:
                 source_text=source_text.replace("show full-configuration","[bounded schema snapshot]",1)
         if relative == "src/netops_helper/fortios_diagnostics.py" and _diagnostic_vdom_allowed(source_trees[source_path]):
-            vdom_token="show full-configuration system vdom-property"
             interface_token='show full-configuration system interface "'
             owner=ast.parse('interfaces is None or set(interfaces.entries)!={interface} or interfaces.entries[interface].value("vdom")!=domain',mode="eval").body
             guards=[n for n in ast.walk(source_trees[source_path]) if isinstance(n,ast.If) and ast.dump(n.test)==ast.dump(owner) and any(isinstance(child,ast.Raise) for child in n.body)]
-            if len(guards)==1 and source_text.count("show full-configuration")==2:
-                source_text=source_text.replace(vdom_token,"[verified VDOM inventory]",1)
+            if len(guards)==1 and source_text.count("show full-configuration")==1:
                 source_text=source_text.replace(interface_token,"[verified interface owner]"+chr(34),1)
         for pattern in forbidden_catalog_patterns:
             if pattern in source_text:

@@ -4,8 +4,8 @@
 
 - Vendor: Fortinet.
 - Product and document title: FortiGate / FortiOS CLI Reference, CLI troubleshooting material, and Administration Guide.
-- Reviewed versions: FortiOS 7.6.x and 8.0.0. The 7.6.x evidence set contains vendor pages for 7.6.0, 7.6.3, and 7.6.4; the 8.0 evidence is for 8.0.0.
-- Verification date: 2026-09-09.
+- Reviewed versions: FortiOS 7.6.x, 8.0.0 and 8.0.2. The 7.6.x evidence set contains vendor pages for 7.6.0, 7.6.3, and 7.6.4; the 8.0 evidence is for 8.0.0, and the 8.0.2 CLI Reference, CLI troubleshooting cheat sheet and Administration Guide were re-checked against every accepted Phase-1 command. Each command found in the 8.0.0 documents is present in the 8.0.2 documents and the 8.0.2 text shows no syntax change; `get system interface physical` appears there only as `get system interface`, and `diagnose sys top 1 5 1` only as `diagnose sys top 1`, both as in 8.0.0.
+- Verification date: 2026-10-27. The 7.6.x and 8.0.0 evidence was first verified on 2026-09-09.
 - Catalog module: `src/netops_helper/query_catalog/fortinet.py`.
 
 The exact machine-checked templates and per-query source links are in the [generated query catalog](../query-catalog.md); the source-ID records are in [`query-sources.json`](../query-sources.json).
@@ -20,46 +20,46 @@ The table is the conservative Phase-1 whitelist. A template slot is accepted onl
 
 | Query name | Exact command template | Inventory slot | Volume | Primary references |
 | --- | --- | --- | --- | --- |
-| `system_status` | `get system status` | none | normal | F-CLI-76, F-CLI-80, F-CHEAT-76, F-CHEAT-80 |
-| `performance` | `get system performance status` | none | normal | F-CLI-76, F-CLI-80, F-CHEAT-76, F-CHEAT-80 |
-| `ha_status` | `get system ha status` | none | normal | F-CHEAT-76, F-CHEAT-80, F-HA-76 |
-| `session_stats` | `diagnose sys session stat` | none | normal | F-DIAG-SYS-76, F-DIAG-SYS-80, F-CHEAT-76, F-CHEAT-80 |
-| `hardware_memory` | `diagnose hardware sysinfo memory` | none | normal | F-DIAG-HW-76, F-CLI-80 |
-| `disk_status` | `diagnose hardware deviceinfo disk` | none | normal | F-DIAG-HW-76, F-CLI-80 |
-| `physical_interfaces` | `get system interface physical` | none | high-volume | F-CLI-76, F-CLI-80, F-CHEAT-76, F-CHEAT-80 |
-| `interface_details` | `diagnose netlink interface list {interface}` | `interfaces.fortios_interface` | normal | F-DIAG-INDEX-76, F-CLI-76, F-CLI-80, F-NETLINK-INTERFACE-80, F-CONFIG-SYSTEM-INTERFACE-80, F-TEXT-STRINGS-80, F-INTERFACE-SETTINGS-80, F-NIC-ADMIN-76, F-NIC-ADMIN-80, F-IPSEC-ALIAS-80 |
+| `system_status` | `get system status` | none | normal | F-CLI-76, F-CLI-80, F-CLI-802, F-CHEAT-76, F-CHEAT-80, F-CHEAT-802 |
+| `performance` | `get system performance status` | none | normal | F-CLI-76, F-CLI-80, F-CLI-802, F-CHEAT-76, F-CHEAT-80, F-CHEAT-802 |
+| `ha_status` | `get system ha status` | none | normal | F-CHEAT-76, F-CHEAT-80, F-CHEAT-802, F-HA-76 |
+| `session_stats` | `diagnose sys session stat` | none | normal | F-DIAG-SYS-76, F-DIAG-SYS-80, F-CHEAT-76, F-CHEAT-80, F-CHEAT-802 |
+| `hardware_memory` | `diagnose hardware sysinfo memory` | none | normal | F-DIAG-HW-76, F-CLI-80, F-CLI-802 |
+| `disk_status` | `diagnose hardware deviceinfo disk` | none | normal | F-DIAG-HW-76, F-CLI-80, F-CLI-802 |
+| `physical_interfaces` | `get system interface physical` | none | high-volume | F-CLI-76, F-CLI-80, F-CLI-802, F-CHEAT-76, F-CHEAT-80, F-CHEAT-802 |
+| `interface_details` | `diagnose netlink interface list {interface}` | `interfaces.fortios_interface` | normal | F-DIAG-INDEX-76, F-CLI-76, F-CLI-80, F-CLI-802, F-NETLINK-INTERFACE-80, F-CONFIG-SYSTEM-INTERFACE-80, F-TEXT-STRINGS-80, F-INTERFACE-SETTINGS-80, F-NIC-ADMIN-76, F-NIC-ADMIN-80, F-IPSEC-ALIAS-80 |
 | `interface_hardware` | `diagnose hardware deviceinfo nic {interface}` | `interfaces.fortios_physical_interface` | normal | F-DIAG-HW-76, F-NIC-ADMIN-76, F-NIC-ACCEL-76, F-NIC-ADMIN-80, F-NETLINK-INTERFACE-80, F-CONFIG-SYSTEM-INTERFACE-80, F-TEXT-STRINGS-80, F-INTERFACE-SETTINGS-80, F-IPSEC-ALIAS-80 |
-| `routing_table` | `get router info routing-table all` | none | high-volume | F-CLI-76, F-CLI-80, F-CHEAT-76, F-CHEAT-80 |
-| `route_lookup` | `get router info routing-table details {address}` | `addresses.ipv4_address` | normal | F-CLI-76, F-CLI-80, F-CHEAT-76, F-CHEAT-80 |
-| `route_protocols` | `get router info protocols` | none | normal | F-CLI-76, F-CLI-80 |
-| `ipv6_route_protocols` | `get router info6 protocols` | none | normal | F-CLI-76, F-CLI-80 |
-| `arp_table` | `get system arp` | none | high-volume | F-CLI-76, F-CLI-80, F-CHEAT-76, F-CHEAT-80 |
+| `routing_table` | `get router info routing-table all` | none | high-volume | F-CLI-76, F-CLI-80, F-CLI-802, F-CHEAT-76, F-CHEAT-80, F-CHEAT-802 |
+| `route_lookup` | `get router info routing-table details {address}` | `addresses.ipv4_address` | normal | F-CLI-76, F-CLI-80, F-CLI-802, F-CHEAT-76, F-CHEAT-80, F-CHEAT-802 |
+| `route_protocols` | `get router info protocols` | none | normal | F-CLI-76, F-CLI-80, F-CLI-802 |
+| `ipv6_route_protocols` | `get router info6 protocols` | none | normal | F-CLI-76, F-CLI-80, F-CLI-802 |
+| `arp_table` | `get system arp` | none | high-volume | F-CLI-76, F-CLI-80, F-CLI-802, F-CHEAT-76, F-CHEAT-80, F-CHEAT-802 |
 | `ipv6_neighbors` | `diagnose ipv6 neighbor-cache list` | none | high-volume | F-IPV6-ND-80, F-CLI-76 |
 | `lldp_summary` | `diagnose lldp rx neighbor summary` | none | high-volume | F-LLDP-80, F-CLI-76 |
 | `bridge_mac_table` | `diagnose netlink brctl name host {switch}` | `switches.switch` | high-volume | F-BRCTL-80, F-CLI-76 |
 | `sdwan_health` | `diagnose sys sdwan health-check` | none | high-volume | F-DIAG-SYS-76, F-DIAG-SYS-80, F-SDWAN-80 |
 | `ha_checksum` | `diagnose sys ha checksum cluster` | none | normal | F-HA-CHECKSUM-80, F-HA-76 |
 | `ha_history` | `diagnose sys ha history read` | none | high-volume | F-DIAG-SYS-76, F-DIAG-SYS-80, F-HA-76 |
-| `ipsec_summary` | `get vpn ipsec tunnel summary` | none | high-volume | F-CLI-76, F-CLI-80, F-IPSEC-80, F-IPSEC-ALIAS-80 |
+| `ipsec_summary` | `get vpn ipsec tunnel summary` | none | high-volume | F-CLI-76, F-CLI-80, F-CLI-802, F-IPSEC-80, F-IPSEC-ALIAS-80 |
 | `ipsec_status` | `diagnose vpn ipsec status` | none | normal | F-IPSEC-80 |
-| `bgp_summary` | `get router info bgp summary` | none | high-volume | F-BGP-76, F-BGP-80, F-CLI-76, F-CLI-80 |
-| `ipv6_bgp_summary` | `get router info6 bgp summary` | none | high-volume | F-BGP-76, F-BGP-80, F-CLI-76, F-CLI-80 |
-| `ospf_status` | `get router info ospf status` | none | normal | F-OSPF-80, F-CLI-76, F-CLI-80 |
-| `ipv6_ospf_status` | `get router info6 ospf status` | none | normal | F-OSPF-80, F-CLI-76, F-CLI-80 |
-| `ospf_neighbors` | `get router info ospf neighbor all` | none | high-volume | F-OSPF-80, F-CLI-76, F-CLI-80 |
-| `ipv6_ospf_neighbors` | `get router info6 ospf neighbor all` | none | high-volume | F-OSPF-80, F-CLI-76, F-CLI-80 |
-| `bfd_neighbors` | `get router info bfd neighbor` | none | high-volume | F-BFD-80, F-CLI-76, F-CLI-80 |
-| `ipv6_bfd_neighbors` | `get router info6 bfd neighbor` | none | high-volume | F-BFD-80, F-CLI-76, F-CLI-80 |
-| `ntp_status` | `diagnose sys ntp status` | none | normal | F-DIAG-SYS-80, F-CLI-80 |
-| `system_top` | `diagnose sys top 1 5 1` | none | normal | F-DIAG-SYS-80, F-CLI-80 |
-| `autoupdate_status` | `diagnose autoupdate status` | none | normal | F-CLI-80 |
-| `autoupdate_versions` | `diagnose autoupdate versions` | none | high-volume | F-CLI-80 |
-| `sslvpn_sessions` | `diagnose vpn ssl list` | none | high-volume | F-CLI-80 |
-| `sslvpn_statistics` | `diagnose vpn ssl statistics` | none | normal | F-CLI-80 |
-| `firewall_auth_users` | `diagnose firewall auth list` | none | high-volume | F-CLI-80 |
-| `ips_filter_status` | `diagnose ips filter status` | none | normal | F-CLI-80 |
-| `ips_anomaly_status` | `diagnose ips anomaly status` | none | normal | F-CLI-80 |
-| `av_outbreak_stats` | `diagnose antivirus outbreak-prevention statistics list` | none | normal | F-CLI-80 |
+| `bgp_summary` | `get router info bgp summary` | none | high-volume | F-BGP-76, F-BGP-80, F-CLI-76, F-CLI-80, F-CLI-802 |
+| `ipv6_bgp_summary` | `get router info6 bgp summary` | none | high-volume | F-BGP-76, F-BGP-80, F-CLI-76, F-CLI-80, F-CLI-802 |
+| `ospf_status` | `get router info ospf status` | none | normal | F-OSPF-80, F-CLI-76, F-CLI-80, F-CLI-802 |
+| `ipv6_ospf_status` | `get router info6 ospf status` | none | normal | F-OSPF-80, F-CLI-76, F-CLI-80, F-CLI-802 |
+| `ospf_neighbors` | `get router info ospf neighbor all` | none | high-volume | F-OSPF-80, F-CLI-76, F-CLI-80, F-CLI-802 |
+| `ipv6_ospf_neighbors` | `get router info6 ospf neighbor all` | none | high-volume | F-OSPF-80, F-CLI-76, F-CLI-80, F-CLI-802 |
+| `bfd_neighbors` | `get router info bfd neighbor` | none | high-volume | F-BFD-80, F-CLI-76, F-CLI-80, F-CLI-802 |
+| `ipv6_bfd_neighbors` | `get router info6 bfd neighbor` | none | high-volume | F-BFD-80, F-CLI-76, F-CLI-80, F-CLI-802 |
+| `ntp_status` | `diagnose sys ntp status` | none | normal | F-DIAG-SYS-80, F-CLI-80, F-CLI-802 |
+| `system_top` | `diagnose sys top 1 5 1` | none | normal | F-DIAG-SYS-80, F-CLI-80, F-CLI-802 |
+| `autoupdate_status` | `diagnose autoupdate status` | none | normal | F-CLI-80, F-CLI-802 |
+| `autoupdate_versions` | `diagnose autoupdate versions` | none | high-volume | F-CLI-80, F-CLI-802 |
+| `sslvpn_sessions` | `diagnose vpn ssl list` | none | high-volume | F-CLI-80, F-CLI-802 |
+| `sslvpn_statistics` | `diagnose vpn ssl statistics` | none | normal | F-CLI-80, F-CLI-802 |
+| `firewall_auth_users` | `diagnose firewall auth list` | none | high-volume | F-CLI-80, F-CLI-802 |
+| `ips_filter_status` | `diagnose ips filter status` | none | normal | F-CLI-80, F-CLI-802 |
+| `ips_anomaly_status` | `diagnose ips anomaly status` | none | normal | F-CLI-80, F-CLI-802 |
+| `av_outbreak_stats` | `diagnose antivirus outbreak-prevention statistics list` | none | normal | F-CLI-80, F-CLI-802 |
 
 ### FortiOS query grammar and permissions
 
@@ -79,6 +79,7 @@ SSL VPN query availability depends on build, model and feature. The documented F
 - HA, SD-WAN, IPsec, BGP, OSPF, BFD, IPv6, LLDP, and software-switch queries are useful only when the corresponding feature is available and configured. They should not be enabled merely because the platform is FortiOS.
 - VDOM context affects visibility and output. Verify target account and scope without granting configuration privileges. FortiOS 8.0.0 build0167 and 7.6.7 build3704 distinguish VDOM-level reads from global autoupdate_status, autoupdate_versions, disk_status, ha_status, hardware_memory, interface_hardware, ntp_status, performance and session_stats reads. An unavailable scope must be refused rather than used to broaden account privileges.
 - `bridge_mac_table` requires an exact enrolled software-switch name. `interface_details` and `interface_hardware` require an exact enrolled interface name.
+- Product identity check: before a fresh `ssh_read` of a FortiOS target the Helper runs `get system status` and requires one well-formed `Version:` record whose hardware field begins `FortiGate-` or `FortiWiFi-`; a FortiADC (or any other product) behind the alias is refused as `product_identity` before the requested query is sent. Cost: every fresh query other than `system_status` takes one more SSH connection and, because of the five-second lane spacing, at least five more seconds; `system_status` itself is the probe and costs nothing extra. The account therefore needs the right to run `get system status`. `FortiGateRugged-` and `FortiFirewall-` hardware is not identified in this release and is refused until measured `Version:` samples are reviewed. See `docs/fortiadc-f1-contract.md`, section `Transport wiring of ssh_read`.
 - Fortinet can change output shape between maintenance releases. Consumers must treat output as untrusted text rather than a stable machine API.
 
 ## Explicitly excluded
@@ -121,6 +122,8 @@ Only first-party Fortinet pages are retained. General CLI references establish t
 | F-CLI-80 | FortiGate / FortiOS 8.0.0 CLI Reference | baseline cross-check for all accepted Fortinet query names; chapter source for `autoupdate_status`, `autoupdate_versions`, `sslvpn_sessions`, `sslvpn_statistics`, `firewall_auth_users`, `ips_filter_status`, `ips_anomaly_status` and `av_outbreak_stats` | https://docs.fortinet.com/document/fortigate/8.0.0/cli-reference |
 | F-CHEAT-76 | FortiOS 7.6.0 CLI troubleshooting cheat sheet | `system_status`, `performance`, `ha_status`, `session_stats`, `physical_interfaces`, `routing_table`, `route_lookup`, `arp_table` | https://docs.fortinet.com/document/fortigate/7.6.0/cli-troubleshooting-cheat-sheet/420966/cli-troubleshooting-cheat-sheet |
 | F-CHEAT-80 | FortiOS 8.0.0 CLI troubleshooting cheat sheet | same query-name mapping as F-CHEAT-76 | https://docs.fortinet.com/document/fortigate/8.0.0/cli-troubleshooting-cheat-sheet/420966/cli-troubleshooting-cheat-sheet |
+| F-CLI-802 | FortiGate / FortiOS 8.0.2 CLI Reference | 8.0.2 cross-check for the same query names as F-CLI-80 | https://docs.fortinet.com/document/fortigate/8.0.2/cli-reference |
+| F-CHEAT-802 | FortiOS 8.0.2 CLI troubleshooting cheat sheet | same query-name mapping as F-CHEAT-80 | https://docs.fortinet.com/document/fortigate/8.0.2/cli-troubleshooting-cheat-sheet |
 | F-DIAG-INDEX-76 | FortiOS 7.6.4 CLI diagnose commands | diagnostic baseline, including `interface_details` | https://docs.fortinet.com/document/fortigate/7.6.4/cli-reference/424125979/cli-diagnose-commands |
 | F-DIAG-SYS-76 | FortiOS 7.6.4 `diagnose sys` CLI reference | `session_stats`, `sdwan_health`, `ha_history` | https://docs.fortinet.com/document/fortigate/7.6.4/cli-reference/235530229/diagnose-sys |
 | F-DIAG-SYS-80 | FortiOS 8.0.0 `diagnose sys` CLI reference | `session_stats`, `sdwan_health`, `ha_history`, `ntp_status`, `system_top` | https://docs.fortinet.com/document/fortigate/8.0.0/cli-reference/235530229/diagnose-sys |
@@ -152,11 +155,11 @@ These opt-in templates are included in NetOps 1.0. The 20-21 September 2026 resu
 | Query | Source | Live result |
 |---|---|---|
 | `certificate_details` | [F-CERT-LOCAL](https://docs.fortinet.com/document/fortigate/latest/administration-guide/822087/automatically-provision-a-certificate) | FortiOS 8.0.0 read-only account returned public certificate details including expiry. |
-| `managed_switch_status` | [F-CHEAT-80](https://docs.fortinet.com/document/fortigate/8.0.0/cli-troubleshooting-cheat-sheet/420966/cli-troubleshooting-cheat-sheet) | FortiOS 8.0.1 controller returned data for an enrolled managed switch. The controller test used an administrator account; restricted-profile permissions require separate deployment validation. |
-| `managed_switch_poe` | [F-CHEAT-80](https://docs.fortinet.com/document/fortigate/8.0.0/cli-troubleshooting-cheat-sheet/420966/cli-troubleshooting-cheat-sheet) | FortiOS 8.0.1 controller returned data for an enrolled managed switch under an administrator account; restricted-profile permissions required separate validation. A later end-to-end MCP call (2026-10-15, before 1.0.0) exercised this exact query through Helper's own read-only account against a physical FortiGate and its enrolled FortiSwitch on FortiOS 7.6.7, and received a device CLI refusal: `switch:{managed_switch} is not PoE capable` / `Command fail. Return code -7622` (`device_cli_error`). The enrolled switch model has no PoE hardware; a positive result on PoE-capable hardware remains unverified. |
-| `managed_switch_mac` | [F-CHEAT-80](https://docs.fortinet.com/document/fortigate/8.0.0/cli-troubleshooting-cheat-sheet/420966/cli-troubleshooting-cheat-sheet) | FortiOS 8.0.1 controller returned data for an enrolled managed switch. The controller test used an administrator account; restricted-profile permissions require separate deployment validation. |
-| `managed_switch_stacking` | [F-CHEAT-80](https://docs.fortinet.com/document/fortigate/8.0.0/cli-troubleshooting-cheat-sheet/420966/cli-troubleshooting-cheat-sheet) | FortiOS 8.0.0 and 8.0.1 CLI references define this command; FortiOS 7.6.7 does not. The FortiOS 8.0.1 controller test (administrator account) received a feature refusal, return code -7622, because the tested model is not a stacking switch. The same 2026-10-15 end-to-end MCP call above exercised this query on FortiOS 7.6.7 instead, through Helper's own read-only account, and received a different CLI refusal because the command itself is absent from that build's privileged CLI help -- not an account-permission effect: `command parse error before 'stacking'` / `Command fail. Return code -61` (`device_cli_error`). Neither firmware produced a positive stacking result; a positive test requires stacking-capable hardware and remains unverified. |
-| `managed_switch_lldp` | [F-CHEAT-80](https://docs.fortinet.com/document/fortigate/8.0.0/cli-troubleshooting-cheat-sheet/420966/cli-troubleshooting-cheat-sheet) | FortiOS 8.0.1 controller returned data for an enrolled managed switch. The controller test used an administrator account; restricted-profile permissions require separate deployment validation. |
+| `managed_switch_status` | [F-CHEAT-80, F-CHEAT-802](https://docs.fortinet.com/document/fortigate/8.0.0/cli-troubleshooting-cheat-sheet/420966/cli-troubleshooting-cheat-sheet) | FortiOS 8.0.1 controller returned data for an enrolled managed switch. The controller test used an administrator account; restricted-profile permissions require separate deployment validation. |
+| `managed_switch_poe` | [F-CHEAT-80, F-CHEAT-802](https://docs.fortinet.com/document/fortigate/8.0.0/cli-troubleshooting-cheat-sheet/420966/cli-troubleshooting-cheat-sheet) | FortiOS 8.0.1 controller returned data for an enrolled managed switch under an administrator account; restricted-profile permissions required separate validation. A later end-to-end MCP call (2026-10-15, before 1.0.0) exercised this exact query through Helper's own read-only account against a physical FortiGate and its enrolled FortiSwitch on FortiOS 7.6.7, and received a device CLI refusal: `switch:{managed_switch} is not PoE capable` / `Command fail. Return code -7622` (`device_cli_error`). The enrolled switch model has no PoE hardware; a positive result on PoE-capable hardware remains unverified. |
+| `managed_switch_mac` | [F-CHEAT-80, F-CHEAT-802](https://docs.fortinet.com/document/fortigate/8.0.0/cli-troubleshooting-cheat-sheet/420966/cli-troubleshooting-cheat-sheet) | FortiOS 8.0.1 controller returned data for an enrolled managed switch. The controller test used an administrator account; restricted-profile permissions require separate deployment validation. |
+| `managed_switch_stacking` | [F-CHEAT-80, F-CHEAT-802](https://docs.fortinet.com/document/fortigate/8.0.0/cli-troubleshooting-cheat-sheet/420966/cli-troubleshooting-cheat-sheet) | FortiOS 8.0.0 and 8.0.1 CLI references define this command; FortiOS 7.6.7 does not. The FortiOS 8.0.1 controller test (administrator account) received a feature refusal, return code -7622, because the tested model is not a stacking switch. The same 2026-10-15 end-to-end MCP call above exercised this query on FortiOS 7.6.7 instead, through Helper's own read-only account, and received a different CLI refusal because the command itself is absent from that build's privileged CLI help -- not an account-permission effect: `command parse error before 'stacking'` / `Command fail. Return code -61` (`device_cli_error`). Neither firmware produced a positive stacking result; a positive test requires stacking-capable hardware and remains unverified. |
+| `managed_switch_lldp` | [F-CHEAT-80, F-CHEAT-802](https://docs.fortinet.com/document/fortigate/8.0.0/cli-troubleshooting-cheat-sheet/420966/cli-troubleshooting-cheat-sheet) | FortiOS 8.0.1 controller returned data for an enrolled managed switch. The controller test used an administrator account; restricted-profile permissions require separate deployment validation. |
 
 Query enrollment does not add firmware or hardware capabilities. The catalogue does not automatically filter entries by firmware: verify the exact firmware, model and account before opting in. A stacking command rejected by FortiOS 7.6.7, or a PoE command rejected by a non-PoE model, is an error result rather than a successful measurement.
 
@@ -167,11 +170,11 @@ Acceptance here describes the code whitelist only. The live-result limitations a
 | Query name | Exact command template | Inventory slot | Volume | Primary references |
 | --- | --- | --- | --- | --- |
 | `certificate_details` | `get vpn certificate local details {certificate}` | `certificates.certificate_name` | normal | F-CERT-LOCAL |
-| `managed_switch_status` | `diagnose switch-controller switch-info status {managed_switch}` | `managed_switches.managed_switch_serial` | normal | F-CHEAT-80 |
-| `managed_switch_poe` | `diagnose switch-controller switch-info poe summary {managed_switch}` | `managed_switches.managed_switch_serial` | normal | F-CHEAT-80 |
-| `managed_switch_mac` | `diagnose switch-controller switch-info mac-table {managed_switch}` | `managed_switches.managed_switch_serial` | high-volume | F-CHEAT-80 |
-| `managed_switch_stacking` | `diagnose switch-controller switch-info stacking status {managed_switch}` | `managed_switches.managed_switch_serial` | normal | F-CHEAT-80 |
-| `managed_switch_lldp` | `diagnose switch-controller switch-info lldp neighbors-summary {managed_switch}` | `managed_switches.managed_switch_serial` | high-volume | F-CHEAT-80 |
+| `managed_switch_status` | `diagnose switch-controller switch-info status {managed_switch}` | `managed_switches.managed_switch_serial` | normal | F-CHEAT-80, F-CHEAT-802 |
+| `managed_switch_poe` | `diagnose switch-controller switch-info poe summary {managed_switch}` | `managed_switches.managed_switch_serial` | normal | F-CHEAT-80, F-CHEAT-802 |
+| `managed_switch_mac` | `diagnose switch-controller switch-info mac-table {managed_switch}` | `managed_switches.managed_switch_serial` | high-volume | F-CHEAT-80, F-CHEAT-802 |
+| `managed_switch_stacking` | `diagnose switch-controller switch-info stacking status {managed_switch}` | `managed_switches.managed_switch_serial` | normal | F-CHEAT-80, F-CHEAT-802 |
+| `managed_switch_lldp` | `diagnose switch-controller switch-info lldp neighbors-summary {managed_switch}` | `managed_switches.managed_switch_serial` | high-volume | F-CHEAT-80, F-CHEAT-802 |
 
 ## Diagnostic state views
 

@@ -43,6 +43,8 @@ class Runtime:
 
 
 def _adapter(platform: str, schema=False):
+    if platform not in ADAPTERS:
+        raise Rejected(["platform %s has no plan and apply adapter" % shown(platform)])
     return exec_schema_fortios if schema and platform == "fortios" else ADAPTERS[platform]
 
 

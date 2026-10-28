@@ -183,7 +183,8 @@ class Kernel:
             self.role_refusals.append(error.args[0])
             raise col.EvidenceError(error.args[0]) from None
         return {"key": list(item["parent"]), "key_after": list(item["parent"]), "parent": [90, 900], "parent_after": [90, 900],
-                "shim": copy.deepcopy(SHIM_RECORD), "argv": argv, "read_started_at": 100.0, "read_finished_at": 100.0}
+                "shim": copy.deepcopy(SHIM_RECORD), "argv": argv, "read_started_at": 100.0, "read_finished_at": 100.0,
+                "procdir_identity": [78, pid], "procdir_identity_after": [78, pid]}
 
     def hash_executable(self, fd, before, opened_at):
         return {"stat_before": before, "stat_after": before, "opened_at": opened_at, "read_started_at": 100.0,
@@ -1533,6 +1534,7 @@ class ExecTransitionPoints(unittest.TestCase):
         with ExitStack() as stack:
             for target, name, kwargs in (
                     (col, "check_binding", {}), (col, "proc_stat", {"side_effect": proc_stat}),
+                    (col, "runtime_parent", {"side_effect": lambda pid, *args: {"key": list(proc_stat(pid)[0])}}),
                     (col, "command", {"side_effect": command}), (col, "permissions_at", {"return_value": permissions}),
                     (col, "identity_maps", {}), (col, "cgroup_path", {"side_effect": lambda pid: path.pop(0) if path else self.CGROUP}),
                     (col.os, "open", {"return_value": 47}), (col.os, "fstat", {"return_value": info}), (col.os, "close", {}),
@@ -3795,6 +3797,125 @@ class ReapedBeforeRestatProfile(unittest.TestCase):
         _, scoped = scoped_reaped()
         self.item(scoped)["reason"] = "parent-verified"
         self.assertIs(assessed(scoped, require_scope=True)["passed"], False)
+
+
+
+
+class EarlyParentLinkControls(unittest.TestCase):
+    def test_child_reaped_during_parent_proof_keeps_proven_link(self):
+        kernel = Kernel(HELPER[0], None, 0, ("helper",))
+        kernel.procs[RUNC_PARENT[0]]["key"] = (RUNC_PARENT[0], HELPER[1])
+        kernel.procs[HELPER[0]]["parent"] = (RUNC_PARENT[0], HELPER[1])
+        original = kernel.runtime_parent
+        def reap(*args):
+            result = original(*args)
+            kernel.procs[HELPER[0]]["state"] = "gone"
+            return result
+        kernel.runtime_parent = reap
+        result = kernel.inventory()
+        self.assertTrue(result["complete"], result["failures"])
+        self.assertEqual(len(result["exited_helpers"]), 1)
+        link = result["exited_helpers"][0]["parent_link"]
+        self.assertEqual(link["method"], "child-restat-under-pinned-parent")
+        self.assertTrue(link["parent_pin"]["alive_after_proof"])
+
+    def linked(self):
+        legacy, scoped = scoped_helper()
+        sample = scoped["samples"][17]
+        item = sample["scope"]["inventories"][0]["exited_helpers"][0]
+        proof, link = item["runtime_parent"], item["parent_link"]
+        proof["procdir_identity"] = proof["procdir_identity_after"] = [78, 95]
+        link["method"] = "child-restat-under-pinned-parent"
+        link["parent_pin"] = {"key": list(proof["key"]), "method": "procdir+pidfd",
+                              "procdir_identity": list(proof["procdir_identity"]),
+                              "pinned_at": link["child_stat_at"], "alive_after_proof": True,
+                              "alive_polled_at": link["parent_alive_at"]}
+        return scoped, item
+
+    def test_early_link_is_verified_and_each_fact_is_required(self):
+        trace, item = self.linked()
+        self.assertTrue(assessed(trace, require_scope=True)["passed"])
+        for field, value in (("method", "pid-only"), ("alive_after_proof", False),
+                             ("key", [95, 1]), ("procdir_identity", [0, 0]),
+                             ("pinned_at", 999.0), ("alive_polled_at", 0.0)):
+            with self.subTest(field=field):
+                trace, item = self.linked()
+                item["parent_link"]["parent_pin"][field] = value
+                self.assertFalse(assessed(trace, require_scope=True)["passed"])
+        trace, item = self.linked()
+        item["parent_link"]["method"] = "unknown"
+        self.assertFalse(assessed(trace, require_scope=True)["passed"])
+
+
+class StableRetryHealthControls(unittest.TestCase):
+    def collect_facts(self, trace, *, parent=90, after_parent=None, after_inode=1003, after_key=None, group=None):
+        row = trace["samples"][13]["processes"][-1]
+        key = tuple(row["key"])
+        handle = {"key": key, "directory": 11, "pidfd": 12, "evidence": row["binding"]}
+        before = SimpleNamespace(st_dev=88, st_ino=1003)
+        after = SimpleNamespace(st_dev=88, st_ino=after_inode)
+        with mock.patch.object(col, "clock", return_value=row["read_started_at"]), \
+             mock.patch.object(col, "check_binding"), \
+             mock.patch.object(col, "stat_at", side_effect=[(key, parent), (after_key or key, parent if after_parent is None else after_parent)]), \
+             mock.patch.object(col.os, "stat", side_effect=[before, after]), \
+             mock.patch.object(col, "command", return_value=tuple(base.HEALTH)), \
+             mock.patch.object(col, "cgroup_at", return_value=trace["cgroup"] if group is None else group), \
+             mock.patch.object(col, "identity_maps"), \
+             mock.patch.object(col, "runtime_parent", return_value={"key": [parent, 10050]}), \
+             mock.patch.object(col, "shim", return_value=trace["samples"][13]["shim"]):
+            try:
+                col.runtime_parent_after_enoent(handle, key, 90, CID, trace["runtime"], trace["cgroup"], [88, 1002])
+            except col.RuntimeExecTransition as error:
+                self.assertEqual(error.args[0], "runtime-exec-transition-during-retry")
+                return error.args[1]
+        self.fail("Expected a bounded transition followed by a fresh snapshot")
+
+    def prepared(self):
+        trace = health_trace()
+        item = attempt(trace, facts=self.collect_facts(trace))
+        return with_attempts(trace, [item]), item
+
+    def test_actual_collector_stable_health_facts_pass_the_profile(self):
+        trace, item = self.prepared()
+        result = assessed(trace)
+        self.assertIs(result["passed"], True, result)
+
+    def test_each_stable_retry_fact_is_required(self):
+        for field, value in (("key_before", [200, 1]), ("key_after", [200, 1]),
+                             ("parent_pid_before", 95), ("parent_pid_after", 95),
+                             ("exe_identity_after", [88, 999]), ("cgroup_after", "/foreign"),
+                             ("read_started_at", 0.0), ("time", 999.0)):
+            with self.subTest(field=field):
+                trace, item = self.prepared()
+                item["facts"]["retry_read"][field] = value
+                self.assertFalse(assessed(trace)["passed"])
+        for mode in ("missing-read", "missing-proof", "no-runtime-partial", "late-read", "wrong-reason"):
+            with self.subTest(mode=mode):
+                trace, item = self.prepared()
+                if mode == "missing-read":
+                    del item["facts"]["retry_read"]
+                elif mode == "missing-proof":
+                    del item["partial"]["runtime_executable"]
+                elif mode == "no-runtime-partial":
+                    item["partial"]["argv"] = list(base.HEALTH)
+                elif mode == "wrong-reason":
+                    item["reason"] = "runtime-exec-transition-during-snapshot"
+                    item["facts"].update(first_parent=95, second_parent=90)
+                else:
+                    item["facts"]["retry_read"]["time"] += .051
+                    item["time"] += .051
+                self.assertFalse(assessed(trace)["passed"])
+
+    def test_collector_refuses_unstable_or_foreign_stable_health(self):
+        for changes in ({"parent": 95}, {"after_parent": 91}, {"after_inode": 999},
+                        {"after_key": (200, 10101)}, {"group": "/foreign"}):
+            with self.subTest(changes=changes):
+                try:
+                    self.collect_facts(health_trace(), **changes)
+                except col.EvidenceError as error:
+                    self.assertIsNot(type(error), col.RuntimeExecTransition)
+                else:
+                    self.fail("Unstable or foreign retry was accepted")
 
 
 if __name__ == "__main__":

@@ -12,8 +12,11 @@ import pytest
 from conftest import (
     EXEC_CLIENT,
     EXEC_OUTPUT,
+    FORTIADC_STATUS,
+    FORTIOS_STATUS,
     HOST_KEY_BLOB,
     HOST_KEY_PIN,
+    IDENTITY_STATUS,
     KNOWN_HOSTS_LINE,
     LOGIN,
     LOOPBACK,
@@ -94,6 +97,13 @@ def test_every_exec_platform_sends_its_preamble_and_the_catalog_command(
 ) -> None:
     query_name, command = _plain_query(platform)
     target = _target(platform, query_name)
+    identity = IDENTITY_STATUS.get(platform, "")
+    _write_client(
+        wire["binaries"], "ssh",
+        EXEC_CLIENT.format(
+            log=str(wire["log"]), output=identity + EXEC_OUTPUT + "\n", code=0,
+        ),
+    )
     result = engine.ssh_read(target, platform, query_name, {}, 0, 16_000)
 
     assert result["ok"] is True, result
@@ -102,7 +112,10 @@ def test_every_exec_platform_sends_its_preamble_and_the_catalog_command(
     assert EXEC_OUTPUT in result["untrusted_device_output"]
 
     calls = _calls(wire)
-    expected = [*engine._PLATFORM_PREAMBLE.get(platform, ()), command]
+    preamble = list(engine._PLATFORM_PREAMBLE.get(platform, ()))
+    expected = [*preamble, command]
+    if platform in IDENTITY_STATUS and command != engine._IDENTITY_COMMAND:
+        expected = [*preamble, engine._IDENTITY_COMMAND, *expected]
     assert calls[0]["argv"][0] == "-T", calls[0]["argv"]
     assert calls[0]["argv"][-1] == LOOPBACK
     assert [call["argv"][-1] for call in calls[1:]] == expected
@@ -180,11 +193,11 @@ def test_the_exec_client_is_given_no_configuration_file_of_the_host(wire) -> Non
 
 PROMPT_NAME = "device-a"
 PROMPTED_OUTPUT = (
-    f"{PROMPT_NAME} $ Version: 8.0.0\n"
+    f"{PROMPT_NAME} $ {FORTIOS_STATUS}"
     "Serial-Number: replace-me\n"
     f"{PROMPT_NAME} $ \n"
 )
-PROMPTED_BODY = "Version: 8.0.0\nSerial-Number: replace-me\n"
+PROMPTED_BODY = FORTIOS_STATUS + "Serial-Number: replace-me\n"
 
 
 def test_a_read_only_prompt_is_cleaned_out_of_the_answer(wire) -> None:
@@ -198,10 +211,83 @@ def test_a_read_only_prompt_is_cleaned_out_of_the_answer(wire) -> None:
     )
     assert result["ok"] is True, result
     body = result["untrusted_device_output"]
-    assert body.startswith("Version: 8.0.0")
+    assert body.startswith("Version: FortiGate-VM64-KVM")
     assert body == PROMPTED_BODY
     assert not body.rstrip("\n").endswith("$")
     assert PROMPT_NAME not in body
+
+
+ADC_HOST = "adc-f1-synth"
+ADC_BODY = FORTIADC_STATUS + "Serial-Number: SYNTH-0001\n" + f"Hostname: {ADC_HOST}\n"
+ADC_PROMPTED_OUTPUT = f"{ADC_HOST} # {ADC_BODY}\n\n{ADC_HOST} # "
+ADC_PROMPTED_CRLF_OUTPUT = (
+    f"{ADC_HOST} # Version: FortiADC-KVM v7.6.7,build0676\r\n"
+    "Serial-Number: SYNTH-0001\r\n\r\n"
+    f"{ADC_HOST} # "
+)
+
+
+def _device_calls(wire) -> list[dict]:
+    return _calls(wire)[1:]
+
+
+def test_a_prompted_fortiadc_answer_passes_the_identity_check_and_is_returned_without_the_prompt(
+    wire,
+) -> None:
+    _write_client(
+        wire["binaries"], "ssh",
+        EXEC_CLIENT.format(log=str(wire["log"]), output=ADC_PROMPTED_OUTPUT, code=0),
+    )
+    result = engine.ssh_read(
+        _target("fortiadc", "system_status"), "fortiadc", "system_status", {}, 0, 16_000,
+    )
+    assert result["ok"] is True, result
+    body = result["untrusted_device_output"]
+    assert body.startswith(FORTIADC_STATUS)
+    assert body.rstrip("\n") == ADC_BODY.rstrip("\n")
+    assert f"{ADC_HOST} #" not in body
+    assert [call["argv"][-1] for call in _device_calls(wire)] == [engine._IDENTITY_COMMAND]
+
+
+def test_a_prompted_fortiadc_answer_with_crlf_line_ends_passes_the_identity_check(wire) -> None:
+    _write_client(
+        wire["binaries"], "ssh",
+        EXEC_CLIENT.format(log=str(wire["log"]), output=ADC_PROMPTED_CRLF_OUTPUT, code=0),
+    )
+    result = engine.ssh_read(
+        _target("fortiadc", "system_status"), "fortiadc", "system_status", {}, 0, 16_000,
+    )
+    assert result["ok"] is True, result
+    assert result["untrusted_device_output"] == (
+        "Version: FortiADC-KVM v7.6.7,build0676\r\nSerial-Number: SYNTH-0001\r\n\r\n"
+    )
+
+
+@pytest.mark.parametrize("platform,foreign", (
+    ("fortiadc", FORTIOS_STATUS),
+    ("fortinet", FORTIADC_STATUS),
+))
+def test_a_prompted_answer_of_the_other_product_is_refused_without_its_output(
+    wire, platform, foreign,
+) -> None:
+    leak = "Hostname: wire-leak-marker\n"
+    _write_client(
+        wire["binaries"], "ssh",
+        EXEC_CLIENT.format(
+            log=str(wire["log"]),
+            output=f"{ADC_HOST} # {foreign}{leak}\n\n{ADC_HOST} # ",
+            code=0,
+        ),
+    )
+    result = engine.ssh_read(
+        _target(platform, "system_status"), platform, "system_status", {}, 0, 16_000,
+    )
+    assert result["ok"] is False, result
+    assert result["error_code"] == "product_identity"
+    assert "wire-leak-marker" not in json.dumps(result)
+    assert "untrusted_device_output" not in result
+    assert len(_device_calls(wire)) == 1
+    assert not engine._SSH_PAGE_CACHE
 
 
 def test_a_platform_without_a_prompt_table_keeps_every_byte(wire) -> None:

@@ -50,8 +50,8 @@ def test_registry_has_exact_profile_and_composite_keysets() -> None:
     catalog = RENDERER.load_catalog()
     RENDERER.validate_registry(registry, catalog)
     assert tuple(catalog) == RENDERER.PROFILE_ORDER
-    assert len(registry["queries"]) == 289
-    assert sum(len(queries) for queries in catalog.values()) == 289
+    assert len(registry["queries"]) == 290
+    assert sum(len(queries) for queries in catalog.values()) == 290
     vendor = [
         record for record in registry["queries"].values()
         if record["source_type"] == "official_vendor"
@@ -64,7 +64,7 @@ def test_registry_has_exact_profile_and_composite_keysets() -> None:
         record for record in registry["queries"].values()
         if record["source_type"] == "vendor_login_required"
     ]
-    assert len(vendor) == 269
+    assert len(vendor) == 270
     assert len(project) == 16
     assert len(behind_login) == 4
     assert all(record["source_ids"] for record in vendor)
@@ -90,7 +90,7 @@ def test_generated_document_is_byte_for_byte_current() -> None:
             prefix = f"| <code>{profile}</code> | <code>{query_name}</code> |"
             assert document.count(prefix) == 1, f"{profile}/{query_name}"
     data_rows = [line for line in document.splitlines() if line.startswith("| <code>")]
-    assert len(data_rows) == 289
+    assert len(data_rows) == 290
     assert all(line.count("|") == 8 for line in data_rows)
 
 

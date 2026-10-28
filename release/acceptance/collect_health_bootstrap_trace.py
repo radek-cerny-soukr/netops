@@ -12,7 +12,7 @@ import time
 
 from health_bootstrap_profile import assess_trace, HEALTH, SERVE, WORKER, runtime_exec_argv, InvalidProfile, verified_exit, observed_permissions, runtime_permissions
 
-PREDICATE_SHA = "be7510ba47cb16d0f40c4181a6b94ff2968067c3036d75d75e0ba716174bbadc"
+PREDICATE_SHA = "c95c55f1ece4f80af9238b9337463fe906a1042fd76f10c73175b9bee48d2903"
 IDENTITY_MAP = [0, 0, 4294967295]
 REFERENCE = {}
 DOCKER_FORMAT = ('{"id":{{json .Id}},"image":{{json .Image}},'
@@ -371,8 +371,18 @@ def runtime_parent_after_enoent(handle, child, shim_pid, cid, runtime, expected_
                                         {"key": list(current), "cgroup": current_group, "first_argv": ["runc", "init"],
                                          "empty": True, "retry_read": read})
         if first == after == child and group == after_group == expected_cgroup and after_argv == HEALTH:
-            raise RuntimeExecTransition("runtime-exec-transition-during-retry", {"key": list(after), "cgroup": after_group,
-                                                                                 "first_argv": list(argv), "second_argv": list(after_argv)})
+            facts = {"key": list(after), "cgroup": after_group, "first_argv": list(argv), "second_argv": list(after_argv)}
+            if argv == HEALTH:
+                require(before == after_exe and parent_pid == after_parent_pid == origin["key"][0],
+                        "runtime-parent-retry-child-changed")
+                read = {"key_before": list(first), "key_after": list(after), "argv": list(argv),
+                        "exe_identity_before": before, "exe_identity_after": after_exe,
+                        "cgroup_before": group, "cgroup_after": after_group,
+                        "parent_pid_before": parent_pid, "parent_pid_after": after_parent_pid,
+                        "read_started_at": started, "time": clock()}
+                require(read["time"] - started <= .05, "runtime-parent-retry-exhausted")
+                facts["retry_read"] = read
+            raise RuntimeExecTransition("runtime-exec-transition-during-retry", facts)
         require(first == after == child and before == after_exe == executable and
                 argv == after_argv == ("runc", "init") and
                 group == after_group == expected_cgroup and parent_pid == after_parent_pid,
@@ -434,11 +444,15 @@ def process(pid, expected_cgroup, shim_pid, cid, runtime, handle, previous_row=N
         except InvalidProfile as error:
             raise EvidenceError("observed-profile-" + error.args[0]) from None
         proof, retry = None, None
-        if is_runtime and parent_pid != shim_pid:
+        if argv in (("runc", "init"), HEALTH) and parent_pid != shim_pid:
             try:
                 proof = runtime_parent(parent_pid, first, shim_pid, cid, runtime)
                 parent = tuple(proof["key"])
             except (FileNotFoundError, ProcessLookupError, RuntimeParentExited) as error:
+                if not is_runtime:
+                    exec_transition(pid, first, expected_cgroup, "runtime-exec-transition-parent-exited",
+                                    first_argv=list(argv), first_parent=parent_pid)
+                    raise
                 parent_pid, parent, proof, retry = runtime_parent_after_enoent(
                     handle, first, shim_pid, cid, runtime, expected_cgroup, executable_stat[:2],
                     reason=PARENT_GONE[type(error)])
@@ -639,7 +653,7 @@ class NamespaceScope:
                            "container_namespace": self.own_identity, "container_parent_namespace": self.identity(parent),
                            "host_proc": self.host_mount, "container_proc": self.own_mount,
                            "host_proc_pid1": list(self.host_pid1_key), "host_proc_pid1_namespace": self.host_identity,
-                           "max_capture_passes": 2, "snapshot_budget_seconds": .2}
+                           "max_capture_passes": 3, "snapshot_budget_seconds": .2}
             self.verify_authority()
         except BaseException:
             self.close()
@@ -733,12 +747,34 @@ class NamespaceScope:
                     pin["pidfd"] = os.pidfd_open(parent_pid, 0)
                     key, _ = stat_at(directory, parent_pid)
                     pin["pinned_at"] = clock()
+                    early = None
+                    if unknown and key[1] == child[1]:
+                        pin["procdir_identity"] = exe_identity(os.fstat(directory))
+                        try:
+                            early_key, early_parent = proc_stat(child[0])
+                            early_at = clock()
+                            if early_key == child and early_parent == parent_pid:
+                                early = {"key": list(key), "child_stat_at": observed_at,
+                                         "child_restat_at": early_at, "child_restat_key": list(early_key),
+                                         "child_restat_parent": early_parent}
+                        except (FileNotFoundError, ProcessLookupError):
+                            pass
                     pin["facts"] = self.parent_facts(pin, shim_pid, cid)
                     pin["proof"] = runtime_parent(parent_pid, child, shim_pid, cid, runtime)
                     events, polled_at = pidfd_events(pin["pidfd"]), clock()
                     require(tuple(pin["proof"]["key"]) == key and not events, "runtime-parent-pin-race")
                     if pin["facts"] is not None:
                         pin["facts"].update(alive_at_pin=True, alive_polled_at=polled_at)
+                    if early is not None:
+                        proof = pin["proof"]
+                        require(pin["procdir_identity"] == proof["procdir_identity"] == proof["procdir_identity_after"],
+                                "runtime-parent-pin-race")
+                        early.update(method="child-restat-under-pinned-parent", parent_alive_at=polled_at,
+                                     parent_pin={"key": list(key), "method": "procdir+pidfd",
+                                                 "procdir_identity": pin["procdir_identity"],
+                                                 "pinned_at": pin["pinned_at"], "alive_after_proof": True,
+                                                 "alive_polled_at": polled_at})
+                        self.links[child] = early
                 except BaseException:
                     self.unpin(pin)
                     raise
@@ -1232,7 +1268,7 @@ def sample(directory, path, init, shim_pid, cid, previous, runtime, handles, pre
             all_inside.update(last)
             if not added_keys and inventories[-1].get("stable") is True:
                 break
-            if capture_passes == 2:
+            if capture_passes == 3:
                 failures.append({"reason": "namespace-discovery-limit", "keys": [list(key) for key in sorted(added_keys)]})
                 break
             if clock() - read_started > .2:

@@ -8,6 +8,7 @@ from .read_policy import _canonical_fortios_interface
 
 RECIPES = frozenset({"ping", "traceroute", "sniffer", "sessions", "flow"})
 IDENTITIES = frozenset({
+    ("FortiGate-VM64", "8.0.2", "0251"),
     ("FortiGate-VM64-KVM", "7.6.7", "3704"),
     ("FortiGate-VM64-KVM", "8.0.0", "0167"),
 })
@@ -18,6 +19,34 @@ SESSION_FIELDS = frozenset({
     "expire", "duration", "state1", "state2",
 })
 FLOW_FIELDS = frozenset({"vf", "proto", "Host addr", "Host saddr", "Host daddr", "port", "sport", "dport"})
+
+
+class UnsupportedPlatform(ValueError):
+    pass
+
+
+def status_identity(text):
+    from .schema_read import CURRENT_VDOM
+    from netops_core import platforms
+    if (not isinstance(text, str) or len(text.encode("utf-8")) > 65536 or
+            any(ord(c) < 32 and c not in "\n\r\t" for c in text) or "\ufffd" in text):
+        raise ValueError("the diagnostic identity response is invalid")
+    try:
+        identity = platforms.version_record(text)
+    except platforms.VersionRecordError:
+        raise ValueError("one exact diagnostic identity is required") from None
+    versions = [line for line in text.splitlines()
+                if line.lstrip().casefold().startswith("version:")]
+    domains = [value.strip() for value in CURRENT_VDOM.findall(text)]
+    if len(versions) != 1:
+        raise ValueError("one exact diagnostic identity is required")
+    if domains != ["root"]:
+        raise UnsupportedPlatform("config_platform_not_supported: verified root VDOM required")
+    markers = [line for line in text.splitlines()
+               if " ".join(line.split()).casefold().startswith("virtual domain configuration")]
+    if markers != ["Virtual domain configuration: disable"]:
+        raise UnsupportedPlatform("config_platform_not_supported: verified single-VDOM mode required")
+    return identity, domains[0]
 
 
 def validate(recipe, address, interface, count, timeout, max_bytes, vdom=None):
@@ -33,8 +62,8 @@ def validate(recipe, address, interface, count, timeout, max_bytes, vdom=None):
         raise ValueError("a canonical unicast IPv4 address is required")
     if not isinstance(interface, str) or _canonical_fortios_interface(interface) is None:
         raise ValueError("a concrete FortiOS interface is required")
-    if vdom is not None and (not isinstance(vdom,str) or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,30}",vdom)):
-        raise ValueError("a canonical VDOM name is required")
+    if vdom is not None:
+        raise UnsupportedPlatform("config_platform_not_supported: VDOM selection is deferred")
     for value, low, high in ((count, 1, 3 if recipe == "traceroute" else 8),
                              (timeout, 1, 10), (max_bytes, 1000, 16000)):
         if type(value) is not int or not low <= value <= high:
@@ -96,34 +125,19 @@ def _bounded(shell, command, timeout):
         timer.join()
 
 
-def run(shell, library, recipe, address, interface, count, timeout, vdom=None):
-    from .schema_read import verify_status
+def run(shell, recipe, address, interface, count, timeout, vdom=None):
     from netops_core import fortios
-    current=verify_status(library, shell.command("get system status"))
-    if library.identity not in IDENTITIES:
+    if vdom is not None:
+        raise UnsupportedPlatform("config_platform_not_supported: VDOM selection is deferred")
+    identity, domain = status_identity(shell.command("get system status"))
+    if identity not in IDENTITIES:
         raise ValueError("diagnostic recipes are not measured for this hardware and build")
-    domain=current if vdom is None else vdom
-    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,30}",domain):
-        raise ValueError("the current VDOM name cannot be selected safely")
-    shell.navigate("config global")
-    try:
-        table=fortios.parse(shell.command("show full-configuration system vdom-property")).section("system vdom-property")
-    except Exception:
-        raise ValueError("the live VDOM inventory cannot be verified") from None
-    if table is None or domain not in table.entries:
-        raise ValueError("the enrolled VDOM does not exist")
     try:
         interfaces=fortios.parse(shell.command('show full-configuration system interface "'+interface+'"')).section("system interface")
     except Exception:
         raise ValueError("the interface owner cannot be verified") from None
     if interfaces is None or set(interfaces.entries)!={interface} or interfaces.entries[interface].value("vdom")!=domain:
         raise ValueError("the enrolled interface belongs to another VDOM")
-    shell.navigate("end")
-    shell.navigate("config vdom")
-    shell.navigate('edit "' + domain + '"')
-    current=verify_status(library,shell.command("get system status"))
-    if current!=domain:
-        raise ValueError("the selected VDOM could not be verified")
     info = shell.command("diagnose netlink interface list " + interface)
     if not re.search(r"(?m)^if=" + re.escape(interface) + r"(?:\s|$)", info):
         raise ValueError("the enrolled interface is not visible in this session")
@@ -182,7 +196,7 @@ def run(shell, library, recipe, address, interface, count, timeout, vdom=None):
                 shell.command("diagnose debug enable")
                 command = None
         output, timed_out = _bounded(shell, command, timeout)
-        return output, timed_out
+        return output, timed_out, identity, domain
     finally:
         errors = []
         for command in cleanup:

@@ -48,9 +48,25 @@ def test_read_query_catalog_exposes_legacy_and_rich_metadata() -> None:
     )
     from netops_helper.server import _query_catalog_payload
 
-    payload = _query_catalog_payload()
-    assert set(payload) == {"ok", "queries", "query_metadata"}
-    assert payload["ok"] is True
+    payload = {"queries": {}, "query_metadata": {}}
+    offset = 0
+    while offset is not None:
+        page = _query_catalog_payload(offset=offset, limit=100)
+        assert set(page) == {
+            "ok",
+            "queries",
+            "query_metadata",
+            "total",
+            "offset",
+            "returned",
+            "next_offset",
+            "catalog_sha256",
+        }
+        assert page["ok"] is True
+        for field in ("queries", "query_metadata"):
+            for profile, entries in page[field].items():
+                payload[field].setdefault(profile, {}).update(entries)
+        offset = page["next_offset"]
     assert payload["queries"] == public_query_catalog()
     assert payload["query_metadata"] == public_query_metadata()
     for profile, queries in payload["query_metadata"].items():

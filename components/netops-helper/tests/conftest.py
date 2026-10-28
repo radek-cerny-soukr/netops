@@ -47,6 +47,9 @@ HOST_KEY_BLOB = "cmVwbGFjZS1tZS1ob3N0LWtleS1tYXRlcmlhbC1B"
 HOST_KEY_PIN = fingerprint_of(HOST_KEY_BLOB)
 KNOWN_HOSTS_LINE = f"[{LOOPBACK}]:{PORT} ssh-ed25519 {HOST_KEY_BLOB}"
 EXEC_OUTPUT = "wire-test output marker"
+FORTIOS_STATUS = "Version: FortiGate-VM64-KVM v7.6.7,build3704,release\n"
+FORTIADC_STATUS = "Version: FortiADC-KVM v7.6.7,build0676,260522 (GA.M)\n"
+IDENTITY_STATUS = {"fortinet": FORTIOS_STATUS, "fortiadc": FORTIADC_STATUS}
 RUCKUS_BANNER = "Welcome to the Ruckus Unleashed Network Command Line Interface"
 RUCKUS_OUTPUT = "Ruckus wire-test sysinfo marker"
 

@@ -176,6 +176,7 @@ def check_processes(ctx):
     import shutil
     import stat
 
+    profile_reason = None
     try:
         from health_bootstrap_profile import assess_trace, HEALTH
         environment = dict(os.environ)
@@ -264,6 +265,13 @@ def check_processes(ctx):
             command = ["sudo", "-n", "--preserve-env=" + preserved, *command]
         done = run_process_collector(ctx, command, environment)
         if done.returncode != 0:
+            if done.returncode == 1:
+                failure = json.loads(done.stdout)
+                failed_assessment = failure.get("assessment") if type(failure) is dict else None
+                if type(failed_assessment) is dict and failed_assessment.get("passed") is False:
+                    reason = failed_assessment.get("reason")
+                    if type(reason) is str and re.fullmatch(r"[a-z][a-z0-9-]{0,79}", reason):
+                        profile_reason = reason
             raise ValueError("collector")
         trace = json.loads(done.stdout)
         predicate_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "health_bootstrap_profile.py")
@@ -279,6 +287,8 @@ def check_processes(ctx):
         if trace["container_id"] != cid or trace["init"][0] != original["pid"]:
             raise ValueError("identity")
         assessment = assess_trace(trace, require_scope=True)
+        if assessment.get("passed") is not True:
+            profile_reason = assessment.get("reason")
         duration = trace["end"] - trace["begin"]
         if (assessment.get("passed") is not True or type(duration) not in (int, float) or
                 not duration >= 85):
@@ -292,7 +302,8 @@ def check_processes(ctx):
                    "role_capabilities_zero": True, "role_no_new_privileges": True}
         ctx.add("process-profile", "F16/F23", "PASS", json.dumps(summary, sort_keys=True))
     except (OSError, ValueError, KeyError, TypeError, IndexError, AttributeError, RuntimeError, ImportError, OverflowError, subprocess.SubprocessError):
-        ctx.add("process-profile", "F16/F23", "FAIL", "QA process trace unavailable, incomplete or outside the required profile; no process-profile qualification")
+        ctx.add("process-profile", "F16/F23", "FAIL", "QA process trace unavailable, incomplete or outside the required profile; no process-profile qualification" +
+                ("; reason=" + profile_reason if type(profile_reason) is str else ""))
 
 
 def check_token_leaks(ctx, token):

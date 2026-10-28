@@ -18,6 +18,7 @@ import tempfile
 import tomllib
 import types
 
+from conftest import FORTIOS_STATUS
 from netops_core.hostkey import fingerprint_of
 from netops_helper.auth import (
     AuthenticationContextError,
@@ -30,6 +31,7 @@ from netops_helper.auth import (
 from netops_helper.query_catalog import (
     ARISTA_EOS_QUERIES,
     EXTREME_EXOS_QUERIES,
+    FORTIADC_QUERIES,
     FORTINET_QUERIES,
     IOS_QUERIES,
     IOS_XE_QUERIES,
@@ -456,6 +458,7 @@ def test_catalog_authority_and_platform_aliases_are_exact() -> None:
         "juniper_junos": JUNIPER_JUNOS_QUERIES,
         "juniper_junos_els": JUNIPER_JUNOS_ELS_QUERIES,
         "ruckus_unleashed": RUCKUS_UNLEASHED_QUERIES,
+        "fortiadc": FORTIADC_QUERIES,
     }
     assert READ_QUERIES is AUTHORITY_READ_QUERIES
     assert set(READ_QUERIES) == set(expected_authorities)
@@ -475,6 +478,7 @@ def test_catalog_authority_and_platform_aliases_are_exact() -> None:
         "juniper_junos": "juniper_junos",
         "juniper_junos_els": "juniper_junos_els",
         "ruckus_unleashed": "ruckus_unleashed",
+        "fortiadc": "fortiadc",
     }
     assert PLATFORM_MAP == expected_aliases
     for alias, canonical in expected_aliases.items():
@@ -982,6 +986,8 @@ def test_ssh_continuation_cache_uses_absolute_capture_ttl() -> None:
             return self.now
 
     def fake_read(auth: object, platform: str, command: str):
+        if command == engine._IDENTITY_COMMAND:
+            return 0, FORTIOS_STATUS
         assert platform == "fortinet"
         assert command == "diagnose netlink interface list port3"
         calls["connections"] += 1
@@ -1089,6 +1095,8 @@ def test_a_continuation_without_its_snapshot_writes_no_audit_record() -> None:
     audit_events: list[dict[str, object]] = []
 
     def fake_read(auth: object, platform: str, command: str):
+        if command == engine._IDENTITY_COMMAND:
+            return 0, FORTIOS_STATUS
         reads.append(command)
         return 0, "x" * 4_000
 
@@ -1189,6 +1197,8 @@ def test_phase1_server_and_engine_expose_no_generic_body_reads() -> None:
         "snmp_get",
         "sftp_stat",
         "ftp_list",
+        "config_read",
+        "config_diff",
     }
 
     server_engine_imports = {

@@ -34,6 +34,15 @@ def test_the_access_point_platform_is_canonical_and_has_no_alias():
     assert "ruckus_unleashed" not in ALIASES
 
 
+def test_the_application_delivery_platform_is_canonical_and_distinct_from_fortios():
+    assert "fortiadc" in PLATFORMS
+    assert normalize("fortiadc") == "fortiadc"
+    assert normalize(" FortiADC ") == "fortiadc"
+    assert "fortiadc" not in ALIASES
+    assert normalize("fortiadc") != normalize("fortinet")
+    assert normalize("fortinet") == "fortios"
+
+
 def test_names_are_unique():
     assert len(set(PLATFORMS)) == len(PLATFORMS)
 
@@ -58,6 +67,7 @@ def test_unknown_name_is_refused(value):
     assert "fortios" in message
     assert "juniper_junos_els" in message
     assert "ruckus_unleashed" in message
+    assert "fortiadc" in message
 
 
 @pytest.mark.parametrize("value", NOT_TEXT)

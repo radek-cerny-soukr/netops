@@ -149,7 +149,7 @@ docker compose run --rm netops admin --help
 docker compose up -d --wait
 ~~~
 
-Admin write and independent check accounts must differ. The check account verifies device identity and readback independently. FortiOS administrator visibility is bounded by the enrolled accounts. ExtremeXOS also needs exact `firmware` and the explicit create/configure account fingerprint; implicit accounts are not proven.
+Admin write and independent check accounts must differ (see the [device account model](account-model.md)). The check account verifies device identity and readback independently. FortiOS administrator visibility is bounded by the enrolled accounts. ExtremeXOS also needs exact `firmware` and the explicit create/configure account fingerprint; implicit accounts are not proven.
 
 ## Blocked device or undelivered notification
 

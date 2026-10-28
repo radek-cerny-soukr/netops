@@ -123,6 +123,29 @@ class ProcessProfileInvocation(unittest.TestCase):
         self.assertNotIn(SECRET, str(ctx.items))
         return ctx.items[0], run
 
+    def test_rejected_collector_profile_reports_bounded_reason(self):
+        for reason in ("namespace-snapshot-budget-or-closure", "root-in-role-tree"):
+            with self.subTest(reason=reason):
+                item, _ = self.invoke({"assessment": {"passed": False, "reason": reason},
+                                       "private": SECRET}, rc=1)
+                self.assertEqual(item[2], "FAIL")
+                self.assertTrue(item[3].endswith("; reason=" + reason), item[3])
+
+    def test_invalid_collector_failure_cannot_inject_a_detail(self):
+        for reason in (None, 17, [], {}, "", "a" * 81, "private output",
+                       "unsafe\nreason", "unsafe_reason", "é", SECRET):
+            with self.subTest(reason=reason):
+                item, _ = self.invoke({"assessment": {"passed": False, "reason": reason}}, rc=1)
+                self.assertEqual(item[2], "FAIL")
+                self.assertNotIn("; reason=", item[3])
+        for rc, output in ((2, '{"assessment":{"passed":false,"reason":"namespace-snapshot-budget-or-closure"}}'),
+                           (1, "invalid JSON"), (1, "[]"), (1, '{"assessment":[]}'),
+                           (1, '{"assessment":{"passed":true,"reason":"namespace-snapshot-budget-or-closure"}}')):
+            with self.subTest(rc=rc, output=output):
+                item, _ = self.invoke(rc=rc, output=output)
+                self.assertEqual(item[2], "FAIL")
+                self.assertNotIn("; reason=", item[3])
+
     def test_rootful_control_uses_canonical_collector_and_sanitized_summary(self):
         item, run = self.invoke()
         self.assertEqual(item[2], "PASS")

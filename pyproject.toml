@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "netops"
-version = "1.0.3"
+version = "1.0.4"
 description = "Isolated network operations through an audited HTTPS MCP endpoint"
 requires-python = ">=3.13"
 license = "MIT"

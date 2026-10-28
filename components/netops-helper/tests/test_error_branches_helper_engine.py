@@ -22,7 +22,16 @@ from types import SimpleNamespace
 from netops_core.audit import Recorder
 import pytest
 
-from conftest import EXEC_CLIENT, HOST_KEY_PIN, LOOPBACK, PASSWORD, _calls, _target, _write_client
+from conftest import (
+    EXEC_CLIENT,
+    FORTIOS_STATUS,
+    HOST_KEY_PIN,
+    LOOPBACK,
+    PASSWORD,
+    _calls,
+    _target,
+    _write_client,
+)
 import netops_helper.audit as audit
 import netops_helper.engine as engine
 from netops_helper.auth import EgressPolicy, EgressScopeError
@@ -59,7 +68,7 @@ def _device_output(wire, output: str, code: int = 0) -> None:
 
 
 def test_a_page_offset_inside_a_character_is_refused_and_audited(wire, audit_log) -> None:
-    _device_output(wire, "é" * 1500)
+    _device_output(wire, "é" * 1500 + "\n" + FORTIOS_STATUS)
     target = _target("fortinet", "system_status")
     first = engine.ssh_read(target, "fortinet", "system_status", None, 0, 1000)
     assert first["ok"] is True and first["next_offset"] == 1000

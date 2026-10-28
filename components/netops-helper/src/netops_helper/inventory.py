@@ -62,7 +62,7 @@ PLATFORMS_WITHOUT_READ_ONLY_ROLE = frozenset({"ruckus_unleashed"})
 CATALOG_PLATFORMS = {"fortios": "fortinet", "exos": "extreme_exos"}
 CREDENTIAL_KINDS = ("password", "ssh-key")
 SNMP_CREDENTIAL_KIND = "snmp-community"
-INVENTORY_CATEGORIES = ("interfaces", "services", "addresses", "switches", "vlans", "managed_switches", "certificates", "schema_paths", "diagnostic_recipes", "diagnostic_vdoms")
+INVENTORY_CATEGORIES = ("interfaces", "services", "addresses", "switches", "vlans", "managed_switches", "certificates", "schema_paths", "diagnostic_recipes", "diagnostic_vdoms", "config_access")
 POLICY_SCHEMA = 1
 BACKEND = "iptables"
 BRIDGE_NAME = "nh-egress0"
@@ -364,6 +364,9 @@ def _checked_read_inventory(where: str, value: Any) -> dict:
                 "%s: read_inventory %s must be unique" % (where, category)
             )
         normalized[category] = tuple(clean)
+    rights = normalized.get("config_access", ())
+    if "compare" in rights and "read" not in rights:
+        raise InventoryError("config_access compare requires read")
     return normalized
 
 

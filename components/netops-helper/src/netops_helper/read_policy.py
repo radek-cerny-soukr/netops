@@ -24,6 +24,7 @@ PLATFORM_MAP = {
     "juniper_junos": "juniper_junos",
     "juniper_junos_els": "juniper_junos_els",
     "ruckus_unleashed": "ruckus_unleashed",
+    "fortiadc": "fortiadc",
 }
 
 
@@ -382,6 +383,7 @@ _INVENTORY_KINDS = {
     "schema_paths": "fortios_config_path",
     "diagnostic_recipes": "fortios_diagnostic_recipe",
     "diagnostic_vdoms": "fortios_diagnostic_vdom",
+    "config_access": "config_permission",
 }
 
 _EXPECTED_PLATFORMS = frozenset({
@@ -395,6 +397,7 @@ _EXPECTED_PLATFORMS = frozenset({
     "juniper_junos",
     "juniper_junos_els",
     "ruckus_unleashed",
+    "fortiadc",
 })
 _LINUX_COMMANDS = frozenset({
     "hostname",
@@ -467,6 +470,7 @@ _FORTINET_COMMANDS = frozenset({
     "diagnose ips anomaly status",
     "diagnose antivirus outbreak-prevention statistics list",
 })
+_FORTIADC_COMMANDS = frozenset({"get system status"})
 _FORTINET_TOP_PREFIX = "diagnose sys top"
 _FORTINET_TOP_SNAPSHOT = "diagnose sys top 1 5 1"
 _FORBIDDEN_SHOW_SECOND = re.compile(
@@ -535,6 +539,10 @@ def _canonical_address(value: str, kind: str) -> str:
 def _validate_slot(value: str, kind: str) -> str:
     if not isinstance(value, str):
         raise ValueError(f"invalid typed {kind} value")
+    if kind == "config_permission":
+        if value in {"read", "compare"}:
+            return value
+        raise ValueError("invalid configuration permission")
     if kind == "fortios_diagnostic_vdom":
         if re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,30}",value):
             return value
@@ -641,6 +649,10 @@ def _validate_query_command(platform: str, command: object) -> None:
             raise RuntimeError("FortiOS process snapshot must be the fixed single-iteration form")
         if inspected not in _FORTINET_COMMANDS:
             raise RuntimeError("Fortinet query is outside the reviewed templates")
+        return
+    if platform == "fortiadc":
+        if inspected not in _FORTIADC_COMMANDS:
+            raise RuntimeError("FortiADC query is outside the reviewed templates")
         return
 
     words = inspected.split(" ")

@@ -31,10 +31,10 @@ def _constant(value):
 def check_state_version(settings, *, allow_previous=False):
     if not isinstance(settings, dict) or type(settings.get("version")) is not int or settings["version"] != 1:
         raise StateCompatibilityError("Unsupported state schema; use the matching NetOps release and its verified recovery procedure")
-    previous = __version__ == "1.0.3" and settings.get("product_version") == "1.0.2"
+    previous = __version__ == "1.0.4" and settings.get("product_version") == "1.0.3"
     if settings.get("product_version") != __version__ and not (allow_previous and previous):
         if previous:
-            raise StateCompatibilityError("State belongs to NetOps 1.0.2; start NetOps 1.0.3 to upgrade it before running this command. Do not reinitialize existing state")
+            raise StateCompatibilityError("State belongs to NetOps 1.0.3; start NetOps 1.0.4 to upgrade it before running this command. Do not reinitialize existing state")
         raise StateCompatibilityError("State belongs to another product version; automatic upgrade or downgrade is refused. Use the verified release procedure")
     return settings
 

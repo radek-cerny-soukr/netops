@@ -747,6 +747,7 @@ def check_query_authority_and_typed_pre_auth(
         "juniper_junos": "juniper_junos",
         "juniper_junos_els": "juniper_junos_els",
         "ruckus_unleashed": "ruckus_unleashed",
+        "fortiadc": "fortiadc",
     }
     expected_counts = {
         "linux": 16,
@@ -759,6 +760,7 @@ def check_query_authority_and_typed_pre_auth(
         "juniper_junos": 25,
         "juniper_junos_els": 29,
         "ruckus_unleashed": 4,
+        "fortiadc": 1,
     }
     assert module.PLATFORM_MAP == expected_aliases
     assert {
@@ -771,9 +773,9 @@ def check_query_authority_and_typed_pre_auth(
         for name in sorted(names)
     )
     assert hashlib.sha256(name_contract.encode()).hexdigest() == (
-        "5882c32a33811166d5b705e4d577e44dea347be8d70606dc02138cccff8ab2dc"
+        "e5fa96c9abb5d5820373d9893c53591dfeddadd6419e2fb5727c816ef29de101"
     )
-    assert sum(expected_counts.values()) == 289
+    assert sum(expected_counts.values()) == 290
 
     expected_kind_inventory = {
         "vlan_name": "vlans",
@@ -827,6 +829,7 @@ def check_query_authority_and_typed_pre_auth(
         "juniper_junos": "version",
         "juniper_junos_els": "version",
         "ruckus_unleashed": "system_info",
+        "fortiadc": "system_status",
     }
     for canonical_name in module.helper_inventory.core.platforms.PLATFORMS:
         canonical = module.helper_inventory.catalog_platform(canonical_name)
@@ -2565,6 +2568,7 @@ def main(base: Path | None = None) -> int:
     expected_device = {
         "dns_probe", "tcp_probe", "icmp_probe", "tls_probe", "ssh_read",
         "snmp_get", "sftp_stat", "ftp_list", "schema_read", "fortios_diagnostics",
+        "config_read", "config_diff",
     }
     assert module.CONTROL_TOOLS == expected_control
     assert module.DEVICE_TOOLS == expected_device
@@ -2572,8 +2576,10 @@ def main(base: Path | None = None) -> int:
     assert module.REMOTE_SERVER_TOOLS == (
         expected_control | expected_device
     ) - {"target_scope"}
-    assert module.SSH_TOOLS == {"ssh_read", "sftp_stat", "schema_read", "fortios_diagnostics"}
-    assert len(module.TOOL_ARGUMENT_SCHEMAS) == 13
+    assert module.SSH_TOOLS == {
+        "ssh_read", "sftp_stat", "schema_read", "fortios_diagnostics", "config_read", "config_diff",
+    }
+    assert len(module.TOOL_ARGUMENT_SCHEMAS) == 15
     assert module.SSH_TRANSPORT_FAILURE_MESSAGE == (
         "The remote MCP SSH transport failed."
     )

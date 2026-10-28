@@ -394,10 +394,11 @@ class ExternalRuntimeParentControls(unittest.TestCase):
         row["runtime_parent"]["key_after"] = [101, 1000]
         self.reject(trace, "runtime-parent-not-external")
 
-    def test_python_health_with_external_parent_is_rejected(self):
+    def test_python_health_without_external_parent_proof_is_rejected(self):
         trace = external_fixture()
         external_row(trace)["argv"] = list(HEALTH)
-        self.reject(trace, "root-in-role-tree")
+        del external_row(trace)["runtime_parent"]
+        self.reject(trace)
 
     def test_external_init_without_later_actual_health_is_rejected(self):
         trace = external_fixture()
@@ -1024,6 +1025,90 @@ class KnownHealthEmptyCommandExitControls(unittest.TestCase):
         actual, _ = self.sample_read(known=False)
         self.assertIs(actual["complete"], False)
         self.assertTrue(actual["failures"])
+
+
+
+class ExternalHealthParentControls(unittest.TestCase):
+    def trace(self):
+        trace = external_fixture()
+        external_row(trace)["argv"] = list(HEALTH)
+        trace["samples"][12]["processes"][-1]["argv"] = list(HEALTH)
+        return trace
+
+    def test_verified_health_parent_reparents_at_next_sample(self):
+        self.assertTrue(assess_trace(self.trace())["passed"])
+
+    def test_verified_health_parent_may_have_pinned_exit_at_next_sample(self):
+        trace = self.trace()
+        for sample in trace["samples"][12:17]:
+            sample["processes"].pop()
+            sample["pids"].pop()
+        trace["samples"][12]["exited"] = [[200, 10100]]
+        trace["samples"][17]["exited"] = []
+        self.assertTrue(assess_trace(trace)["passed"])
+
+    def test_health_parent_requires_complete_current_runtime_proof(self):
+        for mutation in ("missing", "foreign-exe", "foreign-shim", "unpinned", "stale", "wrong-container"):
+            with self.subTest(mutation=mutation):
+                trace = self.trace()
+                row = external_row(trace)
+                if mutation == "missing":
+                    del row["runtime_parent"]
+                elif mutation == "foreign-exe":
+                    row["runtime_parent"]["exe_identity"][1] += 1
+                elif mutation == "foreign-shim":
+                    row["runtime_parent"]["parent_after"][1] += 1
+                elif mutation == "unpinned":
+                    row["runtime_parent"]["pin"] = "pid-only"
+                elif mutation == "stale":
+                    row["runtime_parent"]["read_started_at"] -= 1
+                else:
+                    row["runtime_parent"]["argv"][-1] = "b" * 64
+                self.assertFalse(assess_trace(trace)["passed"])
+
+    def repeated_external(self, count):
+        trace = self.trace()
+        original = external_row(trace)
+        for i in range(12, 11 + count):
+            row = copy.deepcopy(original)
+            delta = (i - 11) / 10
+            row["read_started_at"] += delta
+            row["read_finished_at"] += delta
+            row["runtime_parent"]["read_started_at"] += delta
+            row["runtime_parent"]["read_finished_at"] += delta
+            trace["samples"][i]["processes"][-1] = row
+        return trace
+
+    def test_health_can_stay_external_until_reparent_at_200ms(self):
+        self.assertTrue(assess_trace(self.repeated_external(2))["passed"])
+
+    def test_health_external_beyond_200ms_is_rejected(self):
+        self.assertFalse(assess_trace(self.repeated_external(4))["passed"])
+
+    def test_health_reparent_after_200ms_is_rejected(self):
+        self.assertFalse(assess_trace(self.repeated_external(3))["passed"])
+
+    def test_each_external_sample_still_needs_current_parent_proof(self):
+        trace = self.repeated_external(2)
+        del trace["samples"][12]["processes"][-1]["runtime_parent"]
+        self.assertFalse(assess_trace(trace)["passed"])
+
+    def test_health_reparent_does_not_exempt_permissions_or_bootstrap_sla(self):
+        for mutation in ("caps", "groups", "nnp", "old"):
+            with self.subTest(mutation=mutation):
+                trace = self.trace()
+                row = external_row(trace)
+                if mutation == "caps":
+                    row["caps"]["eff"] |= 1 << 21
+                elif mutation == "groups":
+                    row["groups"] = [51000]
+                elif mutation == "nnp":
+                    row["nnp"] = 0
+                else:
+                    for sample in trace["samples"][11:17]:
+                        sample["processes"][-1]["key"][1] = 9000
+                    trace["samples"][17]["exited"] = [[200, 9000]]
+                self.assertFalse(assess_trace(trace)["passed"])
 
 
 if __name__ == "__main__":

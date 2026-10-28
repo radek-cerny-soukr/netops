@@ -20,6 +20,8 @@ output: glued to the front of the first line, and once more at the end as a line
 The marker is the shell convention: `#` for the privileged account, `$` for the unprivileged one. A
 prompt with a virtual domain (`<hostname> (global) # `) is the same shape with a longer name.
 
+**FortiADC one-command exec-channel shape (measured on a laboratory FortiADC VM with `exec -T`, no PTY):** the first line begins `<hostname> # `, and the answer ends with the line `<hostname> # ` that has **no newline after it**, usually after one or more blank lines. The rule below removes both prompts; the blank lines before the closing prompt are content and stay. The product identity check of `ssh_read` runs on the cleaned text.
+
 An ExtremeXOS exec answer with no prompt requires no cleaning. The shared platform rule preserves an answer without a supported prompt prefix unchanged.
 
 ## The rule
@@ -62,6 +64,7 @@ carry `#` must not be at risk, and by construction it cannot be.
 |---|---|
 | `fortios`, alias `fortinet` | `^([^#$\n]+ [#$] )` |
 | `exos`, alias `extreme_exos` | the same |
+| `fortiadc` | the same, no alias |
 | everything else | no-op, the text is returned unchanged |
 
 The two spellings are the two vocabularies of the family: the auditor names platforms `fortios` and

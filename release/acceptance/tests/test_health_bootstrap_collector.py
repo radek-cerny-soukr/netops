@@ -197,6 +197,21 @@ class ProcessRead(unittest.TestCase):
         self.assertEqual(row["parent"], [90, 900])
         self.assertEqual(row["caps"]["eff"], 0x1CB)
 
+    def test_health_collects_full_external_runtime_parent(self):
+        proof = {"key": [95, 10099]}
+        stats = lambda pid: ((200, 10100), 95) if pid == 200 else ((95, 10099), 90)
+        with mock.patch.object(col, "runtime_parent", return_value=proof) as parent:
+            row = self.read_process(stats, [HEALTH, HEALTH])
+        parent.assert_called_once_with(95, (200, 10100), 90, CID, RUNTIME)
+        self.assertEqual(row["runtime_parent"], proof)
+
+    def test_health_readable_foreign_parent_remains_fatal(self):
+        stats = lambda pid: ((200, 10100), 95) if pid == 200 else ((95, 10099), 90)
+        with mock.patch.object(col, "runtime_parent", side_effect=col.EvidenceError("unverified-runtime-command")):
+            with self.assertRaises(col.EvidenceError) as ctx:
+                self.read_process(stats, [HEALTH, HEALTH])
+        self.assertEqual(ctx.exception.args[0], "unverified-runtime-command")
+
     def test_parent_change_during_read_rejected(self):
         stats = self.good_stats()
         stats[2] = ((200, 10100), 95)

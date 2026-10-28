@@ -115,7 +115,7 @@ A `helper` section may also hold `read_inventory`, `sftp_roots`, `rate_limit`, `
 }
 ```
 
-`read_inventory` lists the exact values an MCP caller may pass as query parameters. 71 of the 289 catalogue queries take a parameter; `read_query_catalog` names the inventory category of each parameter. A parameter is accepted only when its value is listed, character for character, in that category of the target; any other value is refused with `policy_scope` ("The requested operation is outside the enrolled target scope.") before the device is contacted, and the refusal does not count against `rate_limit`. Pass the values in the `parameters` argument of `ssh_read`, for example `{"target":"linux-a.example.invalid","platform":"linux","query":"interface_link","parameters":{"interface":"eth0"}}`. With the example, `interface_link` with `{"interface":"eth0"}` and `service_status` with `{"service":"ssh.service"}` are accepted; `eth1` or `cron.service` are refused.
+`read_inventory` lists the exact values an MCP caller may pass as query parameters. 71 of the 290 catalogue queries take a parameter; `read_query_catalog` names the inventory category of each parameter. A parameter is accepted only when its value is listed, character for character, in that category of the target; any other value is refused with `policy_scope` ("The requested operation is outside the enrolled target scope.") before the device is contacted, and the refusal does not count against `rate_limit`. Pass the values in the `parameters` argument of `ssh_read`, for example `{"target":"linux-a.example.invalid","platform":"linux","query":"interface_link","parameters":{"interface":"eth0"}}`. With the example, `interface_link` with `{"interface":"eth0"}` and `service_status` with `{"service":"ssh.service"}` are accepted; `eth1` or `cron.service` are refused.
 
 Each category holds at most 256 unique, non-empty strings (`schema_paths`: 4096) of at most 128 characters without control characters, written in the form the category accepts:
 
@@ -130,11 +130,11 @@ Each category holds at most 256 unique, non-empty strings (`schema_paths`: 4096)
 | `switches` | letters, digits and `_ . : -`, starting with a letter or digit, at most 64 characters | 1 FortiOS query |
 | `schema_paths` | up to 32 words separated by single spaces, each word of letters, digits and `_ . + -` starting with a letter or digit | `schema_read` (FortiOS with `system_status` enabled) |
 | `diagnostic_recipes` | `ping`, `traceroute`, `sniffer`, `sessions` or `flow` | `fortios_diagnostics` (FortiOS with `system_status` enabled) |
-| `diagnostic_vdoms` | letters, digits and `_ . -`, starting with a letter or digit, at most 31 characters | `fortios_diagnostics` with a `vdom` argument |
+| `diagnostic_vdoms` | retained inventory category | explicit VDOM selection is deferred and refused |
 
-`fortios_diagnostics` requires its recipe, address and interface to be listed in `diagnostic_recipes`, `addresses` and `interfaces`, and a VDOM, when given, in `diagnostic_vdoms`.
+`fortios_diagnostics` requires its recipe, address and interface to be listed in `diagnostic_recipes`, `addresses` and `interfaces`, and refuses any explicit `vdom` selector in this slice.
 
-NetOps 1.0 has no supported way to provision the measured schema registry and library files required by `schema_read` and `fortios_diagnostics`. These two tools are therefore not supported workflows in NetOps 1.0, even when their `read_inventory` scopes are enrolled. Calls that reach the missing-registry check are refused with the generic MCP error `Role operation failed` before any connection to the device is attempted.
+The `schema_read` tool still needs a measured server-side schema registry and library files, with no supported provisioning workflow. Bounded `fortios_diagnostics` instead verifies its pinned target and measured live identity without a registry; see the diagnostic section below.
 
 The other optional fields:
 
@@ -156,3 +156,114 @@ A section that breaks any rule above is refused as a whole with `Invalid Helper 
 See [Optional Helper fields](#optional-helper-fields). The `admin-bounded` account is accepted only on an explicitly supported platform without a read-only role, with `role_boundary: "catalogue"`; it remains an administrator on the device. See [account boundaries](../components/netops-helper/docs/read-only-accounts.md). The shipped SSH/HTTPS profile refuses SNMPv2c and FTP/FTPS even if historical engine fields are present.
 
 Device roles are exactly `perimeter`, `internal` and `lab`; earlier Czech spellings are refused. A failed/refused Helper operation has MCP `isError: true` and preserves its structured error result. The error flag never authorizes a retry or a wider device scope.
+
+## Optional configuration captures
+
+For a FortiOS target with an enrolled read-only SSH account, pinned host key and
+verified standard output, opt in with `"config_access": ["read", "compare"]`
+inside its existing `helper.read_inventory` object. Omit the category to disable
+both tools. `compare` requires `read`. The existing network egress and audit
+requirements apply.
+The read-only device profile must permit both CLI get and CLI show for these
+tools (on FortiOS 8.0.2: cli-get enable, cli-show enable), with cli-config
+disabled and the relevant system/network groups read-only. A get-only profile
+can authenticate successfully yet refuse show with Unknown action; this is a
+failed capture, never an empty successful configuration.
+
+Call `config_read(target, platform="fortios", section="system interface")` twice, then
+`config_diff(target, platform="fortios", base_snapshot="<first snapshot_id>",
+other_snapshot="<second snapshot_id>")` through the MCP endpoint. The proxy
+injects authentication; clients never supply device credentials.
+This first slice supports only the single-VDOM running view. Before each capture,
+the fixed `get system status` command must return one FortiGate/FortiWiFi identity
+and exactly one `Virtual domain configuration: disable` marker. Missing,
+duplicate, unknown or enabled VDOM mode is refused before `show`; a current VDOM
+named root alone does not establish single-VDOM mode. The configuration body
+also refuses a VDOM wrapper. Only then is the selected fixed command issued.
+Required `section` is one of `system interface`, `firewall policy`,
+`firewall address`, `router static`, `vpn ipsec phase1-interface`.
+It renders `show <section>` from a fixed map. Whole `show` requires
+`section="all", include_all=true`. Other combinations are refused before device access.
+It has no schema-registry dependency and does not add arbitrary CLI execution.
+
+The parser accepts balanced FortiOS config/edit/set/unset/next/end syntax.
+It preserves section and attribute names and only the finite `status up/down`
+values; it redacts other values, including edit identifiers. Unknown grammar,
+unbalanced quotes or safety limits exceeded are refused entirely. Known leading configuration headers and multiline quoted values are
+accepted; multiline values become one redacted record. Unknown headers, headers
+inside the configuration body and pagers are withheld without publishing a snapshot.
+A FortiOS exec prompt on the first physical line is removed using the existing
+prompt format. Only the same trailing prompt after a complete configuration is
+accepted; an intervening or mismatched prompt refuses the entire capture.
+The stream keeps the existing physical-line and capture memory limits.
+It never silently truncates. Raw input is limited to 64 MiB for a selected
+section and 256 MiB for explicit whole configuration; physical lines are
+limited to 64 KiB and logical multiline records to 1 MiB.
+
+Captures contain only redacted text and private keyed comparison tokens in
+process memory: four captures per authenticated target, sixteen total, TTL24h.
+Restart discards them. Authentication changes invalidate access to prior captures.
+Captures record actual firmware model/version/build, selected section/command and
+redaction profile. Diff refuses different sections, firmware identities or profiles.
+The diff text and its hash describe redacted content. `secrets_changed` reports
+at most 256 opaque process-local record identifiers per page, derived from section, private object
+identity and attribute. Inserting a visible line does not report unrelated hidden
+values as changed. A secret-only change therefore has
+an empty text diff but `identical=false`. Two equal captures have different IDs.
+Reordering otherwise equal objects marks the comparison as different and emits a
+record-order notice when the redacted text is unchanged, without claiming their
+secret values changed. Duplicate hidden identities are withheld.
+This slice does not implement EXOS, full view, filters, persistent
+captures, or comparison with an implicit current capture.
+
+### Pages from completed configuration captures
+
+The optional limit is 1–48,000 bytes (default 48,000); offset is a nonnegative
+byte offset. Redacted configuration content and diff text contain only ASCII,
+so every valid byte offset is also a character boundary. The initial capture must use offset 0. To read the next page,
+call config_read with the same target/platform/section, its snapshot_id and
+the returned next_offset. This serves the completed immutable capture without
+another device command. For section all, keep include_all=true on every call.
+Scope changes, expired/evicted captures and invalid offsets fail explicitly.
+This does not extend snapshot TTL.
+
+Both config_read and config_diff return content_sha256 and total_bytes for the
+whole completed redacted content, returned_bytes/offset for the current page,
+and next_offset(null at the end). Config_diff accepts offset/limit for the same
+explicit pair of captures; it never rereads the device. Reconstruct text in
+page order before comparing its digest. Diff uses a bounded, ordered line
+comparison, not a minimal edit script. Insertions may therefore produce several
+line changes. Hidden-value comparison remains keyed by private object identity.
+The separate secret_offset cursor starts at zero; next_secret_offset advances
+through secrets_changed, while secrets_changed_count gives its complete count.
+
+Configuration capture passes SSH stdout bytes directly to a strict incremental UTF-8 redactor. Chunk boundaries may split characters or quoted multiline values. No complete raw stdout is retained. A capture is published only after a successful transport result and complete configuration grammar; errors discard staged state. Redacted content uses bounded ASCII chunks and comparison tokens use packed keyed records. Captures and cached diffs share a fixed 512 MiB process budget, further constrained by available host/container memory with a 64 MiB admission reserve. Only one configuration capture, page or comparison runs at a time; concurrent calls are refused. These limits are not configurable in this slice. A memory refusal publishes no new capture. Other device read transports retain their existing behavior.
+
+Configuration SSH reads have a 30-second idle timeout, reset only by received stdout or stderr bytes. Configuration capture has a 600-second total command timeout. The proxy allows 670 seconds for configuration tools, including the identity probe and connection pacing; other tools keep their existing pending-response timeout. After the configuration command starts, a pager, CLI refusal, malformed content or transport failure produces the generic error `configuration read failed; output withheld`. No snapshot is published and raw device error details are withheld.
+## Registry-free bounded FortiOS diagnostics
+
+The existing fortios_diagnostics tool needs no NETOPS_SCHEMA_REGISTRY. Keep its enrolled recipes, destination addresses and interfaces, verified standard output and pinned host key. Each session must return one measured hardware/version/build identity, one current root VDOM and one explicit Virtual domain configuration: disable marker before any diagnostic command. Explicit vdom selection and multi-VDOM are deferred and return config_platform_not_supported. Interface ownership is checked in the same root context without switching VDOM. The response exposes the measured identity and vdom; schema_sha256 is removed. Recipe limits, the 30-second session bound, 131072-byte capture bound and verified cleanup are retained. For FortiGate-VM64 on FortiOS 8.0.2 build 0251, all five recipes have
+been exercised on a single-root target, including timer interruption and verified
+restoration of diagnostic settings. This does not qualify another model or build,
+multi-VDOM, or successful forwarding to an external destination.
+
+The device account must permit CLI get, show, diagnose and execute while CLI
+configuration remains disabled. Inventory opt-in does not grant device privileges.
+The measured read-only profile had system, network, firewall, authentication,
+logging, VPN, Security Fabric, FortiView, UTM and wireless groups set to read, and
+WAN optimization set to none. This is a tested profile, not a claim that every
+listed group is necessary. An account with fewer read privileges can reject
+diagnostic status commands before a recipe starts. Use a separate diagnostic
+account when the existing read-only account has stricter permissions.
+
+
+## Query catalogue pages
+
+read_query_catalog now returns a bounded first page by default, rather than the
+entire catalogue. Use next_offset to retrieve the remaining queries, keeping
+platform and query_prefix unchanged. The default limit is 25, the maximum is
+100, and page data is capped at 48,000 bytes. For example,
+{"platform":"fortios","query_prefix":"system_","limit":10} returns a small
+platform-specific page. This affects catalogue discovery only; target enrollment
+and device query authorization are unchanged. See the
+[catalogue page contract](../components/netops-helper/docs/tools.md#catalogue-pages).

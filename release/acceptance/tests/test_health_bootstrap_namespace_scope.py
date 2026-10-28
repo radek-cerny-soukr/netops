@@ -81,6 +81,25 @@ class ScopePredicate(unittest.TestCase):
         self.assertEqual(current["samples"][0]["pids"], [100, 101, 102, 103])
         self.assertIn(700, current["samples"][0]["scope"]["inventories"][0]["cgroup_pids"])
 
+    def health_parent_trace(self):
+        trace = base.external_fixture()
+        base.external_row(trace)["argv"] = list(base.HEALTH)
+        trace["samples"][12]["processes"][-1]["argv"] = list(base.HEALTH)
+        trace = scope_fixture(base.observed_fixture(trace))
+        for sample in trace["samples"]:
+            sample["read_started_at"] = min([sample["time"]] +
+                                           [row["read_started_at"] for row in sample["processes"]])
+        return trace
+
+    def test_health_runtime_parent_transition_keeps_closed_namespace_proof(self):
+        result = profile.assess_trace(self.health_parent_trace(), require_scope=True)
+        self.assertTrue(result["passed"], result)
+
+    def test_closed_namespace_does_not_replace_health_runtime_parent_proof(self):
+        trace = self.health_parent_trace()
+        del trace["samples"][11]["processes"][-1]["runtime_parent"]
+        self.assert_reject(trace)
+
     def test_legacy_missing_header_and_downgrade_are_rejected(self):
         self.assert_reject(base.observed_fixture(base.fixture()))
         trace = self.fixture()
@@ -173,6 +192,32 @@ class ScopePredicate(unittest.TestCase):
                 self.assert_reject(trace)
 
 
+    def test_three_pass_header_keeps_budget_and_complete_evidence(self):
+        trace = self.fixture()
+        trace["scope"]["max_capture_passes"] = 3
+        sample = trace["samples"][1]
+        proof = sample["scope"]
+        proof["capture_passes"] = 3
+        proof["inventories"] += [copy.deepcopy(proof["inventories"][-1]) for _ in range(3)]
+        self.assertTrue(profile.assess_trace(trace, require_scope=True)["passed"])
+        for mode in ("fourth", "legacy-header", "failed-inventory", "unstable-end", "budget"):
+            with self.subTest(mode=mode):
+                bad = copy.deepcopy(trace)
+                item = bad["samples"][1]
+                if mode == "fourth":
+                    item["scope"]["capture_passes"] = 4
+                    item["scope"]["inventories"].append(copy.deepcopy(item["scope"]["inventories"][-1]))
+                elif mode == "legacy-header":
+                    bad["scope"]["max_capture_passes"] = 2
+                elif mode == "failed-inventory":
+                    item["scope"]["inventories"][1]["complete"] = False
+                elif mode == "unstable-end":
+                    item["scope"]["inventories"][-1]["stable"] = False
+                else:
+                    item["read_started_at"] -= .201
+                self.assert_reject(bad)
+
+
 class ScopeCollection(unittest.TestCase):
     def collect(self, inventories, *, failure=None, scoped=True, elapsed=0, module=None, raw_members=None, raw_sequence=None, vanished=None):
         module = col if module is None else module
@@ -239,21 +284,32 @@ class ScopeCollection(unittest.TestCase):
         self.assertEqual({tuple(row["key"]) for row in result["scope"]["observed_processes"]},
                          {(pid, 1000) for pid in initial | {104}})
 
-    def test_third_inside_wave_is_incomplete(self):
+    def test_third_inside_wave_closes_with_all_new_pids_captured(self):
         initial = {100, 101, 102, 103}
-        result, _, _ = self.collect([initial, initial | {104}, initial | {104, 105}, initial | {104, 105, 106}])
+        last = initial | {104, 105, 106}
+        result, captured, _ = self.collect([initial, initial | {104}, initial | {104, 105}, last, last])
+        self.assertTrue(result["complete"], result["failures"])
+        self.assertTrue(result["scope"]["closed"])
+        self.assertEqual(result["scope"]["capture_passes"], 3)
+        self.assertEqual(len(result["scope"]["inventories"]), 5)
+        for pid in (104, 105, 106):
+            self.assertEqual(captured.count(pid), 1)
+
+    def test_fourth_inside_wave_is_incomplete(self):
+        initial = {100, 101, 102, 103}
+        result, _, _ = self.collect([initial, initial | {104}, initial | {104, 105}, initial | {104, 105, 106}, initial | {104, 105, 106, 107}])
         self.assertFalse(result["complete"])
         self.assertIn("namespace-discovery-limit", [item["reason"] for item in result["failures"]])
-        self.assertEqual(result["scope"]["capture_passes"], 2)
+        self.assertEqual(result["scope"]["capture_passes"], 3)
 
-    def test_third_host_only_wave_also_consumes_discovery_budget(self):
+    def test_fourth_host_only_wave_also_consumes_discovery_budget(self):
         initial = {100, 101, 102, 103}
         entries = [{"mappings": [{"key": [pid, 1000]} for pid in initial],
                     "excluded": [{"key": [700 + i, 9900]} for i in range(count)],
-                    "complete": True, "failures": [], "stable": True} for count in (0, 1, 2, 3)]
+                    "complete": True, "failures": [], "stable": True} for count in (0, 1, 2, 3, 4)]
         result, captured, _ = self.collect(entries)
         self.assertFalse(result["complete"])
-        self.assertEqual(result["scope"]["capture_passes"], 2)
+        self.assertEqual(result["scope"]["capture_passes"], 3)
         self.assertEqual(captured, [100, 101, 102, 103])
         self.assertIn("namespace-discovery-limit", [item["reason"] for item in result["failures"]])
 

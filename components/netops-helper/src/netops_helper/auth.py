@@ -266,7 +266,7 @@ def _normalize_egress(value: object) -> EgressPolicy:
 
 def _normalize_inventory(value: object) -> dict[str, tuple[str, ...]]:
     if not isinstance(value, dict) or any(
-        key not in {"interfaces", "services", "addresses", "switches", "vlans", "managed_switches", "certificates", "schema_paths", "diagnostic_recipes", "diagnostic_vdoms"}
+        key not in {"interfaces", "services", "addresses", "switches", "vlans", "managed_switches", "certificates", "schema_paths", "diagnostic_recipes", "diagnostic_vdoms", "config_access"}
         or not isinstance(values, list)
         or not all(isinstance(item, str) for item in values)
         for key, values in value.items()
@@ -291,6 +291,9 @@ def _normalize_inventory(value: object) -> dict[str, tuple[str, ...]]:
                 raise ValueError("read_inventory value is not canonical")
             clean.append(validated)
         normalized[key] = tuple(clean)
+    rights = normalized.get("config_access", ())
+    if "compare" in rights and "read" not in rights:
+        raise ValueError("config_access compare requires read")
     return normalized
 
 
