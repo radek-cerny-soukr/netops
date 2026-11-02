@@ -42,6 +42,12 @@ class AgeSealer(unittest.TestCase):
         self.raw = fixture(self.capture)
         self.tool = self.root / "tool"
         self.arch = sealer.MACHINES[platform.machine()]
+        source = self.root / "source"
+        source.mkdir(mode=0o700)
+        for name in ("process_profile_seal.py", "process_profile_recipients.txt"):
+            sealer.create(source / name, (HERE / name).read_bytes())
+        patcher = mock.patch.object(sealer, "__file__", str(source / "process_profile_seal.py"))
+        patcher.start(); self.addCleanup(patcher.stop)
         patcher = mock.patch.object(sealer, "archive_binary", return_value=b"SYNTHETIC_PINNED_BINARY")
         patcher.start(); self.addCleanup(patcher.stop)
         patcher = mock.patch.object(sealer.subprocess, "run", side_effect=self.child)
@@ -136,6 +142,13 @@ class AgeSealer(unittest.TestCase):
 
     def test_production_fourth_or_changed_recipient_rejected(self):
         original = sealer.recipient_bytes()
+        pinned = self.root / "source" / "process_profile_recipients.txt"
+        for mode in (0o664, 0o646):
+            pinned.chmod(mode)
+            with self.assertRaises(sealer.Refused):
+                sealer.recipient_bytes()
+        pinned.chmod(0o600)
+        self.assertEqual(sealer.recipient_bytes(), original)
         example = b"age1" + b"q" * 58 + b"\n"
         copy = self.root / "process_profile_recipients.txt"
         for changed in (original + example, example + b"\n".join(original.splitlines()[1:]) + b"\n"):

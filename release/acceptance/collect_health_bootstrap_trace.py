@@ -12,7 +12,7 @@ import time
 
 from health_bootstrap_profile import assess_trace, HEALTH, SERVE, WORKER, runtime_exec_argv, InvalidProfile, verified_exit, observed_permissions, runtime_permissions
 
-PREDICATE_SHA = "c95c55f1ece4f80af9238b9337463fe906a1042fd76f10c73175b9bee48d2903"
+PREDICATE_SHA = "59034ff29c1dfba476be0bf83765b9b657553592727153947b87f48954497761"
 IDENTITY_MAP = [0, 0, 4294967295]
 REFERENCE = {}
 DOCKER_FORMAT = ('{"id":{{json .Id}},"image":{{json .Image}},'
@@ -323,7 +323,13 @@ def host_binary(runtime):
         os.close(fd)
 
 
-def runtime_parent_after_enoent(handle, child, shim_pid, cid, runtime, expected_cgroup, executable, reason="parent-ENOENT"):
+def runtime_parent_after_enoent(handle, child, shim_pid, cid, runtime, expected_cgroup, executable, reason="parent-ENOENT", partial=None):
+    def stable(checks, stage):
+        if not all(checks.values()):
+            if partial is not None:
+                partial["runtime_parent_retry_failure"] = {"stage": stage, "checks": checks}
+            raise EvidenceError("runtime-parent-retry-child-changed")
+
     started, reads = clock(), []
     for attempt in range(3):
         require(clock() - started <= .05, "runtime-parent-retry-exhausted")
@@ -353,8 +359,9 @@ def runtime_parent_after_enoent(handle, child, shim_pid, cid, runtime, expected_
             if error.args != ("empty-process-command",) or argv != ("runc", "init"):
                 raise
             require(group == after_group == expected_cgroup, "runtime-parent-retry-cgroup-changed")
-            require(first == after == child and before == after_exe == executable and parent_pid == after_parent_pid,
-                    "runtime-parent-retry-child-changed")
+            stable({"key_before": first == child, "key_after": after == child,
+                    "executable_before": before == executable, "executable_after": after_exe == executable,
+                    "parent": parent_pid == after_parent_pid}, "empty-command")
             read = {"key_before": list(first), "key_after": list(after), "argv": list(argv),
                     "exe_identity_before": before, "exe_identity_after": after_exe,
                     "cgroup_before": group, "cgroup_after": after_group,
@@ -373,20 +380,30 @@ def runtime_parent_after_enoent(handle, child, shim_pid, cid, runtime, expected_
         if first == after == child and group == after_group == expected_cgroup and after_argv == HEALTH:
             facts = {"key": list(after), "cgroup": after_group, "first_argv": list(argv), "second_argv": list(after_argv)}
             if argv == HEALTH:
-                require(before == after_exe and parent_pid == after_parent_pid == origin["key"][0],
-                        "runtime-parent-retry-child-changed")
+                transition = None
+                if before == executable and after_exe != executable and parent_pid > 0 and after_parent_pid == origin["key"][0]:
+                    transition = "runtime-exec"
+                elif before == after_exe and before != executable and parent_pid > 0 and parent_pid != origin["key"][0] and after_parent_pid == origin["key"][0]:
+                    transition = "parent-reaped"
+                else:
+                    stable({"executable": before == after_exe,
+                            "parent": parent_pid == after_parent_pid == origin["key"][0]}, "health")
                 read = {"key_before": list(first), "key_after": list(after), "argv": list(argv),
                         "exe_identity_before": before, "exe_identity_after": after_exe,
                         "cgroup_before": group, "cgroup_after": after_group,
                         "parent_pid_before": parent_pid, "parent_pid_after": after_parent_pid,
                         "read_started_at": started, "time": clock()}
                 require(read["time"] - started <= .05, "runtime-parent-retry-exhausted")
+                if transition is not None:
+                    read["transition"] = transition
+                    read["initial_exe_identity"] = executable
                 facts["retry_read"] = read
             raise RuntimeExecTransition("runtime-exec-transition-during-retry", facts)
-        require(first == after == child and before == after_exe == executable and
-                argv == after_argv == ("runc", "init") and
-                group == after_group == expected_cgroup and parent_pid == after_parent_pid,
-                "runtime-parent-retry-child-changed")
+        stable({"key_before": first == child, "key_after": after == child,
+                "executable_before": before == executable, "executable_after": after_exe == executable,
+                "argv_before": argv == ("runc", "init"), "argv_after": after_argv == ("runc", "init"),
+                "cgroup_before": group == expected_cgroup, "cgroup_after": after_group == expected_cgroup,
+                "parent": parent_pid == after_parent_pid}, "runc")
         reads.append({"key_before": list(first), "key_after": list(after), "argv": list(argv),
                       "exe_identity_before": before, "exe_identity_after": after_exe,
                       "cgroup_before": group, "cgroup_after": after_group, "time": clock()})
@@ -455,7 +472,7 @@ def process(pid, expected_cgroup, shim_pid, cid, runtime, handle, previous_row=N
                     raise
                 parent_pid, parent, proof, retry = runtime_parent_after_enoent(
                     handle, first, shim_pid, cid, runtime, expected_cgroup, executable_stat[:2],
-                    reason=PARENT_GONE[type(error)])
+                    reason=PARENT_GONE[type(error)], partial=partial)
         else:
             try:
                 parent, _ = proc_stat(parent_pid)

@@ -106,11 +106,23 @@ class AdminUnifiedAuditPaths(unittest.TestCase):
         main.assert_called_once_with(["doctor", "--config", "/var/lib/netops/admin/config.json",
                                       "--device", "example-device"], require_export=False)
 
+    def test_operator_supplies_state_configuration_to_fortiadc_pool_member_commands(self):
+        from netops import operator
+        for command in ("pool-member", "pool-member-add", "pool-member-remove"):
+            with self.subTest(command=command), patch("netops.operator.os.geteuid", return_value=0), \
+                 patch("netops.operator.acquire_state", return_value=99), patch("netops.operator.demote"), \
+                 patch("netops.operator._admin_audit_preflight"), patch("netops.operator.role_environment"), \
+                 patch("netops.operator.os.close"), patch("netops_admin.cli.main", return_value=0) as main:
+                self.assertEqual(operator.role_cli("admin", [command, "--device", "adc", "--pool", "P"]), 0)
+            main.assert_called_once_with([command, "--config", "/var/lib/netops/admin/config.json",
+                                          "--device", "adc", "--pool", "P"], require_export=False)
+
     def test_worker_selects_unified_audit_policy_before_accepting_mcp_calls(self):
         import asyncio
         import json
         from types import SimpleNamespace
         from netops import worker
+        from netops.files import TARGET_LOCK_GID
         class Finished(Exception):
             pass
         seen = []
@@ -121,6 +133,7 @@ class AdminUnifiedAuditPaths(unittest.TestCase):
             options["runtime_factory"]("configured-device")
         module = SimpleNamespace(configure=configure, build_runtime=build)
         with patch("netops.worker.os.geteuid", return_value=51003), patch("netops.worker.os.getegid", return_value=51003), \
+             patch("netops.worker.os.getgroups", return_value=[TARGET_LOCK_GID]), patch.dict("os.environ", {}), \
              patch("netops.worker.role_environment", return_value=Path("/var/lib/netops/admin")), \
              patch("netops.worker.read_private", return_value=json.dumps({"devices": {"example-device": {}}}).encode()), \
              patch("netops.worker.importlib", SimpleNamespace(import_module=lambda name: module)), \
@@ -293,7 +306,7 @@ class SafeConfigurationDiagnostics(unittest.TestCase):
                 (state / "gateway").mkdir(mode=0o700)
                 from netops.files import write_private
                 write_private(state / "gateway/config.json", json.dumps({
-                    "version": 1, "product_version": "1.0.4", "audit": {"mode": "local"}}).encode())
+                    "version": 1, "product_version": "1.0.5", "audit": {"mode": "local"}}).encode())
                 (state / role).mkdir(mode=0o700)
                 stream = io.TextIOWrapper(io.BytesIO(json.dumps(document).encode()))
                 errors = io.StringIO()

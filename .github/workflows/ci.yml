@@ -3,7 +3,7 @@ name: CI
 on:
   push:
     branches-ignore:
-      - "release/1.0.4-candidate"
+      - "release/1.0.5-candidate"
     tags:
       - "**"
   pull_request:
@@ -21,10 +21,10 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Set up Python 3.14.9
+      - name: Set up Python 3.14.10
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
-          python-version: 3.14.9
+          python-version: 3.14.10
 
       - name: Check the public source for private data and product identity
         run: python -B release/check_source.py
@@ -44,7 +44,7 @@ jobs:
       - name: Build the native product image from locked dependencies
         run: |
           set -euo pipefail
-          docker build --pull --iidfile "$RUNNER_TEMP/netops-ci-unit.iid" .
+          docker build --pull --build-arg SOURCE_DATE_EPOCH="$(git log -1 --format=%ct)" --iidfile "$RUNNER_TEMP/netops-ci-unit.iid" .
 
       - name: Run the installed product unit tests
         run: |

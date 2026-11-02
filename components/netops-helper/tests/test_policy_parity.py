@@ -30,22 +30,37 @@ CREDENTIAL = "device-a-account"
 SNMP_CREDENTIAL = "device-a-community"
 LOGIN = "reader"
 SECRET = "account-secret"
-COMMUNITY = "separate-community"
-KINDS = {CREDENTIAL: "password", SNMP_CREDENTIAL: "snmp-community"}
+USM = {"user": "usm-reader", "auth_protocol": "sha256", "auth_key": "fixture-auth-key-1", "priv_protocol": "aes128", "priv_key": "fixture-priv-key-1"}
+KINDS = {CREDENTIAL: "password", SNMP_CREDENTIAL: "snmpv3-authpriv"}
 CANONICAL_PLATFORMS = {"fortinet": "fortios", "extreme_exos": "exos"}
 HOST_KEY_PIN = fingerprint_of(b64encode(b"policy-parity-host-key").decode("ascii"))
 
 REPRESENTATIVE_SLOT_VALUES = {
+    "fortios_address_object": "api.example",
+    "fortios_station_mac": "00:00:5e:00:53:01",
+    "flow_port": "443",
+    "ip_protocol": "6",
+    "fortios_policy_type": "policy",
+    "fortios_nat_pool": "pool-east",
     "vlan_name": "Users_10",
     "managed_switch_serial": "S124FPTF23000001",
+    "managed_switch_port": "port1",
+    "managed_switch_trunk": "SRV1",
     "certificate_name": "Example_Cert",
     "interface": "port5",
     "service": "sshd",
     "switch": "edge-a",
     "ipv4_address": "192.0.2.20",
     "ipv6_address": "2001:db8::1",
+    "fortios_sdwan_health_check": "PingSLA",
+    "fortios_link_monitor": "wan-monitor",
+    "fortios_sdwan_member": "1",
+    "fortios_sdwan_rule": "4000",
     "fortios_interface": "port1",
     "fortios_physical_interface": "wan1",
+    "fortiadc_interface": "port1",
+    "fortiadc_vdom": "root",
+    "fortiadc_virtual_server": "vs-web-80",
     "cisco_ios_interface": "GigabitEthernet1/0/1",
     "cisco_ios_physical_interface": "GigabitEthernet1/0/1",
     "cisco_xe_interface": "GigabitEthernet1/0/1",
@@ -150,7 +165,7 @@ def encode_envelope(device: dict[str, object], section: dict[str, object]) -> st
         },
     }
     if section.get("snmp_credential") is not None:
-        envelope["snmp_community"] = COMMUNITY
+        envelope["snmp_usm"] = dict(USM)
     raw = json.dumps(envelope, separators=(",", ":")).encode("utf-8")
     return urlsafe_b64encode(raw).decode("ascii").rstrip("=")
 
@@ -301,7 +316,7 @@ class PolicyParityTests(unittest.TestCase):
         }
         expected_counts = {
             "linux": 16,
-            "fortinet": 50,
+            "fortinet": 108,
             "extreme_exos": 48,
             "cisco_ios": 27,
             "cisco_xe": 27,
@@ -310,7 +325,7 @@ class PolicyParityTests(unittest.TestCase):
             "juniper_junos": 25,
             "juniper_junos_els": 29,
             "ruckus_unleashed": 4,
-            "fortiadc": 1,
+            "fortiadc": 33,
         }
         self.assertEqual(read_policy.PLATFORM_MAP, expected_aliases)
         self.assertEqual(
@@ -320,7 +335,7 @@ class PolicyParityTests(unittest.TestCase):
             },
             expected_counts,
         )
-        self.assertEqual(sum(expected_counts.values()), 290)
+        self.assertEqual(sum(expected_counts.values()), 380)
         expected_names = {
             platform: frozenset(queries)
             for platform, queries in read_policy.READ_QUERIES.items()
@@ -372,8 +387,22 @@ class PolicyParityTests(unittest.TestCase):
                         "addresses": [],
                         "switches": [],
                         "vlans": [],
+                        "sdwan_health_checks": [],
+                        "link_monitors": [],
+                        "sdwan_members": [],
+                        "sdwan_rules": [],
                         "managed_switches": [],
+                        "managed_switch_ports": [],
+                        "managed_switch_trunks": [],
                         "certificates": [],
+                        "firewall_addresses": [],
+                        "wireless_clients": [],
+                        "flow_ports": [],
+                        "ip_protocols": [],
+                        "policy_types": [],
+                        "nat_pools": [],
+                        "adc_vdoms": [],
+                        "adc_virtual_servers": [],
                     }
                     for slot_name, slot in query.slots.items():
                         value = REPRESENTATIVE_SLOT_VALUES[slot.kind]
@@ -404,6 +433,11 @@ class PolicyParityTests(unittest.TestCase):
                     target = TargetAuth.decode(
                         ALIAS, encode_envelope(device, policy),
                     )
+                    if query_name in {"switch_lldp_port", "switch_mac_limit"}:
+                        self.assertEqual(
+                            target.read_inventory["managed_switch_ports"],
+                            ("port1",),
+                        )
                     self.assertEqual(
                         target.require_ssh_query(platform, query_name),
                         platform,
@@ -429,10 +463,25 @@ class PolicyParityTests(unittest.TestCase):
                     )
                     exercised += 1
 
-        self.assertEqual(exercised, 71)
+        self.assertEqual(exercised, 112)
 
     def test_typed_query_rejections_have_proxy_render_parity(self) -> None:
         cases = (
+            ("BGP bgp_advertised_ipv4 wrong family", "fortinet", "bgp_advertised_ipv4", "2001:db8::20"),
+            ("BGP bgp_received_ipv4 wrong family", "fortinet", "bgp_received_ipv4", "2001:db8::20"),
+            ("BGP bgp_accepted_ipv4 wrong family", "fortinet", "bgp_accepted_ipv4", "2001:db8::20"),
+            ("BGP bgp_advertised_ipv6 wrong family", "fortinet", "bgp_advertised_ipv6", "192.0.2.20"),
+            ("BGP bgp_received_ipv6 wrong family", "fortinet", "bgp_received_ipv6", "192.0.2.20"),
+            ("BGP bgp_accepted_ipv6 wrong family", "fortinet", "bgp_accepted_ipv6", "192.0.2.20"),
+            ("SLA health-check whitespace", "fortinet", "sdwan_sla_history", {"health_check": "Ping SLA", "member": "1"}),
+            ("SLA health-check length", "fortinet", "sdwan_sla_history", {"health_check": "a" * 36, "member": "1"}),
+            ("link-monitor all", "fortinet", "link_monitor_status", "all"),
+            ("link-monitor whitespace", "fortinet", "link_monitor_status", "wan monitor"),
+            ("SD-WAN member zero", "fortinet", "sdwan_member_detail", "0"),
+            ("SD-WAN member overflow", "fortinet", "sdwan_routes_ipv4", "513"),
+            ("SD-WAN member noncanonical", "fortinet", "sdwan_routes_ipv6", "01"),
+            ("SD-WAN rule overflow", "fortinet", "sdwan_service_ipv4", "4001"),
+            ("SD-WAN rule all", "fortinet", "sdwan_service_ipv6", "all"),
             (
                 "wrong IPv4 family",
                 "cisco_ios", "route_lookup", "2001:db8::1",
@@ -493,18 +542,23 @@ class PolicyParityTests(unittest.TestCase):
         for label, platform, query_name, value in cases:
             with self.subTest(case=label):
                 query = read_policy.READ_QUERIES[platform][query_name]
-                self.assertEqual(len(query.slots), 1)
-                slot_name, slot = next(iter(query.slots.items()))
+                if isinstance(value, dict):
+                    parameters = value
+                    self.assertEqual(set(parameters), set(query.slots))
+                else:
+                    self.assertEqual(len(query.slots), 1)
+                    parameters = {next(iter(query.slots)): value}
                 inventory = {
                     "interfaces": [],
                     "services": [],
                     "addresses": [],
                     "switches": [],
                 }
-                inventory[slot.inventory] = [value]
+                for slot_name, slot in query.slots.items():
+                    inventory[slot.inventory] = [parameters[slot_name]]
                 section = unchecked_section(platform, query_name, inventory)
-                parameters = {slot_name: value}
-                self.assertIn(value, section.read_inventory[slot.inventory])
+                for slot_name, slot in query.slots.items():
+                    self.assertIn(parameters[slot_name], section.read_inventory[slot.inventory])
 
                 entries, _ = loaded(canonical_device())
                 with self.assertRaises(proxy_module.PolicyScopeError):
@@ -531,7 +585,7 @@ class PolicyParityTests(unittest.TestCase):
 
     def test_vendor_interface_guard_positive_and_negative_corpus(self) -> None:
         positive_cases = (
-            ("fortinet", "interface_details", "port1", "port1"),
+            ("fortinet", "dhcp_leases", "_default", "_default"),
             ("fortinet", "interface_details", "wan1", "wan1"),
             ("fortinet", "interface_details", "dmz", "dmz"),
             ("fortinet", "interface_details", "ha.1", "ha.1"),
@@ -657,7 +711,7 @@ class PolicyParityTests(unittest.TestCase):
             ("fortinet", "interface_details", "speed-test-result-clear"),
             ("fortinet", "interface_details", "speed-test-shaping-reset"),
             ("fortinet", "interface_details", "speed-test-tunnel"),
-            ("fortinet", "interface_details", "_port1"),
+            ("fortinet", "interface_details", "_port 1"),
             ("fortinet", "interface_details", "port/1"),
             ("fortinet", "interface_details", "port 1"),
             ("fortinet", "interface_details", "port1;show"),
@@ -938,10 +992,10 @@ class PolicyParityTests(unittest.TestCase):
 
     def test_credential_kinds_of_a_device_are_checked_against_the_store(self) -> None:
         for name, kinds in (
-            ("account is a token", {CREDENTIAL: "api-token", SNMP_CREDENTIAL: "snmp-community"}),
-            ("account is a community", {CREDENTIAL: "snmp-community", SNMP_CREDENTIAL: "snmp-community"}),
+            ("account is a token", {CREDENTIAL: "api-token", SNMP_CREDENTIAL: "snmpv3-authpriv"}),
+            ("account is a community", {CREDENTIAL: "snmp-community", SNMP_CREDENTIAL: "snmpv3-authpriv"}),
             ("community is a password", {CREDENTIAL: "password", SNMP_CREDENTIAL: "password"}),
-            ("account is unknown", {SNMP_CREDENTIAL: "snmp-community"}),
+            ("account is unknown", {SNMP_CREDENTIAL: "snmpv3-authpriv"}),
             ("community is unknown", {CREDENTIAL: "password"}),
         ):
             with self.subTest(name=name):

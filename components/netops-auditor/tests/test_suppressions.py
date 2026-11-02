@@ -20,7 +20,7 @@ RULE_ID = "L1-001"
 RULE_VERSION = 1
 DEVICE = "fw-a.example.invalid"
 OBJECT_KEY = "firewall policy/1"
-REASON = "schvalena vyjimka, sprava jen z jump hostu 192.0.2.10"
+REASON = "approved exception, management only from jump host 192.0.2.10"
 AUTHOR = "operator"
 CREATED = "2026-09-12T10:00:00Z"
 EXPIRES = "2026-12-31T00:00:00Z"
@@ -137,7 +137,7 @@ def test_valid_file_loads_every_field(tmp_path):
     assert one.expires == EXPIRES_AT
     assert load(str(path)) == loaded
     with pytest.raises(AttributeError):
-        one.reason = "jiny duvod"
+        one.reason = "another reason"
 
 
 def test_empty_suppression_list_is_legitimate(tmp_path):
@@ -179,7 +179,7 @@ def test_a_file_without_a_tenant_is_refused_and_names_the_migration(tmp_path):
 
 def test_document_must_be_an_object_with_a_list_of_suppressions(tmp_path):
     with pytest.raises(SuppressionError, match="is not valid JSON"):
-        load(write_raw(tmp_path, "{neni json"))
+        load(write_raw(tmp_path, "{not json"))
     with pytest.raises(SuppressionError, match="must hold an object"):
         load(write_raw(tmp_path, json.dumps([entry()])))
     with pytest.raises(SuppressionError, match="missing document fields: version"):
@@ -242,7 +242,7 @@ def test_the_tenant_of_the_document_must_be_a_non_empty_string(tmp_path):
 
 def test_unknown_item_field_is_an_error(tmp_path):
     extra = entry()
-    extra["scope"] = "vsechna zarizeni"
+    extra["scope"] = "all devices"
     with pytest.raises(SuppressionError, match="unknown fields: scope"):
         load(write(tmp_path, [extra]))
 
@@ -283,8 +283,8 @@ def test_identity_fields_must_carry_text(tmp_path):
 
 
 def test_reason_is_kept_verbatim(tmp_path):
-    loaded = load(write(tmp_path, [entry(reason="  duvod s mezerami  ")]))
-    assert loaded[0].reason == "  duvod s mezerami  "
+    loaded = load(write(tmp_path, [entry(reason="  reason with spaces  ")]))
+    assert loaded[0].reason == "  reason with spaces  "
 
 
 def test_rule_version_must_be_an_integer(tmp_path):
@@ -310,7 +310,7 @@ def test_fingerprint_mismatch_is_an_error(tmp_path):
     foreign["fingerprint"] = fingerprint_of(RULE_ID, RULE_VERSION, TENANT_A, DEVICE, "firewall policy/2")
     with pytest.raises(SuppressionError, match="does not match components"):
         load(write(tmp_path, [foreign]))
-    for junk in ("", "neni hash", None, 123, fingerprint_of(RULE_ID, RULE_VERSION, TENANT_A, DEVICE, OBJECT_KEY).upper()):
+    for junk in ("", "not a hash", None, 123, fingerprint_of(RULE_ID, RULE_VERSION, TENANT_A, DEVICE, OBJECT_KEY).upper()):
         item = entry()
         item["fingerprint"] = junk
         with pytest.raises(SuppressionError, match="does not match components"):
@@ -393,7 +393,7 @@ def test_created_must_be_before_expires(tmp_path):
 
 def test_duplicate_fingerprint_is_an_error(tmp_path):
     with pytest.raises(SuppressionError, match="duplicate fingerprint"):
-        load(write(tmp_path, [entry(), entry(reason="jiny duvod", author="nekdo jiny")]))
+        load(write(tmp_path, [entry(), entry(reason="another reason", author="someone else")]))
     loaded = load(write(tmp_path, [entry(), entry(object_key="firewall policy/2")]))
     assert len({one.fingerprint for one in loaded}) == 2
 
@@ -489,7 +489,7 @@ def test_migration_never_writes_over_an_existing_file(tmp_path):
 
 
 def test_migration_prints_nothing_of_the_document_it_reads(tmp_path):
-    secret = "KANARCI-DUVOD-NESMI-UNIKNOUT"
+    secret = "CANARY-REASON-MUST-NOT-LEAK"
     broken = v1_entry(reason=secret)
     broken["expires"] = "2026-12-31"
     source = write_v1(tmp_path, [broken])

@@ -601,7 +601,7 @@ def test_main_configures_before_it_serves(audited, monkeypatch):
 
 
 def test_the_server_offers_a_catalog_for_both_platforms():
-    assert mcp_server.available_platforms() == ("exos", "fortios")
+    assert mcp_server.available_platforms() == ("exos", "fortiadc", "fortios")
 
 
 def test_configure_accepts_the_exos_catalog(audited):

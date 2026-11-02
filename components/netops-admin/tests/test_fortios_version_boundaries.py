@@ -4,7 +4,7 @@ import pytest
 
 from fake_020 import FortiOS800
 from fake_fortios import FakeFortiOS
-from netops_admin import execute
+from netops_admin import execute, profiles
 from netops_admin.errors import Rejected
 from test_execute import make_runtime, request
 
@@ -55,7 +55,7 @@ def test_live_snapshot_version_cannot_be_overridden_by_configuration(tmp_path, c
     assert not device.applied_blocks
 
 
-@pytest.mark.parametrize(("release", "build"), [("8.0.0", "0168"), ("8.0.1", "0245"), ("8.0.2", "0251"), ("8.1.0", "0001")])
+@pytest.mark.parametrize(("release", "build"), [("8.0.0", "0168"), ("8.0.1", "0245"), ("8.0.3", "0300"), ("8.1.0", "0001")])
 def test_unmeasured_fortios_build_never_inherits_800_command_support(tmp_path, release, build):
     class OtherFirmware(FakeFortiOS):
         def snapshot(self):
@@ -67,3 +67,46 @@ def test_unmeasured_fortios_build_never_inherits_800_command_support(tmp_path, r
         execute.apply(runtime, "lab", request())
     assert any("not measured on firmware" in reason for reason in caught.value.reasons)
     assert not device.applied_blocks
+
+
+FORTIOS_TABLES = ["firewall address", "firewall addrgrp", "system dhcp server/reserved-address", "firewall policy"]
+
+
+WEBHOOK_LISTED = {("firewall address", "8.0.2 build0251"), ("firewall policy", "8.0.2 build0251")}
+UNLISTED_800 = [(table, firmware) for firmware in ("8.0.0 build0168", "8.0.1 build0245", "8.0.2 build0251", "8.0.3 build0300")
+                for table in FORTIOS_TABLES if (table, firmware) not in WEBHOOK_LISTED]
+
+
+@pytest.mark.parametrize(("table", "firmware"), UNLISTED_800)
+def test_every_unlisted_800_build_is_refused_with_the_fortios_80_auto_script_change(table, firmware):
+    with pytest.raises(Rejected) as caught:
+        profiles.find_profile("fortios", table, firmware)
+    reason = " ".join(caught.value.reasons)
+    assert "not measured on firmware" in reason
+    assert "FortiOS 8.0" in reason and "auto-script" in reason and "Fortinet" in reason
+
+
+def test_policy_refuses_800_build0167_with_the_same_reason():
+    with pytest.raises(Rejected) as caught:
+        profiles.find_profile("fortios", "firewall policy", "8.0.0 build0167")
+    assert "auto-script" in " ".join(caught.value.reasons)
+
+
+@pytest.mark.parametrize("firmware", ["8.1.0 build0001", "7.4.9 build2000"])
+def test_the_auto_script_reason_is_only_given_for_800(firmware):
+    with pytest.raises(Rejected) as caught:
+        profiles.find_profile("fortios", "firewall address", firmware)
+    assert "auto-script" not in " ".join(caught.value.reasons)
+
+
+def test_76_family_stays_accepted():
+    assert profiles.find_profile("fortios", "firewall address", "7.6.9 build4000").table == "firewall address"
+
+
+@pytest.mark.parametrize("firmware", ["8.0.1 build0245", "8.0.2 build0300"])
+def test_the_800_refusal_names_the_webhook_safeguard_not_a_missing_one(firmware):
+    with pytest.raises(Rejected) as caught:
+        profiles.find_profile("fortios", "firewall addrgrp", firmware)
+    reason = " ".join(caught.value.reasons)
+    assert "webhook safeguard" in reason
+    assert "cannot revert" not in reason

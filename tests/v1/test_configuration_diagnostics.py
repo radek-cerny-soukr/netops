@@ -37,7 +37,7 @@ class StructuredConfigurationDiagnostics(unittest.TestCase):
             (state / "gateway").mkdir(mode=0o700)
             (state / role).mkdir(mode=0o700)
             write_private(state / "gateway/config.json", json.dumps({
-                "version": 1, "product_version": "1.0.4", "audit": {"mode": "local"}}).encode())
+                "version": 1, "product_version": "1.0.5", "audit": {"mode": "local"}}).encode())
             stream = io.TextIOWrapper(io.BytesIO(json.dumps(document).encode()))
             errors, output = io.StringIO(), io.StringIO()
             with patch.dict(UIDS, {"gateway": current_uid}), patch.object(operator, "STATE", state), patch.object(operator, "demote"), \
@@ -72,7 +72,7 @@ class StructuredConfigurationDiagnostics(unittest.TestCase):
             (("inventory", "devices", 0, "auditor"), {CANARY: CANARY},
              "inventory.devices[].auditor.channel", "is required"),
             (("tenant",), None, "auditor.tenant", "string without U+001F"),
-            (("catalog",), CANARY, "auditor.catalog", "exos, fortios"),
+            (("catalog",), CANARY, "auditor.catalog", "exos, fortiadc, fortios"),
         ]
         for path, value, field, reason in cases:
             with self.subTest(path=path):

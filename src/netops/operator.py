@@ -45,8 +45,15 @@ def _validate_helper_inventory(path, store):
     try:
         entries = inventory.load(path)
         kinds = {name: store.credential(name).kind for name in store.names()}
+        warnings = []
         for entry in inventory.devices(entries):
-            inventory.section(entry, kinds)
+            try:
+                section = inventory.section(entry, kinds)
+            except inventory.InventoryError as error:
+                error.diagnostic_index = list(entries).index(entry)
+                raise
+            warnings.extend(inventory.section_warnings(entry.name, section))
+        return warnings
     except inventory.InventoryError as error:
         if getattr(error, "diagnostic", None):
             raise _configuration_error(error, field="inventory") from None
@@ -55,6 +62,7 @@ def _validate_helper_inventory(path, store):
 def acquire_state():
     read_state_settings(STATE, allow_previous=True)
     descriptor = os.open(STATE / "gateway" / "instance.lock", os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW | os.O_CLOEXEC, 0o600)
+    check_regular(descriptor)
     if os.fstat(descriptor).st_uid == 0:
         os.fchown(descriptor, UIDS["gateway"], UIDS["gateway"])
     check_regular(descriptor, UIDS["gateway"])
@@ -75,6 +83,11 @@ def configure_syslog():
     if os.geteuid() != 0:
         raise OperatorAccessError("Use the image default container user for this operator command; remove any --user override")
     descriptor = acquire_state()
+    try:
+        recorded = _syslog_audit_preflight()
+    except BaseException:
+        os.close(descriptor)
+        raise
     demote(UIDS["gateway"])
     role_environment("gateway")
     try:
@@ -84,6 +97,8 @@ def configure_syslog():
         document = _configuration_document(raw, syslog=True)
         if not isinstance(document, dict) or set(document) - {"host", "port", "ca_pem"} or not document.get("host"):
             raise _syslog_configuration_error("envelope")
+        if not isinstance(document["host"], str):
+            raise _syslog_configuration_error("host-type")
         from .certificates import names
         try:
             names(document["host"])
@@ -117,9 +132,25 @@ def configure_syslog():
         settings["audit"] = audit
         write_private(config_path, json.dumps(settings).encode(), replace=True)
         print("TLS syslog receiver and trust configured; normal certificate and hostname verification remain enabled.")
+        if not recorded:
+            sys.stderr.write("netops: the new syslog target was saved, but the full or unavailable audit queue could not take a record, so this change is not recorded in the audit; start the instance and check delivery with `audit stats`\n")
+            return 3
     finally:
         os.close(descriptor)
     return 0
+
+
+def _syslog_audit_preflight():
+    try:
+        _operator_audit_preflight("gateway", "configure")
+    except ValueError as error:
+        if getattr(error, "operation_diagnostic", None) != "audit-unavailable":
+            raise
+        settings = json.loads(read_private(STATE / "gateway" / "config.json", owner=UIDS["gateway"]))
+        if settings["audit"].get("mode") != "syslog":
+            raise
+        return False
+    return True
 
 def configure_auditor():
     if os.geteuid() != 0:
@@ -256,7 +287,8 @@ def configure(role):
             raise _configuration_error(error, document) from None
         if role == "helper":
             write_private(staging / "inventory.json", json.dumps(document["inventory"]).encode())
-            _validate_helper_inventory(staging / "inventory.json", store)
+            for warning in _validate_helper_inventory(staging / "inventory.json", store):
+                print("Warning: " + warning, file=sys.stderr)
             values = {"inventory.json": document["inventory"], "vault.json": document["vault"]}
         else:
             if not isinstance(document["config"], dict):
@@ -346,7 +378,8 @@ def role_cli(role, arguments):
         role_environment(role)
         if role == "admin":
             from netops_admin.cli import main
-            state_commands = {"apply", "preview", "doctor", "enroll", "status", "recover", "notify-retry", "unblock", "undo"}
+            state_commands = {"apply", "preview", "doctor", "enroll", "status", "recover", "notify-retry", "unblock", "undo",
+                              "pool-member", "pool-member-add", "pool-member-remove"}
             if arguments and arguments[0] in state_commands:
                 arguments = [arguments[0], "--config", str(STATE / role / "config.json"), *arguments[1:]]
             return main(arguments, require_export=False)

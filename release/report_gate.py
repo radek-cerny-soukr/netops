@@ -166,19 +166,13 @@ def variants(text, decode_base64=True):
                 if decoded is None:
                     continue
                 decoded, textual = decoded
-                if not textual:
-                    yield decoded, None, None
-                elif decoded != current:
+                if not textual or decoded != current:
                     yield decoded, "unusable text encoding", True
 
         for decoded, failure, is_base64 in next_variants():
             if decoded is None:
                 return found, failure
             if decoded in seen:
-                continue
-            if is_base64 is None:
-                seen.add(decoded)
-                found.append(decoded)
                 continue
             if depth >= DECODE_LIMIT:
                 return found, failure
@@ -273,8 +267,13 @@ def main():
     args = parser.parse_args()
     markers = privacy_rules()
     asset_names = {name.lower() for name in os.listdir(args.directory) if ASSET_NAME.fullmatch(name)}
+    names = sorted(os.listdir(args.directory))
+    if not names:
+        print("FAIL no release assets in the directory")
+        print("report_gate=FAIL")
+        return 1
     failed = 0
-    for name in sorted(os.listdir(args.directory)):
+    for name in names:
         path = os.path.join(args.directory, name)
         info = os.lstat(path)
         if not stat.S_ISREG(info.st_mode):

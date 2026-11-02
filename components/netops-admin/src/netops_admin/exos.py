@@ -279,7 +279,13 @@ def safeguard_names(change_id: str) -> dict:
     return {"profile": base + "p", "timer": base + "t"}
 
 
+EXPANDED = "$("
+EXPANDED_REFUSAL = "text with $( cannot be restored as a literal value by the timed safeguard"
+
+
 def safeguard_script(inverse):
+    if any(EXPANDED in line for line in inverse):
+        raise Rejected([EXPANDED_REFUSAL])
     return ["configure cli mode persistent", "configure cli mode scripting ignore-error"] + [line.strip() for line in inverse]
 
 

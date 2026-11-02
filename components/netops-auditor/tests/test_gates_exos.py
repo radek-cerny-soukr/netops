@@ -27,7 +27,7 @@ NOW = datetime(2026, 9, 17, 12, 0, 0, tzinfo=timezone.utc)
 RULES = tuple(r for r in load_catalog(PLATFORM) if ".management." not in r.id)
 RULE_IDS = tuple(rule.id for rule in RULES)
 
-MARKERS = tuple("KANARCI-TAJEMSTVI-EXOS-%02d" % number for number in range(1, 12))
+MARKERS = tuple("CANARY-SECRET-EXOS-%02d" % number for number in range(1, 12))
 
 DEFECTS = {
     "exos.time.no-sntp-client": (
@@ -65,6 +65,12 @@ configure snmp add community readonly public
 # Module telnetd configuration.
 #
 disable telnet
+#
+# Module ems configuration.
+#
+#
+# Module netTools configuration.
+#
 '''
 
 VOLATILE_FIRST = "JDEkRVhBTVBMRTAxJGV4YW1wbGVoYXNoQTAx"

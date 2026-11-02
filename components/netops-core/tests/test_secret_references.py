@@ -8,7 +8,7 @@ import pytest
 
 from netops_core import inventory, vault
 
-CANARY = "KANAREK-OMYLEM-VLOZENE-HESLO"
+CANARY = "CANARY-PASSWORD-PASTED-BY-MISTAKE"
 PIN = "SHA256:" + "A" * 43
 DEVICE = {
     "name": "fw-a.example.invalid",

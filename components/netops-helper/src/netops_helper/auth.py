@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from base64 import urlsafe_b64decode
 from dataclasses import dataclass, field
-import hmac
+from .config_limits import ConfigurationLimits
 import ipaddress
 import json
 from pathlib import PurePosixPath
@@ -15,6 +15,7 @@ from netops_core.hostkey import HostKeyError, checked_pin
 from netops_core.legacy_ssh import LegacySshError, checked as checked_legacy_ssh
 from netops_core.platforms import PlatformError, normalize as normalize_canonical_platform
 from netops_core.vault import PRIVATE_KEY_HEADER
+from netops_core.snmp import validate_snmp_usm
 
 from .inventory import unique_object
 from .read_policy import (
@@ -55,7 +56,7 @@ LEGACY_SSH_PROFILES = ("rsa-sha1", "rsa-sha1-dh14")
 ENVELOPE_VERSION = "0.3.0"
 CREDENTIAL_KINDS = ("password", "ssh-key")
 _CATALOG_PLATFORMS = {"fortios": "fortinet", "exos": "extreme_exos"}
-ADMIN_BOUNDED_PLATFORMS = frozenset({"ruckus_unleashed"})
+ADMIN_BOUNDED_PLATFORMS = frozenset({"fortinet", "fortiadc", "ruckus_unleashed"})
 _ENVELOPE_KEYS = {
     "alias",
     "host",
@@ -66,14 +67,16 @@ _ENVELOPE_KEYS = {
     "host_key_fingerprint",
     "sftp_roots",
     "read_inventory",
+    "configuration_limits",
     "account_role",
     "role_boundary",
     "fortios_output_standard_verified",
-    "snmp_community",
+    "snmp_usm",
     "ssh_platform",
     "enabled_queries",
     "legacy_ssh",
     "egress",
+    "tls_ca_certificate",
 }
 _EGRESS_KEYS = {
     "addresses",
@@ -266,7 +269,7 @@ def _normalize_egress(value: object) -> EgressPolicy:
 
 def _normalize_inventory(value: object) -> dict[str, tuple[str, ...]]:
     if not isinstance(value, dict) or any(
-        key not in {"interfaces", "services", "addresses", "switches", "vlans", "managed_switches", "certificates", "schema_paths", "diagnostic_recipes", "diagnostic_vdoms", "config_access"}
+        key not in {"interfaces", "services", "addresses", "switches", "vlans", "managed_switches", "managed_switch_ports", "managed_switch_trunks", "certificates", "firewall_addresses", "nat_pools", "wireless_clients", "flow_ports", "ip_protocols", "policy_types", "sdwan_members", "sdwan_rules", "sdwan_health_checks", "link_monitors", "schema_paths", "diagnostic_recipes", "diagnostic_vdoms", "config_access", "diagnostic_names", "diagnostic_http_endpoints", "adc_health_checks", "adc_vdoms", "adc_virtual_servers", "diagnostic_virtual_servers"}
         or not isinstance(values, list)
         or not all(isinstance(item, str) for item in values)
         for key, values in value.items()
@@ -366,11 +369,13 @@ class TargetAuth:
     account_role: str = "read-only"
     role_boundary: str | None = None
     fortios_output_standard_verified: bool = False
-    snmp_community: str | None = None
+    snmp_usm: dict[str, str] | None = field(default=None, repr=False)
     ssh_platform: str | None = None
     enabled_queries: tuple[str, ...] = ()
     egress: EgressPolicy = field(default_factory=EgressPolicy)
     legacy_ssh: str | None = None
+    configuration_limits: ConfigurationLimits = field(default_factory=ConfigurationLimits)
+    tls_ca_certificate: str | None = None
 
     @classmethod
     def decode(cls, expected_alias: str, context: str) -> "TargetAuth":
@@ -427,13 +432,9 @@ class TargetAuth:
                 read_inventory,
             )
 
-            snmp_community = data.get("snmp_community")
-            if "snmp_community" in data and (
-                not isinstance(snmp_community, str)
-                or not 3 <= len(snmp_community.encode("utf-8")) <= 255
-                or any(ord(char) < 32 or ord(char) == 127 for char in snmp_community)
-            ):
-                raise ValueError("snmp_community must contain 3-255 printable UTF-8 bytes")
+            snmp_usm = (
+                validate_snmp_usm(data["snmp_usm"]) if "snmp_usm" in data else None
+            )
 
             roots = data.get("sftp_roots", [])
             if (
@@ -453,6 +454,15 @@ class TargetAuth:
                     raise ValueError("sftp_roots contains an unsafe root")
             normalized_roots = tuple(roots)
 
+            tls_ca = data.get("tls_ca_certificate")
+            if tls_ca is not None and (
+                not isinstance(tls_ca, str) or not tls_ca.startswith("/")
+                or tls_ca.startswith("//") or tls_ca != str(PurePosixPath(tls_ca))
+                or len(tls_ca) > 2_000 or ".." in PurePosixPath(tls_ca).parts
+                or any(ord(char) < 32 or ord(char) == 127 for char in tls_ca)
+            ):
+                raise ValueError("tls_ca_certificate must be a canonical absolute path")
+
             result = cls(
                 alias=alias,
                 host=host,
@@ -463,14 +473,16 @@ class TargetAuth:
                 credential_kind=credential_kind,
                 sftp_roots=normalized_roots,
                 read_inventory=read_inventory,
+                configuration_limits=ConfigurationLimits.from_mapping(data.get("configuration_limits", {})),
                 account_role=account_role,
                 role_boundary=data.get("role_boundary"),
                 fortios_output_standard_verified=verified,
-                snmp_community=snmp_community,
+                snmp_usm=snmp_usm,
                 ssh_platform=ssh_platform,
                 enabled_queries=enabled_queries,
                 egress=egress,
                 legacy_ssh=legacy_ssh,
+                tls_ca_certificate=tls_ca,
             )
         except (
             KeyError, TypeError, ValueError, UnicodeError, RecursionError,
@@ -490,15 +502,8 @@ class TargetAuth:
         ):
             raise AuthenticationContextError(
                 "target is not explicitly enrolled as a read-only account or as an"
-                " admin-bounded account of a platform without one"
+                " admin-bounded account on a supported platform"
             )
-        if (
-            result.snmp_community is not None
-            and hmac.compare_digest(
-                result.snmp_community.encode("utf-8"), result.secret.encode("utf-8")
-            )
-        ):
-            raise AuthenticationMaterialError("SNMP community must differ from the account password")
         literal_host = _canonical_ipv4(result.host)
         if literal_host is not None:
             if not result.egress.allows_address(literal_host):
@@ -509,32 +514,13 @@ class TargetAuth:
             )
         return result
 
-    def require_snmp_community(self) -> str:
-        community = self.snmp_community
-        password = self.secret
-        if community is None:
-            raise AuthenticationMaterialError("SNMP community is not enrolled for this target")
-        if not isinstance(community, str) or not isinstance(password, str):
-            raise AuthenticationMaterialError(
-                "SNMP authentication material has an unsafe structure"
-            )
+    def require_snmp_usm(self) -> dict[str, str]:
         try:
-            community_bytes = community.encode("utf-8")
-            password_bytes = password.encode("utf-8")
-        except UnicodeError as exc:
+            return validate_snmp_usm(self.snmp_usm)
+        except ValueError:
             raise AuthenticationMaterialError(
-                "SNMP authentication material has an unsafe structure"
-            ) from exc
-        if (
-            not 3 <= len(community_bytes) <= 255
-            or any(ord(char) < 32 or ord(char) == 127 for char in community)
-        ):
-            raise AuthenticationMaterialError("SNMP community has an unsafe structure")
-        if hmac.compare_digest(community_bytes, password_bytes):
-            raise AuthenticationMaterialError(
-                "SNMP community must differ from the account password"
-            )
-        return community
+                "SNMPv3 authPriv material is absent or invalid"
+            ) from None
 
     def require_ssh_query(self, platform: str, query: str) -> str:
         normalized = normalize_platform(platform)
@@ -586,6 +572,8 @@ class TargetAuth:
     @property
     def secrets(self) -> tuple[str, ...]:
         """Only credentials are secrets; diagnostic identifiers must remain observable."""
+        usm = self.snmp_usm if isinstance(self.snmp_usm, dict) else {}
         return tuple(dict.fromkeys(
-            value for value in (self.secret, self.snmp_community) if value
+            value for value in (self.secret, usm.get("auth_key"), usm.get("priv_key"))
+            if isinstance(value, str) and value
         ))

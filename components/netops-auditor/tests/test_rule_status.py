@@ -7,9 +7,10 @@ import pytest
 from netops_auditor import cli, collect, l1_exos, management, sarif
 from netops_auditor.engine import load_catalog
 from netops_auditor.store import Store
-from test_cli import TENANT, DEVICE, clean_text, file_inventory, gather, invoke, run_args, write_config
+from test_cli import TENANT, DEVICE, clean_text, complete, file_inventory, gather, invoke, run_args, write_config
 
 EXOS_BASE = (
+    "#\n# Module snmpMaster configuration.\n#\n"
     "#\n# Module vlan configuration.\n#\n"
     'create vlan "users"\nconfigure vlan users tag 10\n'
     "configure vlan users add ports 10 untagged\n"
@@ -36,7 +37,7 @@ def statuses(report, value):
     return sorted(rule for rule, item in report["rule_status"].items() if item["status"] == value)
 
 
-def test_a1_all_and_slot_ranges_without_port_inventory_are_not_evaluated_not_a_crash(tmp_path, capsys):
+def test_all_and_slot_ranges_without_port_inventory_are_not_evaluated_not_a_crash(tmp_path, capsys):
     text = EXOS_BASE + 'create vlan "v10"\nconfigure vlan v10 tag 11\nconfigure vlan v10 add ports all tagged\n'
     text += 'configure ports 1:1-2:4 display-string "uplink"\n'
     code, report, err = exos(capsys, tmp_path, text, name="bare.conf")
@@ -52,7 +53,7 @@ def test_a1_all_and_slot_ranges_without_port_inventory_are_not_evaluated_not_a_c
     assert not [f for f in report["findings"] if f["rule_id"] in MEMBERSHIP]
 
 
-def test_a1_unresolved_mandatory_rule_is_a_refusal_not_a_traceback(tmp_path, capsys):
+def test_unresolved_mandatory_rule_is_a_refusal_not_a_traceback(tmp_path, capsys):
     text = EXOS_BASE + "configure vlan users add ports all tagged\n"
     policy = {"required_rules": ["port-policy"], "port_vlans": {"10": {"tagged": [], "untagged": ["users"]}}}
     code, report, err = exos(capsys, tmp_path, text, policy)
@@ -60,7 +61,7 @@ def test_a1_unresolved_mandatory_rule_is_a_refusal_not_a_traceback(tmp_path, cap
     assert err == "error: mandatory policy rules not evaluated: port-policy\n"
 
 
-def test_a1_port_inventory_of_the_snapshot_resolves_all_and_slot_ranges(tmp_path, capsys):
+def test_port_inventory_of_the_snapshot_resolves_all_and_slot_ranges(tmp_path, capsys):
     text = EXOS_BASE.replace("ports 10 untagged", "ports 1:2-2:1 untagged")
     text = text.replace("#\n# Module vlan configuration.\n#\n",
                         "#\n# Module vlan configuration.\n#\nconfigure vr VR-Default delete ports 1:1-1:4,2:1-2:4\n")
@@ -94,8 +95,8 @@ UPM_BODY = (
 
 
 def test_netops_009_upm_profile_body_is_not_active_configuration(tmp_path, capsys):
-    _, plain, _ = exos(capsys, tmp_path, UPM_ACTIVE, name="plain.conf")
-    _, wrapped, _ = exos(capsys, tmp_path, UPM_ACTIVE + UPM_BODY + ".\n", name="upm.conf")
+    _, plain, _ = exos(capsys, tmp_path, complete(UPM_ACTIVE, "exos"), name="plain.conf")
+    _, wrapped, _ = exos(capsys, tmp_path, complete(UPM_ACTIVE + UPM_BODY + ".\n", "exos"), name="upm.conf")
     expected = ["exos.logging.no-syslog-target", "exos.mgmt.telnet-enabled", "exos.time.no-sntp-client"]
     assert sorted(f["rule_id"] for f in plain["findings"]) == expected
     assert sorted(f["rule_id"] for f in wrapped["findings"]) == expected
@@ -170,13 +171,13 @@ def test_netops_012_coverage_follows_the_evaluated_content_not_the_module_header
 
 
 def test_netops_012_module_header_without_content_is_not_evaluated(tmp_path, capsys):
-    code, report, _ = exos(capsys, tmp_path, "#\n# Module vlan configuration.\n#\n", N012_POLICY)
+    code, report, _ = exos(capsys, tmp_path, complete("#\n# Module vlan configuration.\n#\n", "exos"), N012_POLICY)
     assert set(report["rule_coverage"].values()) == {"not-evaluated"}
     assert code == 0
     assert {report["rule_status"][rule]["reason"] for rule in N012_RULES} == {"no-vlan-content"}
     assert management_view(report)[0] == []
     required = dict(N012_POLICY, required_rules=["port-policy"])
-    code, report, err = exos(capsys, tmp_path, "#\n# Module vlan configuration.\n#\n", required)
+    code, report, err = exos(capsys, tmp_path, complete("#\n# Module vlan configuration.\n#\n", "exos"), required)
     assert (code, report) == (2, None)
     assert "mandatory policy rules not evaluated: port-policy" in err
 
@@ -246,7 +247,7 @@ def test_netops_016_policy_history_is_checked_inside_the_write_transaction(tmp_p
     assert len(history(store)) == 1
 
 
-def test_k6_every_rule_carries_a_status_in_json_sarif_and_store(tmp_path, capsys):
+def test_every_rule_carries_a_status_in_json_sarif_and_store(tmp_path, capsys):
     store = tmp_path / "audit.sqlite"
     config = write_config(tmp_path, clean_text())
     code, out, _ = invoke(capsys, run_args(config, as_json=True, store=store))
@@ -267,7 +268,7 @@ def test_k6_every_rule_carries_a_status_in_json_sarif_and_store(tmp_path, capsys
         assert db.rule_status_for_run(TENANT, run_id) == report["rule_status"]
 
 
-def test_k6_findings_of_a_rule_that_could_not_evaluate_are_not_reported_gone(tmp_path, capsys):
+def test_findings_of_a_rule_that_could_not_evaluate_are_not_reported_gone(tmp_path, capsys):
     store = tmp_path / "audit.sqlite"
     policy = {"port_vlans": {"10": {"tagged": [], "untagged": ["guest"]}, "11": {"tagged": [], "untagged": ["users"]}}}
     _, first, _ = exos(capsys, tmp_path, EXOS_BASE, policy, store=store)
@@ -279,7 +280,7 @@ def test_k6_findings_of_a_rule_that_could_not_evaluate_are_not_reported_gone(tmp
     assert sorted(item["rule_id"] for item in second["not_evaluated"]) == sorted(MEMBERSHIP)
 
 
-def test_k6_status_of_a_stored_run_with_an_unevaluated_catalog_is_incomplete(tmp_path, capsys):
+def test_status_of_a_stored_run_with_an_unevaluated_catalog_is_incomplete(tmp_path, capsys):
     from datetime import datetime, timezone
     from netops_auditor import query
     store = tmp_path / "audit.sqlite"

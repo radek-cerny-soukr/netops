@@ -116,3 +116,63 @@ def test_apply_refuses_a_display_string_on_a_port_of_a_protected_vlan_of_the_dev
     record = execute.apply(runtime, "sw", request(table="ports", op="update", key="6", changes={"display-string": "desk"},
                                                   request_id="req-port-six"))
     assert record["result"] == "confirmed" and device.port_strings["6"] == "desk"
+
+
+ADDRGRP = "config firewall addrgrp\n"
+
+
+def nested(snapshot, *groups):
+    text = "".join('    edit "%s"\n        set uuid 00000000-0000-4000-8000-0000000000%02x\n        set member %s\n    next\n'
+                   % (name, 0xa0 + index, " ".join('"%s"' % item for item in members))
+                   for index, (name, members) in enumerate(groups))
+    return replace(snapshot, ADDRGRP, ADDRGRP + text)
+
+
+def test_group_nested_in_a_protected_group_is_refused(fortios_snapshot):
+    snapshot = nested(fortios_snapshot, ("admin-hosts", ["servers"]))
+    rejected(snapshot, REFERENCE + " 'admin-hosts'", protected={"firewall addrgrp": ["admin-hosts"]},
+             table="firewall addrgrp", op="update", key="servers", changes={"member": ["grouped-host", "lab-net"]})
+
+
+def test_group_nested_two_levels_below_a_protected_group_is_refused(fortios_snapshot):
+    snapshot = nested(fortios_snapshot, ("admin-hosts", ["middle"]), ("middle", ["servers"]))
+    rejected(snapshot, REFERENCE + " 'admin-hosts'", protected={"firewall addrgrp": ["Admin-Hosts"]},
+             table="firewall addrgrp", op="update", key="servers", changes={"member": ["grouped-host", "lab-net"]})
+
+
+def test_group_outside_a_protected_group_and_comment_of_its_member_are_planned(fortios_snapshot):
+    snapshot = nested(fortios_snapshot, ("admin-hosts", ["servers"]), ("lab-group", ["lab-net"]))
+    protected = {"firewall addrgrp": ["admin-hosts"]}
+    document = plan(snapshot, protected=protected, table="firewall addrgrp", op="update", key="lab-group",
+                    changes={"member": ["lab-net", "spare-host"]})
+    assert document["predicted"]["after"] == {"member": "lab-net spare-host"}
+    document = plan(snapshot, protected=protected, table="firewall address", op="update", key="grouped-host",
+                    changes={"comment": "member host"})
+    assert document["predicted"]["after"]["comment"] == "member host"
+
+
+def test_group_excluded_from_a_protected_group_is_refused(fortios_snapshot):
+    text = ('    edit "admin-hosts"\n        set uuid 00000000-0000-4000-8000-0000000000b0\n'
+            '        set member "lab-net"\n        set exclude enable\n        set exclude-member "servers"\n    next\n')
+    snapshot = replace(fortios_snapshot, ADDRGRP, ADDRGRP + text)
+    rejected(snapshot, REFERENCE + " 'admin-hosts'", protected={"firewall addrgrp": ["admin-hosts"]},
+             table="firewall addrgrp", op="update", key="servers", changes={"member": ["grouped-host", "lab-net"]})
+
+
+def nested_member(fortios_snapshot, members, *groups):
+    snapshot = replace(fortios_snapshot, GROUP, "        set member %s" % " ".join('"%s"' % item for item in members))
+    return nested(snapshot, *groups)
+
+
+@pytest.mark.parametrize("members", [["lab-net"], ["inner", "spare-host"]], ids=["removed", "kept"])
+def test_group_holding_a_protected_address_through_a_subgroup_is_refused(fortios_snapshot, members):
+    snapshot = nested_member(fortios_snapshot, ["inner", "lab-net"], ("inner", ["deep"]), ("deep", ["srv-web"]))
+    rejected(snapshot, REFERENCE + " 'srv-web'", protected={"firewall address": ["SRV-Web"]},
+             table="firewall addrgrp", op="update", key="servers", changes={"member": members})
+
+
+def test_group_whose_subgroups_hold_no_protected_address_is_planned(fortios_snapshot):
+    snapshot = nested_member(fortios_snapshot, ["inner", "lab-net"], ("inner", ["spare-host"]))
+    document = plan(snapshot, protected={"firewall address": ["srv-web"]}, table="firewall addrgrp",
+                    op="update", key="servers", changes={"member": ["lab-net"]})
+    assert document["predicted"]["after"] == {"member": "lab-net"}

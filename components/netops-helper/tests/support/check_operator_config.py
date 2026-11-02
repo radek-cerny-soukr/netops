@@ -165,7 +165,7 @@ def _checked_coverage(label: str, enrolled: list, policy: dict) -> None:
                 )
 
 
-def check(paths: dict) -> dict:
+def check(paths: dict, warnings: list | None = None) -> dict:
     for label in FILES:
         _require_regular_file(label, paths[label])
 
@@ -177,6 +177,17 @@ def check(paths: dict) -> dict:
 
     kinds = {name: vault.credential(name).kind for name in vault.names()}
     enrolled = [(entry, _section("inventory.json", entry, kinds)) for entry in helper_devices]
+    for entry, section in enrolled:
+        if warnings is not None:
+            warnings.extend(helper_inventory.section_warnings(entry.name, section))
+        if section.snmp_credential is not None and kinds[section.snmp_credential] != core_vault.SNMP_KIND:
+            raise _error(
+                "inventory.json",
+                "device %r: snmp_credential %r is a legacy SNMPv1/v2c community record; create a vault"
+                " record of kind snmpv3-authpriv (user, auth_protocol sha256, priv_protocol aes128,"
+                " auth key and priv key) and point helper.snmp_credential to it"
+                % (entry.name, section.snmp_credential),
+            )
 
     runner = _runner_document("runner.json", paths["runner.json"])
     runner_kind = kinds.get(runner["credential"])
@@ -237,10 +248,13 @@ def main() -> int:
         )
         return 1
     try:
-        summary = check(paths)
+        warnings = []
+        summary = check(paths, warnings)
     except PreflightError as error:
         print("operator_config_check=failed detail=%s" % error, file=sys.stderr)
         return 1
+    for warning in warnings:
+        print("operator_config_warning=%s" % warning, file=sys.stderr)
     print(
         "operator_config_check=passed devices=%d credentials=%d"
         % (summary["devices"], summary["credentials"])

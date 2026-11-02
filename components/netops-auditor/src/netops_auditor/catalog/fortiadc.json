@@ -1,0 +1,151 @@
+{
+  "platform": "fortiadc",
+  "rules": [
+    {
+      "id": "fortiadc.scope.unsupported-version",
+      "version": 1,
+      "check": "fortiadc_unsupported_version",
+      "sections": [],
+      "class": "fakt",
+      "severity": "high",
+      "scope_gate": true,
+      "evidence_fields": [
+        "reason",
+        "platform",
+        "version",
+        "build"
+      ],
+      "title": "The snapshot carries no measured identity or not exactly FortiADC-KVM 7.6.7 build 0676, so no other rule of the catalog was evaluated over it.",
+      "remediation": "Audit a snapshot read from FortiADC-KVM 7.6.7 build 0676 and pass its metadata with --snapshot-meta.",
+      "refs": [
+        "FortiADC 7.6.7 CLI Reference: get system status (379949)"
+      ],
+      "known_false_positives": "The identity comes from the metadata file bound to the snapshot digest, never from the configuration text; a metadata file written by hand is trusted as far as the operator who wrote it."
+    },
+    {
+      "id": "fortiadc.scope.vdom-unsupported",
+      "version": 1,
+      "check": "fortiadc_vdom_unsupported",
+      "sections": [],
+      "class": "fakt",
+      "severity": "high",
+      "scope_gate": true,
+      "evidence_fields": [
+        "reason",
+        "vdoms"
+      ],
+      "title": "The configuration is organized into VDOMs or wrapped in a global or vdom block, a scope this catalog does not read, so no other rule of the catalog was evaluated over it.",
+      "remediation": "Audit a single-VDOM configuration or each VDOM separately once the catalog supports it.",
+      "refs": [
+        "FortiADC 7.6.7 CLI Reference: config system vdom (42122)"
+      ],
+      "known_false_positives": "Fires on any vdom or global block and on more than one system vdom entry; how a real FortiADC export names the VDOM scopes has not been measured."
+    },
+    {
+      "id": "fortiadc.mgmt.trusted-hosts-open",
+      "version": 1,
+      "check": "fortiadc_trusted_hosts_open",
+      "sections": [],
+      "class": "fakt",
+      "severity": "medium",
+      "evidence_fields": [
+        "admin",
+        "trusted_hosts"
+      ],
+      "title": "An administrator account explicitly allows management logins from any address.",
+      "remediation": "Restrict trusted-hosts of the account to the management networks.",
+      "refs": [
+        "FortiADC 7.6.7 CLI Reference: config system admin (548549)"
+      ],
+      "known_false_positives": "Only an explicit open trusted-hosts is reported; the default is documented by an example only, so an account without the attribute makes the rule not evaluated. The accepted notations are 0.0.0.0/0, ::/0 and the pair 0.0.0.0 0.0.0.0."
+    },
+    {
+      "id": "fortiadc.mgmt.plaintext-admin-access",
+      "version": 1,
+      "check": "fortiadc_plaintext_admin_access",
+      "sections": [],
+      "class": "fakt",
+      "severity": "medium",
+      "evidence_fields": [
+        "interface",
+        "service"
+      ],
+      "title": "An interface explicitly allows management over a plaintext protocol (http or telnet).",
+      "remediation": "Remove http and telnet from allowaccess of the interface.",
+      "refs": [
+        "FortiADC 7.6.7 CLI Reference: config system interface (202041)"
+      ],
+      "known_false_positives": "Only an explicit allowaccess is read; the default is not documented, so an interface without it makes the rule not evaluated. Which access-profile area covers system interface is not confirmed, so both system and networking limit the rule."
+    },
+    {
+      "id": "fortiadc.tls.legacy-versions",
+      "version": 1,
+      "check": "fortiadc_legacy_tls_versions",
+      "sections": [],
+      "class": "fakt",
+      "severity": "medium",
+      "evidence_fields": [
+        "profile",
+        "versions"
+      ],
+      "title": "A client SSL profile explicitly allows SSLv3, TLS 1.0 or TLS 1.1.",
+      "remediation": "Limit ssl-allowed-versions of the profile to tlsv1.2 and tlsv1.3.",
+      "refs": [
+        "FortiADC 7.6.7 CLI Reference: config load-balance client-ssl-profile (774093)"
+      ],
+      "known_false_positives": "Only an explicit ssl-allowed-versions is read; the example value of the reference is not a default. Predefined profiles are not part of show and are not judged."
+    },
+    {
+      "id": "fortiadc.tls.factory-certificate",
+      "version": 1,
+      "check": "fortiadc_factory_certificate",
+      "sections": [],
+      "class": "fakt",
+      "severity": "medium",
+      "evidence_fields": [
+        "group"
+      ],
+      "title": "Certificate group bound to a client SSL profile is reported for diagnosis; a factory origin is never concluded from a name such as default.",
+      "remediation": "Confirm the origin of the certificate with the vendor tooling before judging it.",
+      "refs": [
+        "FortiADC 7.6.7 CLI Reference: config load-balance client-ssl-profile (774093)",
+        "FortiADC 7.6.7 CLI Reference: config system certificate local-cert-group (352203)"
+      ],
+      "known_false_positives": "Always not evaluated: the reference defines default only as the default member of a certificate group and does not prove a factory origin; the bindings are listed in the status reason."
+    },
+    {
+      "id": "fortiadc.lb.pool-no-health-check",
+      "version": 1,
+      "check": "fortiadc_pool_no_health_check",
+      "sections": [],
+      "class": "fakt",
+      "severity": "low",
+      "evidence_fields": [
+        "pool"
+      ],
+      "title": "A real server pool explicitly disables health checking.",
+      "remediation": "Enable health-check-ctrl and attach a health check to the pool.",
+      "refs": [
+        "FortiADC 7.6.7 CLI Reference: config load-balance pool (445091)"
+      ],
+      "known_false_positives": "Only an explicit disable is reported; the default is documented by an example only, so a pool without the attribute makes the rule not evaluated."
+    },
+    {
+      "id": "fortiadc.lb.pool-single-member",
+      "version": 1,
+      "check": "fortiadc_pool_single_member",
+      "sections": [],
+      "class": "fakt",
+      "severity": "low",
+      "evidence_fields": [
+        "pool"
+      ],
+      "title": "A real server pool has exactly one member.",
+      "remediation": "Add a second member or accept the single point of failure.",
+      "refs": [
+        "FortiADC 7.6.7 CLI Reference: config load-balance pool (445091)"
+      ],
+      "known_false_positives": "A deliberately single-server service is reported as well."
+    }
+  ]
+}

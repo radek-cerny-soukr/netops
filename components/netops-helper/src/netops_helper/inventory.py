@@ -2,13 +2,16 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import ipaddress
-from pathlib import PurePosixPath
+from pathlib import Path, PurePosixPath
 import re
+import ssl
 from typing import Any
 
 from netops_core import inventory as core
+
+from .config_limits import ConfigurationLimits
 
 from .read_policy import (
     PLATFORM_MAP,
@@ -19,18 +22,23 @@ from .read_policy import (
 )
 
 CONSUMER = "helper"
+TLS_CERT_DIR = Path("/etc/netops-helper/certs")
+MAX_TLS_CA_BYTES = 64 * 1024
+TLS_CA_FIELD = "inventory.devices[].helper.tls_ca_certificate"
 FILE_VERSION = core.FILE_VERSION
 SECTION_FIELDS = (
     "account_role",
     "ssh_platform",
     "enabled_queries",
     "read_inventory",
+    "configuration_limits",
     "sftp_roots",
     "fortios_output_standard_verified",
     "rate_limit",
     "egress",
     "snmp_credential",
     "role_boundary",
+    "tls_ca_certificate",
 )
 REQUIRED_SECTION_FIELDS = (
     "account_role", "ssh_platform", "enabled_queries", "egress",
@@ -58,11 +66,12 @@ EGRESS_POLICY_FIELDS = (
 ACCOUNT_ROLE = "read-only"
 ADMIN_BOUNDED_ROLE = "admin-bounded"
 CATALOGUE_ROLE_BOUNDARY = "catalogue"
-PLATFORMS_WITHOUT_READ_ONLY_ROLE = frozenset({"ruckus_unleashed"})
+ADMIN_BOUNDED_PLATFORMS = frozenset({"fortios", "fortiadc", "ruckus_unleashed"})
 CATALOG_PLATFORMS = {"fortios": "fortinet", "exos": "extreme_exos"}
 CREDENTIAL_KINDS = ("password", "ssh-key")
-SNMP_CREDENTIAL_KIND = "snmp-community"
-INVENTORY_CATEGORIES = ("interfaces", "services", "addresses", "switches", "vlans", "managed_switches", "certificates", "schema_paths", "diagnostic_recipes", "diagnostic_vdoms", "config_access")
+SNMP_CREDENTIAL_KIND = "snmpv3-authpriv"
+SNMP_LEGACY_KIND = "snmp-community"
+INVENTORY_CATEGORIES = ("interfaces", "services", "addresses", "switches", "vlans", "managed_switches", "managed_switch_ports", "managed_switch_trunks", "certificates", "firewall_addresses", "nat_pools", "wireless_clients", "flow_ports", "ip_protocols", "policy_types", "sdwan_members", "sdwan_rules", "sdwan_health_checks", "link_monitors", "schema_paths", "diagnostic_recipes", "diagnostic_vdoms", "diagnostic_virtual_servers", "diagnostic_names", "diagnostic_http_endpoints", "adc_health_checks", "config_access", "adc_vdoms", "adc_virtual_servers")
 POLICY_SCHEMA = 1
 BACKEND = "iptables"
 BRIDGE_NAME = "nh-egress0"
@@ -124,6 +133,8 @@ class HelperSection:
     egress: dict
     snmp_credential: str | None
     role_boundary: str | None = None
+    configuration_limits: ConfigurationLimits = field(default_factory=ConfigurationLimits)
+    tls_ca_certificate: str | None = None
 
     def catalog_platform(self) -> str | None:
         return catalog_platform(self.ssh_platform)
@@ -455,7 +466,7 @@ def _checked_snmp_credential(where: str, value: Any, kinds: dict | None) -> str 
                 "%s: snmp_credential names no record of the credential store; the value is not"
                 " repeated, a value that names no record may be a misplaced secret" % where
             )
-        if kind != SNMP_CREDENTIAL_KIND:
+        if kind not in (SNMP_CREDENTIAL_KIND, SNMP_LEGACY_KIND):
             raise InventoryError(
                 "%s: snmp_credential %r has kind %s, it must be %s"
                 % (where, value, kind, SNMP_CREDENTIAL_KIND)
@@ -512,14 +523,74 @@ def _checked_role_boundary(
             "%s: account_role %r requires role_boundary %r, got %r"
             % (where, ADMIN_BOUNDED_ROLE, CATALOGUE_ROLE_BOUNDARY, item.get("role_boundary"))
         )
-    if platform not in PLATFORMS_WITHOUT_READ_ONLY_ROLE:
+    if platform not in ADMIN_BOUNDED_PLATFORMS:
         raise RoleError(
-            "%s: account_role %r is accepted only for an ssh_platform without a read-only"
+            "%s: account_role %r is accepted only for a supported ssh_platform"
             " account (%s); use %r, got ssh_platform %r"
-            % (where, ADMIN_BOUNDED_ROLE, ", ".join(sorted(PLATFORMS_WITHOUT_READ_ONLY_ROLE)),
+            % (where, ADMIN_BOUNDED_ROLE, ", ".join(sorted(ADMIN_BOUNDED_PLATFORMS)),
                ACCOUNT_ROLE, platform)
         )
     return CATALOGUE_ROLE_BOUNDARY
+
+
+def _tls_ca_error(message: str, code: str) -> InventoryError:
+    return InventoryError(message, field=TLS_CA_FIELD, code=code)
+
+
+def _checked_tls_ca(where: str, value: Any) -> str | None:
+    if value is None:
+        return None
+    if (
+        not isinstance(value, str)
+        or not value.startswith("/")
+        or value.startswith("//")
+        or value != str(PurePosixPath(value))
+        or len(value) > MAX_ROOT_LENGTH
+        or ".." in PurePosixPath(value).parts
+        or any(ord(character) < 32 or ord(character) == 127 for character in value)
+    ):
+        raise _tls_ca_error(
+            "%s: tls_ca_certificate must be a canonical absolute path to a PEM file"
+            " below %s, got %s" % (where, TLS_CERT_DIR, _shape(value)), "tls-ca-path"
+        )
+    if TLS_CERT_DIR not in PurePosixPath(value).parents:
+        raise _tls_ca_error(
+            "%s: tls_ca_certificate must be below %s" % (where, TLS_CERT_DIR), "tls-ca-path"
+        )
+    root = TLS_CERT_DIR.resolve()
+    path = Path(value).resolve()
+    if root not in path.parents:
+        raise _tls_ca_error(
+            "%s: tls_ca_certificate symlink leaves %s" % (where, TLS_CERT_DIR), "tls-ca-symlink"
+        )
+    if not path.is_file():
+        raise _tls_ca_error(
+            "%s: tls_ca_certificate must name an existing regular file below %s"
+            % (where, TLS_CERT_DIR), "tls-ca-missing"
+        )
+    try:
+        with path.open("rb") as handle:
+            content = handle.read(MAX_TLS_CA_BYTES + 1)
+    except OSError:
+        raise _tls_ca_error("%s: tls_ca_certificate is not readable" % where, "tls-ca-read") from None
+    if len(content) > MAX_TLS_CA_BYTES:
+        raise _tls_ca_error("%s: tls_ca_certificate is larger than 64 KiB" % where, "tls-ca-read")
+    if b"PRIVATE KEY" in content:
+        raise _tls_ca_error(
+            "%s: tls_ca_certificate must not hold a private key" % where, "tls-ca-private-key"
+        )
+    blocks = content.count(b"-----BEGIN CERTIFICATE-----")
+    context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+    try:
+        context.load_verify_locations(cadata=content.decode("ascii"))
+    except (UnicodeDecodeError, ssl.SSLError, ValueError):
+        blocks = 0
+    if blocks == 0 or len(context.get_ca_certs()) != blocks:
+        raise _tls_ca_error(
+            "%s: tls_ca_certificate must hold only PEM certificates of certificate"
+            " authorities (basicConstraints CA=true)" % where, "tls-ca-not-ca"
+        )
+    return value
 
 
 def section(entry: Device, kinds: dict | None = None) -> HelperSection:
@@ -550,6 +621,10 @@ def section(entry: Device, kinds: dict | None = None) -> HelperSection:
             "%s: read_inventory does not hold usable values for the enabled queries (%s)"
             % (where, error)
         ) from None
+    try:
+        configuration_limits = ConfigurationLimits.from_mapping(item.get('configuration_limits', {}))
+    except (TypeError, ValueError) as error:
+        raise InventoryError('%s: %s' % (where, str(error))) from None
     verified = item.get("fortios_output_standard_verified", False)
     if not isinstance(verified, bool):
         raise InventoryError(
@@ -567,6 +642,7 @@ def section(entry: Device, kinds: dict | None = None) -> HelperSection:
         ssh_platform=platform,
         enabled_queries=queries,
         read_inventory=read_inventory,
+        configuration_limits=configuration_limits,
         sftp_roots=roots,
         fortios_output_standard_verified=verified,
         rate_limit=_checked_rate_limit(where, item.get("rate_limit", {
@@ -577,7 +653,25 @@ def section(entry: Device, kinds: dict | None = None) -> HelperSection:
         snmp_credential=_checked_snmp_credential(
             where, item.get("snmp_credential"), kinds,
         ),
+        tls_ca_certificate=_checked_tls_ca(where, item.get("tls_ca_certificate")),
     )
+
+
+FORTIOS_READ_ONLY_REFUSED_QUERIES = (
+    "wifi_clients", "wifi_client_detail", "wifi_access_points", "wifi_ap_detail", "wifi_ssid_mapping",
+)
+
+
+def section_warnings(name: str, section: Any) -> list:
+    if section.account_role != ACCOUNT_ROLE or section.ssh_platform != "fortios":
+        return []
+    return [
+        "device %s: query %s is enabled for a read-only FortiOS account, which the device refuses"
+        " with 'Return code -61'; enroll an admin-bounded account (access profile 'wifi read-write'"
+        " and 'cli-diagnose enable') or remove the query" % (name, query)
+        for query in section.enabled_queries
+        if query in FORTIOS_READ_ONLY_REFUSED_QUERIES
+    ]
 
 
 def egress_policy(value: Any, where: str = "egress policy") -> dict:

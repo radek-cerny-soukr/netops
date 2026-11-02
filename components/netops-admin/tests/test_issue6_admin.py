@@ -4,7 +4,7 @@ import datetime
 
 from fake_fortios import FakeFortiOS
 from test_execute import make_runtime, request
-from test_w4_admin_execute import after_check, blind_safeguard, trail
+from test_execute_notify_and_budget import after_check, blind_safeguard, trail
 
 from netops_admin import execute
 

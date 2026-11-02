@@ -128,7 +128,7 @@ def test_admin_access_on_wan_interface_is_reported():
     assert finding.rule_id == "fortios.mgmt.wan-admin-access"
     assert finding.object_key == "system interface/wan1"
     assert finding.line == line_of(text, "set allowaccess ping https")
-    assert dict(finding.evidence) == {"interface": "wan1", "services": "https"}
+    assert dict(finding.evidence) == {"interface": "wan1", "services": "https", "origin": "primary-ipv4"}
 
 
 def test_utm_without_ssl_profile_is_reported():
@@ -140,7 +140,7 @@ def test_utm_without_ssl_profile_is_reported():
 
 
 def test_no_syslog_target_is_reported():
-    text = mutate(clean_text(), "set status enable", "set status disable")
+    text = mutate(clean_text(), "set status enable\n    set server", "set status disable\n    set server")
     finding = single_new_finding(text)
     assert finding.rule_id == "fortios.logging.no-syslog-target"
     assert finding.object_key == "log syslogd setting"
@@ -327,9 +327,9 @@ def test_plaintext_access_on_a_wan_interface_is_reported_by_both_rules():
 
 
 def test_snmp_community_finding_never_carries_the_community_name():
-    text = clean_text() + 'config system snmp community\n    edit 7\n        set name "KANARCI-SNMP"\n    next\nend\n'
+    text = clean_text() + 'config system snmp community\n    edit 7\n        set name "CANARY-SNMP"\n    next\nend\n'
     [finding] = hardening_findings(text, "fortios.snmp.v1v2c-community")
-    assert "KANARCI-SNMP" not in repr(finding.as_dict())
+    assert "CANARY-SNMP" not in repr(finding.as_dict())
     assert finding.object_key == "system snmp community/7"
 
 
@@ -355,3 +355,32 @@ def test_policy_service_all_ignores_a_deny_policy():
     assert len(hardening_findings(text, "fortios.policy.service-all")) == 1
     denied = mutate(text, "        set action accept\n", "        set action deny\n")
     assert hardening_findings(denied, "fortios.policy.service-all") == []
+
+
+SAFEGUARD_RULE = "fortios.mgmt.netops-safeguard-leftover"
+SAFEGUARD_LEFTOVERS = (
+    ("system accprofile", "netops-sg-0123456789ab-p", "accprofile"),
+    ("system api-user", "netops-sg-0123456789ab-u", "api-user"),
+    ("system automation-action", "netops-sg-0123456789ab-a", "automation-action"),
+    ("system automation-trigger", "netops-sg-0123456789ab-t", "automation-trigger"),
+    ("system automation-stitch", "netops-sg-0123456789ab-s", "automation-stitch"),
+)
+
+
+@pytest.mark.parametrize("section,name,kind", SAFEGUARD_LEFTOVERS)
+def test_a_leftover_netops_safeguard_object_is_reported_with_admin_recover(section, name, kind):
+    text = clean_text() + 'config %s\n    edit "%s"\n    next\nend\n' % (section, name)
+    [finding] = hardening_findings(text, SAFEGUARD_RULE)
+    assert dict(finding.evidence) == {"object": kind, "name": name}
+    assert finding.object_key == "%s/%s" % (section, name)
+    assert finding.severity == "high"
+    [rule] = [rule for rule in load_catalog("fortios") if rule.id == SAFEGUARD_RULE]
+    assert "admin recover" in rule.remediation
+
+
+def test_objects_without_the_netops_prefix_are_not_safeguard_leftovers():
+    text = clean_text()
+    for section, name, _kind in SAFEGUARD_LEFTOVERS:
+        text += 'config %s\n    edit "%s"\n    next\nend\n' % (section, name.replace("netops-sg-", "ops-sg-"))
+    text += 'config system automation-stitch\n    edit "backup-netops-sg-x"\n    next\nend\n'
+    assert hardening_findings(text, SAFEGUARD_RULE) == []

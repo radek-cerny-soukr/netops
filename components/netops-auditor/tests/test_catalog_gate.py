@@ -299,7 +299,7 @@ def test_placeholder_key_block_passes(tmp_path):
             (
                 "config vpn certificate local",
                 '    set private-key "-----BEGIN ENCRYPTED PRIVATE KEY-----',
-                "KANARCI-TAJEMSTVI-13",
+                "CANARY-SECRET-13",
                 '-----END ENCRYPTED PRIVATE KEY-----"',
                 "end",
             )

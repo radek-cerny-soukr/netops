@@ -86,6 +86,27 @@ def test_exos_error_answer_stops_the_session():
     assert shell.sent == ["delete vlan guest"]
 
 
+def test_fortios_refusal_names_the_object_the_line_and_the_device_answer():
+    spec = exec_fortios.prompt_spec("fw-lab")
+    shell = Shell([b"fw-lab $ ",
+                   b"config system accprofile\r\nfw-lab (accprofile) $ ",
+                   b'edit "netops-sg-x-p"\r\nnew entry \'netops-sg-x-p\' added\r\nfw-lab (netops-sg-x-p) $ ',
+                   b"set fwgrp read-write\r\nfw-lab (netops-sg-x-p) $ ",
+                   b"next\r\nobject set operator error, -672 discard the setting\r\nCommand fail. Return code -672\r\n"
+                   b"fw-lab (netops-sg-x-p) $ ",
+                   b"never sent"])
+    lines = ["config system accprofile", 'edit "netops-sg-x-p"', "set fwgrp read-write", "next", "end"]
+    try:
+        device_access(shell).apply(lines, spec)
+    except access.AccessError as error:
+        assert error.accepted_lines == 3
+        assert str(error) == ('line 4 (config system accprofile, edit "netops-sg-x-p") was refused by the device:'
+                              " object set operator error, -672 discard the setting | Command fail. Return code -672")
+    else:
+        raise AssertionError("an error answer must stop the session")
+    assert shell.sent == lines[:4]
+
+
 def test_the_check_account_uses_its_own_management_address(monkeypatch):
     calls, scans = [], []
 

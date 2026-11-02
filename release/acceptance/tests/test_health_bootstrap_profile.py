@@ -33,6 +33,8 @@ def fixture():
     rows = [process(100, 1000, 51000, ["/usr/local/bin/python", "/usr/local/bin/netops", "serve"], SHIM)]
     for pid, role, uid in ((101, "helper", 51001), (102, "auditor", 51002), (103, "admin", 51003)):
         rows.append(process(pid, 1000, uid, ["/usr/local/bin/python", "-m", "netops", "worker", role], INIT))
+        if role in ("helper", "admin"):
+            rows[-1]["groups"] = [51004]
     shim = {"key": SHIM, "exe_identity": [8, 1001], "exe": "/usr/bin/containerd-shim-runc-v2",
             "argv": ["/usr/bin/containerd-shim-runc-v2", "-namespace", "moby", "-id", CID, "-address", "/run/containerd/containerd.sock"]}
     return {"runtime": runtime_fixture(), "container_id": CID, "clock": "CLOCK_BOOTTIME", "uid_namespace": "container",
@@ -693,6 +695,8 @@ class CapturedPermissionExitControls(unittest.TestCase):
         for command, accepted in commands:
             for uid in (0, 51000, 51001, 51002, 51003, 999):
                 row = process(200, 10100, uid, command, SHIM)
+                if command[-1] in ("helper", "admin"):
+                    row["groups"] = [51004]
                 if uid in accepted:
                     observed_permissions(row, command)
                 else:
@@ -747,6 +751,18 @@ class TrustedRuntimeControls(unittest.TestCase):
         actual = CapturedPermissionExitControls().collect_partial_exit(previous, permissions)
         self.assertIs(actual["complete"], False)
         self.assertTrue(any(item["reason"].startswith("observed-profile-") for item in actual["failures"]))
+
+    def test_target_lock_group_only_on_helper_and_admin_workers(self):
+        self.assertTrue(assess_observed_trace(observed_fixture(fixture()))["passed"])
+        for index, groups in ((0, [51004]), (2, [51004]), (1, []), (3, []), (1, [51004, 0]),
+                              (3, [51004, 51004]), (1, [51001]), (3, [51003])):
+            with self.subTest(index=index, groups=groups):
+                trace = observed_fixture(fixture())
+                trace["samples"][700]["processes"][index]["groups"] = groups
+                self.reject(trace, "unsafe-terminal-identity")
+        trace = trusted_fixture()
+        trace["samples"][15]["processes"][-1]["groups"] = [51004]
+        self.reject(trace)
 
     def test_full_host_caps_nnp_zero_and_different_child_device_then_health(self):
         trace = trusted_fixture()

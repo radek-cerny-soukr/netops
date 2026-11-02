@@ -5,6 +5,7 @@
       "id": "fortios.scope.vdom-unsupported",
       "version": 1,
       "check": "vdom_unsupported",
+      "sections": [],
       "class": "fakt",
       "severity": "high",
       "scope_gate": true,
@@ -23,6 +24,9 @@
       "id": "fortios.ref.dangling",
       "version": 1,
       "check": "dangling_reference",
+      "sections": [
+        "firewall policy"
+      ],
       "class": "fakt",
       "severity": "high",
       "evidence_fields": [
@@ -36,6 +40,8 @@
         "FortiOS 8.0.0 CLI Reference: config firewall policy (srcintf, dstintf, srcaddr, dstaddr, service, schedule)",
         "FortiOS 8.0.0 CLI Reference: config firewall address",
         "FortiOS 8.0.0 CLI Reference: config firewall addrgrp",
+        "FortiOS 8.0.0 CLI Reference: config firewall vip",
+        "FortiOS 8.0.0 CLI Reference: config firewall vipgrp",
         "FortiOS 8.0.0 CLI Reference: config firewall service custom",
         "FortiOS 8.0.0 CLI Reference: config firewall service group",
         "FortiOS 8.0.0 CLI Reference: config firewall schedule onetime",
@@ -45,30 +51,37 @@
         "FortiOS 8.0.0 CLI Reference: config system zone",
         "FortiOS 8.0.0 CLI Reference: config system sdwan (zone)"
       ],
-      "known_false_positives": "Over the output of show, which does not print defaults, built-in objects may be missing from the text and every reference to them then looks dangling, so the supported input is show full-configuration; the built-in names and the sections a name may come from (addresses and groups, services and groups, schedules including groups, interfaces, zones and the zones of system sdwan) are a working list, and a name defined in a section the list does not carry yet is reported as dangling."
+      "known_false_positives": "Over the output of show, which does not print defaults, built-in objects may be missing from the text and every reference to them then looks dangling, so the supported input is show full-configuration; the built-in names and the sections a name may come from (addresses and groups, virtual IPs and their groups, services and groups, schedules including groups, interfaces, zones and the zones of system sdwan) are a working list, and a name defined in a section the list does not carry yet is reported as dangling; the IPv6 references srcaddr6 and dstaddr6 are not read."
     },
     {
       "id": "fortios.mgmt.wan-admin-access",
       "version": 1,
       "check": "admin_access_on_untrusted_interface",
+      "sections": [
+        "system interface"
+      ],
       "class": "fakt",
       "severity": "high",
       "evidence_fields": [
         "interface",
-        "services"
+        "services",
+        "origin"
       ],
       "title": "An interface with role wan permits administrative access over http, https, ssh or telnet.",
       "remediation": "Remove the administrative services from allowaccess on the wan interface and reach the device over VPN or from an internal interface.",
       "refs": [
-        "FortiOS 8.0.0 CLI Reference: config system interface (role, allowaccess)",
+        "FortiOS 8.0.0 CLI Reference: config system interface (role, allowaccess, secondaryip, ipv6 ip6-allowaccess)",
         "CIS FortiGate 7.4.x Benchmark v1.0.1: 1.3 Disable all management related services on WAN port (http, https, ssh and telnet only; ping, snmp and radius-acct are not checked)"
       ],
-      "known_false_positives": "The rule reads role and allowaccess and nothing else, so an interface whose exposure is narrowed elsewhere, or whose role is set to wan on an internal link, is reported just the same; how far such a narrowing reaches has not been measured against a device."
+      "known_false_positives": "The rule reads role and the allowaccess of the primary and secondary IPv4 addresses and the ip6-allowaccess of the interface, each finding naming its origin, and nothing else, so an interface whose exposure is narrowed elsewhere, or whose role is set to wan on an internal link, is reported just the same; how far such a narrowing reaches has not been measured against a device."
     },
     {
       "id": "fortios.policy.utm-without-ssl",
       "version": 1,
       "check": "utm_without_ssl_profile",
+      "sections": [
+        "firewall policy"
+      ],
       "class": "fakt",
       "severity": "medium",
       "evidence_fields": [
@@ -86,6 +99,7 @@
       "id": "fortios.logging.no-syslog-target",
       "version": 1,
       "check": "no_syslog_target",
+      "sections": [],
       "class": "fakt",
       "severity": "medium",
       "evidence_fields": [
@@ -103,6 +117,7 @@
       "id": "fortios.time.no-ntp-sync",
       "version": 1,
       "check": "no_ntp_sync",
+      "sections": [],
       "class": "fakt",
       "severity": "medium",
       "evidence_fields": [
@@ -120,6 +135,10 @@
       "id": "fortios.system.usb-auto-install",
       "version": 1,
       "check": "usb_auto_install",
+      "sections": [],
+      "default_sections": [
+        "system auto-install"
+      ],
       "class": "fakt",
       "severity": "medium",
       "evidence_fields": [
@@ -132,12 +151,15 @@
         "CIS FortiGate 7.4.x Benchmark v1.0.1: 2.1.7 Disable USB Firmware and configuration installation",
         "FortiOS 8.0.0 Best Practices: Hardening, Physical security"
       ],
-      "known_false_positives": "The rule reads only an explicit enable. The CLI Reference describes both settings as disabled when unset but enabled after a factory reset, and a factory-reset lab unit showed them as explicit set lines; an export that omits the section entirely is not reported."
+      "known_false_positives": "The rule reads only an explicit enable. The CLI Reference describes both settings as disabled when unset but enabled after a factory reset, and a factory-reset lab unit showed them as explicit set lines. An export without the section carries the defaults: show full-configuration printed both settings as disable on FortiOS 7.6.8 and 8.0.2, so the rule is evaluated and reports nothing; a release with another default would be missed."
     },
     {
       "id": "fortios.crypto.static-key-ciphers",
       "version": 1,
       "check": "static_key_ciphers",
+      "sections": [
+        "system global"
+      ],
       "class": "fakt",
       "severity": "medium",
       "evidence_fields": [
@@ -156,6 +178,9 @@
       "id": "fortios.crypto.strong-crypto-disabled",
       "version": 1,
       "check": "strong_crypto_disabled",
+      "sections": [
+        "system global"
+      ],
       "class": "fakt",
       "severity": "high",
       "evidence_fields": [
@@ -174,6 +199,9 @@
       "id": "fortios.mgmt.gui-legacy-tls",
       "version": 1,
       "check": "admin_gui_legacy_tls",
+      "sections": [
+        "system global"
+      ],
       "class": "fakt",
       "severity": "medium",
       "evidence_fields": [
@@ -191,6 +219,9 @@
       "id": "fortios.mgmt.idle-timeout",
       "version": 1,
       "check": "admin_idle_timeout",
+      "sections": [
+        "system global"
+      ],
       "class": "usudek",
       "severity": "low",
       "evidence_fields": [
@@ -209,6 +240,9 @@
       "id": "fortios.mgmt.lockout-threshold",
       "version": 1,
       "check": "admin_lockout_threshold",
+      "sections": [
+        "system global"
+      ],
       "class": "usudek",
       "severity": "low",
       "evidence_fields": [
@@ -226,6 +260,9 @@
       "id": "fortios.mgmt.default-admin-account",
       "version": 1,
       "check": "default_admin_account",
+      "sections": [
+        "system admin"
+      ],
       "class": "usudek",
       "severity": "low",
       "evidence_fields": [
@@ -238,22 +275,26 @@
         "CIS FortiGate 7.4.x Benchmark v1.0.1: 2.4.1 Remove default admin user and create one with other name",
         "FortiOS 8.0.0 Best Practices: Hardening, Non-standard admin ports and administrator usernames"
       ],
-      "known_false_positives": "The rule reads the account name only; it cannot tell whether the account still has an empty password, which the benchmark audit also tests."
+      "known_false_positives": "The rule reads the account name only; it cannot tell whether the account still has an empty password, which the benchmark audit also tests. It is evaluated only when the snapshot lists an administrator with the super_admin profile: an account without that profile sees only its own entry, and the rule is then not-evaluated (admin-visibility-unproven)."
     },
     {
       "id": "fortios.mgmt.plaintext-admin-access",
       "version": 1,
       "check": "plaintext_admin_access",
+      "sections": [
+        "system interface"
+      ],
       "class": "fakt",
       "severity": "high",
       "evidence_fields": [
         "interface",
-        "services"
+        "services",
+        "origin"
       ],
       "title": "An interface permits administrative access over HTTP or Telnet, which carry credentials in clear text.",
       "remediation": "Remove http and telnet from allowaccess of the interface and administer the device over HTTPS or SSH.",
       "refs": [
-        "FortiOS 8.0.0 CLI Reference: config system interface (allowaccess)",
+        "FortiOS 8.0.0 CLI Reference: config system interface (allowaccess, secondaryip, ipv6 ip6-allowaccess)",
         "CIS FortiGate 7.4.x Benchmark v1.0.1: 2.4.5 Ensure only encrypted access channels are enabled",
         "FortiOS 8.0.0 Best Practices: Administrator access, Administrative settings"
       ],
@@ -263,6 +304,10 @@
       "id": "fortios.snmp.v1v2c-community",
       "version": 1,
       "check": "snmp_community",
+      "sections": [],
+      "default_sections": [
+        "system snmp community"
+      ],
       "class": "fakt",
       "severity": "medium",
       "evidence_fields": [
@@ -281,6 +326,9 @@
       "id": "fortios.policy.service-all",
       "version": 1,
       "check": "policy_service_all",
+      "sections": [
+        "firewall policy"
+      ],
       "class": "usudek",
       "severity": "medium",
       "evidence_fields": [
@@ -299,6 +347,9 @@
       "id": "fortios.policy.logging-disabled",
       "version": 1,
       "check": "policy_logging_disabled",
+      "sections": [
+        "firewall policy"
+      ],
       "class": "fakt",
       "severity": "medium",
       "evidence_fields": [
@@ -317,6 +368,10 @@
       "id": "fortios.auth.ldap-without-tls",
       "version": 1,
       "check": "ldap_without_tls",
+      "sections": [],
+      "default_sections": [
+        "user ldap"
+      ],
       "class": "fakt",
       "severity": "medium",
       "evidence_fields": [
@@ -332,9 +387,39 @@
       "known_false_positives": "The default of secure is disable, so a missing setting is reported as unset. An LDAP server reached only over an IPsec tunnel is still reported."
     },
     {
+      "id": "fortios.mgmt.netops-safeguard-leftover",
+      "version": 1,
+      "check": "netops_safeguard_leftover",
+      "sections": [],
+      "default_sections": [
+        "system accprofile",
+        "system api-user",
+        "system automation-action",
+        "system automation-trigger",
+        "system automation-stitch"
+      ],
+      "class": "fakt",
+      "severity": "high",
+      "evidence_fields": [
+        "object",
+        "name"
+      ],
+      "title": "A NetOps Admin safeguard object (named netops-sg-) is still on the device: an operation was interrupted, so its timed revert may still fire or its temporary API user may still hold a valid token.",
+      "remediation": "Run admin recover for the device; it settles the interrupted operation and removes its safeguard. If NetOps is no longer available, delete the objects through an administrator account, the stitch first, as described in the Admin configuration (webhook safeguard).",
+      "refs": [
+        "FortiOS 8.0.0 CLI Reference: config system automation-stitch",
+        "FortiOS 8.0.0 CLI Reference: config system api-user",
+        "FortiOS 8.0.0 CLI Reference: config system accprofile"
+      ],
+      "known_false_positives": "An object created by hand with a name starting with netops-sg- is reported. While a NetOps operation runs, its own safeguard is reported; Admin itself ignores only the safeguard of the running operation. An account that cannot read system api-user or system accprofile does not see those objects."
+    },
+    {
       "id": "fortios.management.address-unused",
       "version": 1,
       "check": "management_fortios_address_unused",
+      "sections": [
+        "firewall address"
+      ],
       "class": "fakt",
       "severity": "info",
       "evidence_fields": [
@@ -352,6 +437,9 @@
       "id": "fortios.management.address-policy",
       "version": 1,
       "check": "management_fortios_address_policy",
+      "sections": [
+        "firewall address"
+      ],
       "class": "fakt",
       "severity": "medium",
       "evidence_fields": [
@@ -369,6 +457,10 @@
       "id": "fortios.management.group-empty",
       "version": 1,
       "check": "management_fortios_group_empty",
+      "sections": [],
+      "default_sections": [
+        "firewall addrgrp"
+      ],
       "class": "fakt",
       "severity": "medium",
       "evidence_fields": [
@@ -386,6 +478,12 @@
       "id": "fortios.management.group-dangling",
       "version": 1,
       "check": "management_fortios_group_dangling",
+      "sections": [
+        "firewall address"
+      ],
+      "default_sections": [
+        "firewall addrgrp"
+      ],
       "class": "fakt",
       "severity": "high",
       "evidence_fields": [
@@ -403,6 +501,10 @@
       "id": "fortios.management.group-cycle",
       "version": 1,
       "check": "management_fortios_group_cycle",
+      "sections": [],
+      "default_sections": [
+        "firewall addrgrp"
+      ],
       "class": "fakt",
       "severity": "high",
       "evidence_fields": [
@@ -420,6 +522,10 @@
       "id": "fortios.management.dhcp-conflict",
       "version": 1,
       "check": "management_fortios_dhcp_conflict",
+      "sections": [],
+      "default_sections": [
+        "system dhcp server"
+      ],
       "class": "fakt",
       "severity": "high",
       "evidence_fields": [
@@ -437,6 +543,10 @@
       "id": "fortios.management.dhcp-subnet",
       "version": 1,
       "check": "management_fortios_dhcp_subnet",
+      "sections": [],
+      "default_sections": [
+        "system dhcp server"
+      ],
       "class": "fakt",
       "severity": "high",
       "evidence_fields": [
@@ -449,6 +559,255 @@
         "FortiOS 7.6 CLI Reference, config system dhcp server"
       ],
       "known_false_positives": "Evaluates only visible configuration. Optional policy rules need an explicit operator policy. Unused objects are informational; absent evidence is not proof of a complete configuration."
+    },
+    {
+      "id": "fortios.mgmt.password-policy",
+      "version": 1,
+      "check": "password_policy",
+      "sections": [
+        "system global"
+      ],
+      "class": "usudek",
+      "severity": "medium",
+      "evidence_fields": [
+        "aspect",
+        "value"
+      ],
+      "title": "The local password policy is disabled, does not cover administrator passwords and IPsec pre-shared keys, or allows passwords shorter than 14 characters.",
+      "remediation": "Under config system password-policy set status enable, apply-to admin-password ipsec-preshared-key and minimum-length 14 or more, or document that passwords are managed outside the device.",
+      "refs": [
+        "FortiOS 8.0.0 CLI Reference: config system password-policy",
+        "CIS FortiGate 7.4.x Benchmark v1.0.1: 2.2.1 Ensure password policy is enabled"
+      ],
+      "known_false_positives": "Organisations that manage administrator passwords centrally (remote authentication) may not need the local policy. The rule reads the saved configuration only; a status omitted by show differs by release, which is reported as not evaluated unless another aspect already fails."
+    },
+    {
+      "id": "fortios.logging.single-cpu-high",
+      "version": 1,
+      "check": "single_cpu_high",
+      "sections": [
+        "system global"
+      ],
+      "class": "fakt",
+      "severity": "low",
+      "evidence_fields": [
+        "value"
+      ],
+      "title": "Logging for high usage of a single CPU core is not enabled.",
+      "remediation": "Under config system global set log-single-cpu-high enable.",
+      "refs": [
+        "FortiOS 8.0.0 CLI Reference: config system global",
+        "CIS FortiGate 7.4.x Benchmark v1.0.1: 2.1.12 Ensure single CPU core overloaded event is logged"
+      ],
+      "known_false_positives": "A deployment that monitors CPU load by another channel (SNMP, FortiAnalyzer) may leave the event log off on purpose. Only the visible configuration is read."
+    },
+    {
+      "id": "fortios.mgmt.gui-display-hostname",
+      "version": 1,
+      "check": "gui_display_hostname",
+      "sections": [
+        "system global"
+      ],
+      "class": "fakt",
+      "severity": "low",
+      "evidence_fields": [
+        "value"
+      ],
+      "title": "The device hostname is displayed on the GUI login and dashboard.",
+      "remediation": "Under config system global set gui-display-hostname disable.",
+      "refs": [
+        "FortiOS 8.0.0 CLI Reference: config system global",
+        "CIS FortiGate 7.4.x Benchmark v1.0.1: 2.1.13 Ensure hostname is not displayed on the GUI"
+      ],
+      "known_false_positives": "The hostname may be shown deliberately where operators manage many devices; the benchmark treats it as a Level 2 hardening item."
+    },
+    {
+      "id": "fortios.mgmt.admin-no-trusthost",
+      "version": 1,
+      "check": "admin_no_trusthost",
+      "sections": [
+        "system global",
+        "system admin"
+      ],
+      "class": "usudek",
+      "severity": "medium",
+      "evidence_fields": [
+        "admin",
+        "trusthost_count",
+        "ip6_trusthost_count",
+        "unrestricted"
+      ],
+      "title": "An administrator account has no trusted host restriction for IPv4, IPv6 or both.",
+      "remediation": "Under config system admin edit the account and set trusthost1 and ip6-trusthost1 to the management networks only, or restrict access by a local-in policy.",
+      "refs": [
+        "FortiOS 8.0.0 CLI Reference: config system admin",
+        "CIS FortiGate 7.4.x Benchmark v1.0.1: 2.4.2 Ensure administrator access is restricted by trusted hosts"
+      ],
+      "known_false_positives": "An explicit wildcard entry next to a restricting entry of the same kind is counted as a restriction. Access limited by a local-in policy, accounts of remote authentication and accounts kept open on purpose are not recognised. The rule does not read system api-user or system sso-admin. It is evaluated only when the snapshot lists an administrator with the super_admin profile: an account without that profile sees only its own entry, and the rule is then not-evaluated (admin-visibility-unproven)."
+    },
+    {
+      "id": "fortios.logging.event-disabled",
+      "version": 1,
+      "check": "event_disabled",
+      "sections": [
+        "system global"
+      ],
+      "default_sections": [
+        "log eventfilter"
+      ],
+      "class": "fakt",
+      "severity": "low",
+      "evidence_fields": [
+        "event_type"
+      ],
+      "title": "A log event category is explicitly disabled in the event filter.",
+      "remediation": "Under config log eventfilter set the listed event type to enable, or document why it is not logged.",
+      "refs": [
+        "FortiOS 8.0.0 CLI Reference: config log eventfilter",
+        "CIS FortiGate 7.4.x Benchmark v1.0.1: 7.1.1 Ensure all event types are logged"
+      ],
+      "known_false_positives": "Only an explicit disable is reported; values other than disable are not interpreted. Some sites switch single categories off to reduce log volume."
+    },
+    {
+      "id": "fortios.logging.faz-unencrypted",
+      "version": 1,
+      "check": "faz_unencrypted",
+      "sections": [
+        "system global"
+      ],
+      "default_sections": [
+        "log fortianalyzer setting",
+        "log fortianalyzer2 setting",
+        "log fortianalyzer3 setting"
+      ],
+      "class": "fakt",
+      "severity": "medium",
+      "evidence_fields": [
+        "target",
+        "aspect",
+        "value"
+      ],
+      "title": "An enabled FortiAnalyzer log target does not use reliable transport or uses a weak encryption algorithm.",
+      "remediation": "Under the log fortianalyzer setting section set reliable enable and enc-algorithm high.",
+      "refs": [
+        "FortiOS 8.0.0 CLI Reference: config log fortianalyzer setting",
+        "CIS FortiGate 7.4.x Benchmark v1.0.1: 7.3.1 Ensure encryption is enforced when logging to FortiAnalyzer"
+      ],
+      "known_false_positives": "Only targets with an explicit status enable are read. A transport secured outside the device (tunnel) is not recognised."
+    },
+    {
+      "id": "fortios.vpn.ssl-legacy-tls",
+      "version": 1,
+      "check": "ssl_legacy_tls",
+      "sections": [
+        "system global"
+      ],
+      "default_sections": [
+        "vpn ssl settings"
+      ],
+      "class": "fakt",
+      "severity": "medium",
+      "evidence_fields": [
+        "aspect",
+        "value"
+      ],
+      "title": "SSL VPN allows protocol versions older than TLS 1.2 or 1.3 or a cipher set weaker than high.",
+      "remediation": "Under config vpn ssl settings set ssl-min-proto-ver tls1-2, ssl-max-proto-ver tls1-3 and algorithm high.",
+      "refs": [
+        "FortiOS 8.0.0 CLI Reference: config vpn ssl settings",
+        "CIS FortiGate 7.4.x Benchmark v1.0.1: 6.1.2 Ensure SSL VPN uses strong TLS versions and ciphers"
+      ],
+      "known_false_positives": "TLS 1.2 as the maximum may be required by old clients. An explicit status disable of the SSL VPN ends the evaluation without a finding."
+    },
+    {
+      "id": "fortios.av.detection-disabled",
+      "version": 1,
+      "check": "av_detection_disabled",
+      "sections": [
+        "system global"
+      ],
+      "class": "fakt",
+      "severity": "low",
+      "evidence_fields": [
+        "setting",
+        "value"
+      ],
+      "title": "Grayware detection is not enabled or machine-learning detection is disabled or only monitors.",
+      "remediation": "Under config antivirus settings set grayware enable and machine-learning-detection enable.",
+      "refs": [
+        "FortiOS 8.0.0 CLI Reference: config antivirus settings",
+        "CIS FortiGate 7.4.x Benchmark v1.0.1: 4.2.4 Ensure grayware detection is enabled",
+        "CIS FortiGate 7.4.x Benchmark v1.0.1: 4.2.5 Ensure machine-learning detection is enabled"
+      ],
+      "known_false_positives": "Machine-learning detection requires a licensed FortiGuard service; where it is unavailable the setting may stay at monitor."
+    },
+    {
+      "id": "fortios.policy.wan-missing-profile",
+      "version": 1,
+      "check": "policy_wan_missing_profile",
+      "sections": [
+        "firewall policy"
+      ],
+      "class": "usudek",
+      "severity": "medium",
+      "evidence_fields": [
+        "policy",
+        "kind",
+        "dstintf",
+        "wan_via"
+      ],
+      "title": "An accept policy towards a WAN interface lacks an IPS, antivirus, DNS filter or application control profile.",
+      "remediation": "Attach the missing security profile or a profile group to the policy and enable utm-status.",
+      "refs": [
+        "FortiOS 8.0.0 CLI Reference: config firewall policy",
+        "CIS FortiGate 7.4.x Benchmark v1.0.1: 4.1.2 Ensure an IPS sensor is applied to WAN policies",
+        "CIS FortiGate 7.4.x Benchmark v1.0.1: 4.2.2 Ensure an antivirus profile is applied to WAN policies",
+        "CIS FortiGate 7.4.x Benchmark v1.0.1: 4.3.3 Ensure a DNS filter profile is applied to WAN policies",
+        "CIS FortiGate 7.4.x Benchmark v1.0.1: 4.5.4 Ensure application control is applied to WAN policies"
+      ],
+      "known_false_positives": "Traffic inspected by another device, or policies that only carry traffic the operator accepts uninspected, are not recognised. The destination is classified from interface role, zone members and SD-WAN zones; unresolved destinations are not evaluated."
+    },
+    {
+      "id": "fortios.dnsfilter.log-all-domain-disabled",
+      "version": 1,
+      "check": "dnsfilter_log_all_domain",
+      "sections": [
+        "firewall policy"
+      ],
+      "class": "fakt",
+      "severity": "low",
+      "evidence_fields": [
+        "profile",
+        "policies"
+      ],
+      "title": "A DNS filter profile used by a WAN policy does not log all queried domains.",
+      "remediation": "Under config dnsfilter profile edit the profile and set log-all-domain enable.",
+      "refs": [
+        "FortiOS 8.0.0 CLI Reference: config dnsfilter profile",
+        "CIS FortiGate 7.4.x Benchmark v1.0.1: 4.3.2 Ensure DNS filter logs all DNS queries"
+      ],
+      "known_false_positives": "Logging every query raises log volume; some sites accept logging of blocked domains only."
+    },
+    {
+      "id": "fortios.appctrl.default-port-not-enforced",
+      "version": 1,
+      "check": "appctrl_default_port",
+      "sections": [
+        "firewall policy"
+      ],
+      "class": "fakt",
+      "severity": "low",
+      "evidence_fields": [
+        "profile",
+        "policies"
+      ],
+      "title": "An application control list used by a WAN policy does not enforce the default application ports.",
+      "remediation": "Under config application list edit the list and set enforce-default-app-port enable.",
+      "refs": [
+        "FortiOS 8.0.0 CLI Reference: config application list",
+        "CIS FortiGate 7.4.x Benchmark v1.0.1: 4.5.2 Ensure applications are restricted to their default ports"
+      ],
+      "known_false_positives": "Applications that legitimately run on non-standard ports need the enforcement off for that list."
     }
   ]
 }

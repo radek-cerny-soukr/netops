@@ -9,7 +9,7 @@ import pytest
 
 from netops_core import vault
 
-CANARY = "KANARCI-TOKEN-NESMI-UNIKNOUT"
+CANARY = "CANARY-TOKEN-MUST-NOT-LEAK"
 NAME = "fw-a-api"
 DUMMY = "replace-me"
 LOGIN = "audit-ro"
@@ -25,7 +25,10 @@ EXAMPLE = {
             "-----END OPENSSH PRIVATE KEY-----\n",
         },
         "fw-a-api": {"kind": "api-token", "value": DUMMY},
-        "fw-a-snmp": {"kind": "snmp-community", "value": DUMMY},
+        "fw-a-snmp": {
+            "kind": "snmpv3-authpriv", "login": "usm-reader", "value": "fixture-auth-key-1",
+            "priv_value": "fixture-priv-key-1", "auth_protocol": "sha256", "priv_protocol": "aes128",
+        },
     },
 }
 
@@ -70,7 +73,7 @@ def test_file_version_is_two():
 
 
 def test_kinds_and_login_kinds_agree():
-    assert vault.KINDS == ("password", "ssh-key", "api-token", "snmp-community")
+    assert vault.KINDS == ("password", "ssh-key", "api-token", "snmpv3-authpriv")
     assert vault.LOGIN_KINDS == ("password", "ssh-key")
     for kind in vault.LOGIN_KINDS:
         assert kind in vault.KINDS
@@ -97,7 +100,7 @@ def test_example_document_from_the_specification_loads(tmp_path):
     assert loaded.credential("sw-a-ro").kind == "ssh-key"
     assert loaded.credential("sw-a-ro").use().startswith("-----BEGIN ")
     assert loaded.credential("fw-a-api").login is None
-    assert loaded.credential("fw-a-snmp").login is None
+    assert loaded.credential("fw-a-snmp").login == "usm-reader"
 
 
 def test_names_are_sorted(tmp_path):
@@ -298,6 +301,8 @@ def test_value_is_not_a_dataclass_field():
         "name",
         "kind",
         "login",
+        "auth_protocol",
+        "priv_protocol",
     )
 
 
@@ -311,7 +316,8 @@ def test_no_public_attribute_holds_the_value(tmp_path):
 
 def test_asdict_does_not_carry_the_value(tmp_path):
     credential = _loaded(tmp_path).credential(NAME)
-    assert dataclasses.asdict(credential) == {"name": NAME, "kind": "api-token", "login": None}
+    assert dataclasses.asdict(credential) == {"name": NAME, "kind": "api-token", "login": None,
+                                           "auth_protocol": None, "priv_protocol": None}
 
 
 def test_credential_is_immutable(tmp_path):
@@ -379,7 +385,7 @@ def test_document_error_paths_hide_the_value(tmp_path, case):
         ("entry-unknown-field", "unknown fields: token"),
         ("entry-missing-kind", "missing fields: kind"),
         ("entry-missing-value", "missing fields: value"),
-        ("unknown-kind", "kind must be one of: password, ssh-key, api-token, snmp-community"),
+        ("unknown-kind", "kind must be one of: password, ssh-key, api-token"),
         ("kind-holds-the-value", "kind must be one of: password"),
         ("empty-value", "value must be a non-empty string, got str"),
         ("value-as-int", "value must be a non-empty string, got int"),
@@ -427,10 +433,10 @@ def test_not_utf8_hides_the_value(tmp_path):
 def test_unknown_credential_lists_known_names_without_the_reference(tmp_path):
     loaded = _loaded(tmp_path)
     with pytest.raises(vault.VaultError) as caught:
-        loaded.credential("neznamy")
+        loaded.credential("no-such-entry")
     message = str(caught.value)
     assert "names no record of the credential store" in message
-    assert "neznamy" not in message
+    assert "no-such-entry" not in message
     assert NAME in message
     for text in _shown(caught.value):
         assert CANARY not in text
@@ -439,7 +445,7 @@ def test_unknown_credential_lists_known_names_without_the_reference(tmp_path):
 def test_unknown_credential_in_empty_vault(tmp_path):
     loaded = vault.load(_write(tmp_path, {"version": 2, "credentials": {}}))
     with pytest.raises(vault.VaultError) as caught:
-        loaded.credential("neznamy")
+        loaded.credential("no-such-entry")
     assert "known names: none" in str(caught.value)
 
 
@@ -463,7 +469,7 @@ def test_credential_rejects_bad_value(bad):
 def test_credential_rejects_unknown_kind():
     with pytest.raises(vault.VaultError) as caught:
         vault.Credential(name=NAME, kind="ssh-password", value=DUMMY)
-    assert "kind must be one of: password, ssh-key, api-token, snmp-community" in str(caught.value)
+    assert "kind must be one of: password, ssh-key, api-token" in str(caught.value)
 
 
 @pytest.mark.parametrize("bad", ["", "   ", None, 7])

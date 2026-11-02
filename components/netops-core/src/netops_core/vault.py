@@ -9,14 +9,18 @@ from dataclasses import InitVar, dataclass
 from pathlib import Path
 
 from .inputs import InputError, read_regular
+from .snmp import validate_snmp_usm
 from .validation import ValidationError
 
 FILE_VERSION = 2
-KINDS = ("password", "ssh-key", "api-token", "snmp-community")
+SNMP_KIND = "snmpv3-authpriv"
+KINDS = ("password", "ssh-key", "api-token", SNMP_KIND)
+LEGACY_KINDS = ("snmp-community",)
+SNMP_LOGIN_MAX_BYTES = 32
 LOGIN_KINDS = ("password", "ssh-key")
 DOCUMENT_FIELDS = ("version", "credentials")
 VAULT_MAX_BYTES = 1024 * 1024
-ENTRY_FIELDS = ("kind", "login", "value")
+ENTRY_FIELDS = ("kind", "login", "value", "priv_value", "auth_protocol", "priv_protocol")
 REQUIRED_ENTRY_FIELDS = ("kind", "value")
 ALLOWED_MODES = (0o600, 0o400)
 PRIVATE_KEY_PREFIX = "-----BEGIN "
@@ -47,7 +51,7 @@ class _Secret:
 
 
 def _checked_login(name, kind: str, value):
-    if kind not in LOGIN_KINDS:
+    if kind not in LOGIN_KINDS and kind != SNMP_KIND:
         if value is not None:
             raise VaultError(
                 "credential %r: login must be null for kind %s, only %s log in as a user"
@@ -63,6 +67,13 @@ def _checked_login(name, kind: str, value):
         raise VaultError(
             "credential %r: login must be a non-empty string, got %s" % (name, type(value).__name__)
         , field='vault.credentials[].login', code='text')
+    if kind == SNMP_KIND:
+        if not value.isprintable() or not 1 <= len(value.encode("utf-8", "replace")) <= SNMP_LOGIN_MAX_BYTES:
+            raise VaultError(
+                "credential %r: login of kind %s must be printable text of 1 to %d UTF-8 bytes"
+                % (name, kind, SNMP_LOGIN_MAX_BYTES)
+            , field='vault.credentials[].login', code='login')
+        return value
     login = value.strip()
     if (
         login.startswith("-")
@@ -83,13 +94,16 @@ class Credential:
     kind: str
     value: InitVar[object]
     login: str | None = None
+    priv_value: InitVar[object] = None
+    auth_protocol: str | None = None
+    priv_protocol: str | None = None
 
-    def __post_init__(self, value) -> None:
+    def __post_init__(self, value, priv_value) -> None:
         if not isinstance(self.name, str) or not self.name.strip():
             raise VaultError(
                 "credential name must be a non-empty string, got %s" % type(self.name).__name__
             , field='vault.credentials[].name', code='text')
-        if self.kind not in KINDS:
+        if self.kind not in KINDS + LEGACY_KINDS:
             raise VaultError(
                 "credential %r: kind must be one of: %s" % (self.name, ", ".join(KINDS))
             , field='vault.credentials[].kind', code='credential-kind')
@@ -105,10 +119,40 @@ class Credential:
                 " the header line %r; a public key, a certificate or a path is not a private key"
                 % (self.name, self.kind, PRIVATE_KEY_HEADER_TEXT)
             , field='vault.credentials[].value', code='private-key')
+        if self.kind == SNMP_KIND:
+            self._check_snmp(value, priv_value)
+            object.__setattr__(self, "_priv_secret", _Secret(priv_value))
+        else:
+            if priv_value is not None or self.auth_protocol is not None or self.priv_protocol is not None:
+                raise VaultError(
+                    "credential %r: priv_value, auth_protocol and priv_protocol belong to kind %s only"
+                    % (self.name, SNMP_KIND)
+                , field='vault.credentials[]', code='unknown-fields')
+            object.__setattr__(self, "_priv_secret", None)
         object.__setattr__(self, "_secret", _Secret(value))
+
+    def _check_snmp(self, value, priv_value) -> None:
+        try:
+            validate_snmp_usm({
+                "user": self.login, "auth_protocol": self.auth_protocol, "auth_key": value,
+                "priv_protocol": self.priv_protocol, "priv_key": priv_value,
+            })
+        except ValueError:
+            raise VaultError(
+                "credential %r: kind %s needs auth_protocol sha256, priv_protocol aes128 and a"
+                " value and priv_value of at least 8 UTF-8 bytes each; the values are not repeated"
+                % (self.name, SNMP_KIND)
+            , field='vault.credentials[].value', code='snmp-usm') from None
 
     def use(self) -> str:
         return self._secret.reveal()
+
+    def use_priv(self) -> str:
+        if self._priv_secret is None:
+            raise VaultError(
+                "credential %r: kind %s is the only kind with a priv_value" % (self.name, self.kind)
+            , field='vault.credentials[].priv_value', code='required')
+        return self._priv_secret.reveal()
 
 
 class Vault:
@@ -259,7 +303,9 @@ def _credential(path: Path, name, entry) -> Credential:
         , field='vault.credentials[]', code='unknown-fields')
     try:
         return Credential(
-            name=name, kind=entry["kind"], value=entry["value"], login=entry.get("login")
+            name=name, kind=entry["kind"], value=entry["value"], login=entry.get("login"),
+            priv_value=entry.get("priv_value"), auth_protocol=entry.get("auth_protocol"),
+            priv_protocol=entry.get("priv_protocol"),
         )
     except VaultError as error:
         raise VaultError("vault file %s: %s" % (path, error), diagnostic=getattr(error, "diagnostic", None)) from None

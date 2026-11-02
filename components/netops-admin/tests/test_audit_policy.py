@@ -53,7 +53,7 @@ def test_changed_evidence_for_an_existing_blocking_finding_is_not_silenced():
     before_text = "# Module vlan configuration.\n"
     before_text += "configure vlan one add ports 10 untagged\nconfigure vlan two add ports 10 untagged\n"
     after_text = before_text + "configure vlan three add ports 10 untagged\n"
-    before = audit_gate.findings("exos", before_text, "switch-example")
+    before = audit_gate.baseline("exos", before_text, "switch-example")
     assert audit_gate.new_blocking("exos", before, after_text, "switch-example") == ["exos.management.port-native"]
 
 

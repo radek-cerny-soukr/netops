@@ -90,6 +90,14 @@ class StreamingSshBlock(unittest.TestCase):
                 self.call(producer,consumer,**options)
             self.assertNotIn(CANARY,str(caught.exception))
             self.assertNotIn("SyntheticPrivateCallbackCanary",str(caught.exception))
+            if consumer in (broken, broken_ssh):
+                self.assertEqual(type(caught.exception).__name__, 'OutputConsumerError')
+        def limited(chunk):
+            raise ssh.OutputLimitError()
+        for consumer, options in ((lambda chunk: None, {'capture_max_bytes': 1}), (limited, {})):
+            with self.assertRaises(ssh.OutputLimitError) as caught:
+                self.call("import os,time;os.write(1,b'limit-fixture');time.sleep(10)", consumer, **options)
+            self.assertEqual(str(caught.exception), 'SSH output limit exceeded; output withheld')
         with self.assertRaises(ssh.SshError):
             ssh.run_command("192.0.2.10",22,"reader",Credential(),HOST_KEY,"show",stdout_consumer=123)
         with self.assertRaises(ssh.SshError):

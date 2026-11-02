@@ -1,0 +1,40 @@
+config load-balance virtual-server
+  edit "VS_ONE"
+    set type l7-load-balance
+    set interface port2
+    set ip 192.0.2.10
+    set load-balance-profile LB_PROF_HTTP
+    set load-balance-method LB_METHOD_ROUND_ROBIN
+    set load-balance-pool POOL_ONE
+    set traffic-log enable
+  next
+  edit "VS_TWO"
+    set type l7-load-balance
+    set interface port2
+    set ip 192.0.2.11
+    set port 443
+    set load-balance-profile LB_PROF_HTTPS
+    set client-ssl-profile SSL_PROF_ONE
+    set load-balance-method LB_METHOD_ROUND_ROBIN
+    set load-balance-pool POOL_ONE
+    set traffic-log enable
+  next
+  edit "VS_THREE"
+    set interface port2
+    set ip 192.0.2.12
+--More--              set port 8080
+    set load-balance-profile LB_PROF_HTTP
+    set load-balance-method LB_METHOD_ROUND_ROBIN
+    set load-balance-pool POOL_TWO
+    set traffic-log enable
+  next
+  edit "VS_FOUR"
+    set interface port2
+    set ip 192.0.2.13
+    set port 8081
+    set load-balance-profile LB_PROF_HTTP
+    set load-balance-method LB_METHOD_ROUND_ROBIN
+    set load-balance-pool POOL_TWO
+  next
+end
+

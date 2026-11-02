@@ -8,11 +8,15 @@ import json
 from netops_core import fortios, schema
 from netops_admin.errors import Rejected
 from netops_admin import schema_policy
+from netops_admin.fortios import containing_groups, member_closure
 from netops_auditor import schema_checks
 
 FORMAT="netops-schema-plan/1"
 MAX_OPERATIONS=32
 MAX_COMMANDS=512
+GROUP_PATHS=("firewall addrgrp","firewall addrgrp6")
+ADDRESS_GROUPS={"firewall address":"firewall addrgrp","firewall address6":"firewall addrgrp6"}
+DESCRIPTIVE=("comment",)
 
 def _reject(message):
  raise Rejected([message])
@@ -71,6 +75,12 @@ def _locate(tree,library,operation):
    current=container
   previous=level
  _reject("schema operation context is incomplete")
+
+def _groups(tree,scope,path):
+ domain=tree.section("global") if scope is None else tree.section("vdom")
+ if domain is not None and scope is not None:domain=domain.entries.get(scope)
+ container=None if domain is None else domain.section(path)
+ return {} if container is None else container.entries
 
 def _state(node):
  return {name:tuple(attr.values) for name,attr in node.attrs.items() if not attr.unset} if node else {}
@@ -197,7 +207,12 @@ def build(library,policy,text,operations,protected=None):
   guarded={x.casefold() for names in (protected or {}).values() for x in names}
   referenced=set(value.casefold() for tokens in before.values() for value in tokens)
   referenced.update(value.casefold() for tokens in canonical.values() if tokens for value in fortios.tokenize(" ".join(tokens)))
+  if path in GROUP_PATHS:referenced.update(member_closure(container.entries,referenced))
   if guarded & referenced:_reject("schema transaction changes an object linked to a protected name")
+  if path in ADDRESS_GROUPS and set(changes)-set(DESCRIPTIVE) and guarded & {x.casefold() for x in containing_groups(_groups(working,operation["scope"],ADDRESS_GROUPS[path]),key)}:
+   _reject("schema transaction changes an object linked to a protected name")
+  if path in GROUP_PATHS and guarded & {x.casefold() for x in containing_groups(container.entries,key)}:
+   _reject("schema transaction changes an object linked to a protected name")
   if mode=="delete":
    for instance in schema.config_instances(library,working,include_unknown=True):
     if instance.node is node:continue

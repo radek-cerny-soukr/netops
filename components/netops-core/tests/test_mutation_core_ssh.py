@@ -30,7 +30,7 @@ LOGIN = "audit-ro"
 COMMAND = "show"
 BLOB = "cmVwbGFjZS1tZS1ob3N0LWtleS1tYXRlcmlhbC1B"
 HOST_KEY_LINE = "%s ssh-ed25519 %s" % (HOST, BLOB)
-KEY = "-----BEGIN OPENSSH PRIVATE KEY-----\nKANARCI-KLIC-NESMI-UNIKNOUT\n"
+KEY = "-----BEGIN OPENSSH PRIVATE KEY-----\nCANARY-KEY-MUST-NOT-LEAK\n"
 MOMENT = datetime(2026, 9, 16, 8, 30, 0, tzinfo=timezone.utc)
 NEGOTIATION = b"Unable to negotiate with 192.0.2.10 port 22: no matching host key type found.\n"
 SECONDS = 15.0
@@ -573,8 +573,8 @@ def test_the_client_reads_the_input_it_is_handed():
 
 
 def test_the_client_sees_only_the_environment_it_is_handed(monkeypatch):
-    monkeypatch.setenv("W4_KANARCI_PROSTREDI", "nesmi-projit")
-    call = python("import os; print(os.environ.get('W4_KANARCI_PROSTREDI'))")
+    monkeypatch.setenv("CANARY_ENVIRONMENT_VALUE", "must-not-pass")
+    call = python("import os; print(os.environ.get('CANARY_ENVIRONMENT_VALUE'))")
     result = ssh_module._capped_runner(1024)(call, timeout=SECONDS, env={"PATH": "/usr/bin:/bin"})
     assert result.stdout == b"None\n"
 

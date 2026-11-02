@@ -53,6 +53,15 @@ def test_a_trigger_at_another_time_is_named_alone():
         "safeguard trigger is missing or not set to fire once at the planned time"]
 
 
+
+def test_a_trigger_that_is_not_scheduled_is_named_alone():
+    texts = changed("trigger", "set trigger-type scheduled", "set trigger-type event-based")
+    assert fortios.safeguard_state(CHANGE, texts, INVERSE, FIRE) == [
+        "safeguard trigger is missing or not set to fire once at the planned time"]
+    texts = changed("trigger", "set trigger-type scheduled\n", "")
+    assert fortios.safeguard_state(CHANGE, texts, INVERSE, FIRE) == [
+        "safeguard trigger is missing or not set to fire once at the planned time"]
+
 def test_a_disabled_stitch_is_named_alone():
     texts = changed("stitch", "set status enable", "set status disable")
     assert fortios.safeguard_state(CHANGE, texts, INVERSE, FIRE) == [

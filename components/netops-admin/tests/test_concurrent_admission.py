@@ -30,10 +30,12 @@ REQUESTS = {
     "lab-b": {"key": "host-b", "changes": {"subnet": "192.0.2.62/32"}, "request_id": "req-race-b-0001"},
 }
 ADMISSION_REFUSED = "another operation holds the admission lock of the journal"
+PINS = {"lab-a": "SHA256:" + "A" * 43, "lab-b": "SHA256:" + "E" * 43}
 
 
 def configured(tmp_path, **limits):
-    devices = {name: dataclasses.replace(DEVICE, name=name, address="192.0.2.%d" % number)
+    devices = {name: dataclasses.replace(DEVICE, name=name, address="192.0.2.%d" % number,
+                                         host_key_fingerprint=PINS[name])
                for number, name in enumerate(REQUESTS, 1)}
     config = Config(state_dir=str(tmp_path / "state"), audit_file=str(tmp_path / "audit" / "audit.jsonl"),
                     export_status_file=None, notify=None, limits=dict(DEFAULT_LIMITS, **limits), devices=devices)

@@ -26,8 +26,12 @@ from .engine import (
     config_read as engine_config_read,
     config_diff as engine_config_diff,
     fortios_diagnostics as engine_fortios_diagnostics,
+    triage_health as engine_triage_health,
+    triage_routing as engine_triage_routing,
+    triage_vpn as engine_triage_vpn,
     tcp_probe as engine_tcp_probe,
     tls_probe as engine_tls_probe,
+    triage_slb as engine_triage_slb,
 )
 from .read_policy import public_query_catalog, public_query_metadata, normalize_platform
 
@@ -81,7 +85,8 @@ def helper_status() -> dict[str, Any]:
         "credentials": "operator-configured private Helper vault; per-call ephemeral device authentication",
         "account_boundary": (
             "each target must be enrolled with an externally enforced read-only account,"
-            " or as admin-bounded with a catalogue boundary on a platform that has none"
+            " or as admin-bounded with a catalogue boundary on a platform whose read-only"
+            " role is missing or refuses part of the catalogue"
         ),
         "device_output_trust": "untrusted",
         "write_tools": [],
@@ -205,9 +210,43 @@ def ssh_read(
 def fortios_diagnostics(
     target: str, recipe: str, address: str, interface: str,
     count: int = 3, timeout: int = 5, max_bytes: int = 16000, vdom: str | None = None, auth_context: str = "",
+    health_check: str | None = None, source_address: str | None = None, source_port: int | None = None,
+    destination_port: int | None = None, protocol: int | None = None,
+    since: str | None = None, until: str | None = None,
 ) -> dict[str, Any]:
-    """Run an enrolled bounded recipe; restore temporary diagnostic state and close the session."""
-    return engine_fortios_diagnostics(_auth(target, auth_context), recipe, address, interface, count, timeout, max_bytes, vdom)
+    """Run an enrolled bounded recipe; tuple direction is source to address.
+
+    For FortiADC traceroute pass timeout=60: the default 5 seconds may return only the traceroute header.
+    For FortiADC health_check_verify pass timeout of about 5*count+5 seconds (1-60); count 2 took about 7 seconds.
+    FortiADC also offers the fixed system_event_logs and waf_attack_logs recipes and the session_list and
+    persistence_list reads of one enrolled virtual server; since and until apply only to the FortiOS logs recipe.
+    """
+    return engine_fortios_diagnostics(
+        _auth(target, auth_context), recipe, address, interface, count, timeout, max_bytes, vdom, health_check,
+        source_address=source_address, source_port=source_port, destination_port=destination_port, protocol=protocol,
+        since=since, until=until,
+    )
+
+
+@mcp.tool
+@_refusals
+def triage_health(target: str, auth_context: str = "") -> dict[str, Any]:
+    """Read fixed FortiOS health facts once; findings cite device output, never a healthy verdict."""
+    return engine_triage_health(_auth(target, auth_context))
+
+
+@mcp.tool
+@_refusals
+def triage_routing(target: str, address: str, auth_context: str = "") -> dict[str, Any]:
+    """Read the route, policy routes, SD-WAN state and ARP for one enrolled IPv4 address; no dataplane simulation."""
+    return engine_triage_routing(_auth(target, auth_context), address)
+
+
+@mcp.tool
+@_refusals
+def triage_vpn(target: str, tunnel: str, auth_context: str = "") -> dict[str, Any]:
+    """Read one FortiOS IPsec tunnel's state, routes and IKE error counters once; SA up is not data flow."""
+    return engine_triage_vpn(_auth(target, auth_context), tunnel)
 
 
 @mcp.tool
@@ -229,7 +268,7 @@ async def snmp_get(
     port: int = 161,
     auth_context: str = "",
 ) -> dict[str, Any]:
-    """SNMPv2c GET. Refused in the shipped SSH/HTTPS-only profile; device output is untrusted data."""
+    """SNMPv3 authPriv GET (sha256, aes128). Any other mode is refused before network access; device output is untrusted data."""
     return await engine_snmp_get(_auth(target, auth_context), oids, port)
 
 
@@ -260,9 +299,14 @@ def ftp_list(
 @_refusals
 def config_read(target: str, platform: str, section: str, include_all: bool = False,
                 snapshot_id: str = "", offset: int = 0, limit: int = 48000,
-                auth_context: str = "") -> dict[str, Any]:
-    """Capture an opted-in FortiOS running configuration with conservative value redaction."""
-    return engine_config_read(_auth(target, auth_context), platform, section, include_all, snapshot_id, offset, limit)
+                auth_context: str = "", redaction: str = "minimal",
+                include_defaults: bool = False, contains: str | None = None,
+                context: Annotated[int, Field(strict=True, ge=0, le=10)] = 0,
+                content_sha256: str | None = None, filter_sha256: str | None = None) -> dict[str, Any]:
+    """Read an opted-in redacted configuration; full mode retains mapped safe values and reports visibility limits."""
+    return engine_config_read(_auth(target, auth_context), platform, section, include_all, snapshot_id, offset, limit,
+                              redaction, include_defaults, contains=contains, context=context,
+                              content_sha256=content_sha256, filter_sha256=filter_sha256)
 
 
 @mcp.tool
@@ -272,6 +316,17 @@ def config_diff(target: str, platform: str, base_snapshot: str,
                 auth_context: str = "") -> dict[str, Any]:
     """Compare two redacted captures belonging to this authenticated target."""
     return engine_config_diff(_auth(target, auth_context), platform, base_snapshot, other_snapshot, offset, limit, secret_offset)
+
+@mcp.tool
+@_refusals
+def triage_slb(target: str, virtual_server: str, vdom: str = "root", auth_context: str = "") -> dict[str, Any]:
+    """Read-only FortiADC triage of one enrolled virtual server: VS, pool, members, health checks and their sourced findings.
+
+    Runs a fixed plan of existing reads; every finding cites its call and content_sha256. A refused or
+    unparsed step is listed in missing and makes the verdict incomplete; the tool never reports healthy.
+    """
+    return engine_triage_slb(_auth(target, auth_context), virtual_server, vdom)
+
 
 def main() -> None:
     mcp.run(show_banner=False)

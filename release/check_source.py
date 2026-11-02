@@ -95,6 +95,32 @@ def readme_version_errors(text, version):
     errors += ["README names release files of " + found + ", not " + version
                for found in sorted(set(RELEASE_FILE_VERSION.findall(text))) if found != version]
     return errors
+def section(text, heading):
+    start = text.find(heading + "\n")
+    if start < 0:
+        return ""
+    end = re.compile(r"^#{1,%d} " % len(heading.split(" ")[0]), re.M).search(text, start + len(heading))
+    return text[start:end.start() if end else len(text)]
+
+LIVE_FIRMWARE = re.compile(r"\b(Forti[A-Za-z]+|[A-Z][A-Za-z]+)(?:-[A-Za-z0-9]+)? (\d+(?:\.\d+)+ build\d+)\b")
+LIVE_LINE = re.compile(r"^Live verification of NetOps (\S+) on \d{4}-\d{2}-\d{2}: .*$", re.M)
+
+def support_errors(readme, verified, version):
+    supported = section(readme, "## Supported devices and firmware")
+    lines = [line for line in LIVE_LINE.finditer(supported) if line.group(1) == version]
+    errors = [] if lines else ["README Supported devices has no live verification of NetOps " + version]
+    rows = {row.split("|")[1].strip(): row for row in supported.splitlines() if row.startswith("| ")}
+    for line in lines:
+        pairs = LIVE_FIRMWARE.findall(line.group(0))
+        if len(pairs) != len(re.findall(r"\bbuild\d+\b", line.group(0))):
+            errors.append("README live verification names a build without its platform and firmware version")
+        errors += ["README live verification names " + platform + " " + firmware + " outside the Supported devices table"
+                   for platform, firmware in pairs if not re.search(r"(?<![\w.])" + re.escape(firmware) + r"\b", rows.get(platform, ""))]
+    if "NetOps " + version not in verified:
+        errors.append("docs/verified-support.md does not name NetOps " + version)
+    if "NetOps " + version not in section(readme, "#### Tested MCP clients"):
+        errors.append("README Tested MCP clients does not name NetOps " + version)
+    return errors
 CANDIDATE_BRANCH = re.compile(r"release/[^\s\"']*-candidate")
 
 def workflow_branch_errors(texts, version):
@@ -103,7 +129,7 @@ def workflow_branch_errors(texts, version):
             for name, text in sorted(texts.items())
             for found in sorted(set(CANDIDATE_BRANCH.findall(text)) or {"(none)"}) if found != expected]
 
-def check(root):
+def check(root, release=False):
     rules = legacy(root)
     proc = subprocess.run(["git", "-C", str(root), "ls-files", "-z"], capture_output=True, check=True)
     names = proc.stdout.decode().rstrip(chr(0)).split(chr(0))
@@ -129,7 +155,10 @@ def check(root):
     product_versions = [node.value.value for node in product_tree.body if isinstance(node, ast.Assign) and isinstance(node.value, ast.Constant) and any(isinstance(target, ast.Name) and target.id == "__version__" for target in node.targets)]
     if product_versions != [version]:
         errors.append("installed product version differs from project metadata")
-    errors.extend(readme_version_errors((root / "README.md").read_text(encoding="utf-8"), version))
+    readme_text = (root / "README.md").read_text(encoding="utf-8")
+    errors.extend(readme_version_errors(readme_text, version))
+    if release:
+        errors.extend(support_errors(readme_text, (root / "docs/verified-support.md").read_text(encoding="utf-8"), version))
     errors.extend(workflow_branch_errors({name: (root / ".github/workflows" / name).read_text(encoding="utf-8")
                                           for name in ("ci.yml", "candidate.yml", "codeql.yml")}, version))
     for role in ("core", "helper", "auditor", "admin"):
@@ -157,8 +186,9 @@ def check(root):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--root", default=str(Path(__file__).resolve().parents[1]))
+    parser.add_argument("--release", action="store_true")
     args = parser.parse_args()
-    errors = check(Path(args.root))
+    errors = check(Path(args.root), args.release)
     for error in errors:
         print(error)
     print("source_gate=" + ("FAIL" if errors else "PASS"))

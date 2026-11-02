@@ -24,7 +24,7 @@ from netops_auditor.collect import (
 from netops_auditor.findings import EVIDENCE_TYPES, Finding
 from netops_core import prompt
 
-CANARY = "KANARCI-RETEZEC-NESMI-UNIKNOUT"
+CANARY = "CANARY-STRING-MUST-NOT-LEAK"
 DEVICE = "fw-example"
 PLATFORM = "fortios"
 PROFILE = "audit-readonly"
@@ -467,9 +467,9 @@ from netops_core.hostkey import PREFIX as HOST_KEY_PREFIX
 from netops_core.legacy_ssh import OPENSSH_OPTIONS, PROFILES
 from netops_core.ssh import SAID_CHARS
 
-CANARY_TOKEN = "KANARCI-TOKEN-NESMI-UNIKNOUT"
-CANARY_KEY = "KANARCI-PRIVATNI-KLIC-NESMI-UNIKNOUT"
-CANARY_PASSWORD = "KANARCI-HESLO-NESMI-UNIKNOUT"
+CANARY_TOKEN = "CANARY-TOKEN-MUST-NOT-LEAK"
+CANARY_KEY = "CANARY-PRIVATE-KEY-MUST-NOT-LEAK"
+CANARY_PASSWORD = "CANARY-PASSWORD-MUST-NOT-LEAK"
 HOST = "192.0.2.10"
 LOGIN = "audit-ro"
 REST_SOURCE = "https://192.0.2.10"
@@ -1785,7 +1785,7 @@ def test_ssh_exit_code_carries_a_recognized_reason_and_not_the_client_words():
 
 
 def test_words_a_device_writes_on_standard_error_stay_out_of_the_collect_error():
-    canary = "KANARCI-TAJEMSTVI-OD-PROTISTRANY"
+    canary = "CANARY-SECRET-FROM-PEER"
     noise = ("\x1b[31mbanner\x1b[0m\r\n\x00Permission denied. key=%s\n" % canary).encode("utf-8")
     error = ssh_failure(FakeRunner(code=255, stdout=b"", stderr=noise))
     assert canary not in str(error)

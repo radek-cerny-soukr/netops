@@ -1,3 +1,4 @@
+from dataclasses import replace
 import json
 
 import pytest
@@ -49,17 +50,20 @@ def test_cli_refusal_is_failed_without_caching_and_valid_next_read_works(wire, m
     assert events[-1]["status"] == "ok"
 
 
+@pytest.mark.parametrize("query_name", [
+    None, "conserve_state", "cpu_cores", "fortiguard_communication",
+])
 @pytest.mark.parametrize("output", [
     "Command fail. Return code -7622\n",
     "command parse error before 'status'\n",
     "Unknown action 0\n",
 ])
 def test_fortios_cli_refusal_after_a_verified_identity_is_failed_without_caching(
-    wire, monkeypatch, output,
+    wire, monkeypatch, output, query_name,
 ):
     events = []
     monkeypatch.setattr(engine, "record", lambda event, **fields: events.append(fields))
-    query = next(
+    query = query_name or next(
         name for name, item in sorted(READ_QUERIES["fortinet"].items())
         if not item.slots and item.command != engine._IDENTITY_COMMAND
     )
@@ -115,3 +119,81 @@ def test_device_specific_classifier_preserves_valid_status_and_data(wire, platfo
     assert answer["ok"] is True
     assert answer["rc"] == code
     assert answer["untrusted_device_output"] == payload
+
+
+@pytest.mark.parametrize("query,slot,peer,refusal", [
+    ("bgp_received_ipv4", "peer", "192.0.2.20",
+     "Inbound soft reconfiguration not enabled"),
+    ("bgp_received_ipv6", "peer6", "2001:db8::20",
+     "% Inbound soft reconfiguration not enabled"),
+])
+def test_bgp_received_unavailable_is_failed_without_caching(
+    wire, monkeypatch, query, slot, peer, refusal,
+):
+    events = []
+    monkeypatch.setattr(engine, "record", lambda event, **fields: events.append(fields))
+    target = replace(_target("fortinet", query), read_inventory={"addresses": (peer,)})
+    parameters = {slot: peer}
+    state = {"body": refusal + "\nNo prefix for neighbor " + peer + "\n" + PASSWORD}
+    sent = []
+
+    def fake_read(auth, platform, command):
+        sent.append(command)
+        if command == engine._IDENTITY_COMMAND:
+            return 0, FORTIOS_STATUS
+        return 0, state["body"]
+
+    monkeypatch.setattr(engine, "read_from_device", fake_read)
+    answer = engine.ssh_read(target, "fortinet", query, parameters, 0, 1000)
+    assert answer["ok"] is False
+    assert answer["rc"] == 0
+    assert answer["error_code"] == "device_cli_error"
+    assert refusal in answer["untrusted_device_output"]
+    assert PASSWORD not in json.dumps(answer)
+    assert sent == [
+        engine._IDENTITY_COMMAND,
+        READ_QUERIES["fortinet"][query].command.format_map(parameters),
+    ]
+    assert events[-1]["status"] == "failed"
+    assert not engine._SSH_PAGE_CACHE
+    state["body"] = "Total number of prefixes 1\n"
+    answer = engine.ssh_read(target, "fortinet", query, parameters, 0, 1000)
+    assert answer["ok"] is True
+    assert events[-1]["status"] == "ok"
+
+
+def test_policy_lookup_route_error_is_failed_without_caching(wire, monkeypatch):
+    events = []
+    monkeypatch.setattr(engine, "record", lambda event, **fields: events.append(fields))
+    query = "policy_lookup_ipv6"
+    parameters = {
+        "src_ip": "2001:db8::10", "src_port": "40000",
+        "dst_ip": "2001:db8::20", "dst_port": "443",
+        "protocol": "6", "device": "port2", "pol_type": "policy",
+    }
+    target = replace(_target("fortinet", query), read_inventory={
+        "addresses": ("2001:db8::10", "2001:db8::20"),
+        "flow_ports": ("40000", "443"), "ip_protocols": ("6",),
+        "interfaces": ("port2",), "policy_types": ("policy",),
+    })
+    state = {"body": "No authentication.\nError code: err_route\n" + PASSWORD}
+    sent = []
+
+    def fake_read(auth, platform, command):
+        sent.append(command)
+        return (0, FORTIOS_STATUS) if command == engine._IDENTITY_COMMAND else (0, state["body"])
+
+    monkeypatch.setattr(engine, "read_from_device", fake_read)
+    answer = engine.ssh_read(target, "fortinet", query, parameters, 0, 1000)
+    assert answer["ok"] is False
+    assert answer["error_code"] == "device_cli_error"
+    assert "route" in answer["error"]
+    assert "Error code: err_route" in answer["untrusted_device_output"]
+    assert PASSWORD not in json.dumps(answer)
+    assert events[-1]["status"] == "failed"
+    assert not engine._SSH_PAGE_CACHE
+    assert sent == [engine._IDENTITY_COMMAND, READ_QUERIES["fortinet"][query].command.format_map(parameters)]
+    state["body"] = "No policy matched\nsec_default_action: deny\nfirewall policy id: 0\n"
+    answer = engine.ssh_read(target, "fortinet", query, parameters, 0, 1000)
+    assert answer["ok"] is True
+    assert events[-1]["status"] == "ok"

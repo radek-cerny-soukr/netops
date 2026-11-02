@@ -404,7 +404,7 @@ def test_public_argument_types_fail_before_transport(monkeypatch) -> None:
             AssertionError("transport resolution must not start")
         ),
     )
-    target = replace(auth(), snmp_community="snmp-secret")
+    target = replace(auth(), snmp_usm={"user": "fixture-monitor", "auth_protocol": "sha256", "auth_key": "fixture-auth-key-91", "priv_protocol": "aes128", "priv_key": "fixture-privacy-key-82"})
     calls = (
         lambda: engine.tcp_probe(target, 443, True),
         lambda: engine.tcp_probe(target, 443, float("nan")),
@@ -473,7 +473,7 @@ def test_protocol_flags_reject_before_transport(monkeypatch) -> None:
 
 def test_snmp_udp_scope_rejects_before_backend_import(monkeypatch) -> None:
     monkeypatch.setattr(engine, "record", lambda *args, **kwargs: None)
-    target = replace(auth(), snmp_community="snmp-secret")
+    target = replace(auth(), snmp_usm={"user": "fixture-monitor", "auth_protocol": "sha256", "auth_key": "fixture-auth-key-91", "priv_protocol": "aes128", "priv_key": "fixture-privacy-key-82"})
     with pytest.raises(EgressScopeError):
         asyncio.run(engine.snmp_get(target, ["1.3.6"], 162))
 
@@ -604,20 +604,16 @@ def test_interleaved_audit_calls_have_unique_pairable_operation_ids(monkeypatch)
     assert all(statuses == ["started", "ok"] for statuses in grouped.values())
 
 
-def test_snmp_requires_separate_community_before_backend_import(monkeypatch) -> None:
+def test_snmp_requires_enrolled_usm_before_backend_import(monkeypatch) -> None:
     monkeypatch.setattr(engine, "record", lambda *args, **kwargs: None)
     with pytest.raises(AuthenticationMaterialError) as captured:
         asyncio.run(engine.snmp_get(auth(), ["1.3.6"], 161))
     assert captured.value.error_code == "auth_material"
 
 
-def test_snmp_backend_receives_only_the_separate_community(monkeypatch) -> None:
+def test_snmp_backend_receives_only_the_enrolled_usm(monkeypatch) -> None:
+    from pysnmp.hlapi.v3arch import asyncio as snmp
     captured = {}
-
-    class CommunityData:
-        def __init__(self, value, mpModel):
-            captured["community"] = value
-            captured["model"] = mpModel
 
     class Transport:
         @classmethod
@@ -629,33 +625,30 @@ def test_snmp_backend_receives_only_the_separate_community(monkeypatch) -> None:
         def close_dispatcher(self):
             captured["closed"] = True
 
-    class Placeholder:
-        def __init__(self, *args):
-            pass
-
-    async def get_cmd(*args, **kwargs):
+    async def get_cmd(snmp_engine, usm, *args, **kwargs):
+        assert isinstance(usm, snmp.UsmUserData)
+        assert usm.security_level == "authPriv"
+        assert usm.authentication_protocol == snmp.USM_AUTH_HMAC192_SHA256
+        assert usm.privacy_protocol == snmp.USM_PRIV_CFB128_AES
+        captured["user"] = usm.userName
+        captured["auth_key"] = usm.authentication_key
+        captured["priv_key"] = usm.privacy_key
         return None, False, 0, []
 
-    backend = types.ModuleType("pysnmp.hlapi.v3arch.asyncio")
-    backend.CommunityData = CommunityData
-    backend.ContextData = Placeholder
-    backend.ObjectIdentity = Placeholder
-    backend.ObjectType = Placeholder
-    backend.SnmpEngine = Engine
-    backend.UdpTransportTarget = Transport
-    backend.get_cmd = get_cmd
-    monkeypatch.setitem(sys.modules, "pysnmp.hlapi.v3arch.asyncio", backend)
+    monkeypatch.setattr(snmp, "SnmpEngine", Engine)
+    monkeypatch.setattr(snmp, "UdpTransportTarget", Transport)
+    monkeypatch.setattr(snmp, "get_cmd", get_cmd)
     monkeypatch.setattr(engine, "record", lambda *args, **kwargs: None)
-    target_auth = replace(
-        auth(), secret="ssh-secret", snmp_community="snmp-secret",
-    )
+    material = {"user": "fixture-monitor", "auth_protocol": "sha256",
+                "auth_key": "fixture-auth-key-91", "priv_protocol": "aes128",
+                "priv_key": "fixture-privacy-key-82"}
+    target_auth = replace(auth(), secret="ssh-secret", snmp_usm=material)
     result = asyncio.run(engine.snmp_get(target_auth, ["1.3.6"], 161))
     assert result["ok"] is True
     assert captured == {
-        "community": "snmp-secret",
-        "model": 1,
-        "transport_created": True,
-        "closed": True,
+        "user": material["user"], "auth_key": material["auth_key"],
+        "priv_key": material["priv_key"],
+        "transport_created": True, "closed": True,
     }
 
 
@@ -1166,7 +1159,7 @@ def test_audited_key_operation_never_writes_the_key(tmp_path, monkeypatch) -> No
 
 
 def _unresolvable_target() -> TargetAuth:
-    base = replace(auth(), snmp_community="snmp-secret")
+    base = replace(auth(), snmp_usm={"user": "fixture-monitor", "auth_protocol": "sha256", "auth_key": "fixture-auth-key-91", "priv_protocol": "aes128", "priv_key": "fixture-privacy-key-82"})
     return replace(
         base, host="device-a.example.invalid",
         egress=replace(base.egress, allow_dns=True),
@@ -1188,7 +1181,10 @@ def test_every_device_tool_answers_a_failed_name_resolution_with_ok_false(monkey
     monkeypatch.setattr(
         engine.socket, "getaddrinfo",
         lambda *args, **kwargs: (_ for _ in ()).throw(
-            engine.socket.gaierror(engine.socket.EAI_NONAME, "Name or service not known")
+            engine.socket.gaierror(
+                engine.socket.EAI_NONAME,
+                "Name or service not known fixture-auth-key-91 fixture-privacy-key-82",
+            )
         ),
     )
     monkeypatch.setattr(engine.socket, "create_connection", _forbidden("no socket may open"))
@@ -1220,7 +1216,8 @@ def test_every_device_tool_answers_a_failed_name_resolution_with_ok_false(monkey
         assert result["ok"] is False, name
         assert result["target"] == "device-a", name
         assert "gaierror" in result["error"], name
-        assert "snmp-secret" not in json.dumps(result), name
+        assert "fixture-auth-key-91" not in json.dumps(result), name
+        assert "fixture-privacy-key-82" not in json.dumps(result), name
         assert events == [(name, "started"), (name, "failed")], name
     assert calls["ftp_list"]()["failure_stage"] == "resolve"
 

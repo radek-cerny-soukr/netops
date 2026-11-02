@@ -134,13 +134,23 @@ def rest_digest(snapshot, port, commands=None):
 def prediction(snapshot, port, state):
     _vlans, members, _descriptions = model(snapshot)
     members[port] = {"tagged": set(state.get("tagged", "").split()), "untagged": {state["untagged"]}}
-    lines = ["# Module vlan configuration."]
-    lines += [command.text for command in snapshot.commands
-              if command.tokens[:2] != ("configure", "vlan") or command.tokens[3:5] != ("add", "ports")]
+    kept = [command for command in snapshot.commands
+            if command.tokens[:2] != ("configure", "vlan") or command.tokens[3:5] != ("add", "ports")]
+    added = []
     for key, modes in sorted(members.items()):
         for mode, names in sorted(modes.items()):
-            lines += ["configure vlan %s add ports %s %s" % (name, key, mode) for name in sorted(names)]
-    return "\n".join(lines) + "\n"
+            added += ["configure vlan %s add ports %s %s" % (name, key, mode) for name in sorted(names)]
+    return "\n".join(modular(snapshot, kept, added)) + "\n"
+
+
+def modular(snapshot, commands, added):
+    modules = list(snapshot.configuration.modules)
+    lines = [command.text for command in commands if command.module not in modules]
+    for module in modules:
+        lines += ["# Module %s configuration." % module] + [command.text for command in commands if command.module == module]
+        if module == "vlan":
+            lines += added
+    return lines
 
 
 PORT_NUMBER = re.compile(r"[1-9][0-9]*(?::[1-9][0-9]*)?")

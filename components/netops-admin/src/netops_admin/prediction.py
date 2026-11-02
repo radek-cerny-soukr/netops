@@ -57,6 +57,8 @@ def snapshot_after(text, plan):
             for name in profile.attributes:
                 entry.attrs.pop(name, None)
             for name, value in state.items():
+                if name not in profile.attributes:
+                    continue
                 tokens = (value,) if profile.attributes[name].type == "text" else tuple(value.split())
                 entry.attrs[name] = l1_fortios.Attr(tokens, 0)
         return text.splitlines()[0] + "\n" + "\n".join(fortios_text(tree)) + "\n"
@@ -69,8 +71,8 @@ def snapshot_after(text, plan):
     for command in snapshot.commands:
         own = (exos._is_display_string(command) and command.tokens[2] == key) if table == "ports" else snapshot._is_own(command, key)
         if not own:
-            kept.append(command.text)
-    lines = ["# Module vlan configuration."] + kept
+            kept.append(command)
+    lines = []
     if state is not None:
         if table == "ports":
             if "display-string" in state:
@@ -81,4 +83,4 @@ def snapshot_after(text, plan):
                 lines += ["configure vlan %s tag %s" % (key, state["tag"])]
             if "description" in state:
                 lines += ['configure vlan %s description "%s"' % (key, state["description"])]
-    return "\n".join(lines) + "\n"
+    return "\n".join(membership.modular(snapshot, kept, lines)) + "\n"

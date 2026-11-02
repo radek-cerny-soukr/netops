@@ -2,15 +2,21 @@ from __future__ import annotations
 
 import datetime
 import itertools
+import re
 from types import SimpleNamespace
 
 from netops_auditor import l1_fortios
 
-HEADER = "#config-version=FGT60F-8.0.0-FW-build0167-260420:opmode=1:vdom=0:user=netops-rw"
+HEADER = "#config-version=FGT60F-%s-FW-build%s-260420:opmode=1:vdom=0:user=netops-rw"
 
 
 def quoted(value):
     return '"%s"' % value.replace("\\", "\\\\").replace('"', '\\"')
+
+
+READ_PROFILE = {"secfabgrp": "read", "ftviewgrp": "read", "authgrp": "read", "sysgrp": "read", "netgrp": "read",
+                "loggrp": "read", "fwgrp": "read", "vpngrp": "read", "utmgrp": "read", "wifi": "read",
+                "cli-diagnose": "enable", "cli-get": "enable", "cli-show": "enable", "cli-exec": "enable"}
 
 
 class DeviceRefused(Exception):
@@ -20,6 +26,8 @@ class DeviceRefused(Exception):
 
 
 class FakeFortiOS:
+    firmware = ("8.0.0", "0167")
+
     def __init__(self, hostname="fw-lab"):
         self.hostname = hostname
         self.clock = datetime.datetime(2026, 9, 23, 12, 0, 0)
@@ -42,8 +50,24 @@ class FakeFortiOS:
         self.unreadable = False
         self.applied_blocks = []
         self.trigger_override = None
+        self.trigger_types = {}
+        self.trigger_type_override = None
         self.check_override = None
         self.check_unreadable = False
+        self.policies = {"1": {"dstaddr": "srv-web"}}
+        self.interfaces = ["port1", "port2", "wan1"]
+        self.services = ["HTTP", "HTTPS"]
+        self.snapshot_extra = []
+        self.policy_hidden = {"status": "enable", "action": "deny"}
+        self.policy_front = False
+        self.unreachable = False
+        self.unreachable_after_apply = None
+        self.fail_next = 0
+        self.account_profiles = {"netops-rw": "netops-write", "netops-check": "netops-check"}
+        self.profile_rights = {"netops-check": dict(READ_PROFILE)}
+        self.rights_answers = {}
+        self.rights_unreadable = False
+        self.rights_queries = []
 
     def _uuid(self):
         return "00000000-0000-4000-8000-%012d" % next(self.uuids)
@@ -51,6 +75,13 @@ class FakeFortiOS:
     def advance(self, seconds):
         self.clock += datetime.timedelta(seconds=seconds)
         self._fire()
+
+    def _connect(self):
+        if self.unreachable:
+            raise RuntimeError("device unreachable")
+        if self.fail_next > 0:
+            self.fail_next -= 1
+            raise RuntimeError("injected failure")
 
     def _fire(self):
         for name, stitch in list(self.stitches.items()):
@@ -90,6 +121,13 @@ class FakeFortiOS:
                 current = None
             elif command == "edit":
                 current = tokens[1]
+                if section == "firewall policy":
+                    if current not in self.policies:
+                        entry = {"uuid": self._uuid()}
+                        if self.policy_front:
+                            self.policies = {current: entry, **self.policies}
+                        else:
+                            self.policies[current] = entry
                 if section == "firewall address" and current not in self.addresses:
                     self.addresses[current] = {"uuid": self._uuid()}
                 elif section == "system automation-stitch":
@@ -98,7 +136,7 @@ class FakeFortiOS:
             elif command == "next":
                 current = None
             elif command == "delete":
-                target = {"firewall address": self.addresses, "system automation-action": self.actions,
+                target = {"firewall policy": self.policies, "firewall address": self.addresses, "system automation-action": self.actions,
                           "system automation-trigger": self.triggers, "system automation-stitch": self.stitches}[section]
                 target.pop(tokens[1], None)
                 self.fired.discard(tokens[1])
@@ -107,6 +145,12 @@ class FakeFortiOS:
                     self.actions[current] = l1_fortios.tokenize(raw[raw.index('"'):])[0]
                 else:
                     pending = [raw.strip()]
+            elif command == "set" and section == "firewall policy":
+                self.policies[current][tokens[1]] = " ".join(tokens[2:])
+                if tokens[1:3] == ["action", "deny"]:
+                    self.policies[current]["logtraffic"] = "disable"
+            elif command == "unset" and section == "firewall policy":
+                self.policies[current].pop(tokens[1], None)
             elif command == "set" and section == "firewall address":
                 if tokens[1] == "comment" and self.drop_comment and not automatic:
                     pass
@@ -114,6 +158,8 @@ class FakeFortiOS:
                     self.addresses[current][tokens[1]] = " ".join(tokens[2:])
             elif command == "unset" and section == "firewall address":
                 self.addresses[current].pop(tokens[1], None)
+            elif command == "set" and section == "system automation-trigger" and tokens[1] == "trigger-type":
+                self.trigger_types[current] = tokens[2]
             elif command == "set" and section == "system automation-trigger" and tokens[1] == "trigger-datetime":
                 self.triggers[current] = " ".join(tokens[2:])
             elif command == "set" and section == "system automation-stitch" and tokens[1] == "trigger":
@@ -124,10 +170,13 @@ class FakeFortiOS:
         return accepted
 
     def snapshot(self):
+        self._connect()
         self._fire()
         if self.unreadable:
             raise RuntimeError("snapshot unavailable")
-        lines = [HEADER, "config system global", '    set hostname "%s"' % self.hostname, "end",
+        lines = [HEADER % self.firmware, "config system global", '    set hostname "%s"' % self.hostname, "end",
+                 "config system admin", '    edit "admin-example"', "        set trusthost1 192.0.2.0 255.255.255.0",
+                 "        set ip6-trusthost1 2001:db8::/32", "    next", "end",
                  "config firewall address"]
         for name, attributes in self.addresses.items():
             lines.append('    edit "%s"' % name)
@@ -136,14 +185,33 @@ class FakeFortiOS:
                     value = attributes[key]
                     lines.append('        set %s %s' % (key, quoted(value) if key == "comment" else value))
             lines.append("    next")
-        lines += ["end", "config firewall policy", "    edit 1", '        set dstaddr "srv-web"', "    next", "end"]
+        lines.append("end")
+        lines.append("config system interface")
+        for name in self.interfaces:
+            lines += ['    edit "%s"' % name, "    next"]
+        lines.append("end")
+        lines.append("config firewall service custom")
+        for name in self.services:
+            lines += ['    edit "%s"' % name, "    next"]
+        lines.append("end")
+        lines += self.snapshot_extra
+        lines.append("config firewall policy")
+        for name, attributes in self.policies.items():
+            lines.append("    edit %s" % name)
+            for key, value in attributes.items():
+                if self.policy_hidden.get(key) == value:
+                    continue
+                lines.append("        set %s %s" % (key, value if key == "uuid" else (quoted(value) if key in ("name", "comments", "schedule") else " ".join(quoted(v) for v in value.split()))))
+            lines.append("    next")
+        lines.append("end")
         return "\n".join(lines) + "\n"
 
     def query(self, command):
+        self._connect()
         self._fire()
         if command == "get system status":
-            return "Version: FortiGate-60F v8.0.0,build0167,260420 (GA.F)\nSystem time: %s\n" % \
-                self.clock.strftime("%a %b %d %H:%M:%S %Y")
+            return "Version: FortiGate-60F v%s,build%s,260420 (GA.F)\nSystem time: %s\n" % \
+                (self.firmware + (self.clock.strftime("%a %b %d %H:%M:%S %Y"),))
         if command == "get system admin list":
             rows = ["netops-rw            ssh            wan1:192.0.2.1:22        root     netops-rw   192.0.2.9:4000   now"]
             rows += ["%-20s ssh            wan1:192.0.2.1:22        root     super_admin 192.0.2.8:4000   now" % name
@@ -168,9 +236,11 @@ class FakeFortiOS:
         if kind == "automation-trigger":
             if name not in self.triggers:
                 return "entry is not found in table\n"
-            return ('config system automation-trigger\n    edit "%s"\n        set trigger-type scheduled\n'
+            kind = self.trigger_type_override or self.trigger_types.get(name)
+            typed = "" if kind is None else "        set trigger-type %s\n" % kind
+            return ('config system automation-trigger\n    edit "%s"\n%s'
                     '        set trigger-frequency once\n        set trigger-datetime %s\n    next\nend\n'
-                    % (name, self.trigger_override or self.triggers[name]))
+                    % (name, typed, self.trigger_override or self.triggers[name]))
         if name not in self.stitches:
             return "entry is not found in table\n"
         stitch = self.stitches[name]
@@ -181,17 +251,24 @@ class FakeFortiOS:
     def apply(self, lines, spec):
         assert spec.anchor == ("\n%s" % self.hostname).encode("ascii")
         assert all(isinstance(line, str) for line in lines)
+        self._connect()
         self._fire()
         self.applied_blocks.append(list(lines))
         if self.on_apply is not None:
             self.on_apply(self, lines)
-        return self._run(lines)
+        done = self._run(lines)
+        if self.unreachable_after_apply is not None and self.unreachable_after_apply(lines):
+            self.unreachable = True
+        return done
 
     def check_query(self, command):
+        self._connect()
         self._fire()
         if self.check_unreadable:
             raise RuntimeError("check account unavailable")
         key = command.split('"')[1]
+        if command.startswith("show firewall policy"):
+            return self._policy_show(key)
         attributes = self.addresses.get(key)
         if self.check_override is not None and key in self.check_override:
             attributes = self.check_override[key]
@@ -203,3 +280,44 @@ class FakeFortiOS:
                 value = attributes[name]
                 lines.append("        set %s %s" % (name, quoted(value) if name == "comment" else value))
         return "\n".join(lines + ["    next", "end", ""])
+
+    def _policy_show(self, key):
+        attributes = self.policies.get(key)
+        if attributes is None:
+            return "entry is not found in table\n"
+        lines = ["FortiGate-60F $ config firewall policy", "    edit %s" % key]
+        for name, value in attributes.items():
+            if self.policy_hidden.get(name) == value:
+                continue
+            if name == "uuid":
+                lines.append("        set uuid %s" % value)
+            elif name in ("name", "comments", "schedule"):
+                lines.append("        set %s %s" % (name, quoted(value)))
+            else:
+                lines.append("        set %s %s" % (name, " ".join(quoted(v) for v in value.split())))
+        return "\n".join(lines + ["    next", "end", ""])
+
+    def own_query(self, command, check=False):
+        self._connect()
+        login = (self.check_credential if check else self.credential).login
+        self.rights_queries.append((login, command))
+        if self.rights_unreadable:
+            raise RuntimeError("rights unavailable")
+        if command in self.rights_answers:
+            return self.rights_answers[command]
+        admin = re.fullmatch(r'show system admin "(.+)"', command)
+        if admin is not None:
+            assert admin.group(1) == login, command
+            profile = self.account_profiles.get(login)
+            if profile is None:
+                return "entry is not found in table\n"
+            return ('config system admin\n    edit "%s"\n        set vdom "root"\n'
+                    '        set trusthost1 192.0.2.9 255.255.255.255\n        set accprofile "%s"\n'
+                    '        set password ENC SH2c2VjcmV0LWhhc2gtdmFsdWU=\n    next\nend\n' % (login, profile))
+        profile = re.fullmatch(r'show system accprofile "(.+)"', command)
+        assert profile is not None and check, command
+        rights = self.profile_rights.get(profile.group(1))
+        if rights is None:
+            return "config system accprofile\nend\n"
+        return ('config system accprofile\n    edit "%s"\n' % profile.group(1)
+                + "".join("        set %s %s\n" % item for item in rights.items()) + "    next\nend\n")

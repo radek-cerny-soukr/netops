@@ -31,7 +31,9 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey, X25519PublicKey
 
 from netops_core import ssh as core_ssh
+from netops_core.audit import Recorder
 from netops_core.hostkey import fingerprint_of
+import netops_helper.audit as helper_audit
 import netops_helper.engine as engine
 from netops_helper.auth import EgressPolicy, TargetAuth
 from netops_auditor import collect
@@ -308,6 +310,12 @@ class _Case(unittest.TestCase):
 
 class HelperSshRead(_Case):
     def setUp(self):
+        audit_directory = tempfile.TemporaryDirectory(prefix="f3-helper-audit-")
+        self.addCleanup(audit_directory.cleanup)
+        recorder = mock.patch.object(helper_audit, "_RECORDER", Recorder(
+            os.path.join(audit_directory.name, "audit.jsonl"), "helper"))
+        recorder.start()
+        self.addCleanup(recorder.stop)
         engine._CONNECTION_LANES.clear()
         engine._HOST_KEY_LINE_CACHE.clear()
         self.addCleanup(engine._HOST_KEY_LINE_CACHE.clear)

@@ -44,7 +44,7 @@ RUCKUS_QUERY = next(
     name for name, query in sorted(READ_QUERIES["ruckus_unleashed"].items()) if not query.slots
 )
 SECRET_KINDS = (
-    "device_password", "device_key", "pty_password", "community", "runner_password",
+    "device_password", "device_key", "pty_password", "community", "snmp_priv_key", "runner_password",
     "runner_key", "vault_api_token", "device_token", "passphrase", "device_private_key",
 )
 CLIENT_SUPPLIED = ("argument",)
@@ -153,6 +153,11 @@ def device_lines(secret):
         "snmp-location " + canaries["community"],
         "wpa-passphrase " + canaries["passphrase"],
         "set psksecret ENC " + canaries["passphrase"],
+        "      Passphrase = " + canaries["passphrase"],
+        "set passwd ENC " + canaries["passphrase"],
+        'resp {"password": "' + canaries["device_token"] + '"}',
+        "ExecStart=/usr/bin/app --password " + canaries["device_token"]
+        + " --api-key=" + canaries["device_token"],
         "Authorization: Bearer " + canaries["device_token"],
         "api_token=" + canaries["device_token"],
         fixture["private_key_begin"],
@@ -250,13 +255,24 @@ class _Text:
     def __init__(self, text):
         self.text = text
 
+    def get_oid(self):
+        return self
+
     def prettyPrint(self):
         return self.text
 
 
-class CommunityData:
-    def __init__(self, community, mpModel=1):
-        self.community = community
+class UsmUserData:
+    def __init__(self, userName, authKey=None, privKey=None, authProtocol=None, privProtocol=None, **options):
+        self.userName = userName
+        self.authKey = authKey
+        self.privKey = privKey
+        self.authProtocol = authProtocol
+        self.privProtocol = privProtocol
+
+
+USM_AUTH_HMAC192_SHA256 = (1, 3, 6, 1, 6, 3, 10, 1, 1, 4)
+USM_PRIV_CFB128_AES = (1, 3, 6, 1, 6, 3, 10, 1, 2, 4)
 
 
 class ContextData:
@@ -284,8 +300,8 @@ class UdpTransportTarget:
         return cls()
 
 
-async def get_cmd(engine, community_data, transport, context, *objects):
-    community = community_data.community
+async def get_cmd(engine, usm_data, transport, context, *objects):
+    community = usm_data.authKey + " priv " + usm_data.privKey
     oids = [item.identity.oid for item in objects]
     if fixture["snmp_error_oid"] in oids:
         return "agent refused community " + community, 0, 0, []
@@ -300,9 +316,11 @@ for name in ("pysnmp", "pysnmp.hlapi", "pysnmp.hlapi.v3arch", "pysnmp.hlapi.v3ar
     module.__path__ = []
     sys.modules[name] = module
 for item in (
-    CommunityData, ContextData, ObjectIdentity, ObjectType, SnmpEngine, UdpTransportTarget, get_cmd,
+    UsmUserData, ContextData, ObjectIdentity, ObjectType, SnmpEngine, UdpTransportTarget, get_cmd,
 ):
     setattr(sys.modules["pysnmp.hlapi.v3arch.asyncio"], item.__name__, item)
+for constant in ("USM_AUTH_HMAC192_SHA256", "USM_PRIV_CFB128_AES"):
+    setattr(sys.modules["pysnmp.hlapi.v3arch.asyncio"], constant, globals()[constant])
 
 from netops_core.audit import Recorder
 import netops_helper.audit as audit
@@ -436,7 +454,8 @@ def run_hostile():
         envelope = decoded_envelope(arguments.get("auth_context"))
         known = [
             value for value in (
-                envelope.get("secret"), envelope.get("snmp_community"),
+                envelope.get("secret"), (envelope.get("snmp_usm") or {}).get("auth_key"),
+                (envelope.get("snmp_usm") or {}).get("priv_key"),
                 arguments.get("auth_context"), runner_secret,
             ) if value
         ]
@@ -804,7 +823,11 @@ class Harness:
             "canary-a-account": {
                 "kind": "password", "login": "reader", "value": self.canaries["device_password"],
             },
-            "canary-a-community": {"kind": "snmp-community", "value": self.canaries["community"]},
+            "canary-a-community": {
+                "kind": "snmpv3-authpriv", "login": "usm-reader", "value": self.canaries["community"],
+                "priv_value": self.canaries["snmp_priv_key"],
+                "auth_protocol": "sha256", "priv_protocol": "aes128",
+            },
             "canary-b-key": {
                 "kind": "ssh-key", "login": "reader", "value": private_key(self.canaries["device_key"]),
             },
@@ -1135,6 +1158,7 @@ def capture_canary_sinks(base: Path) -> tuple[dict[str, bytes], dict[str, str], 
     return sinks, canaries, {
         "argument": client_echo,
         "community": {"output:devices-server-stdout.log"},
+        "snmp_priv_key": {"output:devices-server-stdout.log"},
     }
 
 

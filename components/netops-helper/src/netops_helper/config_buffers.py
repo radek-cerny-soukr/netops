@@ -4,6 +4,10 @@ import sys
 
 CHUNK = 65536
 
+class ContentLimitError(ValueError):
+    pass
+
+
 class Content:
     def __init__(self, chunks, total, digest):
         self.chunks, self.total, self.sha256 = tuple(chunks), total, digest
@@ -30,12 +34,12 @@ class Content:
         return isinstance(other, Content) and (self.total, self.sha256) == (other.total, other.sha256)
 
 class ContentBuilder:
-    def __init__(self, maximum, forbidden=()):
+    def __init__(self, maximum, forbidden=(), serialized_markers=True):
         self.maximum, self.total = maximum, 0
         self.buffer, self.chunks = bytearray(), []
         self.stored_bytes = 0
         self.digest = hashlib.sha256()
-        self.forbidden = tuple(v.encode() for v in forbidden if v) + (b'-----BEGIN', b'ENC ', b'$6$', b'$9$')
+        self.forbidden = tuple(v.encode() for v in forbidden if v) + ((b'-----BEGIN', b'ENC ', b'$6$', b'$9$') if serialized_markers else ())
         self.overlap = max(map(len, self.forbidden), default=1) - 1
         self.tail = b''
     @property
@@ -46,7 +50,7 @@ class ContentBuilder:
             data = data.encode('ascii')
         self.total += len(data)
         if self.total > self.maximum:
-            raise ValueError('redacted configuration exceeds safety cap')
+            raise ContentLimitError('redacted configuration exceeds safety cap')
         combined = self.tail + data
         if any(marker in combined for marker in self.forbidden):
             raise ValueError('redaction could not be verified; output withheld')
@@ -131,4 +135,3 @@ class ChangedRecords:
         end = min(len(self), offset+256)
         rows = ['record:'+self.data[i*16:(i+1)*16].hex() for i in range(offset,end)]
         return rows, end if end < len(self) else None
-

@@ -176,6 +176,10 @@ class FakeExos:
         for port, text in sorted(self.port_strings.items()):
             lines.append("configure ports %s display-string %s" % (port, text))
         lines.append("configure ports 10 description-string \"Default settings for the access port\"")
+        lines += ["#", "# Module ems configuration.", "#", "configure syslog add 192.0.2.10:514 vr VR-Default local0",
+                  "#", "# Module netTools configuration.", "#", "configure sntp-client primary 192.0.2.123 vr VR-Default",
+                  "enable sntp-client", "#", "# Module snmpMaster configuration.", "#",
+                  "#", "# Module telnetd configuration.", "#", "disable telnet"]
         lines += ["#", "# Module upm configuration.", "#"]
         for name, body in self.profiles.items():
             lines.append("create upm profile %s" % name)

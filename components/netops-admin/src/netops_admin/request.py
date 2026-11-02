@@ -88,7 +88,7 @@ def parse_request(raw: bytes) -> Request:
     if len(changes) > MAX_CHANGES:
         raise Rejected(["changes name more than %d attributes" % MAX_CHANGES])
     for name, value in changes.items():
-        if not ATTRIBUTE_NAME.match(name):
+        if not ATTRIBUTE_NAME.fullmatch(name):
             raise Rejected(["attribute name %r is not a CLI attribute name" % name[:64]])
         if value is not None and (isinstance(value, bool) or not isinstance(value, (str, int, list))):
             raise Rejected(["attribute %s: value must be a string, an integer or null" % name])

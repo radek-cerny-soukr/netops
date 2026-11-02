@@ -1,12 +1,14 @@
 import json
 import re
 
-SECRET_FIELDS = frozenset(("authorization", "password", "passphrase", "secret", "token", "access_token", "refresh_token", "auth_context", "private_key", "snmp_community", "credentials", "proxy_authorization", "cookie", "set_cookie", "x_api_key", "api_key", "mcp_session_id", "url_query"))
+SECRET_FIELDS = frozenset(("authorization", "password", "passphrase", "secret", "token", "access_token", "refresh_token", "auth_context", "private_key", "passwd", "psksecret", "snmp_community", "credentials", "proxy_authorization", "cookie", "set_cookie", "x_api_key", "api_key", "mcp_session_id", "url_query"))
 KEY_BEGIN = re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----")
 KEY_END = re.compile(r"-----END [A-Z ]*PRIVATE KEY-----")
 PATTERNS = (
     re.compile(r"(?i)(?:password|passwd|secret|token|community)\s*(?:=|:)\s*[^\s,;]+"),
-    re.compile(r"(?im)(?:set|encrypted)\s+password\s+[^\r\n]+"),
+    re.compile(r"(?im)(?:set|encrypted)\s+(?:password|passwd)\s+[^\r\n]+"),
+    re.compile(r'(?i)("(?:password|passwd|passphrase|secret|token)"\s*:\s*")(?:[^"\\\r\n]|\\.)*(?=")'),
+    re.compile(r"(?im)^([ \t]*passphrase[ \t]*=[ \t]*)[^\r\n]*"),
 )
 
 CANDIDATE = re.compile(
@@ -72,7 +74,7 @@ def redact(value, secrets=()):
                 output = output.replace(secret, "[REDACTED]")
             output = private_keys(output)
             for pattern in PATTERNS:
-                output = pattern.sub("[REDACTED]", output)
+                output = pattern.sub(lambda match: (match.group(1) if pattern.groups else "") + "[REDACTED]", output)
             if output != item:
                 paths.append(path)
             return output

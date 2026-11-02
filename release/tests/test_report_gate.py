@@ -42,6 +42,13 @@ class ReportGate(unittest.TestCase):
                 "netops-1.0.0-linux-amd64-grype.json": {"matches": [], "descriptor": {"name": "grype", "db": {"status": {"path": "/tmp/grype-db/6/vulnerability.db"}}}},
                 "netops-1.0.0-manifest.json": {"image": {"name": "ghcr.io/radek-cerny-soukr/netops"}}}
 
+    def test_empty_directory_fails(self):
+        rc, out = self.run_gate({})
+        self.assertEqual(rc, 1, out)
+        self.assertIn("FAIL no release assets in the directory", out)
+        self.assertIn("report_gate=FAIL", out)
+        self.assertNotIn("report_gate=PASS", out)
+
     def test_clean_assets_pass(self):
         rc, out = self.run_gate(self.clean())
         self.assertEqual(rc, 0, out)
@@ -50,10 +57,10 @@ class ReportGate(unittest.TestCase):
     def test_seven_layer_reports_in_the_signing_format_pass(self):
         files = self.clean()
         base = {"candidate_commit": "a" * 40, "candidate_image": "sha256:" + "1" * 64}
-        upgrade = ("kroky-postupu", "bezi-verze-TO", "health-ready", "obnova-manifest-shodny", "CA-klic-token-beze-zmeny",
-                   "konfigurace-beze-zmeny", "data-roli-beze-zmeny", "audit-prefix", "audit-zaznam-upgrade", "mcp-tools-list",
-                   "mcp-odpovedi-roli", "token-plati-bez-tokenu-401", "connection-shodne", "druhy-start-nic-nemeni",
-                   "token-ani-heslo-v-logs", "rollback-FROM", "FROM-nedotcena-do-rollbacku")
+        upgrade = ("procedure-steps", "TO-version-running", "health-ready", "restore-manifest-identical", "CA-key-token-unchanged",
+                   "configuration-unchanged", "role-data-unchanged", "audit-prefix", "audit-record-upgrade", "mcp-tools-list",
+                   "mcp-role-responses", "token-valid-no-token-401", "connection-identical", "second-start-changes-nothing",
+                   "no-token-or-password-in-logs", "rollback-FROM", "FROM-untouched-until-rollback")
         files["acceptance-upgrade-fedora-amd64.json"] = dict(base, checks=[{"check": c, "status": "PASS"} for c in upgrade])
         files["acceptance-fedora-arm64-rootless.json"] = dict(base, checks=[{"check": "selinux-enforcing", "status": "PASS"}])
         files["acceptance-rpios-arm64-rootful.json"] = dict(base, checks=[{"check": "quickstart", "status": "PASS"}])
@@ -404,6 +411,75 @@ class ReportGate(unittest.TestCase):
         rc, out = self.run_gate(files)
         self.assertEqual(rc, 0, out)
         self.assertIn("report_gate=PASS", out)
+
+    def test_binary_base64_nested_private_values_fail_without_echoing(self):
+        marker = "private" + "-" + "lab"
+        escaped = "".join("%%%02X" % byte for byte in HOME_PATH.encode("ascii"))
+        for encode in (base64.b64encode, base64.urlsafe_b64encode):
+            for private in (marker, HOME_PATH, escaped):
+                inner = base64.b64encode(private.encode("ascii"))
+                hidden = encode(bytes((255, 254, 128)) + inner + bytes((192,))).decode("ascii")
+                with self.subTest(encoder=encode.__name__, private_length=len(private)):
+                    files = self.clean()
+                    files["acceptance-ubuntu-amd64-blackbox.json"] = report("evidence " + hidden)
+                    rc, out = self.run_gate(files)
+                    self.assertEqual(rc, 1, out)
+                    self.assertIn("private marker" if private == marker else "private path", out)
+                    self.assertNotIn(hidden, out)
+                    self.assertNotIn(private, out)
+                    self.assertNotIn(HOME_PATH, out)
+
+    def test_binary_base64_nested_benign_value_passes(self):
+        inner = base64.b64encode(b"all checks passed")
+        hidden = base64.b64encode(bytes((255, 254, 128)) + inner + bytes((192,))).decode("ascii")
+        files = self.clean()
+        files["acceptance-ubuntu-amd64-blackbox.json"] = report("evidence " + hidden)
+        rc, out = self.run_gate(files)
+        self.assertEqual(rc, 0, out)
+        self.assertIn("report_gate=PASS", out)
+
+    def test_binary_base64_marker_in_nested_and_mixed_layers_is_found(self):
+        marker = ("private" + "-" + "lab").encode("ascii")
+        for layers in ((True, True), (True, False, True), (True,) * 8):
+            hidden = marker
+            for binary in layers:
+                raw = bytes((255, 254, 128)) + hidden + bytes((192,)) if binary else hidden
+                hidden = base64.b64encode(raw)
+            with self.subTest(layers=layers):
+                files = self.clean()
+                files["acceptance-ubuntu-amd64-blackbox.json"] = report("evidence " + hidden.decode("ascii"))
+                rc, out = self.run_gate(files)
+                self.assertEqual(rc, 1, out)
+                self.assertIn("private marker", out)
+                self.assertNotIn(marker.decode("ascii"), out)
+                self.assertNotIn(hidden.decode("ascii"), out)
+
+    def test_binary_base64_eight_nesting_steps_stay_allowed(self):
+        hidden = b"all checks passed"
+        for _ in range(8):
+            hidden = base64.b64encode(bytes((255, 254, 128)) + hidden + bytes((192,)))
+        files = self.clean()
+        files["acceptance-ubuntu-amd64-blackbox.json"] = report("evidence " + hidden.decode("ascii"))
+        rc, out = self.run_gate(files)
+        self.assertEqual(rc, 0, out)
+        self.assertIn("report_gate=PASS", out)
+
+    def test_binary_base64_nested_decoding_keeps_shared_limits(self):
+        hidden = b"all checks passed"
+        for _ in range(9):
+            hidden = base64.b64encode(bytes((255, 254, 128)) + hidden + bytes((192,)))
+        oversized = []
+        for index in range(9):
+            inner = b"safe! text! " * 1400 + bytes((65 + index,))
+            oversized.append(base64.b64encode(bytes((255, 254, 128)) + inner + bytes((192,))).decode("ascii"))
+        for label, value in (("depth", hidden.decode("ascii")), ("bytes", " ".join(oversized))):
+            with self.subTest(limit=label):
+                files = self.clean()
+                files["acceptance-ubuntu-amd64-blackbox.json"] = report("evidence " + value)
+                rc, out = self.run_gate(files)
+                self.assertEqual(rc, 1, out)
+                self.assertIn("unusable text encoding", out)
+                self.assertNotIn(value, out)
 
     def docker_metadata_scan(self, architecture="amd64", source_label="https://github.com/example/image"):
         manifest = {"schemaVersion": 2,

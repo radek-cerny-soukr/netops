@@ -18,8 +18,9 @@ CONFIG_FIELDS = frozenset(("version", "state_dir", "audit_file", "export_status_
 DEVICE_FIELDS = frozenset((
     "platform", "address", "port", "host_key_fingerprint", "vault", "credential", "firmware",
     "safeguard_seconds", "confirm_margin_seconds", "protected", "legacy_ssh", "accounts", "check_credential",
-    "check_address", "audit_policy", "schema",
+    "check_address", "audit_policy", "schema", "opt_in",
 ))
+OPT_IN_TABLES = ("firewall policy",)
 NOTIFY_FIELDS = frozenset(("server", "topic_file", "timeout_seconds", "x509_strict"))
 DEFAULT_LIMITS = {
     "export_max_pending": 1000, "export_max_age_seconds": 900, "export_status_max_age_seconds": 120,
@@ -51,6 +52,7 @@ class Device:
     check_address: str | None = None
     audit_policy: dict | None = None
     schema: dict | None = None
+    opt_in: tuple = ()
 
 
 @dataclass(frozen=True)
@@ -109,6 +111,15 @@ def _device(name, data) -> Device:
         isinstance(table, str) and isinstance(names, list) and all(isinstance(item, str) for item in names)
         for table, names in protected.items()
     ), "device %s protected must map a table to names" % name, field='config.devices[].protected', code='protected')
+    opt_in = data.get("opt_in", [])
+    _require(isinstance(opt_in, list) and all(isinstance(item, str) and item in OPT_IN_TABLES for item in opt_in)
+             and len(set(opt_in)) == len(opt_in), "device %s opt_in must list distinct opt-in tables" % name,
+             field='config.devices[].opt_in', code='opt-in')
+    _require("firewall policy" not in opt_in or data["platform"] == "fortios",
+             "device %s: firewall policy is a FortiOS table" % name, field='config.devices[].opt_in', code='opt-in')
+    _require("firewall policy" not in opt_in or protected.get("system interface"),
+             "device %s: firewall policy changes need protected system interface" % name,
+             field='config.devices[].protected', code='required')
     firmware = data.get("firmware")
     _require(firmware is None or isinstance(firmware, str), "device %s firmware must be a string" % name, field='config.devices[].firmware', code='text')
     _require(data["platform"] != "exos" or firmware, "device %s: ExtremeXOS needs the firmware stated" % name, field='config.devices[].firmware', code='required')
@@ -156,6 +167,7 @@ def _device(name, data) -> Device:
         confirm_margin_seconds=margin, protected={table: list(names) for table, names in protected.items()},
         legacy_ssh=legacy, accounts=tuple(accounts), check_credential=str(data["check_credential"]),
         check_address=check_address, audit_policy=policy, schema=schema_binding,
+        opt_in=tuple(opt_in),
     )
 
 

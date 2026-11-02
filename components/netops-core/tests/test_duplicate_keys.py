@@ -7,7 +7,7 @@ import pytest
 
 from netops_core import inventory, vault
 
-CANARY = "KANARCI-DUPLIKAT-NESMI-UNIKNOUT"
+CANARY = "CANARY-DUPLICATE-MUST-NOT-LEAK"
 DEVICE = {
     "name": "fw-a.example.invalid",
     "platform": "fortios",
@@ -35,7 +35,7 @@ def write_inventory(tmp_path, text):
     return path
 
 
-def test_a9_vault_entry_with_a_repeated_field_is_refused_without_its_values(tmp_path):
+def test_vault_entry_with_a_repeated_field_is_refused_without_its_values(tmp_path):
     text = ('{"version": 2, "credentials": {"fw-a-api": {"kind": "api-token", "value": "%s", "value": "%s-2"}}}'
             % (CANARY, CANARY))
     with pytest.raises(vault.VaultError) as caught:
@@ -44,19 +44,19 @@ def test_a9_vault_entry_with_a_repeated_field_is_refused_without_its_values(tmp_
     assert CANARY not in str(caught.value)
 
 
-def test_a9_vault_with_a_repeated_credential_name_is_refused(tmp_path):
+def test_vault_with_a_repeated_credential_name_is_refused(tmp_path):
     entry = json.dumps({"kind": "api-token", "value": CANARY})
     text = '{"version": 2, "credentials": {"fw-a-api": %s, "fw-a-api": %s}}' % (entry, entry)
     with pytest.raises(vault.VaultError, match="duplicate key"):
         vault.load(write_vault(tmp_path, text))
 
 
-def test_a9_vault_without_a_repeated_key_still_loads(tmp_path):
+def test_vault_without_a_repeated_key_still_loads(tmp_path):
     text = json.dumps({"version": 2, "credentials": {"fw-a-api": {"kind": "api-token", "value": CANARY}}})
     assert vault.load(write_vault(tmp_path, text)).credential("fw-a-api").kind == "api-token"
 
 
-def test_a9_inventory_device_with_a_repeated_field_is_refused(tmp_path):
+def test_inventory_device_with_a_repeated_field_is_refused(tmp_path):
     body = json.dumps(DEVICE)
     assert body.count('"port": 22') == 1
     body = body.replace('"port": 22', '"port": 22, "port": 2222')
@@ -68,7 +68,7 @@ def test_a9_inventory_device_with_a_repeated_field_is_refused(tmp_path):
     assert inventory.load(write_inventory(tmp_path, json.dumps({"version": 2, "devices": [DEVICE]})))[0].port == 22
 
 
-def test_a9_deep_nesting_is_a_controlled_error(tmp_path):
+def test_deep_nesting_is_a_controlled_error(tmp_path):
     with pytest.raises(vault.VaultError):
         vault.load(write_vault(tmp_path, "[" * 100000))
     with pytest.raises(inventory.InventoryError):

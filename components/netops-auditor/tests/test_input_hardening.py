@@ -21,7 +21,7 @@ from netops_auditor.l1_fortios import Node
 from netops_auditor.store import Store, StoreError
 from netops_auditor.suppressions import SuppressionError, load_for_tenant
 from test_cli import (
-    DEVICE, FUTURE, EXPIRED, SECTIONS, TENANT, UTM_RULE, WAN_OBJECT, WAN_RULE, clean_text, dirty_text,
+    DEVICE, FUTURE, EXPIRED, SECTIONS, TENANT, UTM_RULE, WAN_OBJECT, WAN_RULE, clean_text, complete, dirty_text,
     file_inventory, full_args, gather, invoke, run_args, suppression, write_config, write_sarif,
     write_suppressions,
 )
@@ -43,7 +43,7 @@ def write_policy(directory, document, name="policy.json"):
     return path
 
 
-def test_i1_superscript_admintimeout_is_not_a_number(tmp_path, capsys):
+def test_superscript_admintimeout_is_not_a_number(tmp_path, capsys):
     path = write_config(tmp_path, "config system global\n    set admintimeout \u00b2\nend\n")
     code, report, err = run_json(capsys, run_args(path, as_json=True))
     assert (code, err) == (cli.EXIT_INCOMPLETE, "")
@@ -56,7 +56,7 @@ def test_i1_superscript_admintimeout_is_not_a_number(tmp_path, capsys):
     assert checks_fortios._global_number(section, "admintimeout") == 1200
 
 
-def test_i2_merge_sarif_refuses_every_malformed_shape(tmp_path, capsys):
+def test_merge_sarif_refuses_every_malformed_shape(tmp_path, capsys):
     own = write_sarif(tmp_path, capsys, "fw-a", dirty_text(), "fw-a")
     good = json.loads(own.read_text(encoding="utf-8"))
 
@@ -89,7 +89,7 @@ def test_i2_merge_sarif_refuses_every_malformed_shape(tmp_path, capsys):
         assert not output.exists(), name
 
 
-def test_i2_issue_reproducer_is_a_controlled_error(tmp_path, capsys):
+def test_issue_reproducer_is_a_controlled_error(tmp_path, capsys):
     path = tmp_path / "malformed.sarif"
     path.write_text('{"version":"2.1.0","runs":[null]}\n', encoding="utf-8")
     code, out, err = invoke(capsys, ["merge-sarif", "--output", str(tmp_path / "o.sarif"), str(path)])
@@ -97,7 +97,7 @@ def test_i2_issue_reproducer_is_a_controlled_error(tmp_path, capsys):
     assert err.startswith("error: merge-sarif: ")
 
 
-def test_i3_backslash_at_the_end_of_a_quoted_value(tmp_path, capsys):
+def test_backslash_at_the_end_of_a_quoted_value(tmp_path, capsys):
     text = 'config system global\n    set comments "folder\\\\"\n    set admintimeout 480\nend\n'
     tree = l1_fortios.parse(text)
     section = tree.section("system global")
@@ -114,16 +114,17 @@ def test_i3_backslash_at_the_end_of_a_quoted_value(tmp_path, capsys):
     tree = l1_fortios.parse(continued)
     assert tree.section("system global").value("comments") == 'a"\nb'
     assert tree.section("system global").line_of("admintimeout") == 4
-    path = write_config(tmp_path, text)
+    admin = 'config system admin\n    edit "netadmin"\n        set accprofile "super_admin"\n        set trusthost1 192.0.2.0 255.255.255.0\n        set ip6-trusthost1 2001:db8::/32\n    next\nend\n'
+    path = write_config(tmp_path, complete(text + admin))
     code, report, err = run_json(capsys, run_args(path, as_json=True))
     assert (code, err) == (0, "")
     assert [item["line"] for item in report["findings"] if item["rule_id"] == "fortios.mgmt.idle-timeout"] == [3]
 
 
-def test_a2_vlan_tag_that_is_not_an_ascii_number_is_outside_the_policy(tmp_path, capsys):
+def test_vlan_tag_that_is_not_an_ascii_number_is_outside_the_policy(tmp_path, capsys):
     text = 'create vlan "v10"\nconfigure vlan v10 tag \u00b2\ncreate vlan "v20"\nconfigure vlan v20 tag 20\n'
     policy = write_policy(tmp_path, {"version": 1, "platform": "exos", "vlan_tags": [[1, 100]]})
-    argv = run_args(write_config(tmp_path, text), as_json=True, platform="exos", device="sw-example") + ["--policy", str(policy)]
+    argv = run_args(write_config(tmp_path, complete(text, "exos")), as_json=True, platform="exos", device="sw-example") + ["--policy", str(policy)]
     code, report, err = run_json(capsys, argv)
     assert (code, err) == (0, "")
     found = [item["object_key"] for item in report["findings"] if item["rule_id"] == VLAN_POLICY_RULE]
@@ -133,7 +134,7 @@ def test_a2_vlan_tag_that_is_not_an_ascii_number_is_outside_the_policy(tmp_path,
     assert [hit["object_key"] for hit in hits] == ["vlan/v30"]
 
 
-def test_a3_rest_port_that_is_not_an_ascii_number_is_a_collect_error():
+def test_rest_port_that_is_not_an_ascii_number_is_a_collect_error():
     for host in ("https://fw.example.invalid:\u00b2", "fw.example.invalid:\u0664\u0664\u0663", "fw.example.invalid:+443"):
         with pytest.raises(CollectError, match="host port"):
             collect._rest_target(host)
@@ -149,7 +150,7 @@ def truncated_dumps():
 
 
 @pytest.mark.parametrize("kind", ["edit", "quote"])
-def test_a4_truncated_dump_in_collect_is_an_incomplete_snapshot(tmp_path, capsys, kind):
+def test_truncated_dump_in_collect_is_an_incomplete_snapshot(tmp_path, capsys, kind):
     text = truncated_dumps()[kind]
     path = write_config(tmp_path, text)
     inventory = file_inventory(tmp_path, path)
@@ -169,7 +170,7 @@ def test_a4_truncated_dump_in_collect_is_an_incomplete_snapshot(tmp_path, capsys
     assert json.loads(out)["rules_version"].endswith(":" + management.policy_digest(management.load_policy(policy, "fortios")))
 
 
-def test_a5_errors_keep_the_line_and_the_path(tmp_path, capsys):
+def test_errors_keep_the_line_and_the_path(tmp_path, capsys):
     broken = write_config(tmp_path, "config system global\n    set hostname fw\nend\nend\n", name="broken.conf")
     code, out, err = invoke(capsys, run_args(broken))
     assert (code, out) == (cli.EXIT_ERROR, "")
@@ -185,7 +186,7 @@ def test_a5_errors_keep_the_line_and_the_path(tmp_path, capsys):
     assert str(wrong) in err and "policy version must be 1" in err
 
 
-def test_a6_deep_nesting_is_a_controlled_error(tmp_path, capsys):
+def test_deep_nesting_is_a_controlled_error(tmp_path, capsys):
     config = write_config(tmp_path, clean_text())
     deep = tmp_path / "deep.json"
     deep.write_text(DEEP, encoding="utf-8")
@@ -201,7 +202,7 @@ def test_a6_deep_nesting_is_a_controlled_error(tmp_path, capsys):
     assert (code, out) == (cli.EXIT_ERROR, "") and err.startswith("error: ")
 
 
-def test_a7_store_that_is_not_a_database_is_a_store_error(tmp_path, capsys):
+def test_store_that_is_not_a_database_is_a_store_error(tmp_path, capsys):
     config = write_config(tmp_path, clean_text())
     fake = tmp_path / "not-a-db.sqlite"
     fake.write_bytes(b"this is not a database at all\n" * 200)
@@ -217,7 +218,7 @@ def test_a7_store_that_is_not_a_database_is_a_store_error(tmp_path, capsys):
         mcp_server.ReadOnlyStore(fake)
 
 
-def test_a8_suppression_of_another_device_is_not_orphaned(tmp_path, capsys):
+def test_suppression_of_another_device_is_not_orphaned(tmp_path, capsys):
     config = write_config(tmp_path, dirty_text())
     foreign = suppression(UTM_RULE, "firewall policy/404", FUTURE, device="fw-other")
     foreign_expired = suppression(WAN_RULE, WAN_OBJECT, EXPIRED, device="fw-other")
@@ -239,7 +240,7 @@ def duplicate_suppression_file(tmp_path):
     return path
 
 
-def test_a9_duplicate_key_in_a_suppression_file_is_refused(tmp_path, capsys):
+def test_duplicate_key_in_a_suppression_file_is_refused(tmp_path, capsys):
     path = duplicate_suppression_file(tmp_path)
     with pytest.raises(SuppressionError, match="duplicate key"):
         load_for_tenant(path, TENANT)
@@ -249,7 +250,7 @@ def test_a9_duplicate_key_in_a_suppression_file_is_refused(tmp_path, capsys):
     assert "duplicate key" in err
 
 
-def test_a9_duplicate_key_in_a_sarif_input_is_refused(tmp_path, capsys):
+def test_duplicate_key_in_a_sarif_input_is_refused(tmp_path, capsys):
     own = write_sarif(tmp_path, capsys, "fw-a", dirty_text(), "fw-a")
     text = own.read_text(encoding="utf-8")
     twice = tmp_path / "twice.sarif"
@@ -258,7 +259,7 @@ def test_a9_duplicate_key_in_a_sarif_input_is_refused(tmp_path, capsys):
     assert code == cli.EXIT_ERROR and "duplicate key" in err
 
 
-def test_a11_only_newline_ends_a_line(tmp_path):
+def test_only_newline_ends_a_line(tmp_path):
     text = 'config system global\n    set comments "a\u2028b\u2029c\x85d\x0ce\rf"\n    set admintimeout 480\nend\n'
     tree = l1_fortios.parse(text)
     section = tree.section("system global")
@@ -275,7 +276,7 @@ def test_a11_only_newline_ends_a_line(tmp_path):
     assert collect.missing_sections(exos, ("vlan",), "exos") == ("vlan",)
 
 
-def test_a12_address_unused_is_linear(monkeypatch):
+def test_address_unused_is_linear(monkeypatch):
     count = 3000
     lines = ["config firewall address"]
     for index in range(count):
@@ -297,7 +298,7 @@ def test_a12_address_unused_is_linear(monkeypatch):
     assert len(visited) <= 2 * nodes
 
 
-def test_a12_reference_from_the_own_entry_does_not_count():
+def test_reference_from_the_own_entry_does_not_count():
     text = ('config firewall address\n    edit "a"\n        set associated-interface "a"\n    next\n'
             '    edit "b"\n        set associated-interface "a"\n    next\nend\n')
     hits = list(management.hits("fortios", "address-unused", l1_fortios.parse(text)))
@@ -316,7 +317,7 @@ def fifo_writer(path, size):
     return thread
 
 
-def test_a14_policy_from_a_pipe_is_refused(tmp_path, capsys):
+def test_policy_from_a_pipe_is_refused(tmp_path, capsys):
     fifo = tmp_path / "policy.fifo"
     os.mkfifo(fifo)
     thread = fifo_writer(fifo, management.MAX_POLICY_BYTES + 64)
@@ -335,7 +336,7 @@ def test_a14_policy_from_a_pipe_is_refused(tmp_path, capsys):
     assert "policy is not a regular file" in err
 
 
-def test_a14_policy_over_the_limit_is_refused(tmp_path, capsys):
+def test_policy_over_the_limit_is_refused(tmp_path, capsys):
     document = json.dumps({"version": 1, "platform": "fortios"})
     path = write_policy(tmp_path, document + " " * (management.MAX_POLICY_BYTES + 1 - len(document)))
     config = write_config(tmp_path, clean_text())
@@ -344,7 +345,7 @@ def test_a14_policy_over_the_limit_is_refused(tmp_path, capsys):
     assert "policy is larger than %d bytes" % management.MAX_POLICY_BYTES in err
 
 
-def test_a14_policy_at_the_limit_is_read(tmp_path, capsys):
+def test_policy_at_the_limit_is_read(tmp_path, capsys):
     document = json.dumps({"version": 1, "platform": "fortios"})
     path = write_policy(tmp_path, document + " " * (management.MAX_POLICY_BYTES - len(document)))
     config = write_config(tmp_path, clean_text())
@@ -357,7 +358,7 @@ def limited():
 
 
 @pytest.mark.skipif(not Path("/dev/zero").exists(), reason="needs /dev/zero")
-def test_a14_policy_from_dev_zero_ends_with_an_error(tmp_path):
+def test_policy_from_dev_zero_ends_with_an_error(tmp_path):
     config = write_config(tmp_path, clean_text())
     environment = dict(os.environ, PYTHONPATH=os.pathsep.join(item for item in (
         str(COMPONENT / "src"), os.environ.get("PYTHONPATH", ""), str(COMPONENT.parent / "netops-core" / "src")) if item))
@@ -368,7 +369,7 @@ def test_a14_policy_from_dev_zero_ends_with_an_error(tmp_path):
     assert "Traceback" not in result.stderr
 
 
-def test_z1_baseline_and_history_are_read_inside_the_write_transaction(tmp_path, capsys, monkeypatch):
+def test_baseline_and_history_are_read_inside_the_write_transaction(tmp_path, capsys, monkeypatch):
     database = tmp_path / "audit.sqlite"
     config = write_config(tmp_path, dirty_text())
     assert invoke(capsys, run_args(config, store=database))[0] == 0
@@ -393,7 +394,7 @@ def test_z1_baseline_and_history_are_read_inside_the_write_transaction(tmp_path,
     assert seen and all(inside for _, inside in seen), seen
 
 
-def test_z2_historical_entries_carry_the_rule_status(tmp_path, capsys):
+def test_historical_entries_carry_the_rule_status(tmp_path, capsys):
     database = tmp_path / "audit.sqlite"
     config = write_config(tmp_path, dirty_text())
     assert invoke(capsys, run_args(config, store=database))[0] == 0
@@ -422,7 +423,7 @@ def test_z2_historical_entries_carry_the_rule_status(tmp_path, capsys):
     ("admin-lockout-threshold", "fortios.mgmt.lockout-threshold"),
 ])
 @pytest.mark.parametrize("value", ["\u00b2", "\u0661\u0662\u0660\u0660", "thirty", "-1", "1.5"])
-def test_i1_a_non_numeric_global_number_leaves_its_rule_not_evaluated(tmp_path, capsys, attribute, rule_id, value):
+def test_a_non_numeric_global_number_leaves_its_rule_not_evaluated(tmp_path, capsys, attribute, rule_id, value):
     text = mutate_global(clean_text(), "    set %s %s\n" % (attribute, value))
     code, report, err = run_json(capsys, run_args(write_config(tmp_path, text), as_json=True))
     assert code == cli.EXIT_INCOMPLETE, err
@@ -437,7 +438,7 @@ def test_i1_a_non_numeric_global_number_leaves_its_rule_not_evaluated(tmp_path, 
     ("admin-lockout-threshold", "fortios.mgmt.lockout-threshold", "10", True),
     ("admin-lockout-threshold", "fortios.mgmt.lockout-threshold", "3", False),
 ])
-def test_i1_a_numeric_global_number_is_evaluated(tmp_path, capsys, attribute, rule_id, value, found):
+def test_a_numeric_global_number_is_evaluated(tmp_path, capsys, attribute, rule_id, value, found):
     text = mutate_global(clean_text(), "    set %s %s\n" % (attribute, value))
     code, report, err = run_json(capsys, run_args(write_config(tmp_path, text), as_json=True))
     assert code == cli.EXIT_OK, err

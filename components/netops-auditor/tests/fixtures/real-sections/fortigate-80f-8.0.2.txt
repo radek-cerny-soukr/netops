@@ -1,0 +1,310 @@
+system global
+system accprofile
+system np6xlite
+system interface
+system physical-switch
+system virtual-switch
+system password-policy
+system custom-language
+system admin
+system sso-admin
+system ha
+system dns
+system replacemsg mail "partial"
+system replacemsg http "url-block"
+system replacemsg http "urlfilter-err"
+system replacemsg http "infcache-block"
+system replacemsg http "http-contenttypeblock"
+system replacemsg http "https-invalid-cert-block"
+system replacemsg http "https-untrusted-cert-block"
+system replacemsg http "https-blocklisted-cert-block"
+system replacemsg http "https-clt-blocklist-block"
+system replacemsg http "https-ech-block"
+system replacemsg http "switching-protocols-block"
+system replacemsg http "http-antiphish-block"
+system replacemsg http "videofilter-block"
+system replacemsg http "videofilter-block-text"
+system replacemsg webproxy "deny"
+system replacemsg webproxy "user-limit"
+system replacemsg webproxy "auth-challenge"
+system replacemsg webproxy "auth-login-fail"
+system replacemsg webproxy "auth-group-info-fail"
+system replacemsg webproxy "auth-logout"
+system replacemsg webproxy "http-err"
+system replacemsg webproxy "auth-ip-blackout"
+system replacemsg webproxy "auth-method-unsupported"
+system replacemsg webproxy "ztna-invalid-cert"
+system replacemsg webproxy "ztna-empty-cert"
+system replacemsg webproxy "ztna-manageable-empty-cert"
+system replacemsg webproxy "ztna-no-api-gwy-matched"
+system replacemsg webproxy "ztna-cant-find-real-srv"
+system replacemsg webproxy "ztna-fqdn-dns-failed"
+system replacemsg webproxy "ztna-conn-err"
+system replacemsg webproxy "ztna-conn-dns-err"
+system replacemsg webproxy "ztna-ssl-bookmark-failed"
+system replacemsg webproxy "ztna-no-policy-matched"
+system replacemsg webproxy "ztna-matched-deny-policy"
+system replacemsg webproxy "ztna-client-cert-revoked"
+system replacemsg webproxy "ztna-denied-by-matched-tags"
+system replacemsg webproxy "ztna-denied-no-matched-tags"
+system replacemsg webproxy "ztna-no-dev-info"
+system replacemsg webproxy "ztna-dev-is-offline"
+system replacemsg webproxy "ztna-dev-is-unmanageable"
+system replacemsg webproxy "ztna-auth-fail"
+system replacemsg webproxy "ztna-auth-challenge"
+system replacemsg webproxy "casb-block"
+system replacemsg webproxy "swp-empty-cert"
+system replacemsg webproxy "swp-manageable-empty-cert"
+system replacemsg webproxy "swp-invalid-cert"
+system replacemsg webproxy "auth-proxy-login-page"
+system replacemsg webproxy "auth-oidc-landing-page"
+system replacemsg ftp "ftp-explicit-banner"
+system replacemsg fortiguard-wf "ftgd-block"
+system replacemsg fortiguard-wf "ftgd-ovrd"
+system replacemsg fortiguard-wf "ftgd-quota"
+system replacemsg fortiguard-wf "ftgd-warning"
+system replacemsg spam "ipblocklist"
+system replacemsg spam "smtp-spam-dnsbl"
+system replacemsg spam "smtp-spam-feip"
+system replacemsg spam "smtp-spam-helo"
+system replacemsg spam "smtp-spam-emailblock-to"
+system replacemsg spam "smtp-spam-emailblock-from"
+system replacemsg spam "smtp-spam-emailblock-subject"
+system replacemsg spam "smtp-spam-mimeheader"
+system replacemsg spam "reversedns"
+system replacemsg spam "smtp-spam-ase"
+system replacemsg spam "submit"
+system replacemsg alertmail "alertmail-virus"
+system replacemsg alertmail "alertmail-block"
+system replacemsg alertmail "alertmail-nids-event"
+system replacemsg alertmail "alertmail-crit-event"
+system replacemsg alertmail "alertmail-disk-full"
+system replacemsg admin "pre_admin-disclaimer-text"
+system replacemsg admin "post_admin-disclaimer-text"
+system replacemsg auth "auth-disclaimer-page-1"
+system replacemsg auth "auth-disclaimer-page-2"
+system replacemsg auth "auth-disclaimer-page-3"
+system replacemsg auth "auth-proxy-reject-page"
+system replacemsg auth "auth-reject-page"
+system replacemsg auth "auth-login-page"
+system replacemsg auth "auth-login-failed-page"
+system replacemsg auth "auth-token-login-page"
+system replacemsg auth "auth-token-login-failed-page"
+system replacemsg auth "auth-success-msg"
+system replacemsg auth "auth-challenge-page"
+system replacemsg auth "auth-keepalive-page"
+system replacemsg auth "auth-portal-page"
+system replacemsg auth "auth-password-page"
+system replacemsg auth "auth-fortitoken-page"
+system replacemsg auth "auth-next-fortitoken-page"
+system replacemsg auth "auth-email-token-page"
+system replacemsg auth "auth-sms-token-page"
+system replacemsg auth "auth-email-harvesting-page"
+system replacemsg auth "auth-email-failed-page"
+system replacemsg auth "auth-cert-passwd-page"
+system replacemsg auth "auth-guest-print-page"
+system replacemsg auth "auth-guest-email-page"
+system replacemsg auth "auth-success-page"
+system replacemsg auth "auth-block-notification-page"
+system replacemsg auth "auth-quarantine-page"
+system replacemsg auth "auth-qtn-reject-page"
+system replacemsg auth "auth-saml-page"
+system replacemsg sslvpn "sslvpn-login"
+system replacemsg sslvpn "sslvpn-header"
+system replacemsg sslvpn "sslvpn-limit"
+system replacemsg nac-quar "nac-quar-virus"
+system replacemsg nac-quar "nac-quar-dos"
+system replacemsg nac-quar "nac-quar-ips"
+system replacemsg nac-quar "nac-quar-dlp"
+system replacemsg nac-quar "nac-quar-admin"
+system replacemsg nac-quar "nac-quar-app"
+system replacemsg traffic-quota "per-ip-shaper-block"
+system replacemsg utm "virus-html"
+system replacemsg utm "client-virus-html"
+system replacemsg utm "virus-text"
+system replacemsg utm "dlp-html"
+system replacemsg utm "dlp-text"
+system replacemsg utm "appblk-html"
+system replacemsg utm "ipsblk-html"
+system replacemsg utm "virpatchblk-html"
+system replacemsg utm "ipsfail-html"
+system replacemsg utm "exe-text"
+system replacemsg utm "waf-html"
+system replacemsg utm "outbreak-prevention-html"
+system replacemsg utm "outbreak-prevention-text"
+system replacemsg utm "outbreak-prevention-er-html"
+system replacemsg utm "outbreak-prevention-er-text"
+system replacemsg utm "outbreak-prevention-to-html"
+system replacemsg utm "outbreak-prevention-to-text"
+system replacemsg utm "external-blocklist-html"
+system replacemsg utm "external-blocklist-text"
+system replacemsg utm "malware-stream-html"
+system replacemsg utm "malware-stream-text"
+system replacemsg utm "ems-threat-feed-html"
+system replacemsg utm "ems-threat-feed-text"
+system replacemsg utm "file-filter-html"
+system replacemsg utm "file-filter-text"
+system replacemsg utm "file-filter-warn-html"
+system replacemsg utm "file-size-text"
+system replacemsg utm "transfer-size-text"
+system replacemsg utm "internal-error-text"
+system replacemsg utm "archive-block-html"
+system replacemsg utm "archive-block-text"
+system replacemsg utm "file-av-fail-text"
+system replacemsg utm "transfer-av-fail-text"
+system replacemsg utm "banned-word-html"
+system replacemsg utm "banned-word-text"
+system replacemsg utm "block-html"
+system replacemsg utm "block-text"
+system replacemsg utm "decompress-limit-text"
+system replacemsg utm "dlp-subject-text"
+system replacemsg utm "file-size-html"
+system replacemsg utm "client-file-size-html"
+system replacemsg utm "inline-scan-timeout-html"
+system replacemsg utm "inline-scan-timeout-text"
+system replacemsg utm "inline-scan-error-html"
+system replacemsg utm "fortidata-query-error-html"
+system replacemsg utm "fortidata-query-error-text"
+system replacemsg utm "imagefilter-block-html"
+system replacemsg utm "imagefilter-error-html"
+system replacemsg utm "inline-scan-error-text"
+system replacemsg utm "icap-block-text"
+system replacemsg utm "icap-error-text"
+system replacemsg utm "icap-http-error"
+system replacemsg icap "icap-req-resp"
+system replacemsg automation "automation-email"
+system snmp sysinfo
+system autoupdate schedule
+telemetry-controller application predefine
+firewall internet-service-name
+firewall internet-service-definition
+firewall internet-service-fortiguard
+system health-check-fortiguard
+system resource-limits
+log fortianalyzer setting
+dlp settings
+system standalone-cluster
+system fortiguard
+endpoint-control fctems
+ips global
+system email-server
+system session-helper
+system console
+system ntp
+system ftm-push
+system fortisandbox
+system automation-trigger
+system automation-action
+system automation-stitch
+system federated-upgrade
+system ike
+system ipam
+system fortimq
+wireless-controller vap
+system object-tagging
+switch-controller traffic-policy
+switch-controller fortilink-settings
+system settings
+system replacemsg-image
+system replacemsg-group
+system dhcp server
+telemetry-controller profile
+firewall address
+firewall multicast-address
+firewall address6
+firewall multicast-address6
+firewall addrgrp
+firewall wildcard-fqdn custom
+firewall service category
+firewall service custom
+firewall service group
+system external-resource
+vpn certificate ca
+vpn certificate local
+webfilter ftgd-local-cat
+ips sensor
+firewall shaper traffic-shaper
+firewall proxy-address
+web-proxy global
+application list
+application classification-scope
+application classification
+dlp data-type
+dlp dictionary
+dlp sensor
+dlp filepattern
+dlp profile
+webfilter ips-urlfilter-setting
+webfilter ips-urlfilter-setting6
+log threat-weight
+icap profile
+user fortitoken
+user local
+user setting
+user group
+vpn ssl web portal
+vpn ssl settings
+voip profile
+system sdwan
+vpn ipsec phase1-interface
+vpn ipsec phase2-interface
+dnsfilter profile
+system dns-database
+system dns-server
+antivirus settings
+antivirus profile
+file-filter profile
+webfilter ftgd-risk-level
+webfilter profile
+webfilter search-engine
+emailfilter profile
+virtual-patch profile
+log memory setting
+log null-device setting
+log setting
+firewall schedule recurring
+firewall ssh local-key
+firewall ssh local-ca
+firewall ssh setting
+firewall profile-protocol-options
+firewall ssl-ssh-profile
+waf profile
+casb saas-application
+casb user-activity
+casb profile
+firewall policy
+switch-controller security-policy 802-1X
+switch-controller security-policy local-access
+switch-controller lldp-profile
+switch-controller qos dot1p-map
+switch-controller qos ip-dscp-map
+switch-controller qos queue-policy
+switch-controller qos qos-policy
+switch-controller storm-control-policy
+switch-controller auto-config policy
+switch-controller initial-config template
+switch-controller switch-profile
+switch-controller ptp profile
+switch-controller ptp interface-policy
+switch-controller dsl policy
+switch-controller dynamic-port-policy
+switch-controller managed-switch
+switch-controller traffic-sniffer
+switch-controller remote-log
+wireless-controller setting
+wireless-controller arrp-profile
+wireless-controller wids-profile
+wireless-controller ble-profile
+wireless-controller wtp-profile
+wireless-controller wtp
+extension-controller extender-profile
+extension-controller extender
+router rip
+router ripng
+router static
+router ospf
+router ospf6
+router bgp
+router isis
+router multicast
+router multicast6

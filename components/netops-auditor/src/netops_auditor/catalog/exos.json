@@ -5,6 +5,9 @@
       "id": "exos.snmp.default-community",
       "version": 2,
       "check": "exos_default_snmp_community",
+      "sections": [
+        "snmpMaster"
+      ],
       "class": "fakt",
       "severity": "high",
       "evidence_fields": [
@@ -24,6 +27,9 @@
       "id": "exos.mgmt.telnet-enabled",
       "version": 1,
       "check": "exos_telnet_enabled",
+      "sections": [
+        "telnetd"
+      ],
       "class": "fakt",
       "severity": "medium",
       "evidence_fields": [
@@ -41,6 +47,9 @@
       "id": "exos.logging.no-syslog-target",
       "version": 1,
       "check": "exos_no_syslog_target",
+      "sections": [
+        "ems"
+      ],
       "class": "fakt",
       "severity": "medium",
       "evidence_fields": [
@@ -58,6 +67,9 @@
       "id": "exos.time.no-sntp-client",
       "version": 2,
       "check": "exos_no_sntp_client",
+      "sections": [
+        "netTools"
+      ],
       "class": "fakt",
       "severity": "medium",
       "evidence_fields": [
@@ -77,6 +89,7 @@
       "id": "exos.management.vlan-empty",
       "version": 1,
       "check": "management_exos_vlan_empty",
+      "sections": [],
       "class": "fakt",
       "severity": "info",
       "evidence_fields": [
@@ -94,6 +107,7 @@
       "id": "exos.management.vlan-policy",
       "version": 1,
       "check": "management_exos_vlan_policy",
+      "sections": [],
       "class": "fakt",
       "severity": "medium",
       "evidence_fields": [
@@ -111,6 +125,7 @@
       "id": "exos.management.port-policy",
       "version": 1,
       "check": "management_exos_port_policy",
+      "sections": [],
       "class": "fakt",
       "severity": "high",
       "evidence_fields": [
@@ -128,6 +143,7 @@
       "id": "exos.management.port-native",
       "version": 1,
       "check": "management_exos_port_native",
+      "sections": [],
       "class": "fakt",
       "severity": "high",
       "evidence_fields": [
@@ -145,6 +161,7 @@
       "id": "exos.management.port-description",
       "version": 1,
       "check": "management_exos_port_description",
+      "sections": [],
       "class": "fakt",
       "severity": "low",
       "evidence_fields": [

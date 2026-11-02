@@ -7,7 +7,7 @@ from netops_core import ssh as ssh_module
 from netops_core.ssh import ASKPASS_PROGRAM_ENV, ASKPASS_SCRIPT, SshError
 
 LOGIN = "audit-ro"
-PASSWORD = "KANARCI-HESLO-NESMI-UNIKNOUT"
+PASSWORD = "CANARY-PASSWORD-MUST-NOT-LEAK"
 PROGRAM = "#!/bin/sh\ncat \"$NETOPS_ASKPASS_FILE\"\n"
 
 

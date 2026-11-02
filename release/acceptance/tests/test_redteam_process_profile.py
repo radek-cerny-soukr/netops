@@ -32,7 +32,7 @@ def valid_trace(cycles=2):
         binding = {"method": "procdir+pidfd", "key_before": [pid, 1000], "key_after": [pid, 1000],
                    "procdir_identity": [9, pid], "procdir_identity_after": [9, pid], "cgroup": cgroup, "bound_at": 100.0}
         rows.append({"key": [pid, 1000], "parent": parent, "argv": argv, "binding": binding,
-                     "uids": [uid] * 4, "gids": [uid] * 4, "groups": [], "nnp": 1,
+                     "uids": [uid] * 4, "gids": [uid] * 4, "groups": [51004] if argv[-1] in ("helper", "admin") else [], "nnp": 1,
                      "caps": dict.fromkeys(("inh", "prm", "eff", "bnd", "amb"), 0)})
     shim = {"key": [90, 900], "exe_identity": [8, 1001], "exe": "/usr/bin/containerd-shim-runc-v2",
             "argv": ["/usr/bin/containerd-shim-runc-v2", "-namespace", "moby", "-id", CID, "-address", "synthetic-socket"]}

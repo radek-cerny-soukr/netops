@@ -3,6 +3,7 @@
   "table": "firewall addrgrp",
   "versions": [
     "8.0.0 build0167",
+    "7.6.8 build3744",
     "7.6.7 build3704"
   ],
   "ops": [
@@ -36,5 +37,5 @@
   ],
   "reserved_values": {},
   "inverse_identity_changes": {},
-  "rollback_evidence": "FortiOS 8.0.0 build0167, 2026-09-29: a one-shot automation stitch with a cli-script action restored member additions and removals by setting the full member list, in one transaction per table; deleting the stitch before its time kept the change. FortiOS 7.6.7 build3704, 2026-09-24: membership additions and removals restored by the same mechanism. An empty static group is rejected by the planner."
+  "rollback_evidence": "FortiOS 8.0.0 build0167, 2026-09-29: a one-shot automation stitch with a cli-script action restored member additions and removals by setting the full member list, in one transaction per table; deleting the stitch before its time kept the change. FortiOS 7.6.7 build3704, 2026-09-24: membership additions and removals restored by the same mechanism. An empty static group is rejected by the planner. FortiOS 7.6.8 build3744 (FortiGate-60F), 2026-10-31: admin enroll --probe 192.0.2.252/30 with a development build of NetOps 1.0.5 ended reverted (enrollment self-test, enrollment valid, notification sent, differences []): the automation stitch removed the probe address; show firewall address and the automation stitch, action and trigger lists matched before and after. Only the address create was measured on this build; this table relies on the same mechanism."
 }

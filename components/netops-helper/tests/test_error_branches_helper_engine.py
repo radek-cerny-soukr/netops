@@ -129,6 +129,49 @@ def test_a_diagnostic_session_that_the_device_ends_is_a_closed_failure(wire, aud
     assert len(calls) == 2 and calls[-1]["stdin_isatty"] is True
 
 
+class _OpenSession:
+    def __init__(self, *args, **options) -> None:
+        pass
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc_info) -> bool:
+        return False
+
+
+def _vdom_diagnostic(monkeypatch, shell) -> object:
+    monkeypatch.setattr(engine.core_session, "Session", _OpenSession)
+    monkeypatch.setattr(engine, "_FortiosDiagnosticShell", lambda session: shell)
+    target = _diagnostic_target()
+    return replace(target, read_inventory={**target.read_inventory, "diagnostic_vdoms": ("VD1",)})
+
+
+def test_an_interface_of_another_vdom_is_refused_with_its_reason(wire, audit_log, monkeypatch) -> None:
+    from netops_helper import fortios_diagnostics as diagnostics
+    from test_fortios_diagnostics import multi
+    shell = multi(interface="root")
+    target = _vdom_diagnostic(monkeypatch, shell)
+    with pytest.raises(diagnostics.ScopeRefused) as refused:
+        engine.fortios_diagnostics(target, "ping", "192.0.2.183", "port2", 1, 1, 1000, "VD1")
+    assert str(refused.value) == "the enrolled interface belongs to another VDOM"
+    assert not any("ping-options" in command for command in shell.commands)
+    _assert_audit(audit_log, "fortios_diagnostics", ["started", "failed"], "ScopeRefused")
+
+
+def test_a_diagnostic_transport_failure_stays_a_closed_session_with_its_cause(wire, audit_log, monkeypatch) -> None:
+    from test_fortios_diagnostics import multi
+    shell = multi()
+    shell.fail = "get system status"
+    target = _vdom_diagnostic(monkeypatch, shell)
+    with pytest.raises(ValueError) as refused:
+        engine.fortios_diagnostics(target, "ping", "192.0.2.183", "port2", 1, 1, 1000, "VD1")
+    assert type(refused.value) is ValueError
+    assert str(refused.value) == "bounded FortiOS diagnostic failed; the session was closed"
+    assert isinstance(refused.value.__context__, RuntimeError)
+    _assert_audit(audit_log, "fortios_diagnostics", ["started", "failed"], "ValueError")
+
+
 SCHEMA_DEVICE = """#!/usr/bin/env python3
 import json, sys
 
@@ -166,7 +209,9 @@ def test_a_schema_read_whose_device_connection_fails_names_only_the_stage(
 
 def _snmp_target() -> object:
     return replace(
-        _target("fortinet", "system_status"), snmp_community="wire-community",
+        _target("fortinet", "system_status"), snmp_usm={"user": "fixture-monitor", "auth_protocol": "sha256",
+                  "auth_key": "wire-auth-key-91", "priv_protocol": "aes128",
+                  "priv_key": "wire-privacy-key-82"},
         egress=EgressPolicy(addresses=(LOOPBACK,), udp_ports=(161,)),
     )
 
@@ -176,9 +221,11 @@ def test_an_oid_the_snmp_stack_cannot_resolve_is_a_failed_answer(audit_log) -> N
     result = asyncio.run(engine.snmp_get(target, ["1.3.6.x"], 161))
     assert result["ok"] is False and result["target"] == "wire-test"
     assert result["error"].startswith("NoSuchObjectError: ")
-    assert "wire-community" not in json.dumps(result)
+    assert "wire-auth-key-91" not in json.dumps(result)
+    assert "wire-privacy-key-82" not in json.dumps(result)
     written = _assert_audit(audit_log, "snmp_get", ["started", "failed"])
-    assert "wire-community" not in json.dumps(written)
+    assert "wire-auth-key-91" not in json.dumps(written)
+    assert "wire-privacy-key-82" not in json.dumps(written)
     assert written[0]["item_count"] == 1
 
 
@@ -272,3 +319,31 @@ def test_a_passive_port_outside_the_allowlist_is_refused_when_closing_the_client
     assert closed == ["FTP"]
     assert server.data_failures == []
     _assert_audit(audit_log, "ftp_list", ["started", "failed"], "EgressScopeError")
+
+
+def test_a_triage_read_whose_device_connection_fails_is_a_reasoned_answer(wire, audit_log) -> None:
+    _device_output(wire, "Permission denied, please try again.\n", code=255)
+    answer = engine.triage_vpn_read(_target("fortinet", "system_status"), "fortinet", "system_status")
+    assert answer == {"ok": False, "platform": "fortinet", "query": "system_status", "reason": "device_cli_error"}
+    _assert_audit(audit_log, "triage_vpn_read", ["started", "failed"])
+    assert _calls(wire)
+
+
+class _NamedPassiveClient:
+    def __init__(self, passive_host: str, passive_port: int) -> None:
+        self.answer = (passive_host, passive_port)
+
+    def makepasv(self) -> tuple[str, int]:
+        return self.answer
+
+
+@pytest.mark.parametrize(("passive_host", "accepted"), [("LOCALHOST.", True), ("other.example", False)])
+def test_a_named_passive_host_is_pinned_to_the_control_peer(passive_host, accepted) -> None:
+    target = replace(_ftp_target("plain-device", 2121, 50000), host="localhost")
+    client = _NamedPassiveClient(passive_host, 50000)
+    engine._install_ftp_passive_guard(client, target, LOOPBACK)
+    if accepted:
+        assert client.makepasv() == (LOOPBACK, 50000)
+    else:
+        with pytest.raises(EgressScopeError, match="FTP passive host differs from the enrolled control target"):
+            client.makepasv()

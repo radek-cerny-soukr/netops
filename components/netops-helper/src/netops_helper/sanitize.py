@@ -43,6 +43,11 @@ CISCO_TYPE7_SECRET = re.compile(r"(?im)(\b(?:key|key-string|md5|password)[ \t]+7
 PRESHARED_SECRET = re.compile(
     r'(?im)(\b(?:pre-shared-key|psksecret|psk|wpa-passphrase|bind-password)(?:[ \t]*[:=][ \t]*|[ \t]+))(?:"[^"\r\n]*"|\S+)'
 )
+DYNAMIC_PSK_STATE = re.compile(r"(?i)[ \t]*dynamic[ \t]+psk[ \t]*=[ \t]*(?:enabled|disabled)[ \t]*\r?")
+RUCKUS_PASSPHRASE = re.compile(r"(?im)^([ \t]*passphrase[ \t]*=[ \t]*)[^\r\n]*")
+CLI_OPTION_SECRET = re.compile(
+    r"""(?i)((?<!\S)--(?:password|passwd|secret|token|api-key|api-token|access-token)(?:=|[ \t]+))(?:"[^"\r\n]*"|'[^'\r\n]*'|\S+)"""
+)
 SHADOW_HASH = re.compile(r"(?m)^([^:\r\n]+:)(?:[!*][^:\r\n]*|\$[^:\r\n]+)(?=:)")
 FORTI_ENC = re.compile(r"\bENC\s+\S+")
 PRIVATE_PEM = re.compile(
@@ -52,11 +57,30 @@ PRIVATE_PEM = re.compile(
 )
 
 
+def _replace_preshared(match: re.Match[str]) -> str:
+    text = match.string
+    start = text.rfind("\n", 0, match.start()) + 1
+    end = text.find("\n", match.end())
+    if DYNAMIC_PSK_STATE.fullmatch(text, start, len(text) if end < 0 else end):
+        return match.group(0)
+    return match.group(1) + "<REDACTED>"
+
+
 def _replace_quoted(match: re.Match[str]) -> str:
     return match.group("prefix") + '"<REDACTED>"'
 
 
+def _wtp_128_length_password_capability(match: re.Match[str]) -> bool:
+    value = match.string
+    start = value.rfind("\n", 0, match.start()) + 1
+    end = value.find("\n", match.end())
+    line = value[start:len(value) if end < 0 else end]
+    return re.fullmatch(r"[ \t]*128-length passwd[ \t]*:[ \t]*enabled[ \t]*\r?", line) is not None
+
+
 def _replace_bare(match: re.Match[str]) -> str:
+    if _wtp_128_length_password_capability(match):
+        return match.group(0)
     return match.group("prefix") + "<REDACTED>"
 
 
@@ -107,7 +131,9 @@ def redact(text: object, secrets: Iterable[str] = (), limit: int | None = None) 
     value = SNMP_STATUS_SECRET.sub(lambda match: match.group(1) + "<REDACTED>", value)
     value = COMMUNITY_VALUE_SECRET.sub(lambda match: match.group(1) + "<REDACTED>", value)
     value = CISCO_TYPE7_SECRET.sub(lambda match: match.group(1) + "<REDACTED>", value)
-    value = PRESHARED_SECRET.sub(lambda match: match.group(1) + "<REDACTED>", value)
+    value = PRESHARED_SECRET.sub(_replace_preshared, value)
+    value = RUCKUS_PASSPHRASE.sub(lambda match: match.group(1) + "<REDACTED>", value)
+    value = CLI_OPTION_SECRET.sub(lambda match: match.group(1) + "<REDACTED>", value)
     value = BEARER_SECRET.sub(lambda match: match.group(1) + "<REDACTED>", value)
     value = _assigned(ASSIGNED_QUOTED_SECRET, _replace_quoted, value)
     value = _assigned(ASSIGNED_BARE_SECRET, _replace_bare, value)

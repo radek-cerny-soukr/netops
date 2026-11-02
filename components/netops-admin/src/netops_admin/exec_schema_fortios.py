@@ -75,3 +75,7 @@ def safeguard_disarmed(access,record):
 
 def observe(access,plan):
     return access.observe(plan)
+
+
+def plan_prechecks(access, device, plan, snapshot_text=""):
+    return []

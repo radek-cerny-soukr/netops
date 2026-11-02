@@ -109,11 +109,11 @@ def test_an_audit_line_is_compact_json_with_sorted_keys(tmp_path):
 
 def test_a_non_ascii_key_of_an_audit_mapping_is_written_as_an_ascii_escape(tmp_path):
     path = tmp_path / "audit.log"
-    AuditLog(path).event("start", changes={"název": "removed"})
+    AuditLog(path).event("start", changes={"café": "removed"})
     raw = path.read_bytes()
     assert raw.isascii()
-    assert b"n\\u00e1zev" in raw
-    assert json.loads(raw)["changes"] == {"název": "removed"}
+    assert b"caf\\u00e9" in raw
+    assert json.loads(raw)["changes"] == {"café": "removed"}
 
 
 def _detail_for(size):

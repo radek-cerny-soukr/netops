@@ -7,7 +7,11 @@ from .diagnostics import operation_error
 STATE = Path(os.environ.get("NETOPS_STATE_DIR", "/var/lib/netops"))
 RUNTIME = Path(os.environ.get("NETOPS_RUNTIME_DIR", "/run/netops"))
 UIDS = {"gateway": 51000, "helper": 51001, "auditor": 51002, "admin": 51003}
+TARGET_LOCK_GID = 51004
+TARGET_LOCK_ROLES = frozenset({"helper", "admin"})
+TARGET_LOCK_DIR = RUNTIME / "target-locks"
 MAX_MESSAGE = 4 * 1024 * 1024
+PENDING_UPGRADE = "upgrade-pending.json"
 
 def check_regular(fd, owner=None):
     info = os.fstat(fd)

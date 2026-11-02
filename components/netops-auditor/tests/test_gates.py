@@ -28,7 +28,7 @@ RULES = tuple(r for r in load_catalog(PLATFORM) if ".management." not in r.id)
 RULE_IDS = tuple(rule.id for rule in RULES)
 GATE_IDS = frozenset(rule.id for rule in RULES if rule.scope_gate)
 
-MARKERS = tuple("KANARCI-TAJEMSTVI-%02d" % number for number in range(1, 21))
+MARKERS = tuple("CANARY-SECRET-%02d" % number for number in range(1, 21))
 
 VDOM_BLOCK = 'config vdom\n    edit "root"\n    next\nend\n'
 
@@ -48,8 +48,8 @@ DEFECTS = {
         "",
     ),
     "fortios.logging.no-syslog-target": (
-        "    set status enable\n",
-        "    set status disable\n",
+        '    set status enable\n    set server "198.51.100.9"\n',
+        '    set status disable\n    set server "198.51.100.9"\n',
     ),
     "fortios.time.no-ntp-sync": (
         "    set ntpsync enable\n",
@@ -68,8 +68,8 @@ DEFECTS = {
     "fortios.mgmt.idle-timeout": (GLOBAL_ANCHOR, GLOBAL_ANCHOR + "    set admintimeout 30\n"),
     "fortios.mgmt.lockout-threshold": (GLOBAL_ANCHOR, GLOBAL_ANCHOR + "    set admin-lockout-threshold 10\n"),
     "fortios.mgmt.default-admin-account": (
-        GLOBAL_ANCHOR,
-        GLOBAL_ANCHOR + 'end\nconfig system admin\n    edit "admin"\n    next\n',
+        '    edit "netadmin"\n',
+        '    edit "admin"\n',
     ),
     "fortios.mgmt.plaintext-admin-access": (
         "        set allowaccess ping https ssh\n",
@@ -88,9 +88,40 @@ DEFECTS = {
         GLOBAL_ANCHOR,
         GLOBAL_ANCHOR + 'end\nconfig user ldap\n    edit "dir"\n        set server "192.0.2.54"\n    next\n',
     ),
+    "fortios.mgmt.netops-safeguard-leftover": (
+        GLOBAL_ANCHOR,
+        GLOBAL_ANCHOR + 'end\nconfig system api-user\n    edit "netops-sg-0123456789ab-u"\n    next\n',
+    ),
+    "fortios.mgmt.password-policy": ("minimum-length 14", "minimum-length 8"),
+    "fortios.logging.single-cpu-high": ("    set log-single-cpu-high enable\n", "    set log-single-cpu-high disable\n"),
+    "fortios.mgmt.gui-display-hostname": ("    set log-single-cpu-high enable\n", "    set log-single-cpu-high enable\n    set gui-display-hostname enable\n"),
+    "fortios.mgmt.admin-no-trusthost": ("        set ip6-trusthost1 2001:db8::/32\n", ""),
+    "fortios.logging.event-disabled": ("config antivirus settings\n", "config log eventfilter\n    set system disable\nend\nconfig antivirus settings\n"),
+    "fortios.logging.faz-unencrypted": (
+        "config antivirus settings\n",
+        'config log fortianalyzer setting\n    set status enable\n    set server "198.51.100.20"\n    set reliable enable\n    set enc-algorithm low\nend\nconfig antivirus settings\n',
+    ),
+    "fortios.vpn.ssl-legacy-tls": (
+        "config antivirus settings\n",
+        "config vpn ssl settings\n    set ssl-min-proto-ver tls1-1\nend\nconfig antivirus settings\n",
+    ),
+    "fortios.av.detection-disabled": ("set grayware enable", "set grayware disable"),
+    "fortios.policy.wan-missing-profile": ('        set dnsfilter-profile "default"\n', ""),
+    "fortios.dnsfilter.log-all-domain-disabled": ("set log-all-domain enable", "set log-all-domain disable"),
+    "fortios.appctrl.default-port-not-enforced": ("set enforce-default-app-port enable", "set enforce-default-app-port disable"),
 }
 
-VOLATILE = '''config system interface
+VOLATILE = '''config system global
+    set hostname "fw-example"
+end
+config system admin
+    edit "netadmin"
+        set accprofile "super_admin"
+        set trusthost1 192.0.2.0 255.255.255.0
+        set ip6-trusthost1 2001:db8::/32
+    next
+end
+config system interface
     edit "port1"
         set ip 192.0.2.1 255.255.255.0
         set allowaccess ping https ssh
@@ -133,6 +164,12 @@ config firewall policy
         set action accept
         set utm-status enable
     next
+end
+config system auto-install
+end
+config system snmp community
+end
+config user ldap
 end
 '''
 

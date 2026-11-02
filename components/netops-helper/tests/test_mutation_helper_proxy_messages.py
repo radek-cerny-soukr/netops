@@ -52,7 +52,7 @@ def _enroll(tmp_path: Path, monkeypatch, *, snmp: bool = True) -> None:
         "device-a-account": {"kind": "password", "login": "selected-user", "value": "selected-secret"},
     }
     if snmp:
-        credentials["device-a-community"] = {"kind": "snmp-community", "value": "separate-community"}
+        credentials["device-a-community"] = {"kind": "snmpv3-authpriv", "login": "usm-reader", "value": "fixture-auth-key-1", "priv_value": "fixture-priv-key-1", "auth_protocol": "sha256", "priv_protocol": "aes128"}
     files["vault"].write_text(json.dumps({"version": 2, "credentials": credentials}))
     files["vault"].chmod(0o600)
     files["policy"].write_text(json.dumps({

@@ -167,7 +167,8 @@ class Admission(unittest.IsolatedAsyncioTestCase):
         for waiter in waiters:
             waiter.task.cancel()
         await asyncio.wait_for(barrier.wait(), 5)
-        self.assertEqual(len(self.records()) - before, 6, "the barrier opened before every cancelled waiter was recorded")
+        new = sorted(item["direction"] for item in self.records()[before:] if item["direction"] != "request")
+        self.assertEqual(new, ["admission_cancelled"] * 3 + ["connection_end"] * 3, "the barrier opened before every cancelled waiter was recorded")
 
     async def test_a_request_cancelled_while_its_body_is_read_is_audited_as_incomplete_body(self):
         started = asyncio.Event()

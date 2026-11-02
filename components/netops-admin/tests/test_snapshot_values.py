@@ -45,7 +45,7 @@ def test_group_member_without_whitespace_is_still_planned(fortios_snapshot):
     ('"say \\"hi\\" ok"', 'say "hi" ok'),
     ('"C:\\\\temp\\\\x"', "C:\\temp\\x"),
     ('"C:\\\\temp\\\\"', TRAILING_BACKSLASH),
-    ('"Tiskárna v přízemí"', "Tiskárna v přízemí"),
+    ('"Café printer, ground floor"', "Café printer, ground floor"),
 ])
 def test_inverse_restores_a_comment_with_quotes_backslashes_and_non_ascii(fortios_snapshot, stored, value):
     snapshot = replace(fortios_snapshot, COMMENT, "        set comment " + stored)
@@ -127,7 +127,7 @@ def test_fortios_comment_with_quotes_and_backslashes_is_requested_written_and_re
     assert device.addresses["spare-host"]["comment"] == comment
 
 
-@pytest.mark.parametrize("comment", ["first\nsecond", "tab\there", "bell\x07", "del\x7f", "Tiskárna"])
+@pytest.mark.parametrize("comment", ["first\nsecond", "tab\there", "bell\x07", "del\x7f", "Café"])
 def test_fortios_comment_with_a_control_or_non_ascii_character_is_refused_in_the_request(fortios_snapshot, comment):
     rejected(fortios_snapshot, "attribute comment may hold printable ASCII only", op="update", key="spare-host",
              changes={"comment": comment})

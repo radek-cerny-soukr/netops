@@ -23,6 +23,17 @@ The HTTPS MCP endpoint exposes seven Auditor tools. They read the finished findi
 
 `run_state` is `present`, `never` for a device without a run, or `before-since`. Use a `run_id` from `audit_status` or `list_findings` for `compare`. Arguments that do not match the input schema of the tool from `tools/list`, such as a wrong type or a missing required argument, are refused by the gateway with `Tool arguments do not match tools/list inputSchema`, followed by the missing required fields when there are any. Any other value outside the accepted ones, an unknown `rule_id`, a run of another device, a run that is not completely evaluated in `compare` and every `schema_report` call are refused with the generic `Role operation failed; no automatic retry`, which does not name the argument. Some handled role errors also log a traceback; use the instance health and container state to check whether the service is running.
 
+## FortiADC snapshots
+
+`auditor run --platform fortiadc` audits an exported FortiADC `show` or `show full-configuration` text. `auditor collect` refuses this platform before it loads any credential. Only FortiADC-KVM 7.6.7 build 0676 is supported; any other product, version or build is never reported as 7.6.7.
+
+The configuration text carries no version, so the identity and completeness come from a metadata file passed with `--snapshot-meta`. Two forms are accepted:
+
+- The `config_read` response of the Helper saved as JSON without its page text (`untrusted_device_output`): `firmware` (`model`, `version`, `build`), `configuration_complete`, `visibility_limitations`; other fields are ignored. A `content_sha256` or `snapshot_sha256` that differs from the digest of the loaded text is refused; without one the operator must pair the file with the text it was read with.
+- The Auditor form: `version` 1, `sha256` of the text, `identity` (`platform`, `version`, `build`), `configuration_complete`, `visibility_limitations`. A digest of another text is refused.
+
+Without a metadata file, or with another identity, the version gate `fortiadc.scope.unsupported-version` reports a finding and every other rule is `unsupported`. A rule is `not-evaluated`, never clean, when the setting is absent (NetOps assumes no default the CLI reference does not state), holds a `<REDACTED...>` or `<UNVERIFIED...>` marker, or its configuration area is listed in `visibility_limitations` (the account lacked the read right). `fortiadc.tls.factory-certificate` is always `not-evaluated`: the factory origin of a certificate cannot be proven from the text. The rules `fortiadc.waf.alert-only` and `fortiadc.mgmt.data-admin-access` are not part of this catalog.
+
 ## Finding states
 
 - `new`: in the last run, not in the accepted baseline of the device and without an active suppression. A finding stays `new` on later runs until a run or collect with `--baseline-accept` accepts it.

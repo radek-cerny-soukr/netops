@@ -44,8 +44,8 @@ read: the opened file then has no name left (0 hard links) and is refused as wel
 
 | Field | Type | Rule |
 |---|---|---|
-| `kind` | string | one of `KINDS = ("password", "ssh-key", "api-token", "snmp-community")` |
-| `login` | string | **required** for `LOGIN_KINDS = ("password", "ssh-key")` and **forbidden** for `api-token` and `snmp-community`. Both cases are refusals naming the credential and its kind |
+| `kind` | string | one of `KINDS = ("password", "ssh-key", "api-token", "snmpv3-authpriv")`; the former `snmp-community` is in `LEGACY_KINDS`, still loads, and cannot be used for SNMP; SNMPv1, SNMPv2c, noAuthNoPriv and authNoPriv are not supported |
+| `login` | string | **required** for `LOGIN_KINDS = ("password", "ssh-key")` and **forbidden** for `api-token` and `snmp-community`; for `snmpv3-authpriv` it is the required USM user name of 1 to 32 UTF-8 bytes. Both cases are refusals naming the credential and its kind |
 | `value` | string | non-empty. For `ssh-key` it must begin with a private key header line, `-----BEGIN ` plus optional upper-case words plus `PRIVATE KEY-----` and a line break (`OPENSSH PRIVATE KEY`, `RSA PRIVATE KEY`, `EC PRIVATE KEY`, `PRIVATE KEY`, `ENCRYPTED PRIVATE KEY`, ...), so a public key (`PUBLIC KEY`, `SSH2 PUBLIC KEY`, an `ssh-ed25519 ...` line), a certificate or a path pasted by mistake is refused |
 
 An unknown field in an entry is refused, naming the credential and the field.
@@ -75,12 +75,12 @@ so a credential that reaches a traceback, a log line, or a debugger prompt carri
     "fw-a-ro":  {"kind": "password",       "login": "audit-ro", "value": "replace-me"},
     "sw-a-ro":  {"kind": "ssh-key",        "login": "audit-ro", "value": "-----BEGIN OPENSSH PRIVATE KEY-----\nreplace-me\n-----END OPENSSH PRIVATE KEY-----\n"},
     "fw-a-api": {"kind": "api-token",      "value": "replace-me"},
-    "fw-a-snmp":{"kind": "snmp-community", "value": "replace-me"}
+    "fw-a-snmp":{"kind": "snmpv3-authpriv", "login": "usm-reader", "value": "replace-me", "priv_value": "replace-me", "auth_protocol": "sha256", "priv_protocol": "aes128"}
   }
 }
 ```
 
-Every value above is the placeholder `replace-me`. The `snmp-community` kind can be stored, but the shipped NetOps 1.0 Helper profile refuses SNMPv2c reads. The document is an example, not a template to ship:
+Every value above is the placeholder `replace-me`. The `snmpv3-authpriv` kind is the only SNMP credential: `value` is the auth key and `priv_value` the priv key (each at least 8 UTF-8 bytes, may be equal), `auth_protocol` is `sha256` and `priv_protocol` is `aes128` (`netops_core.snmp`); `priv_value`, `auth_protocol` and `priv_protocol` are refused on other kinds. A legacy `snmp-community` record still loads so SSH access keeps working, but `snmp_get` refuses it before any network access and `check_operator_config` reports it. Replacement: create a `snmpv3-authpriv` record and point `helper.snmp_credential` to it; communities cannot be converted into keys. The document is an example, not a template to ship:
 a real vault is never committed, never copied into an image, and never read by anything but the
 component that needs it.
 

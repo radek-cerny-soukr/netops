@@ -21,7 +21,7 @@ PORT = 22
 LOGIN = "audit-ro"
 BLOB = "cmVwbGFjZS1tZS1ob3N0LWtleS1tYXRlcmlhbC1B"
 HOST_KEY_LINE = "%s ssh-ed25519 %s" % (HOST, BLOB)
-KEY = "-----BEGIN OPENSSH PRIVATE KEY-----\nKANARCI-KLIC-NESMI-UNIKNOUT\n"
+KEY = "-----BEGIN OPENSSH PRIVATE KEY-----\nCANARY-KEY-MUST-NOT-LEAK\n"
 MOMENT = datetime(2026, 9, 16, 8, 30, 0, tzinfo=timezone.utc)
 CHILD = "\n".join(
     (
@@ -286,11 +286,11 @@ def test_without_a_spawn_the_session_starts_the_ssh_binary_on_a_terminal(tmp_pat
 
 
 def test_without_a_spawn_the_client_sees_only_the_prepared_environment(tmp_path, monkeypatch):
-    monkeypatch.setenv("W4_KANARCI_PROSTREDI", "nesmi-projit")
+    monkeypatch.setenv("CANARY_ENVIRONMENT_VALUE", "must-not-pass")
     script = "\n".join(
         (
             "import os, sys",
-            "sys.stdout.write('ENV %s HOME=%s END' % (os.environ.get('W4_KANARCI_PROSTREDI'), os.environ.get('HOME')))",
+            "sys.stdout.write('ENV %s HOME=%s END' % (os.environ.get('CANARY_ENVIRONMENT_VALUE'), os.environ.get('HOME')))",
             "sys.stdout.flush()",
             "sys.stdin.readline()",
         )

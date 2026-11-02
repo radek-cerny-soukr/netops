@@ -5,18 +5,18 @@ import signal
 import stat
 import subprocess
 import sys
-from .files import RUNTIME, STATE, UIDS
+from .files import PENDING_UPGRADE, RUNTIME, STATE, TARGET_LOCK_GID, TARGET_LOCK_ROLES, UIDS
 from .launcher import stop_requested
 
 LIBC = ctypes.CDLL(None, use_errno=True)
 
-def demote(uid):
+def demote(uid, target_lock=False):
     for capability in range(41):
         if LIBC.prctl(24, capability, 0, 0, 0) != 0:
             error = ctypes.get_errno()
             if error != 22:
                 raise OSError(error, "Cannot discard bounding capabilities")
-    os.setgroups([])
+    os.setgroups([TARGET_LOCK_GID] if target_lock else [])
     os.setgid(uid)
     os.setuid(uid)
     if LIBC.prctl(38, 1, 0, 0, 0) != 0:
@@ -41,6 +41,28 @@ def directory(path, uid, mode):
         if not stat.S_ISDIR(info.st_mode) or info.st_uid != uid or stat.S_IMODE(info.st_mode) != mode:
             raise ValueError("Unsafe state directory ownership or permissions")
 
+def target_lock_directory(path):
+    mode = 0o3770
+    try:
+        path.mkdir(mode=mode)
+        os.chown(path, 0, TARGET_LOCK_GID)
+        groups = os.getgroups()
+        try:
+            # Preserve setgid without granting the bootstrap CAP_FSETID.
+            os.setgroups([*groups, TARGET_LOCK_GID])
+            os.chmod(path, mode)
+        finally:
+            os.setgroups(groups)
+    except FileExistsError:
+        info = path.lstat()
+        if (
+            not stat.S_ISDIR(info.st_mode)
+            or info.st_uid != 0
+            or info.st_gid != TARGET_LOCK_GID
+            or stat.S_IMODE(info.st_mode) != mode
+        ):
+            raise ValueError("Unsafe shared target lock directory")
+
 def prepare():
     if os.geteuid() != 0:
         raise ValueError("Initialization and the short start bootstrap require the declared container user and capabilities")
@@ -58,6 +80,7 @@ def prepare():
     for role, uid in UIDS.items():
         directory(STATE / role, uid, 0o700)
         directory(RUNTIME / role, uid, 0o755)
+    target_lock_directory(RUNTIME / "target-locks")
 
 def serve():
     from .files import read_private, write_private
@@ -70,6 +93,7 @@ def serve():
     import fcntl
     from .files import check_regular
     descriptor = os.open(STATE / "gateway" / "instance.lock", os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
+    check_regular(descriptor)
     if os.fstat(descriptor).st_uid == 0:
         os.fchown(descriptor, UIDS["gateway"], UIDS["gateway"])
     check_regular(descriptor, UIDS["gateway"])
@@ -79,6 +103,8 @@ def serve():
         raise ValueError("An existing instance is using this state; stop it before starting or upgrading") from None
     settings = read_state_settings(STATE, allow_previous=True)
     upgraded_from = None
+    upgrade_resumed = False
+    pending_path = STATE / "gateway" / PENDING_UPGRADE
     if settings["product_version"] != __version__:
         from .init import check_start
         from .certificates import renewal_inputs
@@ -88,8 +114,20 @@ def serve():
         if settings["admin_enabled"]:
             admin_devices(STATE / "admin", read_private)
         upgraded_from = settings["product_version"]
+        write_private(pending_path, json.dumps({"from": upgraded_from, "to": __version__}).encode(), UIDS["gateway"], replace=True)
         settings = dict(settings, product_version=__version__)
         write_private(STATE / "gateway" / "config.json", json.dumps(settings).encode(), UIDS["gateway"], replace=True)
+    else:
+        try:
+            pending = json.loads(read_private(pending_path, 4096, UIDS["gateway"]))
+        except FileNotFoundError:
+            pending = None
+        if pending is not None:
+            if not isinstance(pending, dict) or pending.get("to") != __version__ or not isinstance(pending.get("from"), str):
+                raise ValueError("Pending upgrade record does not match the state; inspect private state and audit before retrying")
+            upgraded_from = pending["from"]
+            upgrade_resumed = True
+            sys.stderr.write("netops: the converting first start from " + upgraded_from + " stopped before its audit record; this start records the upgrade\n")
     roles = ["helper", "auditor"] + (["admin"] if settings["admin_enabled"] else [])
     children = []
     try:
@@ -102,7 +140,7 @@ def serve():
                 if not stat.S_ISSOCK(info.st_mode) or info.st_uid != UIDS[role]:
                     raise ValueError("Unsafe stale worker socket")
                 socket_path.unlink()
-            child = subprocess.Popen([sys.executable, "-m", "netops", "worker", role], preexec_fn=lambda uid=UIDS[role]: demote(uid), stdin=subprocess.DEVNULL)
+            child = subprocess.Popen([sys.executable, "-m", "netops", "worker", role], preexec_fn=lambda uid=UIDS[role], shared_lock=role in TARGET_LOCK_ROLES: demote(uid, shared_lock), stdin=subprocess.DEVNULL)
             children.append(child)
         if stop_requested():
             return
@@ -112,6 +150,8 @@ def serve():
         if not stop_requested():
             if upgraded_from is None:
                 gateway_serve(settings, roles, children)
+            elif upgrade_resumed:
+                gateway_serve(settings, roles, children, upgraded_from=upgraded_from, upgrade_resumed=True)
             else:
                 gateway_serve(settings, roles, children, upgraded_from=upgraded_from)
     finally:

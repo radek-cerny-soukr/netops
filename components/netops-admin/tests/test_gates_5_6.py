@@ -109,10 +109,10 @@ def test_exos_check_account_is_asked_and_a_mismatch_reverts(tmp_path):
 
 def test_real_auditor_rules_report_a_new_finding(exos_snapshot):
     before_text = exos_snapshot.decode("utf-8")
-    before = audit_gate.findings("exos", before_text, "sw")
+    before = audit_gate.baseline("exos", before_text, "sw")
     after_text = before_text + "#\n# Module snmpMaster configuration.\n#\nconfigure snmp add community readonly public\n"
-    assert audit_gate.new_blocking("exos", set(before), before_text, "sw") == []
-    assert audit_gate.new_blocking("exos", set(before), after_text, "sw")
+    assert audit_gate.new_blocking("exos", before, before_text, "sw") == []
+    assert audit_gate.new_blocking("exos", before, after_text, "sw")
 
 
 def test_fortios_answer_of_the_check_account_is_read():

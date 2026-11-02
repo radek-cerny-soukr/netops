@@ -117,7 +117,7 @@ def refusal(tmp_path, entry, fragment, name="inventory.json"):
         load(path)
 
 
-SECTION_CANARY = "kanarek-sekce-4711"
+SECTION_CANARY = "canary-section-4711"
 
 
 @pytest.mark.parametrize("entry, fragment", [

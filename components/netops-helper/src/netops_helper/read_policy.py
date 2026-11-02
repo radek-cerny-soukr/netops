@@ -28,7 +28,7 @@ PLATFORM_MAP = {
 }
 
 
-SAFE_INTERFACE = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.:/-]{0,63}")
+SAFE_INTERFACE = re.compile(r"[A-Za-z0-9_][A-Za-z0-9_.:/-]{0,63}")
 SAFE_SERVICE = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.@-]{0,127}")
 SAFE_SWITCH = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.:-]{0,63}")
 
@@ -55,7 +55,7 @@ _JUNOS_LACP = (
     r"[0-9]{1,2}/[0-9]{1,2})"
 )
 
-_FORTIOS_INTERFACE_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,14}")
+_FORTIOS_INTERFACE_PATTERN = re.compile(r"[A-Za-z0-9_][A-Za-z0-9_.-]{0,14}")
 _FORTIOS_INTERFACE_RESERVED = frozenset({
     "all", "any", "none", "clear", "list", "packet-rate", "speed-test",
     "speed-test-result", "speed-test-result-clear", "speed-test-shaping-reset",
@@ -312,6 +312,9 @@ def _canonical_cisco_nxos_interface(
 _VENDOR_INTERFACE_CANONICALIZERS = {
     "fortios_interface": _canonical_fortios_interface,
     "fortios_physical_interface": _canonical_fortios_interface,
+    "fortiadc_interface": lambda value: (
+        _canonical_fortios_interface(value) if value[:1].isalnum() else None
+    ),
     "cisco_ios_interface": lambda value: _canonical_cisco_ios_interface(
         value, False,
     ),
@@ -332,13 +335,24 @@ _VENDOR_INTERFACE_CANONICALIZERS = {
     ),
 }
 
+SAFE_FORTIADC_OBJECT = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,34}")
 _TOKEN_PATTERNS: Mapping[str, re.Pattern[str]] = {
     "interface": SAFE_INTERFACE,
     "service": SAFE_SERVICE,
     "switch": SAFE_SWITCH,
     "vlan_name": re.compile(r"[A-Za-z][A-Za-z0-9_-]{0,31}"),
     "certificate_name": re.compile(r"[A-Za-z][A-Za-z0-9_.-]{0,78}"),
+    "fortios_address_object": re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,78}"),
+    "fortios_station_mac": re.compile(r"[0-9A-Fa-f]{2}(?::[0-9A-Fa-f]{2}){5}"),
+    "flow_port": re.compile(r"(?:0|[1-9][0-9]{0,4})"),
+    "ip_protocol": re.compile(r"(?:0|[1-9][0-9]{0,2})"),
+    "fortios_policy_type": re.compile(r"(?:policy|proxy)"),
+    "fortios_nat_pool": re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,78}"),
     "managed_switch_serial": re.compile(r"S[A-Z0-9]{11,15}"),
+    "managed_switch_port": re.compile(r"port[1-9][0-9]{0,2}"),
+    "fortiadc_vdom": SAFE_FORTIADC_OBJECT,
+    "fortiadc_virtual_server": SAFE_FORTIADC_OBJECT,
+    "managed_switch_trunk": re.compile(r"[A-Za-z0-9_][A-Za-z0-9_-]{0,34}"),
     "extreme_physical_port": re.compile(
         r"[1-9][0-9]{0,2}(?:(?::[1-9][0-9]{0,2}){1,2}|"
         r"/[1-9][0-9]{0,2})?"
@@ -361,7 +375,21 @@ _KIND_INVENTORY = {
     "switch": "switches",
     "vlan_name": "vlans",
     "managed_switch_serial": "managed_switches",
+    "managed_switch_port": "managed_switch_ports",
+    "managed_switch_trunk": "managed_switch_trunks",
     "certificate_name": "certificates",
+    "fortios_address_object": "firewall_addresses",
+    "fortios_station_mac": "wireless_clients",
+    "flow_port": "flow_ports",
+    "ip_protocol": "ip_protocols",
+    "fortios_policy_type": "policy_types",
+    "fortios_nat_pool": "nat_pools",
+    "fortios_sdwan_health_check": "sdwan_health_checks",
+    "fortios_link_monitor": "link_monitors",
+    "fortios_sdwan_member": "sdwan_members",
+    "fortios_sdwan_rule": "sdwan_rules",
+    "fortiadc_vdom": "adc_vdoms",
+    "fortiadc_virtual_server": "adc_virtual_servers",
     "address": "addresses",
     "ipv4_address": "addresses",
     "ipv6_address": "addresses",
@@ -379,11 +407,29 @@ _INVENTORY_KINDS = {
     "switches": "switch",
     "vlans": "vlan_name",
     "managed_switches": "managed_switch_serial",
+    "managed_switch_ports": "managed_switch_port",
+    "managed_switch_trunks": "managed_switch_trunk",
     "certificates": "certificate_name",
+    "firewall_addresses": "fortios_address_object",
+    "wireless_clients": "fortios_station_mac",
+    "flow_ports": "flow_port",
+    "ip_protocols": "ip_protocol",
+    "policy_types": "fortios_policy_type",
+    "nat_pools": "fortios_nat_pool",
+    "sdwan_health_checks": "fortios_sdwan_health_check",
+    "link_monitors": "fortios_link_monitor",
+    "sdwan_members": "fortios_sdwan_member",
+    "sdwan_rules": "fortios_sdwan_rule",
     "schema_paths": "fortios_config_path",
     "diagnostic_recipes": "fortios_diagnostic_recipe",
     "diagnostic_vdoms": "fortios_diagnostic_vdom",
+    "diagnostic_names": "diagnostic_dns_name",
+    "diagnostic_http_endpoints": "diagnostic_http_url",
+    "adc_health_checks": "fortiadc_health_check",
+    "diagnostic_virtual_servers": "fortiadc_virtual_server",
     "config_access": "config_permission",
+    "adc_vdoms": "fortiadc_vdom",
+    "adc_virtual_servers": "fortiadc_virtual_server",
 }
 
 _EXPECTED_PLATFORMS = frozenset({
@@ -423,19 +469,38 @@ _FORTINET_COMMANDS = frozenset({
     "diagnose debug info",
     "diagnose sys session filter",
     "get vpn certificate local details {certificate}",
+    "diagnose firewall fqdn get-ip {name}",
+    "diagnose firewall iprope lookup {src_ip} {src_port} {dst_ip} {dst_port} {protocol} {device} {pol_type}",
+    "diagnose firewall iprope6 lookup {src_ip} {src_port} {dst_ip} {dst_port} {protocol} {device} {pol_type}",
     'diagnose switch-controller switch-info status {managed_switch}',
     'diagnose switch-controller switch-info poe summary {managed_switch}',
     'diagnose switch-controller switch-info mac-table {managed_switch}',
     'diagnose switch-controller switch-info stacking status {managed_switch}',
     'diagnose switch-controller switch-info lldp neighbors-summary {managed_switch}',
+    'diagnose switch-controller switch-info loop-guard {managed_switch}',
+    'diagnose switch-controller switch-info bpdu-guard-status {managed_switch}',
+    'diagnose switch-controller switch-info flapguard status {managed_switch}',
+    'diagnose switch-controller switch-info dhcp-snooping status {managed_switch}',
+    'diagnose switch-controller switch-info dhcp-snooping database {managed_switch}',
+    'diagnose switch-controller switch-info fan {managed_switch}',
+    'diagnose switch-controller switch-info ip-source-guard violations {managed_switch}',
+    "diagnose switch-controller switch-info lldp neighbors-detail {managed_switch} {port}",
+    "diagnose switch-controller switch-info mac-limit-violations interface {managed_switch} {port}",
+    "diagnose switch-controller switch-info mclag icl {managed_switch}",
+    "diagnose switch-controller switch-info trunk status {managed_switch} {mclag_trunk}",
+    "diagnose switch-controller switch-info mclag peer-consistency-check {managed_switch} {mclag_trunk}",
 
     "get system status",
     "get system performance status",
     "get system ha status",
     "diagnose sys session stat",
+    "diagnose hardware sysinfo conserve",
+    "diagnose hardware sysinfo cpu",
+    "diagnose sys service-communication",
     "diagnose hardware sysinfo memory",
     "diagnose hardware deviceinfo disk",
     "get system interface physical",
+    "diagnose netlink aggregate name {aggregate} show",
     "diagnose netlink interface list {interface}",
     "diagnose hardware deviceinfo nic {interface}",
     "get router info routing-table all",
@@ -447,10 +512,51 @@ _FORTINET_COMMANDS = frozenset({
     "diagnose lldp rx neighbor summary",
     "diagnose netlink brctl name host {switch}",
     "diagnose sys sdwan health-check",
+    "diagnose sys sdwan intf-sla-log {interface}",
+    "diagnose sys sdwan sla-log {health_check} {member}",
+    "diagnose sys link-monitor status {monitor}",
+    "diagnose sys sdwan member {member}",
+    "diagnose sys sdwan service4 {rule}",
+    "diagnose sys sdwan service6 {rule}",
+    "diagnose sys sdwan route {member}",
+    "diagnose sys sdwan route6 {member}",
     "diagnose sys ha checksum cluster",
     "diagnose sys ha history read",
     "get vpn ipsec tunnel summary",
     "diagnose vpn ipsec status",
+    "diagnose vpn tunnel stat",
+    "execute dhcp lease-list {interface}",
+    "diagnose wireless-controller wlac -c sta",
+    "diagnose wireless-controller wlac -d sta {mac}",
+    "diagnose wireless-controller wlac -c wtp",
+    "diagnose wireless-controller wlac -d wtp",
+    "diagnose wireless-controller wlac -c vap",
+    "get router info bgp neighbors {peer} advertised-routes",
+    "get router info bgp neighbors {peer} received-routes",
+    "get router info bgp neighbors {peer} routes",
+    "get router info6 bgp neighbors {peer6} advertised-routes",
+    "get router info6 bgp neighbors {peer6} received-routes",
+    "get router info6 bgp neighbors {peer6} routes",
+    "get router info ospf interface",
+    "get router info6 ospf interface",
+
+    "diagnose sys ha checksum show-nonsync",
+    "diagnose sys ha sync-stats",
+    "diagnose test application dnsproxy 7",
+    "diagnose firewall ippool stats",
+    "diagnose firewall ippool list nat-ip {pool}",
+    "diagnose firewall fqdn list-ip",
+    "diagnose test application dnsproxy 6",
+    "diagnose sys sdwan zone",
+    "diagnose ip rtcache list",
+    "get router info ospf database brief",
+    "get router info6 ospf database",
+    "diagnose firewall proute list",
+    "diagnose firewall proute6 list",
+    "diagnose vpn ike counts",
+    "diagnose vpn ike errors",
+    "diagnose vpn ike stats",
+
     "get router info bgp summary",
     "get router info6 bgp summary",
     "get router info ospf status",
@@ -470,7 +576,41 @@ _FORTINET_COMMANDS = frozenset({
     "diagnose ips anomaly status",
     "diagnose antivirus outbreak-prevention statistics list",
 })
-_FORTIADC_COMMANDS = frozenset({"get system status"})
+_FORTIADC_COMMANDS = frozenset({
+    "get system status",
+    "get system performance",
+    "diagnose system vm",
+    "diagnose netlink interface list {interface}",
+    "diagnose netlink device",
+    "get router info routing-table all",
+    "diagnose netlink neighbor list",
+    "get firewall global",
+    "diagnose server-load-balance slb_load",
+    "get security waf-signature-status",
+    "diagnose server-load-balance vs_stat vdom {vdom} vs {virtual_server}",
+    "diagnose hardware get sysinfo cpu",
+    "diagnose server-load-balance session list",
+    "diagnose server-load-balance persistence list",
+    "diagnose hardware get deviceinfo nic-detail {interface}",
+    "execute ssl-handshake-n-record-statistics show virtual-server {virtual_server}",
+    "execute ssl-client-side-session-statistics show virtual-server {virtual_server}",
+    "execute dos get dos-access-limit {virtual_server}",
+    "execute dos get dos-conn-limit {virtual_server}",
+    "execute dos get dos-req-limit {virtual_server}",
+    "execute waf block-ip list",
+    "execute log list-type tlog",
+    "execute log list-type alog",
+    "execute autoupdate contract",
+    "execute date",
+    "execute log list-type all",
+    "diagnose lldprx neighbor summary",
+    "get router info bgp summary",
+    "get router info bgp neighbors",
+    "get router info ospf neighbor",
+    "get system ha-status",
+    "get system traffic-group-status brief",
+    "diagnose llb policy list",
+})
 _FORTINET_TOP_PREFIX = "diagnose sys top"
 _FORTINET_TOP_SNAPSHOT = "diagnose sys top 1 5 1"
 _FORBIDDEN_SHOW_SECOND = re.compile(
@@ -539,6 +679,23 @@ def _canonical_address(value: str, kind: str) -> str:
 def _validate_slot(value: str, kind: str) -> str:
     if not isinstance(value, str):
         raise ValueError(f"invalid typed {kind} value")
+    if kind in {"fortios_sdwan_health_check", "fortios_link_monitor"}:
+        if (
+            re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,34}", value)
+            and not (kind == "fortios_link_monitor" and value.casefold() == "all")
+        ):
+            return value
+        raise ValueError(f"invalid typed {kind} value")
+    if kind in {"fortios_sdwan_member", "fortios_sdwan_rule"}:
+        maximum = 512 if kind == "fortios_sdwan_member" else 4000
+        if len(value) <= len(str(maximum)) and _canonical_decimal(value, 1, maximum) is not None:
+            return value
+        raise ValueError(f"invalid typed {kind} value")
+    if kind in {"flow_port", "ip_protocol"}:
+        maximum = 65535 if kind == "flow_port" else 255
+        if _canonical_decimal(value, 0, maximum) is not None:
+            return value
+        raise ValueError(f"invalid typed {kind} value")
     if kind == "config_permission":
         if value in {"read", "compare"}:
             return value
@@ -547,10 +704,35 @@ def _validate_slot(value: str, kind: str) -> str:
         if re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,30}",value):
             return value
         raise ValueError("invalid diagnostic VDOM")
+    if kind == "fortiadc_virtual_server":
+        if re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,62}",value):
+            return value
+        raise ValueError("invalid FortiADC virtual server name")
     if kind == "fortios_diagnostic_recipe":
-        if value in {"ping", "traceroute", "sniffer", "sessions", "flow"}:
+        if value in {"ping", "traceroute", "sniffer", "sessions", "flow", "nslookup", "http_probe", "health_check_verify",
+                     "logs", "system_event_logs", "waf_attack_logs", "session_list", "persistence_list"}:
             return value
         raise ValueError("invalid diagnostic recipe")
+    if kind == "diagnostic_http_url":
+        match = re.fullmatch(r"http://([0-9.]{7,15})(?::([1-9][0-9]{0,4}))?((?:/[A-Za-z0-9_~-][A-Za-z0-9._~-]{0,63})+|/)", value)
+        if match is not None and len(value) <= 128:
+            host, port = match.group(1), match.group(2)
+            try:
+                ip = ipaddress.IPv4Address(host)
+            except ValueError:
+                ip = None
+            if (ip is not None and str(ip) == host and not ip.is_multicast and not ip.is_unspecified
+                    and int(ip) != 4294967295 and (port is None or (port != "80" and int(port) <= 65535))):
+                return value
+        raise ValueError("invalid diagnostic HTTP endpoint")
+    if kind == "fortiadc_health_check":
+        if SAFE_FORTIADC_OBJECT.fullmatch(value):
+            return value
+        raise ValueError("invalid FortiADC health check name")
+    if kind == "diagnostic_dns_name":
+        if re.fullmatch(r"(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z](?:[a-z0-9-]{0,61}[a-z0-9])?", value):
+            return value
+        raise ValueError("invalid diagnostic DNS name")
     if kind == "fortios_config_path":
         if len(value) <= 128 and re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.+-]*(?: [A-Za-z0-9][A-Za-z0-9_.+-]*){0,31}",value):
             return value
@@ -594,10 +776,24 @@ def validate_query_inventory(
     query_names: tuple[str, ...],
     inventory: Mapping[str, tuple[str, ...]],
 ) -> None:
-    """Reject enrolled interfaces unusable by every enabled interface query."""
+    """Reject enrolled interfaces unusable by every enabled interface query and recipes the platform lacks."""
     if platform is None:
         return
     normalized = normalize_platform(platform)
+    recipe_allowlists = {
+        "fortinet": {"ping", "traceroute", "sniffer", "sessions", "flow", "logs"},
+        "fortiadc": {"ping", "traceroute", "nslookup", "http_probe", "health_check_verify",
+                     "system_event_logs", "waf_attack_logs", "session_list", "persistence_list"},
+    }
+    allowed_recipes = recipe_allowlists.get(normalized, set())
+    if not set(inventory.get("diagnostic_recipes", ())) <= allowed_recipes:
+        raise ValueError("enrolled diagnostic recipe does not exist on this platform")
+    if inventory.get("diagnostic_names") and normalized != "fortiadc":
+        raise ValueError("enrolled diagnostic DNS names exist only on FortiADC")
+    if (inventory.get("diagnostic_http_endpoints") or inventory.get("adc_health_checks")) and normalized != "fortiadc":
+        raise ValueError("enrolled diagnostic HTTP endpoints and health checks exist only on FortiADC")
+    if inventory.get("diagnostic_virtual_servers") and normalized != "fortiadc":
+        raise ValueError("enrolled virtual servers exist only on FortiADC")
     interface_kinds = {
         slot.kind
         for query_name in query_names
@@ -686,6 +882,10 @@ def _validate_query_catalogs(
                 raise RuntimeError("query description must be non-empty and canonical")
             if type(query.high_volume) is not bool:
                 raise RuntimeError("query high_volume must be a boolean")
+            if type(query.pty) is not bool or (query.pty and platform not in ("fortiadc", "fortinet")):
+                raise RuntimeError("query pty is reserved for FortiADC and FortiOS")
+            if type(query.empty_allowed) is not bool:
+                raise RuntimeError("query empty_allowed must be a boolean")
             if len(query.slots) > 16:
                 raise RuntimeError("query declares too many parameters")
             for slot_name, slot in query.slots.items():

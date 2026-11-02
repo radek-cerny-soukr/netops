@@ -14,6 +14,93 @@ from .model import (
 
 
 QUERIES: dict[str, Query] = {
+    "route_cache": Query(
+        "diagnose ip rtcache list",
+        NO_SLOTS,
+        "List cached IPv4 routing decisions without clearing the cache; cached entries do not prove packet delivery.",
+        high_volume=True,
+    ),
+    "ospf_database_brief_ipv4": Query(
+        "get router info ospf database brief",
+        NO_SLOTS,
+        "Show the IPv4 OSPF link-state database summary; an LSA entry does not prove a route is installed or forwarding traffic.",
+        high_volume=True,
+    ),
+    "ospf_database_ipv6": Query(
+        "get router info6 ospf database",
+        NO_SLOTS,
+        "Show the IPv6 OSPF link-state database; an LSA entry does not prove a route is installed or forwarding traffic.",
+        high_volume=True,
+    ),
+    "nat_pool_assignments": Query(
+        "diagnose firewall ippool list nat-ip {pool}",
+        {"pool": Slot("nat_pools", "fortios_nat_pool")},
+        "List IP addresses allocated from one enrolled FortiOS NAT pool; pool names use the helper's conservative ASCII name validation.",
+        high_volume=True,
+    ),
+    "nat_pool_usage": Query(
+        "diagnose firewall ippool stats",
+        NO_SLOTS,
+        "Show IP pool statistics to investigate NAT pool usage.",
+        high_volume=False,
+    ),
+    "fqdn_resolved_addresses": Query(
+        "diagnose firewall fqdn list-ip",
+        NO_SLOTS,
+        "List resolved IP addresses for FQDN objects to investigate address matching.",
+        high_volume=True,
+    ),
+    "dns_cache": Query(
+        "diagnose test application dnsproxy 7",
+        NO_SLOTS,
+        "Dump the DNS cache to inspect cached DNS answers during troubleshooting.",
+        high_volume=True,
+        pty=True,
+    ),
+    "fqdn_cache": Query(
+        "diagnose test application dnsproxy 6",
+        NO_SLOTS,
+        "Show DNS-proxy FQDN entries; this is distinct from the DNS cache and does not establish reachability.",
+        high_volume=True,
+        pty=True,
+    ),
+    "sdwan_zone": Query(
+        "diagnose sys sdwan zone",
+        NO_SLOTS,
+        "Show kernel SD-WAN zone information.",
+        high_volume=True,
+    ),
+    "fqdn_object_detail": Query(
+        "diagnose firewall fqdn get-ip {name}",
+        {"name": Slot("firewall_addresses", "fortios_address_object")},
+        "Request the current IP FQDN result for one enrolled firewall address object.",
+        high_volume=False,
+    ),
+    "lacp_detail": Query(
+        "diagnose netlink aggregate name {aggregate} show",
+        {"aggregate": Slot("interfaces", "fortios_interface")},
+        "Show LACP details for one enrolled FortiOS interface; argument uses existing Helper interface validation.",
+        high_volume=False,
+    ),
+    "ike_object_counts": Query(
+        "diagnose vpn ike counts",
+        NO_SLOTS,
+        "Show IKE object counts to investigate VPN resource usage.",
+        high_volume=False,
+    ),
+    "ike_errors": Query(
+        "diagnose vpn ike errors",
+        NO_SLOTS,
+        "Read the IKE errors statistics view for VPN troubleshooting.",
+        high_volume=False,
+    ),
+    "ike_statistics": Query(
+        "diagnose vpn ike stats",
+        NO_SLOTS,
+        "Read the IKE stats statistics view for VPN troubleshooting.",
+        high_volume=False,
+    ),
+
     # State views measured on FortiGate-VM64-KVM 7.6.7 build3704 and
     # 8.0.0 build0167. Each query still requires its own target grant.
     "ping_options": Query(
@@ -47,6 +134,18 @@ QUERIES: dict[str, Query] = {
     'managed_switch_mac': Query('diagnose switch-controller switch-info mac-table {managed_switch}', {"managed_switch": Slot("managed_switches", "managed_switch_serial")}, "Show a bounded state view of one enrolled managed switch.", high_volume=True),
     'managed_switch_stacking': Query('diagnose switch-controller switch-info stacking status {managed_switch}', {"managed_switch": Slot("managed_switches", "managed_switch_serial")}, "Show stacking status of one enrolled stacking-capable switch on FortiOS 8.0; unavailable on FortiOS 7.6.7.", high_volume=False),
     'managed_switch_lldp': Query('diagnose switch-controller switch-info lldp neighbors-summary {managed_switch}', {"managed_switch": Slot("managed_switches", "managed_switch_serial")}, "Show a bounded state view of one enrolled managed switch.", high_volume=True),
+    "switch_loop_guard": Query("diagnose switch-controller switch-info loop-guard {managed_switch}", {"managed_switch": Slot("managed_switches", "managed_switch_serial")}, "Show loop-guard status for one enrolled managed switch.", high_volume=False),
+    "switch_bpdu_guard": Query("diagnose switch-controller switch-info bpdu-guard-status {managed_switch}", {"managed_switch": Slot("managed_switches", "managed_switch_serial")}, "Show STP BPDU guard status for one enrolled managed switch.", high_volume=False),
+    "switch_flap_guard": Query("diagnose switch-controller switch-info flapguard status {managed_switch}", {"managed_switch": Slot("managed_switches", "managed_switch_serial")}, "Show flapguard status for one enrolled managed switch.", high_volume=False),
+    "switch_dhcp_snooping": Query("diagnose switch-controller switch-info dhcp-snooping database {managed_switch}", {"managed_switch": Slot("managed_switches", "managed_switch_serial")}, "Show DHCP snooping settings for one enrolled managed switch: snooping-enabled VLANs, trusted and untrusted ports, and client and server database counts and limits; read the bindings themselves with switch_dhcp_bindings.", high_volume=False),
+    "switch_dhcp_bindings": Query("diagnose switch-controller switch-info dhcp-snooping status {managed_switch}", {"managed_switch": Slot("managed_switches", "managed_switch_serial")}, "Show the DHCP snooping client bindings of one enrolled managed switch (MAC address, VLAN, client IP, port, lease, expiry, DHCP server IP) and the DHCP servers it has seen; ssh_read adds a parsed dhcp_bindings object for the IPv4 bindings.", high_volume=True),
+    "switch_fan_health": Query("diagnose switch-controller switch-info fan {managed_switch}", {"managed_switch": Slot("managed_switches", "managed_switch_serial")}, "Show fan status for one enrolled managed switch.", high_volume=False),
+    "switch_source_guard": Query("diagnose switch-controller switch-info ip-source-guard violations {managed_switch}", {"managed_switch": Slot("managed_switches", "managed_switch_serial")}, "Show IP source guard violations recorded for one enrolled managed switch; nothing is recorded while violation logging is disabled or its timer is zero, so an empty result does not show that no traffic was dropped.", high_volume=True),
+    "switch_lldp_port": Query("diagnose switch-controller switch-info lldp neighbors-detail {managed_switch} {port}", {"managed_switch": Slot("managed_switches", "managed_switch_serial"), "port": Slot("managed_switch_ports", "managed_switch_port")}, "Show LLDP neighbors reported on one enrolled managed-switch port.", high_volume=False),
+    "switch_mac_limit": Query("diagnose switch-controller switch-info mac-limit-violations interface {managed_switch} {port}", {"managed_switch": Slot("managed_switches", "managed_switch_serial"), "port": Slot("managed_switch_ports", "managed_switch_port")}, "Show MAC learning-limit violations reported for one enrolled managed-switch port; an empty table is meaningful only when the port sets learning-limit above 0.", high_volume=False),
+    "switch_mclag_icl": Query("diagnose switch-controller switch-info mclag icl {managed_switch}", {"managed_switch": Slot("managed_switches", "managed_switch_serial")}, "Show the MCLAG inter-chassis link of one enrolled managed switch; this is only configuration (ICL ports, peer serial), read ICL link health with switch_trunk_status; unsupported switches report not_supported.", high_volume=False),
+    "switch_trunk_status": Query("diagnose switch-controller switch-info trunk status {managed_switch} {mclag_trunk}", {"managed_switch": Slot("managed_switches", "managed_switch_serial"), "mclag_trunk": Slot("managed_switch_trunks", "managed_switch_trunk")}, "Show the trunk status and member port states of one enrolled trunk on one enrolled managed switch; unreadable output reports incomplete.", high_volume=False),
+    "switch_mclag_consistency": Query("diagnose switch-controller switch-info mclag peer-consistency-check {managed_switch} {mclag_trunk}", {"managed_switch": Slot("managed_switches", "managed_switch_serial"), "mclag_trunk": Slot("managed_switch_trunks", "managed_switch_trunk")}, "Compare one enrolled MCLAG trunk with the MCLAG peer (configuration checks, LAG and STP state) and list inactive local or peer members; it does not show link state.", high_volume=False),
 
     "system_status": Query(
         "get system status",
@@ -67,6 +166,22 @@ QUERIES: dict[str, Query] = {
         "diagnose sys session stat",
         NO_SLOTS,
         "Show aggregate session table statistics.",
+    ),
+    "conserve_state": Query(
+        "diagnose hardware sysinfo conserve",
+        NO_SLOTS,
+        "Show memory conservation status to investigate resource-related session failures.",
+    ),
+    "cpu_cores": Query(
+        "diagnose hardware sysinfo cpu",
+        NO_SLOTS,
+        "Show detailed information about installed CPUs; this is not a per-core utilization measurement.",
+    ),
+    "fortiguard_communication": Query(
+        "diagnose sys service-communication",
+        NO_SLOTS,
+        "Show historical FortiGuard communication statistics, not an active reachability probe.",
+        high_volume=True,
     ),
     "hardware_memory": Query(
         "diagnose hardware sysinfo memory",
@@ -104,6 +219,46 @@ QUERIES: dict[str, Query] = {
         "get router info routing-table details {address}",
         IPV4_ADDRESS,
         "Show the IPv4 route for one enrolled address.",
+    ),
+    "policy_lookup_ipv4": Query(
+        "diagnose firewall iprope lookup {src_ip} {src_port} {dst_ip} {dst_port} {protocol} {device} {pol_type}",
+        {
+            "src_ip": Slot("addresses", "ipv4_address"),
+            "src_port": Slot("flow_ports", "flow_port"),
+            "dst_ip": Slot("addresses", "ipv4_address"),
+            "dst_port": Slot("flow_ports", "flow_port"),
+            "protocol": Slot("ip_protocols", "ip_protocol"),
+            "device": Slot("interfaces", "fortios_interface"),
+            "pol_type": Slot("policy_types", "fortios_policy_type"),
+        },
+        "Look up the IPv4 firewall policy that matches one enrolled flow tuple.",
+        high_volume=False,
+    ),
+    "policy_lookup_ipv6": Query(
+        "diagnose firewall iprope6 lookup {src_ip} {src_port} {dst_ip} {dst_port} {protocol} {device} {pol_type}",
+        {
+            "src_ip": Slot("addresses", "ipv6_address"),
+            "src_port": Slot("flow_ports", "flow_port"),
+            "dst_ip": Slot("addresses", "ipv6_address"),
+            "dst_port": Slot("flow_ports", "flow_port"),
+            "protocol": Slot("ip_protocols", "ip_protocol"),
+            "device": Slot("interfaces", "fortios_interface"),
+            "pol_type": Slot("policy_types", "fortios_policy_type"),
+        },
+        "Look up the IPv6 firewall policy that matches one enrolled flow tuple.",
+        high_volume=False,
+    ),
+    "policy_routes_ipv4": Query(
+        "diagnose firewall proute list",
+        NO_SLOTS,
+        "Show SD-WAN rule and policy routes in the data plane for route-selection investigation.",
+        high_volume=True,
+    ),
+    "policy_routes_ipv6": Query(
+        "diagnose firewall proute6 list",
+        NO_SLOTS,
+        "List IPv6 policy routing.",
+        high_volume=True,
     ),
     "route_protocols": Query(
         "get router info protocols",
@@ -145,10 +300,69 @@ QUERIES: dict[str, Query] = {
         "Show SD-WAN health-check status.",
         high_volume=True,
     ),
+    "sdwan_member_detail": Query(
+        "diagnose sys sdwan member {member}",
+        {"member": Slot("sdwan_members", "fortios_sdwan_member")},
+        "Show state of one enrolled SD-WAN member.",
+    ),
+    "sdwan_service_ipv4": Query(
+        "diagnose sys sdwan service4 {rule}",
+        {"rule": Slot("sdwan_rules", "fortios_sdwan_rule")},
+        "Show IPv4 path selection for one enrolled SD-WAN rule.",
+    ),
+    "sdwan_service_ipv6": Query(
+        "diagnose sys sdwan service6 {rule}",
+        {"rule": Slot("sdwan_rules", "fortios_sdwan_rule")},
+        "Show IPv6 path selection for one enrolled SD-WAN rule.",
+    ),
+    "sdwan_routes_ipv4": Query(
+        "diagnose sys sdwan route {member}",
+        {"member": Slot("sdwan_members", "fortios_sdwan_member")},
+        "Show IPv4 SD-WAN routes for one enrolled member.",
+        high_volume=True,
+    ),
+    "sdwan_routes_ipv6": Query(
+        "diagnose sys sdwan route6 {member}",
+        {"member": Slot("sdwan_members", "fortios_sdwan_member")},
+        "Show IPv6 SD-WAN routes for one enrolled member.",
+        high_volume=True,
+    ),
+    "sdwan_interface_quality": Query(
+        "diagnose sys sdwan intf-sla-log {interface}",
+        FORTIOS_INTERFACE,
+        "Show interface quality details for one enrolled interface.",
+        high_volume=True,
+    ),
+    "sdwan_sla_history": Query(
+        "diagnose sys sdwan sla-log {health_check} {member}",
+        {
+            "health_check": Slot("sdwan_health_checks", "fortios_sdwan_health_check"),
+            "member": Slot("sdwan_members", "fortios_sdwan_member"),
+        },
+        "Show the last ten minutes of SLA history for an enrolled health check and member.",
+        high_volume=True,
+    ),
+    "link_monitor_status": Query(
+        "diagnose sys link-monitor status {monitor}",
+        {"monitor": Slot("link_monitors", "fortios_link_monitor")},
+        "Show status of one enrolled link monitor without restarting it.",
+    ),
     "ha_checksum": Query(
         "diagnose sys ha checksum cluster",
         NO_SLOTS,
         "Show HA synchronization checksums across the cluster.",
+    ),
+    "ha_nonsync_checksum": Query(
+        "diagnose sys ha checksum show-nonsync",
+        NO_SLOTS,
+        "Show non-sync HA checksum information; the reference does not specify tables or members.",
+        high_volume=True,
+    ),
+    "ha_sync_statistics": Query(
+        "diagnose sys ha sync-stats",
+        NO_SLOTS,
+        "Show HA synchronization statistics; the reference does not define output size or peer selection.",
+        high_volume=True,
     ),
     "ha_history": Query(
         "diagnose sys ha history read",
@@ -162,10 +376,69 @@ QUERIES: dict[str, Query] = {
         "Summarize IPsec tunnel state.",
         high_volume=True,
     ),
+    "dhcp_leases": Query(
+        "execute dhcp lease-list {interface}",
+        {"interface": Slot("interfaces", "fortios_interface")},
+        "List DHCP leases on one enrolled interface, retaining IP/MAC/hostname association; a lease does not prove current client connectivity.",
+        high_volume=True,
+    ),
+    "ipsec_tunnel_statistics": Query(
+        "diagnose vpn tunnel stat",
+        NO_SLOTS,
+        "Show aggregate IPsec tunnel/SA and crypto-work statistics; this does not establish per-tunnel traffic bytes.",
+    ),
     "ipsec_status": Query(
         "diagnose vpn ipsec status",
         NO_SLOTS,
         "Show aggregate IPsec subsystem status.",
+    ),
+    "bgp_advertised_ipv4": Query(
+        "get router info bgp neighbors {peer} advertised-routes",
+        {"peer": Slot("addresses", "ipv4_address")},
+        "Show IPV4 routes advertised to one enrolled BGP peer.",
+        high_volume=True,
+    ),
+    "bgp_received_ipv4": Query(
+        "get router info bgp neighbors {peer} received-routes",
+        {"peer": Slot("addresses", "ipv4_address")},
+        "Show IPV4 routes received from one enrolled BGP peer.",
+        high_volume=True,
+    ),
+    "bgp_accepted_ipv4": Query(
+        "get router info bgp neighbors {peer} routes",
+        {"peer": Slot("addresses", "ipv4_address")},
+        "Show IPV4 routes accepted from one enrolled BGP peer.",
+        high_volume=True,
+    ),
+    "bgp_advertised_ipv6": Query(
+        "get router info6 bgp neighbors {peer6} advertised-routes",
+        {"peer6": Slot("addresses", "ipv6_address")},
+        "Show IPV6 routes advertised to one enrolled BGP peer.",
+        high_volume=True,
+    ),
+    "bgp_received_ipv6": Query(
+        "get router info6 bgp neighbors {peer6} received-routes",
+        {"peer6": Slot("addresses", "ipv6_address")},
+        "Show IPV6 routes received from one enrolled BGP peer.",
+        high_volume=True,
+    ),
+    "bgp_accepted_ipv6": Query(
+        "get router info6 bgp neighbors {peer6} routes",
+        {"peer6": Slot("addresses", "ipv6_address")},
+        "Show IPV6 routes accepted from one enrolled BGP peer.",
+        high_volume=True,
+    ),
+    "ospf_interfaces_ipv4": Query(
+        "get router info ospf interface",
+        NO_SLOTS,
+        "Show IPV4 OSPF interface state and parameters.",
+        high_volume=True,
+    ),
+    "ospf_interfaces_ipv6": Query(
+        "get router info6 ospf interface",
+        NO_SLOTS,
+        "Show IPV6 OSPF interface state and parameters.",
+        high_volume=True,
     ),
     "bgp_summary": Query(
         "get router info bgp summary",
@@ -265,5 +538,35 @@ QUERIES: dict[str, Query] = {
         "diagnose antivirus outbreak-prevention statistics list",
         NO_SLOTS,
         "Show antivirus outbreak-prevention statistics.",
+    ),
+    "wifi_clients": Query(
+        "diagnose wireless-controller wlac -c sta",
+        NO_SLOTS,
+        "Show the wireless-controller station list for clients connected to managed FortiAPs.",
+        high_volume=True,
+    ),
+    "wifi_client_detail": Query(
+        "diagnose wireless-controller wlac -d sta {mac}",
+        {"mac": Slot("wireless_clients", "fortios_station_mac")},
+        "Show wireless station detail for one enrolled station MAC address.",
+        high_volume=False,
+    ),
+    "wifi_access_points": Query(
+        "diagnose wireless-controller wlac -c wtp",
+        NO_SLOTS,
+        "Show access-point control records and the status reported by the wireless controller.",
+        high_volume=True,
+    ),
+    "wifi_ap_detail": Query(
+        "diagnose wireless-controller wlac -d wtp",
+        NO_SLOTS,
+        "Show wireless access-point data-plane records without resetting their state.",
+        high_volume=True,
+    ),
+    "wifi_ssid_mapping": Query(
+        "diagnose wireless-controller wlac -c vap",
+        NO_SLOTS,
+        "Show virtual access-point records for mapping wireless service interfaces and SSIDs.",
+        high_volume=True,
     ),
 }

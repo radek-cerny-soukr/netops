@@ -39,14 +39,19 @@ def test_structured_and_cli_secrets_are_redacted() -> None:
 
 
 def test_exact_injected_secrets_and_diagnostic_context() -> None:
+    from netops_helper.proxy_sanitize import sanitize_text
+
     source = (
         "time=10:23:45 host=host.invalid serial=DEVICE123 "
-        "credential material-is-secret"
+        "credential material-is-secret\n"
+        "      128-length passwd            : enabled\n"
     )
-    cleaned = redact(source, secrets=("material-is-secret",))
-    for visible in ("10:23:45", "host.invalid", "DEVICE123"):
-        assert visible in cleaned
-    assert "material-is-secret" not in cleaned
+    for sanitize in (redact, sanitize_text):
+        cleaned = sanitize(source, secrets=("material-is-secret",))
+        for visible in ("10:23:45", "host.invalid", "DEVICE123",
+                        "      128-length passwd            : enabled\n"):
+            assert visible in cleaned
+        assert "material-is-secret" not in cleaned
 
 
 def test_redaction_limit_is_still_enforced() -> None:

@@ -232,10 +232,19 @@ class FortiAdcF1Contract(unittest.TestCase):
                 with self.assertRaises(platforms.PlatformError):
                     check(selected, ADC_STATUS)
 
-    def test_f1_helper_exposes_only_the_fixed_system_status_query(self):
+    def test_f1_helper_exposes_only_the_reviewed_fixed_queries(self):
         self.require_adc_helper()
         queries = read_policy.READ_QUERIES["fortiadc"]
-        self.assertEqual(set(queries), {"system_status"}, "F1-ADC-ONLY-ONE-QUERY")
+        self.assertEqual(set(queries), {
+            "system_status", "system_performance", "vm_license", "interface_state",
+            "interface_counters", "routing_table", "arp_table", "firewall_timeouts", "slb_load",
+            "cpu_info", "nic_detail", "slb_vs_stat", "waf_signature_status",
+            "log_list_attack", "waf_block_ip", "slb_sessions", "log_list_traffic",
+            "persistence_sessions", "autoupdate_contract", "tls_handshake_stats", "tls_session_reuse",
+            "dos_access_limit", "dos_conn_limit", "dos_req_limit",
+            "system_date", "log_files", "lldp_neighbors", "bgp_summary", "bgp_neighbors",
+            "ospf_neighbors", "ha_status", "traffic_group_status", "llb_policy",
+        }, "F1-ADC-REVIEWED-QUERY-SET")
         self.assertEqual(dict(queries["system_status"].slots), {}, "F1-ADC-NO-COMMAND-PARAMETERS")
         self.assertEqual(
             read_policy.render_read_query("fortiadc", "system_status", {}, {}),
@@ -272,7 +281,7 @@ class FortiAdcF1Wire(unittest.TestCase):
         self.reads = []
         self.cache = {}
         self.enterContext(patch.object(engine, "_SSH_PAGE_CACHE", self.cache))
-        self.auth = SimpleNamespace(alias="f1-wire", secrets=(), legacy_ssh=None)
+        self.auth = SimpleNamespace(alias="f1-wire", secrets=(), legacy_ssh=None, ssh_platform="fortiadc")
 
     def read(self, platform, command, responses, offset=0, snapshot=None, full=False, events=None):
         def device(auth, selected, issued):
@@ -382,19 +391,74 @@ class FortiAdcF1Wire(unittest.TestCase):
         self.assert_identity_refused(result, "fortiadc")
         self.assertEqual(events, ["started", "failed"], "F1-MISSING-WIRE-FAIL")
 
-    def test_f1_refusal_fortiadc_has_no_borrowed_fortios_classifier(self):
-        refusal = "Command fail. Return code -61\n"
-        self.assertNotIn("fortiadc", engine._CLI_REFUSALS)
-        self.assertFalse(engine._cli_refused("fortiadc", refusal))
-        result = self.read("fortiadc", "get system status", {"get system status": (0, refusal)})
-        self.assert_identity_refused(result, "fortiadc")
+    def test_f1_refusal_fortiadc_parser_error_is_failed_without_caching(self):
+        samples = (
+            ("get system performance", "diagnostic preamble\n" * 100 +
+             "Command fail. Return code is -284 (CLI parsing error.)\n"),
+            ("get router info routing-table all",
+             "get vty failed\nCommand fail. Return code is -1 ((null))\n\n"),
+        )
+        for command, body in samples:
+            with self.subTest(command=command):
+                self.reads.clear()
+                self.cache.clear()
+                events = []
+                result = self.read("fortiadc", command, {
+                    "get system status": (0, ADC_STATUS),
+                    command: (0, body),
+                }, full=True, events=events)
+                self.assertEqual(self.reads, [("fortiadc", "get system status"), ("fortiadc", command)])
+                self.assertFalse(result["ok"])
+                self.assertEqual(result["error_code"], "device_cli_error")
+                self.assertEqual(result["rc"], 0)
+                self.assertEqual(events, ["started", "failed"])
+                self.assertEqual(self.cache, {})
+        self.assertTrue(engine._cli_refused(
+            "fortiadc", "Command fail. Return code is +1 (Synthetic refusal.)\n"))
 
-    def test_f1_refusal_fortiadc_valid_record_with_fortios_refusal_text_is_read(self):
-        status = ADC_STATUS + "Command fail. Return code -61\n"
+    def test_f1_wire_only_flagged_adc_queries_are_read_on_a_terminal(self):
+        refused = "get vty failed\nCommand fail. Return code is -1 ((null))\n"
+        for query, command, prompt in (
+            ("routing_table", "get router info routing-table all", True),
+            ("slb_load", "diagnose server-load-balance slb_load", True),
+            ("tls_handshake_stats", "execute ssl-handshake-n-record-statistics show virtual-server LAB_VS_HTTPS", True),
+            ("tls_session_reuse", "execute ssl-client-side-session-statistics show virtual-server LAB_VS_HTTPS", True),
+            ("dos_access_limit", "execute dos get dos-access-limit VS_APP_HTTP", True),
+            ("dos_conn_limit", "execute dos get dos-conn-limit VS_APP_HTTP", True),
+            ("dos_req_limit", "execute dos get dos-req-limit VS_APP_HTTP", True),
+            ("slb_vs_stat", "diagnose server-load-balance vs_stat vdom root vs VS_APP_HTTP", True),
+            ("lldp_neighbors", "diagnose lldprx neighbor summary", True),
+            ("traffic_group_status", "get system traffic-group-status brief", True),
+            ("llb_policy", "diagnose llb policy list", True),
+            ("arp_table", "diagnose netlink neighbor list", False),
+            ("system_performance", "get system performance", False),
+        ):
+            for body in ("device answer\n", refused):
+                with self.subTest(query=query, body=body):
+                    calls = []
+
+                    def device(auth, selected, issued, **options):
+                        calls.append((issued, options))
+                        return (0, ADC_STATUS) if issued == "get system status" else (None, body)
+
+                    with patch.object(engine, "_ssh_read_state", return_value=("fortiadc", command, ("f1", query))), \
+                         patch.object(engine, "read_from_device", side_effect=device):
+                        result = engine.ssh_read.__wrapped__(self.auth, "fortiadc", query, None, 0, 1000, None)
+                    self.assertEqual(calls, [("get system status", {}), (command, {"prompt": True} if prompt else {})])
+                    self.assertEqual(result["transport"], "pty" if prompt else "exec")
+                    self.assertEqual(result["ok"], body != refused)
+                    if body == refused:
+                        self.assertEqual(result["error_code"], "device_cli_error")
+
+    def test_f1_refusal_fortiadc_diagnostic_text_and_fortios_literal_are_read(self):
+        status = (ADC_STATUS +
+                  "Last error: Command fail. Return code is -284 (CLI parsing error.)\n" +
+                  "Command fail. Return code -61\n")
         result = self.read("fortiadc", "get system status", {"get system status": (0, status)})
         self.assertEqual(self.reads, [("fortiadc", "get system status")], "F1-WIRE-SINGLE")
         self.assertTrue(result["ok"], "F1-REFUSAL-NONE")
         self.assertEqual(result["untrusted_device_output"], status)
+
 
 
 if __name__ == "__main__":

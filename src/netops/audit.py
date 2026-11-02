@@ -33,6 +33,7 @@ RECOVER_HINT = "stop the instance and run `docker compose run --rm netops audit 
 SEGMENT_READ_LIMIT = 33554432
 SYSLOG_BATCH_RECORDS = 512
 SYSLOG_BATCH_BYTES = 16777216
+START_RECORD_OVERHEAD = 4096
 SYSLOG_STALE_SECONDS = 300
 SYSLOG_MIN_RATE = 65536
 SMALL_AUDIT_MESSAGE = 65536
@@ -346,6 +347,24 @@ class Audit:
             batch.append(path)
             size += length
         return batch
+
+    def _drain_until(self, reserve):
+        while sum(path.stat().st_size for path in self._files()) + reserve > self.budget:
+            batch = self._batch()
+            if not batch:
+                return
+            self._deliver(batch)
+            self._remove(batch)
+
+    async def make_room(self, payload):
+        if self.settings["mode"] != "syslog":
+            return
+        reserve = len(json.dumps(payload, separators=(",", ":"), ensure_ascii=False, allow_nan=False).encode()) + START_RECORD_OVERHEAD
+        async with self.lock:
+            try:
+                await asyncio.to_thread(self._drain_until, reserve)
+            except (OSError, ValueError) as error:
+                raise AuditUnavailable("audit_unavailable: full syslog queue could not be delivered before start") from error
 
     async def forward(self):
         if self.settings["mode"] != "syslog":

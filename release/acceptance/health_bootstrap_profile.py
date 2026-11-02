@@ -7,6 +7,8 @@ HEALTH = ("/usr/local/bin/python", "/usr/local/bin/netops", "health")
 SERVE = ("/usr/local/bin/python", "/usr/local/bin/netops", "serve")
 WORKER = ("/usr/local/bin/python", "-m", "netops", "worker")
 ROLES = {"helper": 51001, "auditor": 51002, "admin": 51003}
+TARGET_LOCK_GID = 51004
+TARGET_LOCK_ROLES = ("helper", "admin")
 
 
 class InvalidProfile(Exception):
@@ -21,6 +23,11 @@ EXEC_TRANSITIONS = ("runtime-exec-transition-during-retry", "runtime-exec-transi
 def require(condition, reason):
     if not condition:
         raise InvalidProfile(reason)
+
+
+def role_groups(argv):
+    cmd = tuple(argv)
+    return [TARGET_LOCK_GID] if len(cmd) == 5 and cmd[:4] == WORKER and cmd[4] in TARGET_LOCK_ROLES else []
 
 
 def identity(value):
@@ -186,7 +193,7 @@ def terminal_permissions(value, previous):
     else:
         require((uid == previous_uid or (previous_uid == 0 and uid == 51000 and
                                          tuple(previous["argv"]) == HEALTH)) and
-                value["gids"] == [uid] * 4 and value["groups"] == [] and
+                value["gids"] == [uid] * 4 and value["groups"] == role_groups(previous["argv"]) and
                 not any(value["caps"].values()), "unsafe-terminal-identity")
 
 
@@ -265,12 +272,26 @@ def transition_facts(reason, facts, shim_pid):
         if first == runtime:
             return second == health
         read = facts.get("retry_read")
-        return (first == second == health and type(read) is dict and read.get("argv") == health and
+        if type(read) is not dict:
+            return False
+        before_exe = executable_identity(read.get("exe_identity_before"))
+        after_exe = executable_identity(read.get("exe_identity_after"))
+        parent_before, parent_after = read.get("parent_pid_before"), read.get("parent_pid_after")
+        transition = read.get("transition")
+        if transition is None:
+            stable = before_exe == after_exe and parent_before == parent_after == shim_pid
+        elif transition == "runtime-exec":
+            initial = executable_identity(read.get("initial_exe_identity"))
+            stable = before_exe == initial and after_exe != initial and type(parent_before) is int and parent_before > 0 and parent_after == shim_pid
+        elif transition == "parent-reaped":
+            initial = executable_identity(read.get("initial_exe_identity"))
+            stable = before_exe == after_exe and before_exe != initial and type(parent_before) is int and parent_before > 0 and parent_before != shim_pid and parent_after == shim_pid
+        else:
+            return False
+        return (first == second == health and read.get("argv") == health and
                 identity(read.get("key_before")) == identity(read.get("key_after")) == identity(facts["key"]) and
                 read.get("cgroup_before") == read.get("cgroup_after") == facts["cgroup"] and
-                executable_identity(read.get("exe_identity_before")) == executable_identity(read.get("exe_identity_after")) and
-                type(read.get("parent_pid_before")) is int and type(read.get("parent_pid_after")) is int and
-                read["parent_pid_before"] == read["parent_pid_after"] == shim_pid and
+                stable and type(parent_before) is int and type(parent_after) is int and
                 0 <= instant(read.get("time")) - instant(read.get("read_started_at")) <= .050000001)
     if reason == "runtime-exec-transition-parent-exited":
         return first == health and type(facts.get("first_parent")) is int and facts["first_parent"] != shim_pid
@@ -357,6 +378,11 @@ def verified_attempts(attempts, key, cgroup, trace, shim_pid, limit, binding, be
             require(type(partial) is dict and partial.get("argv") == ["runc", "init"] and
                     number(binding["bound_at"]) <= number(read["read_started_at"]) <=
                     number(read["time"]) <= number(attempt["time"]), "unverified-exec-transition")
+            if read.get("transition") is not None:
+                proof = partial.get("runtime_executable")
+                require(type(proof) is dict and type(proof.get("file")) is dict and
+                        type(proof["file"].get("stat_before")) is list and
+                        read["initial_exe_identity"] == proof["file"]["stat_before"][:2], "unverified-exec-transition")
         if attempt["reason"] == "runtime-exec-transition-retry-empty-command":
             read, partial = facts["retry_read"], attempt["partial"]
             proof = partial.get("runtime_executable") if type(partial) is dict else None
@@ -535,7 +561,7 @@ def assess_legacy_trace(trace, *, admin_enabled=True):
                                 all(not caps[k] & ~BOOTSTRAP_CAPS for k in ("eff", "prm", "bnd")), "extra-bootstrap-capability")
                 else:
                     require(uid in role_uids.values() and row["gids"] == [uid] * 4 and
-                            row["groups"] == [], "unknown-process-identity")
+                            row["groups"] == role_groups(row["argv"]), "unknown-process-identity")
                     require(not any(caps.values()), "privileged-long-lived-process")
                     if parent != shim_key:
                         ancestor, visited = key, set()

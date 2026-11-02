@@ -91,6 +91,16 @@ class SshError(Exception):
         self.said = said
 
 
+class OutputConsumerError(SshError):
+    def __init__(self):
+        super().__init__("SSH output consumer failed; output withheld")
+
+
+class OutputLimitError(SshError):
+    def __init__(self):
+        super().__init__("SSH output limit exceeded; output withheld")
+
+
 @dataclass(frozen=True)
 class Result:
     rc: int
@@ -98,6 +108,7 @@ class Result:
     said: str
     started_at: str
     finished_at: str
+    stderr: bytes = b""
 
 
 def _checked_text(name, value) -> str:
@@ -409,8 +420,10 @@ def _run_capped(call, max_bytes, *, timeout, env, stdin_bytes, stdout_consumer=N
                         else:
                             try:
                                 stdout_consumer(chunk)
+                            except OutputLimitError:
+                                raise
                             except Exception:
-                                raise SshError("SSH output consumer failed; output withheld") from None
+                                raise OutputConsumerError() from None
                     elif len(err) < STDERR_MAX_BYTES:
                         err += chunk[: STDERR_MAX_BYTES - len(err)]
         finally:
@@ -420,6 +433,8 @@ def _run_capped(call, max_bytes, *, timeout, env, stdin_bytes, stdout_consumer=N
             proc.stdout.close()
             proc.stderr.close()
         if overrun:
+            if stdout_consumer is not None:
+                raise OutputLimitError()
             raise SshError(
                 "the client produced more than %d bytes on stdout and was stopped" % max_bytes
             )
@@ -647,6 +662,7 @@ def run_command(
                 "the ssh runner must answer with bytes on stdout, got %s" % type(data).__name__
             )
         said = _said(result)
+        err = getattr(result, "stderr", None)
         code = getattr(result, "returncode", None)
         if isinstance(code, int) and not isinstance(code, bool) and code < 0:
             raise SshError(
@@ -675,6 +691,7 @@ def run_command(
             said=said,
             started_at=started_at,
             finished_at=finished_at,
+            stderr=bytes(err) if isinstance(err, (bytes, bytearray)) else b"",
         )
     finally:
         _released(workspace, owner)

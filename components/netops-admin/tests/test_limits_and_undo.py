@@ -129,3 +129,30 @@ def test_undo_on_exos_restores_the_description(tmp_path):
     back = execute.undo(runtime, first["change_id"], "investigated")
     assert back["result"] == "confirmed"
     assert device.vlans["spare"]["description"] == "unused" and device.saves == 2
+
+
+UNDO_DONE = ("undo of this change has already been performed; "
+             "after a reverted change remove the object with regular administration")
+
+
+def test_second_undo_with_other_reason_says_the_undo_was_already_performed(tmp_path):
+    device = FakeFortiOS()
+    runtime = make_runtime(tmp_path, device)
+    first = execute.apply(runtime, "lab", request(op="update", key="spare-host", changes={"comment": "mine"}))
+    assert execute.undo(runtime, first["change_id"], "investigated")["result"] == "confirmed"
+    blocks = len(device.applied_blocks)
+    with pytest.raises(Rejected) as caught:
+        execute.undo(runtime, first["change_id"], "another reason")
+    assert caught.value.reasons == [UNDO_DONE]
+    assert len(device.applied_blocks) == blocks
+
+
+def test_reused_request_id_of_a_regular_request_keeps_the_original_message(tmp_path):
+    device = FakeFortiOS()
+    runtime = make_runtime(tmp_path, device)
+    first = execute.apply(runtime, "lab", request(op="update", key="spare-host", changes={"comment": "mine"}))
+    taken = "undo-%s" % first["change_id"]
+    execute.apply(runtime, "lab", request(request_id=taken))
+    with pytest.raises(Rejected) as caught:
+        execute.apply(runtime, "lab", request(request_id=taken, changes={"subnet": "192.0.2.31/32", "comment": "x"}))
+    assert caught.value.reasons == [execute.REUSED_REQUEST]

@@ -113,6 +113,29 @@ class PrivateFiles(unittest.TestCase):
                 self.assertIn("docs/helper-configuration.md", message)
                 self.assertNotIn("misplaced-private-value-canary", message)
 
+    def test_helper_validation_returns_the_wifi_warning_for_a_read_only_fortios_account(self):
+        from netops.operator import _validate_helper_inventory
+        from netops_core import vault
+        with tempfile.TemporaryDirectory() as temp:
+            directory = Path(temp)
+            write_private(directory / "vault.json", json.dumps({"version": 2, "credentials": {
+                "fixture-ro": {"kind": "password", "login": "fixture-user", "value": "synthetic-only-value"}}}).encode())
+            store = vault.load(directory / "vault.json")
+            egress = {"addresses": ["192.0.2.10"], "tcp_ports": [22], "udp_ports": [], "tcp_port_ranges": [],
+                      "udp_port_ranges": [], "allow_icmp": False, "allow_dns": False, "tls_server_names": []}
+            for queries, expected in ((["system_status", "wifi_clients"], 1), (["system_status"], 0)):
+                device = {"name": "gate", "platform": "fortios", "address": "192.0.2.10", "port": 22, "role": "lab",
+                          "credential": "fixture-ro", "host_key_fingerprint": "SHA256:" + "A" * 43,
+                          "legacy_ssh": None, "auditor": None,
+                          "helper": {"account_role": "read-only", "ssh_platform": "fortios",
+                                     "enabled_queries": queries, "read_inventory": {},
+                                     "fortios_output_standard_verified": True, "sftp_roots": [], "egress": egress}}
+                write_private(directory / "inventory.json", json.dumps({"version": 2, "devices": [device]}).encode(), replace=True)
+                warnings = _validate_helper_inventory(directory / "inventory.json", store)
+                self.assertEqual(len(warnings), expected)
+                if expected:
+                    self.assertIn("query wifi_clients", warnings[0])
+
 
 class RuntimeHealth(unittest.TestCase):
     def test_unready_role_is_refused_with_python_optimization_enabled(self):

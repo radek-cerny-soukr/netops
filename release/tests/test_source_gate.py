@@ -123,6 +123,16 @@ class Privacy(unittest.TestCase):
             with self.subTest(value=value):
                 self.assertTrue(gate.privacy_text(self.rules, "docs/example.md", value))
 
+    def test_test_kit_name_and_private_evidence_paths_are_refused(self):
+        for value in ("IT-" + "kufr", "IT " + "kufr", "it-" + "Kufr", "work/" + "claude-105-x/result.json",
+                      "see work/" + "codex-105-x/notes.md"):
+            with self.subTest(value=value):
+                self.assertTrue(gate.privacy_text(self.rules, "docs/example.md", value))
+        self.assertTrue(gate.privacy_text(self.rules, "work/" + "claude-105-x/result.json", "neutral"))
+        for value in ("network/claude-client", "the work/ directory", "framework/codex-cli"):
+            with self.subTest(value=value):
+                self.assertEqual(gate.privacy_text(self.rules, "docs/example.md", value), [])
+
     def test_repeated_privacy_scan_has_a_bounded_runtime(self):
         import subprocess, sys
         script = (
@@ -241,6 +251,49 @@ class BuildInputs(unittest.TestCase):
                 self.assertIn("--hash=sha256:", active)
                 for forbidden in ("--trusted-host", "http://", "file:", "--no-index"):
                     self.assertNotIn(forbidden, active)
+
+    def test_optional_build_ca_reaches_only_the_downloading_steps_as_a_secret(self):
+        for name, steps in (("Dockerfile", 4), ("release/engine-regression.Dockerfile", 1)):
+            with self.subTest(dockerfile=name):
+                self.check_optional_build_ca((ROOT / name).read_text(), steps)
+
+    def check_optional_build_ca(self, text, steps):
+        lines = text.splitlines()
+        mount = "RUN --mount=type=secret,id=extra_ca,required=false --mount=type=tmpfs,target=/run/netops-ca \\"
+        bundle = ("    if [ -s /run/secrets/extra_ca ]; then cat /etc/ssl/certs/ca-certificates.crt /run/secrets/extra_ca"
+                  " > /run/netops-ca/ca.pem && export PIP_CERT=/run/netops-ca/ca.pem"
+                  " SSL_CERT_FILE=/run/netops-ca/ca.pem; fi \\")
+        downloads = [index for index, line in enumerate(lines)
+                     if "apk " in line or ("pip install" in line and "--no-index" not in line)]
+        self.assertEqual(len(downloads), steps)
+        for index in downloads:
+            with self.subTest(line=lines[index]):
+                self.assertEqual(lines[index - 2:index], [mount, bundle])
+                self.assertTrue(lines[index].startswith("    && "))
+        self.assertEqual(text.count("extra_ca"), 3 * len(downloads))
+        self.assertEqual(text.count("/run/netops-ca/ca.pem"), 3 * len(downloads))
+        for line in lines:
+            if line.split(" ", 1)[0] in ("COPY", "ADD", "ENV", "ARG"):
+                self.assertNotIn("extra_ca", line)
+                self.assertNotIn("netops-ca", line)
+
+    def test_wheel_is_built_with_the_commit_time_as_source_date_epoch(self):
+        lines = (ROOT / "Dockerfile").read_text().splitlines()
+        builder = lines.index("FROM base AS builder")
+        runtime = lines.index("FROM base AS runtime")
+        stage = lines[builder:runtime]
+        self.assertEqual(stage[1], "ARG SOURCE_DATE_EPOCH")
+        wheel = next(index for index, line in enumerate(stage) if "pip wheel" in line)
+        guard = max(index for index, line in enumerate(stage[:wheel + 1]) if line.startswith("RUN "))
+        self.assertTrue(stage[guard].startswith('RUN case "$SOURCE_DATE_EPOCH" in ""|*[!0-9]*) '))
+        self.assertIn("exit 1;; esac", stage[guard])
+        commit_time = '--build-arg SOURCE_DATE_EPOCH="$(git log -1 --format=%ct)"'
+        for workflow, build in (("candidate.yml", "docker buildx build "), ("ci.yml", "docker build ")):
+            with self.subTest(workflow=workflow):
+                text = (ROOT / ".github/workflows" / workflow).read_text().replace("\\\n", " ")
+                calls = [line for line in text.splitlines() if build in line and " -f " not in line]
+                self.assertEqual(len(calls), 1)
+                self.assertIn(commit_time, calls[0])
 
 class SharedProductBoundaries(unittest.TestCase):
     def setUp(self):
@@ -376,6 +429,38 @@ class ReleaseVersionText(unittest.TestCase):
             with self.subTest(old=old):
                 self.assertIn(old, self.readme)
                 self.assertTrue(gate.readme_version_errors(self.readme.replace(old, new, 1), v))
+
+class ReleaseSupportText(unittest.TestCase):
+    def setUp(self):
+        import re
+        self.readme = (ROOT / "README.md").read_text(encoding="utf-8")
+        self.verified = (ROOT / "docs/verified-support.md").read_text(encoding="utf-8")
+        self.version = re.search(r"^Live verification of NetOps (\d+\.\d+\.\d+) on ", self.readme, re.M).group(1)
+        self.line = next(line for line in self.readme.splitlines() if line.startswith("Live verification of NetOps "))
+    def test_current_support_text_names_the_live_verification(self):
+        self.assertEqual(gate.support_errors(self.readme, self.verified, self.version), [])
+    def test_stale_or_incomplete_support_text_is_refused(self):
+        import re
+        v = self.version
+        build = next(word for word in self.line.split() if word.startswith("build"))
+        pairs = re.findall(r"\d+(?:\.\d+)+ build\d+", self.line)
+        first, last = pairs[0], pairs[-1]
+        mcp = self.readme.index("#### Tested MCP clients")
+        for label, readme, verified in (
+                ("no live line", self.readme.replace(self.line + "\n", "", 1), self.verified),
+                ("other release", self.readme.replace(self.line, self.line.replace(v, "0.9.9", 1), 1), self.verified),
+                ("build outside table", self.readme.replace(self.line, self.line.replace(build, "build99999", 1), 1), self.verified),
+                ("wrong version same build", self.readme.replace(self.line, self.line.replace(first, "9.9.9 " + build, 1), 1), self.verified),
+                ("build of another platform", self.readme.replace(self.line, self.line.replace(last, last.split()[0] + " " + build, 1), 1), self.verified),
+                ("build without version", self.readme.replace(self.line, self.line.replace(first, build, 1), 1), self.verified),
+                ("verified-support stale", self.readme, self.verified.replace("NetOps " + v, "NetOps 0.9.9")),
+                ("MCP clients stale", self.readme[:mcp] + self.readme[mcp:].replace("NetOps " + v, "NetOps 0.9.9"), self.verified)):
+            with self.subTest(label=label):
+                self.assertNotEqual(readme + verified, self.readme + self.verified)
+                self.assertTrue(gate.support_errors(readme, verified, v))
+    def test_support_text_is_checked_only_for_a_release(self):
+        import inspect
+        self.assertIn("release", inspect.signature(gate.check).parameters)
 
 class CandidateBranchTriggers(unittest.TestCase):
     def setUp(self):

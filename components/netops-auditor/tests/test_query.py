@@ -190,7 +190,7 @@ def populated(tmp_path):
         evidence=(("interface", "wan1"), ("services", "https ssh")),
     )
     first = record(opened, (kept, left), started_at=RUN_ONE_AT)
-    opened.accept_baseline(TENANT, DEVICE, first, "operator", "prevzato pri zavedeni", accepted_at=RUN_ONE_AT)
+    opened.accept_baseline(TENANT, DEVICE, first, "operator", "accepted at rollout", accepted_at=RUN_ONE_AT)
     canary = make_finding(
         rule_id=RULE_DANGLING,
         object_key=OBJECT_CORP,

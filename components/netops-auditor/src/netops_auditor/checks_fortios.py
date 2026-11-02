@@ -46,7 +46,12 @@ _INTERFACE_SECTION = "system interface"
 _SYSLOG_SECTION = "log syslogd setting"
 _NTP_SECTION = "system ntp"
 
-_ADDRESS_SOURCES = (("firewall address",), ("firewall addrgrp",))
+_ADDRESS_SOURCES = (
+    ("firewall address",),
+    ("firewall addrgrp",),
+    ("firewall vip",),
+    ("firewall vipgrp",),
+)
 
 _SERVICE_SOURCES = (("firewall service custom",), ("firewall service group",))
 
@@ -72,6 +77,10 @@ _REFERENCES = (
 )
 
 _ADMIN_SERVICES = ("http", "https", "ssh", "telnet")
+
+_PRIMARY_IPV4 = "primary-ipv4"
+_SECONDARY_IPV4 = "secondary-ipv4"
+_IPV6 = "ipv6"
 
 
 def _vdom_scope(tree):
@@ -148,24 +157,39 @@ def dangling_reference(tree):
                 }
 
 
+def _access_lists(interface):
+    yield interface, "allowaccess", _PRIMARY_IPV4
+    for address in _entries(interface, "secondaryip").values():
+        yield address, "allowaccess", _SECONDARY_IPV4
+    ipv6 = interface.section("ipv6")
+    if ipv6 is not None:
+        yield ipv6, "ip6-allowaccess", _IPV6
+
+
+def _exposed_access(tree, services, wan_only):
+    for interface in _entries(tree, _INTERFACE_SECTION).values():
+        if wan_only and interface.value("role") != "wan":
+            continue
+        for node, attribute, origin in _access_lists(interface):
+            allowed = set(node.values(attribute))
+            exposed = tuple(service for service in services if service in allowed)
+            if not exposed:
+                continue
+            yield {
+                "object_key": _object_key(node),
+                "section": _INTERFACE_SECTION,
+                "line": node.line_of(attribute),
+                "evidence": {
+                    "interface": interface.path[-1],
+                    "services": " ".join(exposed),
+                    "origin": origin,
+                },
+            }
+
+
 @check("admin_access_on_untrusted_interface")
 def admin_access_on_untrusted_interface(tree):
-    for interface in _entries(tree, _INTERFACE_SECTION).values():
-        if interface.value("role") != "wan":
-            continue
-        allowed = set(interface.values("allowaccess"))
-        exposed = tuple(service for service in _ADMIN_SERVICES if service in allowed)
-        if not exposed:
-            continue
-        yield {
-            "object_key": _object_key(interface),
-            "section": _INTERFACE_SECTION,
-            "line": interface.line_of("allowaccess"),
-            "evidence": {
-                "interface": interface.path[-1],
-                "services": " ".join(exposed),
-            },
-        }
+    yield from _exposed_access(tree, _ADMIN_SERVICES, True)
 
 
 @check("utm_without_ssl_profile")
@@ -256,6 +280,8 @@ _AUTO_INSTALL_ATTRIBUTES = ("auto-install-config", "auto-install-image")
 _PLAINTEXT_ADMIN_SERVICES = ("http", "telnet")
 _LEGACY_TLS = ("tlsv1-0", "tlsv1-1")
 _DEFAULT_ADMIN = "admin"
+_SUPER_ADMIN_PROFILE = "super_admin"
+_ADMIN_VISIBILITY_UNPROVEN = "admin-visibility-unproven"
 _MAX_IDLE_MINUTES = 5
 _MAX_LOCKOUT_THRESHOLD = 3
 _NOT_NUMERIC = "value-not-numeric"
@@ -362,7 +388,16 @@ def admin_lockout_threshold(tree):
     yield _global_hit(section, "admin-lockout-threshold", {"attempts": attempts})
 
 
-@check("default_admin_account")
+def admin_visibility_status(tree, policy=None):
+    if tree.section(_ADMIN_SECTION) is None:
+        return EVALUATED, ""
+    for account in _entries(tree, _ADMIN_SECTION).values():
+        if account.value("accprofile") == _SUPER_ADMIN_PROFILE:
+            return EVALUATED, ""
+    return NOT_EVALUATED, _ADMIN_VISIBILITY_UNPROVEN
+
+
+@check("default_admin_account", status=admin_visibility_status)
 def default_admin_account(tree):
     account = _entries(tree, _ADMIN_SECTION).get(_DEFAULT_ADMIN)
     if account is None:
@@ -377,20 +412,7 @@ def default_admin_account(tree):
 
 @check("plaintext_admin_access")
 def plaintext_admin_access(tree):
-    for interface in _entries(tree, _INTERFACE_SECTION).values():
-        allowed = set(interface.values("allowaccess"))
-        exposed = tuple(service for service in _PLAINTEXT_ADMIN_SERVICES if service in allowed)
-        if not exposed:
-            continue
-        yield {
-            "object_key": _object_key(interface),
-            "section": _INTERFACE_SECTION,
-            "line": interface.line_of("allowaccess"),
-            "evidence": {
-                "interface": interface.path[-1],
-                "services": " ".join(exposed),
-            },
-        }
+    yield from _exposed_access(tree, _PLAINTEXT_ADMIN_SERVICES, False)
 
 
 @check("snmp_community")
@@ -452,6 +474,25 @@ def ldap_without_tls(tree):
         }
 
 
+_SAFEGUARD_PREFIX = "netops-sg-"
+_SAFEGUARD_SECTIONS = ("system accprofile", "system api-user", "system automation-action",
+                       "system automation-trigger", "system automation-stitch")
+
+
+@check("netops_safeguard_leftover")
+def netops_safeguard_leftover(tree):
+    for section in _SAFEGUARD_SECTIONS:
+        for name, entry in sorted(_entries(tree, section).items()):
+            if not name.startswith(_SAFEGUARD_PREFIX):
+                continue
+            yield {
+                "object_key": _object_key(entry),
+                "section": section,
+                "line": entry.line,
+                "evidence": {"object": section.split(" ", 1)[1], "name": name},
+            }
+
+
 from . import management
 
 from .management import management_fortios_address_unused
@@ -461,3 +502,14 @@ from .management import management_fortios_group_dangling
 from .management import management_fortios_group_cycle
 from .management import management_fortios_dhcp_conflict
 from .management import management_fortios_dhcp_subnet
+from .checks_cis import password_policy
+from .checks_cis import single_cpu_high
+from .checks_cis import gui_display_hostname
+from .checks_cis import admin_no_trusthost
+from .checks_cis import event_disabled
+from .checks_cis import faz_unencrypted
+from .checks_cis import ssl_legacy_tls
+from .checks_cis import av_detection_disabled
+from .checks_cis import policy_wan_missing_profile
+from .checks_cis import dnsfilter_log_all_domain
+from .checks_cis import appctrl_default_port

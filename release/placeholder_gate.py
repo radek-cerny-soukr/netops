@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import argparse
+import io
 import os
 import re
 import sys
@@ -19,6 +20,11 @@ def markdown_files(root):
                 yield os.path.normpath(os.path.join(relative, name))
 
 
+def read_text(path):
+    with open(path, "rb") as stream:
+        return stream.read().decode("utf-8")
+
+
 def check(root, version, candidate=False):
     errors = []
     pending = []
@@ -27,14 +33,18 @@ def check(root, version, candidate=False):
     if not os.path.isfile(os.path.join(root, notes)):
         errors.append("%s is missing" % notes)
     try:
-        with open(os.path.join(root, "CHANGELOG.md"), encoding="utf-8") as stream:
-            changelog = stream.read()
-    except OSError:
+        changelog = read_text(os.path.join(root, "CHANGELOG.md"))
+    except (OSError, UnicodeDecodeError):
         changelog = ""
     if not re.search(r"(?m)^## %s - [0-9]{4}-[0-9]{2}-[0-9]{2}$" % re.escape(version), changelog) and not (candidate and re.search(r"(?m)^%s$" % re.escape(undated), changelog)):
         errors.append("CHANGELOG.md has no dated section ## %s - YYYY-MM-DD" % version)
     for relative in markdown_files(root):
-        with open(os.path.join(root, relative), encoding="utf-8") as stream:
+        try:
+            text = read_text(os.path.join(root, relative))
+        except UnicodeDecodeError as error:
+            errors.append("%s: not valid UTF-8 at byte %d" % (relative, error.start))
+            continue
+        with io.StringIO(text, newline=None) as stream:
             for number, line in enumerate(stream, 1):
                 for match in PLACEHOLDER.finditer(line):
                     if candidate and (match.group(0) == "TODO(acceptance-%s)" % version or (relative == "CHANGELOG.md" and line.rstrip("\n") == undated)):

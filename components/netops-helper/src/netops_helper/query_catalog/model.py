@@ -19,6 +19,8 @@ class Query:
     slots: Mapping[str, Slot]
     description: str
     high_volume: bool = False
+    pty: bool = False
+    empty_allowed: bool = False
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "slots", MappingProxyType(dict(self.slots)))
@@ -33,6 +35,9 @@ FORTIOS_INTERFACE: Mapping[str, Slot] = MappingProxyType({
 })
 FORTIOS_PHYSICAL_INTERFACE: Mapping[str, Slot] = MappingProxyType({
     "interface": Slot("interfaces", "fortios_physical_interface"),
+})
+FORTIADC_INTERFACE: Mapping[str, Slot] = MappingProxyType({
+    "interface": Slot("interfaces", "fortiadc_interface"),
 })
 CISCO_IOS_INTERFACE: Mapping[str, Slot] = MappingProxyType({
     "interface": Slot("interfaces", "cisco_ios_interface"),

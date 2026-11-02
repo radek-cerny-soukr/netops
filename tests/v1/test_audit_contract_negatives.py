@@ -49,7 +49,7 @@ class AuditContractNegatives(unittest.IsolatedAsyncioTestCase):
         self.assertIs(records[-2]["payload"].get("automatic_retry"), False)
         self.assertEqual(records[-1]["payload"].get("delivery"), "interrupted")
 
-    async def test_c4_cancel_during_request_commit_before_dispatch_reports_not_completed(self):
+    async def test_cancel_during_request_commit_before_dispatch_reports_not_completed(self):
         with tempfile.TemporaryDirectory() as directory:
             audit = Audit(directory, {"mode": "local"})
             calls, sent = [], []
@@ -84,7 +84,7 @@ class AuditContractNegatives(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(sent, [])
             self.assert_interrupted_tail(self.records(audit), ["request"], False)
 
-    async def test_c5_cancel_after_dispatch_reports_operation_may_have_completed(self):
+    async def test_cancel_after_dispatch_reports_operation_may_have_completed(self):
         with tempfile.TemporaryDirectory() as directory:
             audit = Audit(directory, {"mode": "local"})
             calls, sent = [], []
@@ -102,7 +102,7 @@ class AuditContractNegatives(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(sent, [])
             self.assert_interrupted_tail(self.records(audit), ["request"], True)
 
-    async def test_c6_cancel_during_send_after_committed_response_is_audited_as_interrupted(self):
+    async def test_cancel_during_send_after_committed_response_is_audited_as_interrupted(self):
         with tempfile.TemporaryDirectory() as directory:
             audit = Audit(directory, {"mode": "local"})
             calls, sent = [], []
@@ -154,14 +154,14 @@ class AuditContractNegatives(unittest.IsolatedAsyncioTestCase):
                 await large
         return self.records(audit), inline
 
-    async def test_c2_file_order_times_never_decrease_under_slow_large_redaction(self):
+    async def test_file_order_times_never_decrease_under_slow_large_redaction(self):
         with tempfile.TemporaryDirectory() as directory:
             records, _ = await self.slow_large_and_fast_small(directory)
             self.assertEqual(sorted(item["correlation"] for item in records), ["large", "small"])
             times = [datetime.fromisoformat(item["time"]) for item in records]
             self.assertEqual(times, sorted(times))
 
-    async def test_c2_small_record_is_committed_before_slow_large_record(self):
+    async def test_small_record_is_committed_before_slow_large_record(self):
         with tempfile.TemporaryDirectory() as directory:
             records, inline = await self.slow_large_and_fast_small(directory)
             self.assertEqual(inline, [], "Redaction must execute outside the event loop")
@@ -183,14 +183,14 @@ class AuditContractNegatives(unittest.IsolatedAsyncioTestCase):
     def rendered(self, result):
         return "".join(getattr(item, "text", "") for item in result.content) + json.dumps(result.structured_content)
 
-    async def test_c9_auditor_finding_detail_missing_finding_is_error_without_canary(self):
+    async def test_auditor_finding_detail_missing_finding_is_error_without_canary(self):
         result = await self.run_tool("auditor", "finding_detail", self.wire({"result": None}))
         self.assertTrue(result.is_error)
         self.assertEqual([item.text for item in result.content], [NO_FINDING])
         self.assertIsNone(result.structured_content)
         self.assertNotIn(CANARY, self.rendered(result))
 
-    async def test_c9_same_shape_for_other_role_or_tool_is_not_rewritten(self):
+    async def test_same_shape_for_other_role_or_tool_is_not_rewritten(self):
         for role, name in (("helper", "finding_detail"), ("auditor", "list_findings")):
             with self.subTest(role=role, name=name):
                 result = await self.run_tool(role, name, self.wire({"result": None}))
@@ -199,14 +199,14 @@ class AuditContractNegatives(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(result.structured_content, {"result": None})
                 self.assertNotIn(NO_FINDING, self.rendered(result))
 
-    async def test_c9_existing_finding_passes_unchanged(self):
+    async def test_existing_finding_passes_unchanged(self):
         result = await self.run_tool("auditor", "finding_detail", self.wire({"result": {"id": 1}}))
         self.assertFalse(result.is_error)
         self.assertEqual(result.content, [])
         self.assertEqual(result.structured_content, {"result": {"id": 1}})
         self.assertNotIn(NO_FINDING, self.rendered(result))
 
-    async def test_c3_token_recheck_read_failure_closes_connection_without_request_audit(self):
+    async def test_token_recheck_read_failure_closes_connection_without_request_audit(self):
         with tempfile.TemporaryDirectory() as directory:
             audit = Audit(directory, {"mode": "local"})
             calls, sent = [], []

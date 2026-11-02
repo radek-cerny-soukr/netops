@@ -4,7 +4,7 @@ import hashlib
 import json
 
 from netops_auditor import checks_exos, checks_fortios, l1_exos, l1_fortios, management
-from netops_auditor.engine import EVALUATED, evaluate as evaluate_rules, load_catalog
+from netops_auditor.engine import EVALUATED, NOT_EVALUATED, SECTION_MISSING, evaluate as evaluate_rules, load_catalog
 from netops_auditor.state import evaluation_complete
 
 from netops_admin.errors import Rejected
@@ -20,6 +20,10 @@ TABLE_RULES = {
     "vlan": set(), "ports": set(), "vlan-membership": {"port-native", "port-policy"},
 }
 LISTED_RULES = 8
+UNEVALUATED = "not-evaluated:"
+BASELINE = "baseline"
+NOT_VISIBLE = "admin-visibility-unproven"
+OWN_SAFEGUARD_RULE = "fortios.mgmt.netops-safeguard-leftover"
 
 
 class Incomplete(Rejected):
@@ -32,7 +36,36 @@ def _required(policy, table) -> set:
     return set((policy or {}).get("required_rules", [])) | TABLE_RULES.get(table, set())
 
 
-def rule_status(platform: str, text: str, device: str, policy=None, table=None) -> tuple:
+def unevaluated(before) -> dict:
+    if not isinstance(before, dict):
+        return {}
+    return {value[0]: value[2] for key, value in before.items() if key.startswith(UNEVALUATED)}
+
+
+def tolerated(before, rule, item) -> bool:
+    reason = item["reason"] or item["status"]
+    if item["status"] != NOT_EVALUATED or not (reason == NOT_VISIBLE or reason.startswith(SECTION_MISSING + ": ")):
+        return False
+    return before == BASELINE or unevaluated(before).get(rule) == reason
+
+
+def finding_count(before) -> int:
+    return len(before) - len(unevaluated(before))
+
+
+def unevaluated_note(before) -> str:
+    reasons = sorted(set(unevaluated(before).values()))
+    if not reasons:
+        return ""
+    listed = ", ".join(reasons[:2]) + (" and %d more" % (len(reasons) - 2) if len(reasons) > 2 else "")
+    return "; %d not evaluated before and after: %s" % (len(unevaluated(before)), listed[:100])
+
+
+def summary(before) -> str:
+    return "%d findings on the current configuration%s" % (finding_count(before), unevaluated_note(before))
+
+
+def rule_status(platform: str, text: str, device: str, policy=None, table=None, before=None) -> tuple:
     parser = PARSERS.get(platform)
     if parser is None:
         raise Rejected(["the auditor holds no rules for %s" % platform])
@@ -45,8 +78,11 @@ def rule_status(platform: str, text: str, device: str, policy=None, table=None) 
         state, reason = states[rule.id]
         name = rule.id[len(prefix):] if rule.id.startswith(prefix) else None
         statuses[rule.id] = {"status": state, "reason": reason, "required": name is None or name in required}
-    if not evaluation_complete(found, statuses):
-        codes = {rule: item["reason"] or item["status"] for rule, item in statuses.items()
+    checked = {rule: dict(item, required=item["required"] and (rule.startswith(prefix)
+                                                               or not tolerated(before, rule, item)))
+               for rule, item in statuses.items()}
+    if not evaluation_complete(found, checked):
+        codes = {rule: item["reason"] or item["status"] for rule, item in checked.items()
                  if item["required"] and item["status"] != EVALUATED}
         missing = ["%s (%s)" % (rule, code) for rule, code in sorted(codes.items())]
         listed = ", ".join(missing[:LISTED_RULES]) + (" and %d more" % (len(missing) - LISTED_RULES)
@@ -56,16 +92,33 @@ def rule_status(platform: str, text: str, device: str, policy=None, table=None) 
     return found, statuses
 
 
-def findings(platform: str, text: str, device: str, policy=None) -> dict:
+def _own(finding, own) -> bool:
+    return (own is not None and finding.rule_id == OWN_SAFEGUARD_RULE
+            and dict(finding.evidence).get("name", "").startswith(own))
+
+
+def findings(platform: str, text: str, device: str, policy=None, before=None, own=None) -> dict:
+    found, statuses = rule_status(platform, text, device, policy, before=before)
     result = {}
-    for finding in rule_status(platform, text, device, policy)[0]:
+    for finding in found:
+        if _own(finding, own):
+            continue
         signature = hashlib.sha256(json.dumps(dict(finding.evidence), sort_keys=True).encode()).hexdigest()
         result[finding.fingerprint()] = (finding.rule_id, finding.severity, signature)
+    if before == BASELINE:
+        prefix = "%s.management." % platform
+        for rule, item in sorted(statuses.items()):
+            if item["required"] and not rule.startswith(prefix) and tolerated(before, rule, item):
+                result[UNEVALUATED + rule] = (rule, item["status"], item["reason"] or item["status"])
     return result
 
 
-def new_blocking(platform: str, before, after_text: str, device: str, policy=None) -> list:
-    after = findings(platform, after_text, device, policy)
+def baseline(platform: str, text: str, device: str, policy=None) -> dict:
+    return findings(platform, text, device, policy, BASELINE)
+
+
+def new_blocking(platform: str, before, after_text: str, device: str, policy=None, own=None) -> list:
+    after = findings(platform, after_text, device, policy, before, own)
     result = set()
     for fingerprint, value in after.items():
         if value[1] not in BLOCKING_SEVERITIES:
@@ -77,18 +130,18 @@ def new_blocking(platform: str, before, after_text: str, device: str, policy=Non
     return sorted(result)
 
 
-def evaluate(platform, text, policy, table):
+def evaluate(platform, text, policy, table, before=None):
     tree = PARSERS[platform].parse(text)
     coverage = management.coverage(platform, tree, policy)
     missing = sorted(name for name in _required(policy, table) if coverage.get(name) != "evaluated")
     if missing:
         raise Incomplete(["mandatory audit rules were not evaluated: " + ", ".join(missing)],
                          {name: coverage.get(name, "not-evaluated") for name in missing})
-    rule_status(platform, text, TENANT, policy, table)
+    rule_status(platform, text, TENANT, policy, table, before)
     return coverage
 
 
-def check_policy(plan, policy, text):
+def check_policy(plan, policy, text, prior=None):
     if not policy:
         return
     table, key = plan["table"], plan["key"]
@@ -114,7 +167,7 @@ def check_policy(plan, policy, text):
             changed |= {before["untagged"], after["untagged"]}
         if {v.casefold() for v in changed} & {v.casefold() for v in policy.get("management_vlans", [])}:
             raise Rejected(["the change touches a management VLAN"])
-    for finding in rule_status(plan["platform"], text, plan["device"], policy, table)[0]:
+    for finding in rule_status(plan["platform"], text, plan["device"], policy, table, prior)[0]:
         if target and (finding.object_key == target or finding.object_key.startswith(target + "/")):
             if finding.severity in BLOCKING_SEVERITIES:
                 raise Rejected(["the planned object violates " + finding.rule_id])

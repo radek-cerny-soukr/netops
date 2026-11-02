@@ -87,6 +87,36 @@ def _pool_member(args) -> int:
     return fortiadc.exit_code(record)
 
 
+def _member_access(args):
+    from netops_admin.config import load_config
+
+    device = load_config(args.config).devices.get(args.device)
+    if device is None or device.platform != "fortiadc":
+        raise Rejected(["device %s is not a configured FortiADC" % shown(args.device)])
+    try:
+        return device, open_access(device)
+    except Exception as exc:
+        raise Rejected(["the device cannot be reached (%s)" % type(exc).__name__]) from None
+
+
+def _pool_member_add(args) -> int:
+    from netops_admin import fortiadc_member
+
+    device, access = _member_access(args)
+    record = fortiadc_member.add(access, args.pool, args.member, args.real_server, args.service_port)
+    _emit(dict(record, device=device.name))
+    return fortiadc.exit_code(record)
+
+
+def _pool_member_remove(args) -> int:
+    from netops_admin import fortiadc_member
+
+    device, access = _member_access(args)
+    record = fortiadc_member.remove(access, args.pool, args.member)
+    _emit(dict(record, device=device.name))
+    return fortiadc.exit_code(record)
+
+
 def build_runtime(config, *, require_export=True):
     from netops_admin import execute
 
@@ -228,10 +258,20 @@ def main(argv=None, *, require_export=True) -> int:
     member.add_argument("--pool", required=True)
     member.add_argument("--member", required=True, help="the number of the pool member entry")
     member.add_argument("--status", required=True, help="one of: " + ", ".join(fortiadc.STATUSES))
+    added = commands.add_parser("pool-member-add", help="FortiADC: add a new real-server pool member created DISABLED and verify it")
+    for flag in ("--config", "--device", "--pool", "--member", "--real-server", "--service-port"):
+        added.add_argument(flag, required=True, type=Path if flag == "--config" else str)
+    removed = commands.add_parser("pool-member-remove", help="FortiADC: remove one DISABLED or MAINTAIN pool member and verify it")
+    for flag in ("--config", "--device", "--pool", "--member"):
+        removed.add_argument(flag, required=True, type=Path if flag == "--config" else str)
     args = parser.parse_args(argv)
     try:
         if args.command == "pool-member":
             return _pool_member(args)
+        if args.command == "pool-member-add":
+            return _pool_member_add(args)
+        if args.command == "pool-member-remove":
+            return _pool_member_remove(args)
         if args.command in ("apply", "status", "recover", "unblock", "notify-retry", "undo", "enroll",
                             "preview", "doctor"):
             return _operate(args, require_export=require_export)

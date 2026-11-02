@@ -148,6 +148,28 @@ def test_schema_snapshot_gate_is_narrow_and_rejects_missing_controls(tmp_path: P
         assert any("configuration export pattern" in error for error in errors)
     engine.write_text(original)
 
+def _release_constant(module: str, name: str) -> set[str]:
+    tree = ast.parse((ROOT / "tests" / "support" / (module + ".py")).read_text(encoding="utf-8"))
+    values = [
+        ast.literal_eval(node.value)
+        for node in tree.body
+        if isinstance(node, ast.Assign)
+        and any(isinstance(target, ast.Name) and target.id == name for target in node.targets)
+    ]
+    assert len(values) == 1, name
+    return values[0]
+
+
+def test_release_test_lists_name_existing_test_files() -> None:
+    for name, paths in (
+        ("REQUIRED_RELEASE_PATHS", _release_constant("check_public_release", "REQUIRED_RELEASE_PATHS")),
+        ("TESTS", _release_constant("create_release_artifacts", "TESTS")),
+    ):
+        tests = sorted(path for path in paths if path.startswith("tests/"))
+        assert tests, name
+        assert [path for path in tests if not (ROOT / path).is_file()] == [], name
+
+
 def test_release_license_is_mit() -> None:
     assert (PRODUCT / "LICENSE").read_text().startswith("MIT License\n")
     project = (PRODUCT / "pyproject.toml").read_text()

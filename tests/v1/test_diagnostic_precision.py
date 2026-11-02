@@ -95,7 +95,7 @@ class DiagnosticPrecision(unittest.TestCase):
                 self.exact("auditor", document, "inventory.devices[0]." + field, reason)
         document = self.auditor()
         document["catalog"] = CANARY
-        self.exact("auditor", document, "auditor.catalog", "must be one of exos, fortios")
+        self.exact("auditor", document, "auditor.catalog", "must be one of exos, fortiadc, fortios")
 
     def test_missing_auditor_section_has_required_field_guidance(self):
         document = self.auditor()
@@ -149,7 +149,7 @@ class DiagnosticPrecision(unittest.TestCase):
                 for role in ("gateway", "auditor"):
                     (state / role).mkdir(mode=0o700)
                 write_private(state / "gateway/config.json", json.dumps({
-                    "version": 1, "product_version": "1.0.4", "audit": {"mode": "local"}}).encode())
+                    "version": 1, "product_version": "1.0.5", "audit": {"mode": "local"}}).encode())
                 with patch.object(operator, "STATE", state), patch.dict(UIDS, {"auditor": uid}), \
                         patch.object(operator, "demote"), patch.object(operator, "role_environment"), \
                         patch.object(operator.os, "geteuid", side_effect=itertools.chain([0], itertools.repeat(uid))), \

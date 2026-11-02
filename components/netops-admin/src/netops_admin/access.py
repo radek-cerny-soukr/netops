@@ -12,6 +12,7 @@ QUERY_TIMEOUT_SECONDS = 60.0
 SNAPSHOT_TIMEOUT_SECONDS = 180.0
 LINE_TIMEOUT_SECONDS = 30.0
 LOGIN_TIMEOUT_SECONDS = 30.0
+PASSWORD_PROMPT = b"password:"
 HOSTNAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
 
 
@@ -62,11 +63,21 @@ class DeviceAccess:
     def query(self, command: str) -> str:
         return self._query(self.credential, command)
 
+    def diagnose_query(self, command: str) -> str:
+        return self._query(self.credential, command, with_stderr=True)
+
     def check_query(self, command: str) -> str:
         return self._query(self.check_credential, command, any_status=True,
                            address=self.device.check_address or self.device.address)
 
-    def _query(self, credential, command: str, any_status: bool = False, address=None) -> str:
+    def own_query(self, command: str, check: bool = False) -> str:
+        if check:
+            return self._query(self.check_credential, command, any_status=True, with_stderr=True,
+                               address=self.device.check_address or self.device.address)
+        return self._query(self.credential, command, any_status=True, with_stderr=True)
+
+    def _query(self, credential, command: str, any_status: bool = False, address=None,
+               with_stderr: bool = False) -> str:
         address = address or self.device.address
         try:
             result = ssh.run_command(
@@ -78,7 +89,13 @@ class DeviceAccess:
             raise AccessError("query failed: %s" % exc) from None
         if result.rc != 0 and not any_status:
             raise AccessError("query ended with exit status %s" % result.rc)
-        return prompt.cleaned(result.stdout.decode("utf-8", "replace"), self.device.platform)
+        text = prompt.cleaned(result.stdout.decode("utf-8", "replace"), self.device.platform)
+        if not with_stderr:
+            return text
+        if len(result.stderr) >= ssh.STDERR_MAX_BYTES:
+            raise AccessError("query answer on stderr reached the capture limit")
+        error_text = prompt.cleaned(result.stderr.decode("utf-8", "replace"), self.device.platform)
+        return "\n".join(part for part in (text, error_text) if part.strip())
 
     def _session(self):
         return session.Session(
@@ -107,30 +124,88 @@ class DeviceAccess:
         if not HOSTNAME.fullmatch(spec.anchor.decode("ascii", "replace").strip().rstrip(".")):
             raise AccessError("the device hostname is not usable as a prompt anchor")
         prompts = [spec.anchor] + ([spec.continuation] if spec.continuation else [])
-        accepted = 0
+        if any(_step(step)[0] == "password" for step in steps) and getattr(self.credential, "kind", None) != "password":
+            raise AccessError("the administrator password prompt needs a password write credential")
+        accepted, frames = 0, []
         try:
             with self._session() as shell:
                 self._login(shell, spec)
                 for number, step in enumerate(steps, 1):
                     kind, text, pattern = _step(step)
-                    shell.send(text)
+                    _enter(frames, text)
+                    shell.send(spec.typed(text) if spec.typed else text)
                     if kind == "raw":
                         accepted += 1
                         continue
                     if kind == "ask":
                         _index, data = shell.expect([pattern], LINE_TIMEOUT_SECONDS)
                     else:
-                        index, data = shell.expect(prompts, LINE_TIMEOUT_SECONDS)
+                        index, data = shell.expect(([PASSWORD_PROMPT] if kind == "password" else []) + prompts,
+                                                   LINE_TIMEOUT_SECONDS)
+                        if kind == "password" and index == 0:
+                            shell.send(self.credential.use())
+                            index, answer = shell.expect(prompts, LINE_TIMEOUT_SECONDS)
+                            data += answer
+                        elif kind == "password":
+                            index -= 1
                         if index == 0:
                             _tail_index, tail = shell.expect(list(spec.ends), LINE_TIMEOUT_SECONDS)
                             data += tail
                     marker = spec.error(data.decode("utf-8", "replace"))
                     if marker is not None:
-                        raise AccessError("line %d was refused by the device (%s)" % (number, marker), accepted)
+                        raise AccessError("line %d%s was refused by the device: %s"
+                                          % (number, _where(frames), _answer(spec, data, marker)), accepted)
+                    _leave(frames, text)
                     accepted += 1
         except session.SessionError as exc:
             raise AccessError("interactive session failed after %d lines: %s" % (accepted, exc), accepted) from None
         return accepted
+
+    def generate_api_key(self, command: str, spec) -> str:
+        if getattr(self.credential, "kind", None) != "password":
+            raise AccessError("the API key needs a password write credential")
+        if not HOSTNAME.fullmatch(spec.anchor.decode("ascii", "replace").strip().rstrip(".")):
+            raise AccessError("the device hostname is not usable as a prompt anchor")
+        try:
+            with self._session() as shell:
+                self._login(shell, spec)
+                shell.send(command)
+                index, asked = shell.expect([PASSWORD_PROMPT, spec.anchor], LINE_TIMEOUT_SECONDS)
+                if index != 0:
+                    raise AccessError("the device did not ask for the administrator password")
+                shell.send(self.credential.use())
+                _index, answer = shell.expect([spec.anchor], LINE_TIMEOUT_SECONDS)
+                shell.expect(list(spec.ends), LINE_TIMEOUT_SECONDS)
+        except session.SessionError as exc:
+            raise AccessError("interactive session failed while generating the API key: %s" % exc) from None
+        return (asked + answer).decode("utf-8", "replace")
+
+
+def _enter(frames, text):
+    words = text.strip().split(None, 1)
+    if words[:1] == ["config"]:
+        frames.append([text.strip(), None])
+    elif words[:1] == ["edit"] and frames:
+        frames[-1][1] = text.strip()
+
+
+def _leave(frames, text):
+    word = text.strip()
+    if word == "next" and frames:
+        frames[-1][1] = None
+    elif word == "end" and frames:
+        frames.pop()
+
+
+def _where(frames) -> str:
+    parts = [part for frame in frames for part in frame if part]
+    return " (%s)" % ", ".join(parts) if parts else ""
+
+
+def _answer(spec, data: bytes, marker: str) -> str:
+    rows = data.decode("utf-8", "replace").replace("\r", "").split("\n")[1:]
+    found = [row.strip() for row in rows if row.strip() and spec.error("\n" + row) is not None]
+    return " | ".join(found) or marker
 
 
 def _login_anchor(spec) -> bytes:
@@ -142,6 +217,8 @@ def _step(step):
         return "line", step, None
     if step[0] == "raw" and len(step) == 2:
         return "raw", step[1], None
+    if step[0] == "password" and len(step) == 2:
+        return "password", step[1], None
     if step[0] == "ask" and len(step) == 3:
         return "ask", step[1], step[2]
     raise AccessError("unknown session step")

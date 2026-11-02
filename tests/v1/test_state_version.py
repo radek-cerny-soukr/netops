@@ -12,29 +12,39 @@ class StateCompatibility(unittest.TestCase):
     def fixture(self, root, document=None):
         gateway = root / "gateway"
         gateway.mkdir(mode=0o700)
-        data = {"version": 1, "product_version": "1.0.4", "audit": {"mode": "local"}}
+        data = {"version": 1, "product_version": "1.0.5", "audit": {"mode": "local"}}
         if document is not None:
             data = document
         write_private(gateway / "config.json", json.dumps(data).encode())
         return data
 
     def test_only_exact_current_product_and_schema_are_accepted(self):
-        current = {"version": 1, "product_version": "1.0.4"}
+        current = {"version": 1, "product_version": "1.0.5"}
         self.assertIs(state.check_state_version(current), current)
-        for document in ({"version": 1, "product_version": "1.0.5"},
+        for document in ({"version": 1, "product_version": "1.0.6"},
                          {"version": 1, "product_version": "0.3.12"},
                          {"version": 1, "product_version": "CANARY_PRIVATE_VALUE"},
-                         {"version": 2, "product_version": "1.0.4"},
-                         {"version": True, "product_version": "1.0.4"},
+                         {"version": 2, "product_version": "1.0.5"},
+                         {"version": True, "product_version": "1.0.5"},
                          {"version": 1}, [], None):
             with self.subTest(document=document), self.assertRaises(state.StateCompatibilityError) as caught:
                 state.check_state_version(document)
             self.assertNotIn("CANARY_PRIVATE_VALUE", str(caught.exception))
 
+    def test_only_the_1_0_4_release_state_converts_and_only_on_start(self):
+        previous = {"version": 1, "product_version": "1.0.4"}
+        self.assertIs(state.check_state_version(previous, allow_previous=True), previous)
+        with self.assertRaisesRegex(state.StateCompatibilityError,
+                                    "^State belongs to NetOps 1.0.4; start NetOps 1.0.5 to upgrade it before running this command"):
+            state.check_state_version(previous)
+        for older in ("1.0.3", "1.0.2"):
+            with self.subTest(older=older), self.assertRaisesRegex(state.StateCompatibilityError, "another product version"):
+                state.check_state_version({"version": 1, "product_version": older}, allow_previous=True)
+
     def test_invalid_version_refuses_before_creating_lock_or_changing_data(self):
         with tempfile.TemporaryDirectory() as temp, patch.dict(UIDS, {"gateway": os.geteuid()}):
             root = Path(temp)
-            self.fixture(root, {"version": 1, "product_version": "1.0.5"})
+            self.fixture(root, {"version": 1, "product_version": "1.0.6"})
             before = (root / "gateway/config.json").read_bytes()
             with patch.object(operator, "STATE", root), self.assertRaises(state.StateCompatibilityError):
                 operator.acquire_state()
@@ -46,14 +56,14 @@ class StateCompatibility(unittest.TestCase):
             root = Path(temp)
             self.fixture(root)
             path = root / "gateway/config.json"
-            self.assertEqual(state.read_state_settings(root)["product_version"], "1.0.4")
-            for bad in (b'{"version":1,"product_version":"1.0.5","product_version":"1.0.4"}',
-                        b'{"version":1,"product_version":"1.0.4","value":NaN}', b'{'):
+            self.assertEqual(state.read_state_settings(root)["product_version"], "1.0.5")
+            for bad in (b'{"version":1,"product_version":"1.0.6","product_version":"1.0.5"}',
+                        b'{"version":1,"product_version":"1.0.5","value":NaN}', b'{'):
                 with self.subTest(bad=bad):
                     write_private(path, bad, replace=True)
                     with self.assertRaises(state.StateCompatibilityError):
                         state.read_state_settings(root)
-            write_private(path, b'{"version":1,"product_version":"1.0.4"}', replace=True)
+            write_private(path, b'{"version":1,"product_version":"1.0.5"}', replace=True)
             path.chmod(0o644)
             with self.assertRaises(state.StateCompatibilityError):
                 state.read_state_settings(root)
@@ -76,7 +86,7 @@ class StateCompatibility(unittest.TestCase):
         from netops import bootstrap
         with tempfile.TemporaryDirectory() as temp, patch.dict(UIDS, {"gateway": os.geteuid()}):
             root = Path(temp)
-            self.fixture(root, {"version": 1, "product_version": "1.0.5"})
+            self.fixture(root, {"version": 1, "product_version": "1.0.6"})
             with patch.object(bootstrap, "STATE", root), patch.object(bootstrap, "prepare") as prepare, \
                  patch.object(bootstrap.subprocess, "Popen") as child:
                 with self.assertRaises(state.StateCompatibilityError):

@@ -6,7 +6,7 @@ from netops_auditor.engine import CheckError,NOT_EVALUATED
 
 def library(default="root"):
  nodes={path:{"kind":"table","scope":"vdom","available":True,"attrs":{}} for path in set(scoped_fortios.PRIMARY_PATHS.values())}
- for path in ("system interface","system global","system admin","system auto-install"):
+ for path in ("system interface","system global","system admin","system auto-install","system password-policy","log fortianalyzer setting"):
   nodes[path]["scope"]="global"
  nodes["system interface"]["scope"]="global+vdom"
  nodes["system interface"]["attrs"]={"vdom":{"type":"string"}}
@@ -16,6 +16,13 @@ def library(default="root"):
 TEXT="""config global
  config system global
   set strong-crypto enable
+ end
+ config system admin
+  edit netadmin
+   set accprofile "super_admin"
+   set trusthost1 192.0.2.0 255.255.255.0
+   set ip6-trusthost1 2001:db8::/32
+  next
  end
  config system interface
   edit root-port
@@ -27,9 +34,15 @@ TEXT="""config global
    set allowaccess ping
   next
  end
+ config system auto-install
+ end
 end
 config vdom
  edit root
+  config system snmp community
+  end
+  config user ldap
+  end
   config firewall policy
    edit 1
     set srcintf other-port
@@ -42,6 +55,10 @@ config vdom
   end
  next
  edit VD1
+  config system snmp community
+  end
+  config user ldap
+  end
   config firewall policy
    edit 1
     set srcintf other-port

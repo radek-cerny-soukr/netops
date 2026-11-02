@@ -169,15 +169,15 @@ main() {
 START=$SECONDS
 main
 step 7-report python3 "$HERE/verify_state.py" report --work "$WORK" --out "$OUT" \
-  --secret "$WORK/secret/token" --secret "$WORK/secret/vault-secret"
+  --secret "$WORK/secret/token" --secret "$WORK/secret/vault-secret" --api-changes "$HERE/api-changes-$FROM_VERSION-$TO_VERSION.json"
 RC=$?
 echo "total $((SECONDS - START))s" >> "$WORK/steps.log"
 cp "$WORK/steps.log" "$OUT/steps.log"
-(cd "$OUT" && sha256sum report.json summary.txt steps.log > SHA256SUMS)
+(cd "$OUT" && sha256sum report.json summary.txt steps.log $(ls mcp-*.json 2>/dev/null) > SHA256SUMS)
 if [ "${KEEP:-0}" != 1 ]; then
   dc_from down -v --remove-orphans > /dev/null 2>&1
   dc_to down -v --remove-orphans > /dev/null 2>&1
   rm -rf "$WORK"
 fi
-echo "vystup: $OUT (rc $RC)"
+echo "output: $OUT (rc $RC)"
 exit $RC

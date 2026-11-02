@@ -11,7 +11,7 @@ from netops_admin.request import canonical_value
 PLAN_FORMAT = "netops-admin-plan/1"
 ADAPTERS = {"fortios": fortios, "exos": exos}
 MAX_SNAPSHOT_BYTES = 16 * 1024 * 1024
-REFERENCE_TEXT_ATTRIBUTES = {"vlan-membership": ("untagged",)}
+REFERENCE_TEXT_ATTRIBUTES = {"vlan-membership": ("untagged",), "firewall policy": ("schedule",)}
 
 
 def adapter_for(platform: str):
@@ -53,6 +53,27 @@ def normalize(profile, attributes: dict):
     return state, unsupported
 
 
+def full_state(profile, attributes: dict) -> dict:
+    state = {}
+    for name, value in attributes.items():
+        if name in profile.volatile:
+            continue
+        if name in profile.attributes or name in profile.fixed:
+            known, _unknown = normalize(profile, {name: value})
+            state.update(known)
+        else:
+            state[name] = value
+    return state
+
+
+def is_isolated_plan(profile, plan) -> bool:
+    if not profile.isolated_update or plan["op"] != "update":
+        return False
+    before = plan["predicted"]["before"] or {}
+    return any(name not in profile.attributes and name not in profile.volatile and name not in profile.fixed
+               for name in before)
+
+
 def observed_state(plan, attributes):
     from netops_admin import schema_runtime
     if schema_runtime.is_plan(plan):
@@ -60,6 +81,8 @@ def observed_state(plan, attributes):
     if attributes is None:
         return None
     profile = find_profile(plan["platform"], plan["table"], plan["firmware"])
+    if is_isolated_plan(profile, plan):
+        return full_state(profile, attributes)
     state, unknown = normalize(profile, attributes)
     if unknown:
         raise Rejected(["the check account sees configuration outside the profile: %s" % ", ".join(sorted(unknown))])
@@ -124,6 +147,8 @@ def _referenced(profile, state) -> set:
 
 
 def _linked(snapshot, profile, key) -> set:
+    if profile.platform == "fortios" and profile.table == "firewall addrgrp":
+        return fortios.containing_groups(snapshot.entries("firewall addrgrp"), key)
     if profile.platform != "exos" or profile.table not in ("ports", "vlan"):
         return set()
     _vlans, members, _descriptions = membership.model(snapshot)
@@ -141,6 +166,8 @@ def _protected_references(snapshot, profile, protected, key, before, after) -> l
         return []
     try:
         names = _referenced(profile, before) | _referenced(profile, after) | _linked(snapshot, profile, key)
+        if profile.platform == "fortios" and profile.table in ("firewall addrgrp", "firewall policy"):
+            names |= fortios.member_closure(snapshot.entries("firewall addrgrp"), names)
     except Rejected as exc:
         raise Rejected(["the references of the object to protected names cannot be evaluated: %s"
                         % "; ".join(exc.reasons)]) from None
@@ -153,7 +180,7 @@ def _digest(value) -> str:
 
 
 def build_plan(platform: str, snapshot_raw: bytes, request, firmware: str | None = None,
-               protected: dict | None = None, enrollment_probe=False, ports=None) -> dict:
+               protected: dict | None = None, enrollment_probe=False, ports=None, undo=False) -> dict:
     from netops_admin.schema_request import Transaction
     if isinstance(request, Transaction):
         raise Rejected(["schema transaction planning requires schema-plan with a pinned library and calibration"])
@@ -168,7 +195,7 @@ def build_plan(platform: str, snapshot_raw: bytes, request, firmware: str | None
     if key.casefold().startswith("netops-enroll-") and not enrollment_probe:
         raise Rejected(["the enrollment object namespace is reserved"])
     checks = ["firmware %s is measured for this profile" % snapshot.firmware]
-    if op not in profile.ops:
+    if op not in profile.ops and not (undo and op in profile.undo_ops):
         raise Rejected(["operation %s is not enabled in the profile" % op])
     if not profile.key_pattern.fullmatch(key):
         raise Rejected(["key %r does not match %s" % (key, profile.key_pattern.pattern)])
@@ -183,15 +210,32 @@ def build_plan(platform: str, snapshot_raw: bytes, request, firmware: str | None
     entry = _find_entry(entries, key)
     changes = canonical_changes(profile, request)
     reasons = []
+    for name, values in sorted((profile.value_requires or {}).items()):
+        needed = values.get(changes.get(name)) if isinstance(changes.get(name), str) else None
+        if needed and any(other not in changes for other in needed):
+            raise Rejected(["%s %s needs %s in the same request" % (name, changes[name], ", ".join(needed))])
 
     if op == "create":
-        if entry is not None or snapshot.in_use(key):
+        if entry is not None or (not profile.table_scoped_key and snapshot.in_use(key)):
             raise Rejected(["name %r is already used in the configuration" % key])
-        checks.append("name is unused among the object names and references of the snapshot")
+        if profile.table_scoped_key:
+            checks.append("key is unused in the table of the snapshot")
+        else:
+            checks.append("name is unused among the object names and references of the snapshot")
         missing = [name for name, attribute in sorted(profile.attributes.items())
                    if attribute.required_on_create and changes.get(name) is None]
         if missing:
             raise Rejected(["create needs %s" % ", ".join(missing)])
+        wrong = sorted(name for name, wanted in (profile.create_values or {}).items()
+                       if changes.get(name) != wanted)
+        if wrong:
+            raise Rejected(["create needs %s" % ", ".join("%s %s" % (name, profile.create_values[name])
+                                                          for name in wrong)])
+        if profile.create_values:
+            checks.append("new object is created with %s; change it with a separate update"
+                          % ", ".join("%s %s" % item for item in sorted(profile.create_values.items())))
+        if profile.create_position:
+            checks.append("new object is placed after all existing objects")
         before = None
         after = _without_defaults(profile, changes)
         assign = {name: value for name, value in changes.items() if value is not None}
@@ -200,12 +244,19 @@ def build_plan(platform: str, snapshot_raw: bytes, request, firmware: str | None
     else:
         if entry is None and not profile.implicit_keys:
             raise Rejected(adapter.absent(snapshot, profile.table, key))
-        before, unsupported = ({}, []) if entry is None else _entry_state(snapshot, profile, entry)
+        isolated = (op == "update" and profile.isolated_update and changes
+                    and set(changes) <= set(profile.isolated_update))
+        if isolated and entry is not None:
+            lists = [name for name, attribute in profile.attributes.items() if attribute.type == "name-list"]
+            attributes, unsupported = snapshot.entry_state(entry, lists)
+            before = full_state(profile, attributes)
+        else:
+            before, unsupported = ({}, []) if entry is None else _entry_state(snapshot, profile, entry)
         if unsupported:
             raise Rejected(["object %r holds configuration outside the profile: %s"
                             % (key, ", ".join(sorted(unsupported)))])
         checks.append("object exists and holds only profile attributes")
-        references = snapshot.references(profile.table, key)
+        references = [] if profile.table_scoped_key else snapshot.references(profile.table, key)
         if op == "update":
             for name in changes:
                 attribute = profile.attributes[name]
@@ -239,7 +290,7 @@ def build_plan(platform: str, snapshot_raw: bytes, request, firmware: str | None
             if references:
                 raise Rejected(["object %r is referenced in the configuration" % key])
             missing = [name for name, attribute in sorted(profile.attributes.items())
-                       if attribute.required_on_create and name not in before]
+                       if attribute.required_on_create and not attribute.undo_to_default and name not in before]
             if missing:
                 raise Rejected(["object %r cannot be recreated by the inverse: it has no %s"
                                 % (key, ", ".join(missing))])
@@ -259,7 +310,11 @@ def build_plan(platform: str, snapshot_raw: bytes, request, firmware: str | None
         inverse = membership.render(key, after, before)
     if platform == "fortios" and any("%%" in line for line in commands + inverse):
         raise Rejected(["automation placeholders cannot be restored as literal values by the timed safeguard"])
+    if platform == "exos" and any(exos.EXPANDED in line for line in inverse):
+        raise Rejected([exos.EXPANDED_REFUSAL])
     reasons.extend(adapter.prechecks(snapshot, profile, op, key, after))
+    if platform == "fortios" and profile.table == "firewall policy":
+        reasons.extend(fortios.policy_prechecks(snapshot, profile, op, key, before, after, inverse, protected))
     if reasons:
         raise Rejected(reasons)
     document = {
@@ -359,7 +414,12 @@ def verify(plan, snapshot_raw: bytes, expect: str = "after") -> dict:
     differences = []
     entry = _find_entry(entries, plan["key"])
     actual = {} if profile.implicit_keys else None
-    if entry is not None:
+    if entry is not None and is_isolated_plan(profile, plan):
+        lists = [name for name, attribute in profile.attributes.items() if attribute.type == "name-list"]
+        attributes, unsupported = snapshot.entry_state(entry, lists)
+        actual = full_state(profile, attributes)
+        differences.extend("object holds configuration outside the profile: %s" % item for item in unsupported)
+    elif entry is not None:
         actual, unsupported = _entry_state(snapshot, profile, entry)
         differences.extend("object holds configuration outside the profile: %s" % item for item in unsupported)
     wanted = plan["predicted"][expect]
@@ -370,6 +430,9 @@ def verify(plan, snapshot_raw: bytes, expect: str = "after") -> dict:
         for name in sorted(set(actual) | set(wanted)):
             if actual.get(name) != wanted.get(name):
                 differences.append("%s: expected %r, found %r" % (name, wanted.get(name), actual.get(name)))
+    if (plan["op"] == "create" and profile.create_position == "last" and expect == "after"
+            and entry is not None and list(entries)[-1] != plan["key"]):
+        differences.append("new object is not placed after all existing objects")
     object_matches = not differences
     rest_digest = snapshot.rest_digest(profile.table, plan["key"], plan.get("safeguard_id"))
     rest_matches = rest_digest == plan["rest_sha256"]

@@ -89,7 +89,7 @@ EXACT = {
 }
 TESTS = {
     "tests/conftest.py", "tests/test_apply_egress_rules.py",
-    "tests/test_t127_contracts.py",
+    "tests/test_redaction_and_marking_contracts.py",
     "tests/test_mutation_helper_engine.py",
     "tests/test_mutation_helper_proxy_arguments.py",
     "tests/test_mutation_helper_proxy_messages.py",
@@ -98,7 +98,7 @@ TESTS = {
     "tests/test_error_branches_helper_proxy.py",
     "tests/test_audit_rotation.py", "tests/test_egress_scripts.py",
     "tests/test_engine_contracts.py", "tests/test_engine_safety.py", "tests/test_schema_read.py",
-    "tests/test_fortios_diagnostics.py",
+    "tests/test_fortios_diagnostics.py", "tests/test_triage_slb.py",
     "tests/test_ssh_wire_safety.py",
     "tests/test_ftp_wire_safety.py",
     "tests/test_cli_errors.py",
@@ -118,7 +118,7 @@ TESTS = {
     "tests/test_query_catalog_docs.py",
     "tests/test_vendor_references.py",
     "tests/test_sanitize.py", "tests/test_security.py",
-    "tests/test_sftp_safety.py", "tests/test_supply_chain.py",
+    "tests/test_sftp_safety.py",
     "tests/test_check_operator_config.py",
     "tests/test_secret_canaries.py",
 }

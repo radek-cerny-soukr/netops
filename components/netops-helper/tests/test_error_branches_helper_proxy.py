@@ -452,7 +452,7 @@ def test_a_client_that_stops_reading_ends_the_proxy_without_a_traceback(tmp_path
     """The ssh child is stopped and nothing is forwarded once the client's end of standard output is gone.
 
     The exit status is 0 from the session, or 120 when the interpreter cannot flush
-    the answer the proxy had buffered for the vanished client (EVIDENCE: HLP-W5-1).
+    the answer the proxy had buffered for the vanished client.
     """
     import test_proxy_contracts as contracts
 

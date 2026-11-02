@@ -3,7 +3,9 @@
   "table": "firewall address",
   "versions": [
     "8.0.0 build0167",
-    "7.6.7 build3704"
+    "7.6.8 build3744",
+    "7.6.7 build3704",
+    "8.0.2 build0251"
   ],
   "ops": [
     "create",
@@ -45,5 +47,5 @@
       "uuid"
     ]
   },
-  "rollback_evidence": "FortiOS 8.0.0 build0167, 2026-09-23: a one-shot automation stitch with a cli-script action restored create, update and delete of firewall address in one transaction; deleting the stitch before its time kept the change. The object recreated by the delete inverse receives a new uuid. The same mechanism and address operations were measured on FortiOS 7.6.7 build3704 on 2026-09-23. Execution always requires enrollment bound to the actual build."
+  "rollback_evidence": "FortiOS 8.0.0 build0167, 2026-09-23: a one-shot automation stitch with a cli-script action restored create, update and delete of firewall address in one transaction; deleting the stitch before its time kept the change. The object recreated by the delete inverse receives a new uuid. The same mechanism and address operations were measured on FortiOS 7.6.7 build3704 on 2026-09-23. Execution always requires enrollment bound to the actual build. FortiOS 7.6.8 build3744 (FortiGate-60F), 2026-10-31: admin enroll --probe 192.0.2.252/30 with a development build of NetOps 1.0.5 ended reverted (enrollment self-test, enrollment valid, notification sent, differences []): the automation stitch removed the probe address; show firewall address and the automation stitch, action and trigger lists matched before and after. FortiOS 8.0.2 build0251 (FortiGate 80F HA pair), 2026-11-01: the cli-script safeguard does not run config commands on this build, so NetOps uses the webhook safeguard; a one-shot stitch whose webhook action called DELETE on the REST API of the same FortiGate removed a new address after the administrator session had ended. 8.0.2 build0251 is listed because admin enroll --probe creates an address and enrollment is required before any policy change; update and delete of an address and the full admin apply orchestration with the webhook safeguard are not measured yet on this build."
 }

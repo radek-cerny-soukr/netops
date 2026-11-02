@@ -17,6 +17,10 @@ Proxy = MODULE.Proxy
 ALIAS = "lab-fw"
 SSH = {"platform": "fortios", "query": "system_status"}
 DIAG = {"recipe": "ping", "address": "192.0.2.10", "interface": "port1"}
+ADC = {"recipe": "ping", "address": "192.0.2.10", "interface": ""}
+ADC_NAME = "update.fortiguard.net"
+ADC_URL = "http://192.0.2.10/health"
+ADC_HC = {"recipe": "health_check_verify", "address": "192.0.2.10", "interface": "", "health_check": "HC_HTTP_APP"}
 FTP = {"remote_path": "/safe"}
 
 
@@ -44,7 +48,7 @@ ACCEPTED = [
     ("tls_probe", {"server_name": "a b"}),
     ("tls_probe", {"server_name": None}),
     *[("fortios_diagnostics", {**DIAG, "recipe": recipe})
-      for recipe in ("ping", "traceroute", "sniffer", "sessions", "flow")],
+      for recipe in ("ping", "traceroute", "sniffer", "sessions", "flow", "logs")],
     ("fortios_diagnostics", {**DIAG, "vdom": "root"}),
     ("fortios_diagnostics", {**DIAG, "recipe": "traceroute", "count": 1}),
     ("fortios_diagnostics", {**DIAG, "recipe": "traceroute", "count": 3}),
@@ -53,6 +57,13 @@ ACCEPTED = [
     ("fortios_diagnostics", {**DIAG, "timeout": 10}),
     ("fortios_diagnostics", {**DIAG, "max_bytes": 1_000}),
     ("fortios_diagnostics", {**DIAG, "max_bytes": 16_000}),
+    ("fortios_diagnostics", {**ADC, "timeout": 10}),
+    ("fortios_diagnostics", {**ADC, "recipe": "traceroute", "timeout": 60}),
+    ("fortios_diagnostics", {**ADC, "recipe": "nslookup", "address": ADC_NAME, "count": 3}),
+    ("fortios_diagnostics", {**ADC, "recipe": "http_probe", "address": ADC_URL}),
+    ("fortios_diagnostics", {**ADC_HC, "count": 1}),
+    ("fortios_diagnostics", {**ADC_HC, "count": 5}),
+    ("fortios_diagnostics", {**ADC_HC, "count": 5, "timeout": 60}),
     ("schema_read", {"path": "system interface"}),
     ("schema_read", {"path": "a" * 128}),
     ("schema_read", {"path": "System Interface"}),
@@ -118,6 +129,27 @@ REFUSED = [
     ("fortios_diagnostics", {**DIAG, "timeout": 11}),
     ("fortios_diagnostics", {**DIAG, "max_bytes": 999}),
     ("fortios_diagnostics", {**DIAG, "max_bytes": 16_001}),
+    ("fortios_diagnostics", {**DIAG, "recipe": "traceroute", "timeout": 60}),
+    ("fortios_diagnostics", {**ADC, "timeout": 11}),
+    ("fortios_diagnostics", {**ADC, "recipe": "traceroute", "timeout": 61}),
+    ("fortios_diagnostics", {**ADC, "count": 5}),
+    ("fortios_diagnostics", {**ADC, "recipe": "sniffer"}),
+    ("fortios_diagnostics", {**ADC, "address": ADC_NAME}),
+    ("fortios_diagnostics", {**ADC, "recipe": "nslookup"}),
+    ("fortios_diagnostics", {**ADC, "recipe": "nslookup", "address": "Update.FortiGuard.net"}),
+    ("fortios_diagnostics", {**DIAG, "recipe": "nslookup", "address": ADC_NAME}),
+    ("fortios_diagnostics", {**ADC, "recipe": "http_probe", "address": "192.0.2.10"}),
+    ("fortios_diagnostics", {**ADC, "recipe": "http_probe", "address": "https://192.0.2.10/health"}),
+    ("fortios_diagnostics", {**ADC, "recipe": "http_probe", "address": ADC_URL + " -X POST"}),
+    ("fortios_diagnostics", {**ADC, "recipe": "http_probe", "address": ADC_URL, "count": 1}),
+    ("fortios_diagnostics", {**DIAG, "recipe": "http_probe", "address": ADC_URL}),
+    ("fortios_diagnostics", {**ADC_HC, "count": 0}),
+    ("fortios_diagnostics", {**ADC_HC, "count": 6}),
+    ("fortios_diagnostics", {**ADC_HC, "timeout": 61}),
+    ("fortios_diagnostics", {**ADC, "recipe": "http_probe", "address": ADC_URL, "timeout": 11}),
+    ("fortios_diagnostics", {**ADC_HC, "health_check": "HC_HTTP_APP port 80"}),
+    ("fortios_diagnostics", {key: value for key, value in ADC_HC.items() if key != "health_check"}),
+    ("fortios_diagnostics", {**ADC, "health_check": "HC_HTTP_APP"}),
     ("schema_read", {"path": "a" * 129}),
     ("schema_read", {"path": "-bad"}),
     ("schema_read", {"path": 5}),
@@ -171,6 +203,48 @@ def test_alias_limits_accept_printable_names_up_to_128(alias) -> None:
 @pytest.mark.parametrize("alias", ["", "a" * 129, "a b", "a\x7f", "a\x00", None])
 def test_alias_limits_refuse_empty_long_and_control_names(alias) -> None:
     assert not Proxy._valid_alias(alias)
+
+
+def _adc_section(icmp=False, dns=False, queries=("system_status",), **inventory) -> SimpleNamespace:
+    granted = {"diagnostic_recipes": ("ping", "traceroute", "nslookup", "http_probe", "health_check_verify"),
+               "addresses": ("192.0.2.10",), "diagnostic_names": (ADC_NAME,),
+               "diagnostic_http_endpoints": (ADC_URL,), "adc_health_checks": ("HC_HTTP_APP",)}
+    granted.update(inventory)
+    return SimpleNamespace(egress={"allow_icmp": icmp, "allow_dns": dns}, catalog_platform=lambda: "fortiadc",
+                           enabled_queries=queries, read_inventory=granted)
+
+
+ADC_GRANTED = [
+    ({**ADC}, _adc_section(icmp=True)),
+    ({**ADC, "recipe": "traceroute"}, _adc_section()),
+    ({**ADC, "recipe": "nslookup", "address": ADC_NAME}, _adc_section(dns=True)),
+    ({**ADC, "recipe": "http_probe", "address": ADC_URL}, _adc_section()),
+    ({**ADC_HC, "count": 2}, _adc_section()),
+]
+
+
+@pytest.mark.parametrize(("extra", "section"), ADC_GRANTED)
+def test_a_fortiadc_diagnostic_needs_only_its_grant_and_host_egress(extra, section) -> None:
+    Proxy._authorize_tool("fortios_diagnostics", _call("fortios_diagnostics", extra), None, section)
+
+
+@pytest.mark.parametrize(("extra", "section"), [
+    ({**ADC}, _adc_section(dns=True)),
+    ({**ADC, "recipe": "nslookup", "address": ADC_NAME}, _adc_section(icmp=True)),
+    ({**ADC}, _adc_section(icmp=True, queries=())),
+    ({**ADC}, _adc_section(icmp=True, addresses=())),
+    ({**ADC, "recipe": "traceroute"}, _adc_section(icmp=True, diagnostic_recipes=("ping",))),
+    ({**ADC, "recipe": "nslookup", "address": ADC_NAME}, _adc_section(dns=True, diagnostic_names=())),
+    ({**DIAG}, _adc_section(icmp=True, addresses=("192.0.2.10",))),
+    ({**ADC, "recipe": "http_probe", "address": "http://192.0.2.10/"}, _adc_section()),
+    ({**ADC, "recipe": "http_probe", "address": ADC_URL}, _adc_section(diagnostic_recipes=("health_check_verify",))),
+    ({**ADC_HC}, _adc_section(adc_health_checks=("HC_TCP_APP",))),
+    ({**ADC_HC}, _adc_section(addresses=("192.0.2.11",))),
+    ({**ADC_HC}, _adc_section(diagnostic_recipes=("http_probe",))),
+])
+def test_a_fortiadc_diagnostic_without_its_grant_is_refused(extra, section) -> None:
+    with pytest.raises(MODULE.PolicyScopeError):
+        Proxy._authorize_tool("fortios_diagnostics", _call("fortios_diagnostics", extra), None, section)
 
 
 def _egress(**ports) -> dict:
@@ -333,6 +407,69 @@ def test_ssh_read_needs_an_ssh_platform_even_with_enabled_queries() -> None:
 
 def test_session_secrets_skip_empty_and_missing_values() -> None:
     credential = SimpleNamespace(use=lambda: "device-secret")
-    assert Proxy._session_secrets(credential, "") == ("device-secret",)
     assert Proxy._session_secrets(credential, None) == ("device-secret",)
-    assert Proxy._session_secrets(credential, "community-x") == ("device-secret", "community-x")
+    assert Proxy._session_secrets(credential, {}) == ("device-secret",)
+    usm = {"auth_key": "auth-key-x", "priv_key": "priv-key-x"}
+    assert Proxy._session_secrets(credential, usm) == ("device-secret", "auth-key-x", "priv-key-x")
+    assert Proxy._session_secrets(credential, {**usm, "auth_key": ""}) == ("device-secret", "priv-key-x")
+    assert Proxy._session_secrets(credential, {**usm, "priv_key": "auth-key-x"}) == ("device-secret", "auth-key-x")
+    assert Proxy._session_secrets(SimpleNamespace(use=lambda: ""), usm) == ("auth-key-x", "priv-key-x")
+
+
+CONFIG_READ = {"platform": "fortios", "section": "all", "include_all": True}
+
+
+@pytest.mark.parametrize("tool, extra", [
+    ("config_read", CONFIG_READ),
+    ("config_read", {**CONFIG_READ, "limit": 48_000}),
+    ("config_diff", {"platform": "fortios", "base_snapshot": "cfg_" + "0" * 32, "other_snapshot": "cfg_" + "1" * 32}),
+])
+def test_a_configuration_page_inside_its_limits_is_accepted(tool, extra) -> None:
+    assert _call(tool, extra) == {"target": ALIAS, **extra}
+
+
+@pytest.mark.parametrize("tool, extra", [
+    ("config_read", {**CONFIG_READ, "limit": 0}),
+    ("config_read", {**CONFIG_READ, "limit": 48_001}),
+    ("config_diff", {"platform": "fortios", "base_snapshot": "cfg_" + "0" * 32,
+                     "other_snapshot": "cfg_" + "1" * 32, "offset": -1}),
+    ("config_read", {**CONFIG_READ, "redaction": "none"}),
+    ("config_read", {**CONFIG_READ, "include_defaults": 1}),
+    ("config_read", {**CONFIG_READ, "section": "no-such-section"}),
+])
+def test_a_configuration_page_or_read_mode_outside_its_contract_is_refused(tool, extra) -> None:
+    with pytest.raises(MODULE.ToolArgumentsError):
+        _call(tool, extra)
+
+
+def _snmp_record(**changes) -> SimpleNamespace:
+    record = {"kind": MODULE.core_vault.SNMP_KIND, "login": "netops-usm", "auth_protocol": "sha256",
+              "priv_protocol": "aes128", "use": lambda: "auth-key-x", "use_priv": lambda: "priv-key-x"}
+    record.update(changes)
+    return SimpleNamespace(**record)
+
+
+def _usm(record: SimpleNamespace) -> dict | None:
+    owner = SimpleNamespace(_credential=lambda vault, name: record)
+    return Proxy._snmp_usm(owner, SimpleNamespace(snmp_credential="usm"), object(), True)
+
+
+def _no_priv() -> str:
+    raise MODULE.core_vault.VaultError("no priv_value")
+
+
+def test_a_valid_snmp_usm_record_becomes_the_session_usm() -> None:
+    assert _usm(_snmp_record()) == {"user": "netops-usm", "auth_protocol": "sha256", "auth_key": "auth-key-x",
+                                    "priv_protocol": "aes128", "priv_key": "priv-key-x"}
+
+
+@pytest.mark.parametrize("changes", [
+    {"auth_protocol": "md5"},
+    {"use": lambda: "short"},
+    {"use_priv": _no_priv},
+])
+def test_an_unusable_snmp_usm_record_is_refused_as_authentication_material(changes) -> None:
+    with pytest.raises(MODULE.AuthenticationMaterialError) as refused:
+        _usm(_snmp_record(**changes))
+    assert refused.value.__cause__ is None
+    assert refused.value.__suppress_context__

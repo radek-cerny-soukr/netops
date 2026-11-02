@@ -47,6 +47,10 @@ def prechecks(access, device, snapshot_text, spec) -> list:
     return reasons
 
 
+def plan_prechecks(access, device, plan, snapshot_text="") -> list:
+    return []
+
+
 def ports(access, table: str):
     if table not in ("vlan-membership", "ports"):
         return None

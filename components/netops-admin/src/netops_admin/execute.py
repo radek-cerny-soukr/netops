@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 import datetime
+from contextlib import contextmanager
 import json
 import secrets
 import time
 
-from netops_admin import audit, audit_gate, engine, exec_exos, exec_fortios, prediction, enrollment, schema_runtime, exec_schema_fortios
+from netops_core.target_lock import target_lock, TargetBusy, TargetLockError
+
+from netops_admin import audit, audit_gate, engine, exec_exos, exec_fortios, fortios, prediction, enrollment, schema_runtime, exec_schema_fortios
 from netops_admin.schema_request import Transaction
 from netops_admin.blocking import BLOCKING_REASONS, BLOCKING_RESULTS, blocks
 from netops_admin.config import SAFEGUARD_MAX_SECONDS
@@ -26,6 +29,8 @@ HOUR = 3600
 ANY_STATE = object()
 DAY = 86400
 REUSED_REQUEST = "request_id was already used for a different request"
+UNDO_DONE = ("undo of this change has already been performed; "
+             "after a reverted change remove the object with regular administration")
 
 
 class Runtime:
@@ -40,6 +45,15 @@ class Runtime:
         self.monotonic = monotonic
         self.store = Store(config.state_dir)
         self.audit = audit.AuditLog(config.audit_file)
+
+
+@contextmanager
+def _target_lock(device):
+    try:
+        with target_lock(device.host_key_fingerprint):
+            yield
+    except (TargetBusy, TargetLockError) as error:
+        raise Rejected([str(error)]) from None
 
 
 def _adapter(platform: str, schema=False):
@@ -236,6 +250,10 @@ def _settle_after_expiry(runtime, access, record, plan, reason, due):
     if (verdict["result"] != "match" and not verdict["object_matches"] and not adapter.FIRING_OBSERVED
             and not adapter.safeguard_disarmed(access, record)):
         _step(runtime, record, "safeguard_kept", "firing not proven")
+        revoke = getattr(adapter, "revoke_token", None)
+        revoked = None if revoke is None else revoke(access, record, _spec(record))
+        if revoked is not None:
+            _step(runtime, record, "safeguard_token_revoked" if revoked else "safeguard_token_revoke_unverified")
         return _finish(runtime, record, "unknown", reason, verdict["differences"])
     cleaned = adapter.remove_safeguard(access, record, _spec(record))
     _step(runtime, record, "safeguard_removed" if cleaned else "safeguard_removal_unverified")
@@ -290,13 +308,33 @@ def _count_rejection(runtime) -> None:
 
 
 def apply(runtime, device_name: str, request, expected_before=ANY_STATE) -> dict:
+    return _apply_counted(runtime, device_name, request, expected_before)
+
+
+def _apply_counted(runtime, device_name: str, request, expected_before=ANY_STATE, undo=False) -> dict:
     try:
-        return _apply(runtime, device_name, request, expected_before)
+        return _apply(runtime, device_name, request, expected_before, undo=undo)
     except BudgetExhausted:
         raise
     except Rejected:
         _count_rejection(runtime)
         raise
+
+
+def _opt_in(device, request, undo=False) -> None:
+    from netops_admin.config import OPT_IN_TABLES
+    if isinstance(request, Transaction):
+        for operation in request.operations:
+            path = " ".join(operation["path"].replace("/", " ").split())
+            for table in OPT_IN_TABLES:
+                if path == table or path.startswith(table + " "):
+                    raise Rejected(["schema transaction path %r is not supported: %s changes need the %s profile"
+                                    % (operation["path"], table, table)])
+        return
+    if undo:
+        return
+    if request.table in OPT_IN_TABLES and request.table not in device.opt_in:
+        raise Rejected(["table %r is not enabled for device %s (opt_in)" % (request.table, device.name)])
 
 
 def _target(runtime, device_name: str, request):
@@ -343,8 +381,9 @@ def preview(runtime, device_name: str, request) -> dict:
 
 def _preview(runtime, device_name: str, request):
     device = _target(runtime, device_name, request)
+    _opt_in(device, request)
     adapter = _adapter(device.platform, isinstance(request, Transaction))
-    with runtime.store.lock(device.name):
+    with runtime.store.lock(device.name), _target_lock(device):
         missing = []
         try:
             known = _known(runtime, device, request)
@@ -371,13 +410,14 @@ def _preview(runtime, device_name: str, request):
         "prechecks": list(plan["prechecks"]),
         "rollback_evidence": plan["rollback_evidence"],
         "plan_sha256": plan["plan_sha256"],
-        "audit_findings_before": len(audit_before),
+        "audit_findings_before": audit_gate.finding_count(audit_before),
+        "audit_unevaluated": audit_gate.unevaluated(audit_before),
         "audit_coverage": coverage,
         "safeguard_seconds": device.safeguard_seconds,
     }, bool(missing)
 
 
-def _prepared(runtime, device, adapter, request, expected_before, enrolling, missing=None):
+def _prepared(runtime, device, adapter, request, expected_before, enrolling, missing=None, undo=False):
     config = runtime.config
     transaction = isinstance(request, Transaction)
     _budgets(runtime, device, len(request.operations) if transaction else 1)
@@ -427,7 +467,15 @@ def _prepared(runtime, device, adapter, request, expected_before, enrolling, mis
     else:
         plan = engine.build_plan(device.platform, before_text.encode("utf-8"), request,
                                  firmware=device.firmware, protected=device.protected, enrollment_probe=enrolling,
-                                 ports=ports)
+                                 ports=ports, undo=undo)
+    try:
+        reasons = adapter.plan_prechecks(access, device, plan, before_text)
+    except Rejected:
+        raise
+    except Exception as exc:
+        raise Rejected(["the device could not be read before any change: %s" % exc]) from None
+    if reasons:
+        raise Rejected(reasons)
     if missing is not None:
         try:
             enrollment.require(runtime, device, accounts, plan["firmware"])
@@ -448,12 +496,13 @@ def _prepared(runtime, device, adapter, request, expected_before, enrolling, mis
         plan["device"] = device.name
         predicted_text = prediction.audited(prediction.snapshot_after(before_text, plan), plan)
         if transaction:
-            audit_before, _before_coverage = schema_runtime.audit_snapshot(plan, before_text, policy)
+            audit_before, _before_coverage = schema_runtime.audit_snapshot(plan, before_text, policy, None,
+                                                                           audit_gate.BASELINE)
             predicted_findings, coverage = schema_runtime.after_audit(plan, audit_before, predicted_text, policy)
         else:
-            audit_before = audit_gate.findings(device.platform, prediction.audited(before_text, plan), device.name, policy)
-            coverage = audit_gate.evaluate(device.platform, predicted_text, policy, plan["table"])
-            audit_gate.check_policy(plan, policy, predicted_text)
+            audit_before = audit_gate.baseline(device.platform, prediction.audited(before_text, plan), device.name, policy)
+            coverage = audit_gate.evaluate(device.platform, predicted_text, policy, plan["table"], audit_before)
+            audit_gate.check_policy(plan, policy, predicted_text, audit_before)
             predicted_findings = audit_gate.new_blocking(device.platform, audit_before, predicted_text, device.name, policy)
         if predicted_findings:
             raise Rejected(["predicted audit findings: " + ", ".join(predicted_findings)])
@@ -475,16 +524,17 @@ def _prepared(runtime, device, adapter, request, expected_before, enrolling, mis
     return access, before_text, accounts, hostname, plan, audit_before, policy, coverage
 
 
-def _apply(runtime, device_name: str, request, expected_before, enrolling=False) -> dict:
+def _apply(runtime, device_name: str, request, expected_before, enrolling=False, undo=False) -> dict:
     device = _target(runtime, device_name, request)
+    _opt_in(device, request, undo)
     adapter = _adapter(device.platform, isinstance(request, Transaction))
     fingerprint = request.fingerprint()
-    with runtime.store.lock(device.name):
+    with runtime.store.lock(device.name), _target_lock(device):
         known = _known(runtime, device, request)
         if known is not None:
             return known
         access, before_text, accounts, hostname, plan, audit_before, policy, coverage = _prepared(
-            runtime, device, adapter, request, expected_before, enrolling)
+            runtime, device, adapter, request, expected_before, enrolling, undo=undo)
         profile = None if isinstance(request, Transaction) else find_profile(plan["platform"], plan["table"], plan["firmware"])
         change_id = secrets.token_hex(16)
         plan["safeguard_id"] = change_id
@@ -547,7 +597,10 @@ def _execute(runtime, adapter, access, record, plan, device) -> dict:
     try:
         problems = adapter.install_safeguard(access, record, plan, device, spec)
     except Exception as exc:
-        problems = ["safeguard installation failed (%s)" % type(exc).__name__]
+        from netops_admin.access import AccessError
+
+        cause = "AccessError: %s" % exc if isinstance(exc, AccessError) else type(exc).__name__
+        problems = ["safeguard installation failed (%s)" % cause]
     due = runtime.monotonic() + device.safeguard_seconds
     if problems:
         _step(runtime, record, "safeguard_not_verified", problems[0])
@@ -591,9 +644,11 @@ def _execute(runtime, adapter, access, record, plan, device) -> dict:
         if schema_runtime.is_plan(plan):
             found, record["audit_coverage"] = schema_runtime.after_audit(plan, record["audit_before"], audited, policy)
         else:
-            record["audit_coverage"] = audit_gate.evaluate(device.platform, audited, policy, plan["table"])
-            audit_gate.check_policy(plan, policy, audited)
-            found = audit_gate.new_blocking(device.platform, record["audit_before"], audited, device.name, policy)
+            record["audit_coverage"] = audit_gate.evaluate(device.platform, audited, policy, plan["table"],
+                                                           record["audit_before"])
+            audit_gate.check_policy(plan, policy, audited, record["audit_before"])
+            found = audit_gate.new_blocking(device.platform, record["audit_before"], audited, device.name, policy,
+                                            fortios.SAFEGUARD_PREFIX + record["change_id"][:12] + "-")
     except audit_gate.Incomplete as exc:
         _step(runtime, record, "audit_incomplete", exc.summary)
         return _settle_after_expiry(runtime, access, record, plan, "audit incomplete", due)
@@ -604,8 +659,9 @@ def _execute(runtime, adapter, access, record, plan, device) -> dict:
         record["audit_findings"] = found
         _step(runtime, record, "audit_failed", "%d new findings" % len(found))
         return _settle_after_expiry(runtime, access, record, plan, "audit finding", due)
-    _step(runtime, record, "audit_passed", "%d rules, %d findings before, none new"
-          % (audit_gate.rule_count(device.platform), len(record["audit_before"])))
+    _step(runtime, record, "audit_passed", "%d rules, %d findings before, none new%s"
+          % (audit_gate.rule_count(device.platform), audit_gate.finding_count(record["audit_before"]),
+             audit_gate.unevaluated_note(record["audit_before"])))
     try:
         seen = engine.observed_state(plan, adapter.observe(access, plan))
     except Exception as exc:
@@ -697,10 +753,19 @@ def undo_request(record, reason: str):
         changes = {name: before.get(name) for name in sorted(set(before) | set(after))
                    if before.get(name) != after.get(name)}
     profile = find_profile(plan["platform"], plan["table"], plan["firmware"])
+    if op == "update":
+        for name, values in (profile.value_requires or {}).items():
+            value = changes.get(name)
+            if value is None and name in changes:
+                value = profile.attributes[name].default
+            for other in values.get(value, ()):
+                changes.setdefault(other, before.get(other))
     for name in changes:
         attribute = profile.attributes.get(name)
         if attribute is None or not (changes[name] is None or isinstance(changes[name], str)):
             raise Rejected(["the plan of the operation holds attribute %s outside the profile" % shown(name)])
+        if changes[name] is None and not attribute.unset and attribute.undo_to_default:
+            changes[name] = attribute.default
         if attribute.type == "name-list":
             changes[name] = (changes[name] or "").split()
     body = {
@@ -716,7 +781,12 @@ def undo(runtime, change_id: str, reason: str) -> dict:
     if original is not None and original.get("status") == "finished" and original.get("result") == "confirmed":
         _stored_plan(runtime, original)
     request, expected = undo_request(original, reason)
-    return apply(runtime, original["device"], request, expected_before=expected)
+    try:
+        return _apply_counted(runtime, original["device"], request, expected_before=expected, undo=True)
+    except Rejected as exc:
+        if exc.reasons == [REUSED_REQUEST]:
+            raise Rejected([UNDO_DONE]) from None
+        raise
 
 
 def recover(runtime, device_name: str) -> list:
@@ -724,7 +794,7 @@ def recover(runtime, device_name: str) -> list:
     if device is None:
         raise Rejected(["device %s is not configured" % shown(device_name)])
     settled = []
-    with runtime.store.lock(device.name):
+    with runtime.store.lock(device.name), _target_lock(device):
         for record in runtime.store.running(device.name):
             if "safeguard" not in record:
                 _step(runtime, record, "recovery_start")
@@ -778,7 +848,38 @@ def recover(runtime, device_name: str) -> list:
                                        "interrupted; device state matches the after side but confirm_start is missing"))
             else:
                 settled.append(_finish(runtime, record, "unknown", "interrupted; state matches neither side"))
+        leftover = _unverified_safeguard(runtime, device.name)
+        if leftover is not None:
+            settled.append(_remove_unverified_safeguard(runtime, device, leftover))
     return settled
+
+
+def _unverified_safeguard(runtime, device_name: str):
+    blocked = runtime.store.blocked(device_name)
+    record = None if blocked is None else runtime.store.operation(blocked["change_id"])
+    if record is None or (record.get("status"), record.get("result"), record.get("reason")) != (
+            "finished", "unknown", "safeguard not verified"):
+        return None
+    names = [step.get("step") for step in record.get("steps", [])]
+    if "safeguard_not_verified" not in names or "change_start" in names or names[-1:] == ["safeguard_removed"]:
+        return None
+    return record
+
+
+def _remove_unverified_safeguard(runtime, device, record) -> dict:
+    plan = _stored_plan(runtime, record)
+    adapter = _adapter(plan["platform"], schema_runtime.is_plan(plan))
+    _step(runtime, record, "recovery_start")
+    try:
+        access = runtime.access_factory(device)
+        if schema_runtime.is_plan(plan):
+            access = schema_runtime.Access(access, device)
+        removed = adapter.remove_remaining(access, record, _spec(record))
+    except Exception as exc:
+        _step(runtime, record, "recovery_access_failed", type(exc).__name__)
+        return record
+    _step(runtime, record, "safeguard_removed" if removed else "safeguard_removal_unverified")
+    return record
 
 
 def unblock(runtime, device_name: str, reason: str) -> bool:

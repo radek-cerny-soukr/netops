@@ -35,6 +35,13 @@ FIELDS = frozenset(
         "port",
         "count",
         "recipe",
+        "destination_address",
+        "source_address",
+        "source_port",
+        "destination_port",
+        "protocol",
+        "since",
+        "until",
         "timeout",
         "item_count",
         "offset",
@@ -48,6 +55,7 @@ FIELDS = frozenset(
         "pagination_source",
         "transport",
         "rc",
+        "virtual_server",
     }
 )
 

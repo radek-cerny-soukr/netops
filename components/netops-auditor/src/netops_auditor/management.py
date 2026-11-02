@@ -38,6 +38,8 @@ POLICY_FIELD = {"address-policy": "address_networks", "vlan-policy": "vlan_tags"
                 "port-policy": "port_vlans", "port-description": "description_glob"}
 POLICY_NOT_CONFIGURED = "policy-not-configured"
 SCOPE_REASON = "fortios.scope.vdom-unsupported"
+FACTORY_ADDRESSES = {"all": ipaddress.IPv4Network("0.0.0.0/0"), "none": ipaddress.IPv4Network("0.0.0.0/32")}
+RESERVED_VLANS = {"default": "1", "mgmt": None}
 PORT = r"[1-9][0-9]{0,3}(?::[1-9][0-9]{0,3})?"
 ALL_PORTS = "all"
 MEMBERSHIP_LIST = "membership-list"
@@ -356,6 +358,8 @@ def _fortios(name, tree, policy):
             except ValueError:
                 yield _hit("firewall address/" + key, "firewall address", node.line, "invalid-subnet")
                 continue
+            if FACTORY_ADDRESSES.get(key) == network:
+                continue
             if not any(network.subnet_of(n) for n in allowed):
                 yield _hit("firewall address/" + key, "firewall address", node.line, "outside-address-policy")
     elif name.startswith("group-"):
@@ -427,12 +431,14 @@ def _exos(name, tree, policy):
         if kind in unresolved:
             raise PolicyError(UNRESOLVED[kind][1])
     if name == "vlan-empty":
-        for vlan in sorted(set(vlans) - populated - {"Default", "Mgmt"}):
+        for vlan in sorted(vlan for vlan in set(vlans) - populated if vlan.casefold() not in RESERVED_VLANS):
             yield _hit("vlan/" + vlan, "vlan", 0, "no-visible-ports")
     elif name == "vlan-policy":
         ranges = policy.get("vlan_tags", [])
         for vlan, attrs in vlans.items():
-            tag = attrs.get("tag", "")
+            tag = attrs.get("tag", RESERVED_VLANS.get(vlan.casefold(), ""))
+            if tag is None:
+                continue
             if ranges and (not (tag.isascii() and tag.isdigit()) or
                            not any(lo <= int(tag) <= hi for lo, hi in ranges)):
                 yield _hit("vlan/" + vlan, "vlan", 0, "tag-outside-policy")
@@ -468,10 +474,6 @@ def _fortios_status(name, tree, policy) -> tuple:
         return UNSUPPORTED, SCOPE_REASON
     if POLICY_FIELD.get(name) and POLICY_FIELD[name] not in policy:
         return NOT_EVALUATED, POLICY_NOT_CONFIGURED
-    if RULES["fortios"][name][1] not in tree.sub:
-        return NOT_EVALUATED, "section-missing"
-    if name == "group-dangling" and "firewall address" not in tree.sub:
-        return NOT_EVALUATED, "section-missing"
     return EVALUATED, ""
 
 

@@ -323,7 +323,7 @@ def vault_document() -> dict:
     return {"version": 2, "credentials": {
         "runner-account": {"kind": "password", "login": "runner-user", "value": "runner-password"},
         "device-a-account": {"kind": "password", "login": "reader", "value": "ssh-password"},
-        "device-a-community": {"kind": "snmp-community", "value": "snmp-community-value"},
+        "device-a-community": {"kind": "snmpv3-authpriv", "login": "usm-reader", "value": "fixture-auth-key-1", "priv_value": "fixture-priv-key-1", "auth_protocol": "sha256", "priv_protocol": "aes128"},
     }}
 
 
@@ -557,7 +557,7 @@ def context_document() -> dict:
         "ssh_platform": "fortios",
         "enabled_queries": ["interface_details"],
         "sftp_roots": ["/safe"],
-        "snmp_community": "community-value",
+        "snmp_usm": {"user": "usm-reader", "auth_protocol": "sha256", "auth_key": "fixture-auth-key-1", "priv_protocol": "aes128", "priv_key": "fixture-priv-key-1"},
         "egress": {
             "addresses": ["192.0.2.10"], "tcp_ports": [], "udp_ports": [], "tcp_port_ranges": [],
             "udp_port_ranges": [], "allow_icmp": False, "allow_dns": False, "tls_server_names": [],

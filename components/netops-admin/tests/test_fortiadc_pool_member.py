@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import itertools
 import json
+from pathlib import Path
 
 import pytest
 from fake_fortiadc import FakeFortiADC
@@ -272,3 +273,35 @@ def test_cli_refuses_an_unconfigured_device(monkeypatch, capsys):
     assert (code, document["result"], device.queries) == (cli.EXIT_REJECTED, "rejected", [])
 
 
+
+
+PAGED_VS_LISTING = Path(__file__).with_name("fortiadc_vs_listing_paged_767_0676.txt").read_bytes().decode("utf-8")
+
+
+def test_measured_paged_virtual_server_listing_is_read_without_the_pager():
+    assert PAGED_VS_LISTING.count("--More-- \r         \r") == 1
+    servers = fortiadc._blocks(PAGED_VS_LISTING, "load-balance virtual-server")
+    assert list(servers) == ["VS_ONE", "VS_TWO", "VS_THREE", "VS_FOUR"]
+    assert servers["VS_THREE"] == {"interface": "port2", "ip": "192.0.2.12", "port": "8080",
+                                   "load-balance-profile": "LB_PROF_HTTP",
+                                   "load-balance-method": "LB_METHOD_ROUND_ROBIN",
+                                   "load-balance-pool": "POOL_TWO", "traffic-log": "enable"}
+
+
+@pytest.mark.parametrize("line", [3, 5, 7])
+def test_change_is_confirmed_when_both_listings_are_paged(line):
+    device = FakeFortiADC()
+    device.pager_at = line
+    assert "--More--" in device.query("show load-balance pool pool-a")
+    assert "--More--" in device.query(fortiadc.VS_COMMAND)
+    result = fortiadc.run(device, "pool-a", "1", "maintain")
+    assert result["result"] == "confirmed"
+    assert status_of(device) == "maintain"
+
+
+@pytest.mark.parametrize("pager", ["--More--\n", "--More-- \n", "--More--\r\n", "x--More-- \r \r\n"])
+def test_pager_text_outside_the_exact_erase_sequence_is_still_refused(pager):
+    lines = PAGED_VS_LISTING.split("\n")
+    with pytest.raises(Rejected) as caught:
+        fortiadc._blocks("\n".join(lines[:3] + [pager.rstrip("\n")] + lines[3:]), "load-balance virtual-server")
+    assert caught.value.reasons == ["the pool listing cannot be read (unexpected line)"]

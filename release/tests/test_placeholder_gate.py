@@ -103,6 +103,42 @@ class PlaceholderGate(unittest.TestCase):
         self.assertEqual(rc, 1, out)
         self.assertIn("notes-9.8.7.md is missing", out)
 
+    def test_markdown_that_is_not_utf8_fails_with_the_file_and_without_a_traceback(self):
+        cases = (
+            ("docs/testing.md", b"Release acceptance.\n\xff\n", "FAIL docs/testing.md: not valid UTF-8 at byte 20"),
+            ("CHANGELOG.md", b"# NetOps changelog\n\n## 9.8.7 - 2026-10-26\n\n- Fixed \xe8.\n", "FAIL CHANGELOG.md: not valid UTF-8 at byte 51"),
+        )
+        for name, content, expected in cases:
+            with self.subTest(name=name):
+                files = self.clean()
+                files["README.md"] = "Acceptance of 9.8.7: TODO(LOW-9) blind runs.\n"
+                root = self.tree(files)
+                with open(os.path.join(root, name), "wb") as stream:
+                    stream.write(content)
+                proc = subprocess.run([sys.executable, "-B", GATE, "--version", "9.8.7", "--root", root],
+                                      capture_output=True, text=True, timeout=60)
+                self.assertEqual(proc.returncode, 1, proc.stdout + proc.stderr)
+                self.assertEqual(proc.stderr, "")
+                self.assertEqual(proc.stdout.count(expected), 1, proc.stdout)
+                self.assertIn("FAIL README.md:1: open placeholder TODO(LOW-9)", proc.stdout)
+                self.assertTrue(proc.stdout.endswith("placeholder_gate=FAIL\n"), proc.stdout)
+
+    def test_line_numbers_follow_crlf_and_cr_line_ends(self):
+        root = self.tree(self.clean())
+        with open(os.path.join(root, "docs/testing.md"), "wb") as stream:
+            stream.write(b"one\r\ntwo\rTODO(LOW-3): three.\n")
+        proc = subprocess.run([sys.executable, "-B", GATE, "--version", "9.8.7", "--root", root],
+                              capture_output=True, text=True, timeout=60)
+        self.assertEqual(proc.returncode, 1, proc.stdout)
+        self.assertIn("FAIL docs/testing.md:3: open placeholder TODO(LOW-3)", proc.stdout)
+
+    def test_non_ascii_utf8_markdown_passes(self):
+        files = self.clean()
+        files["docs/testing.md"] = "Release acceptance – café résumé.\n"
+        rc, out = self.run_gate(files)
+        self.assertEqual(rc, 0, out)
+        self.assertIn("placeholder_gate=PASS", out)
+
     def test_invalid_version_is_refused(self):
         rc, out = self.run_gate(self.clean(), version="9.8")
         self.assertNotEqual(rc, 0, out)

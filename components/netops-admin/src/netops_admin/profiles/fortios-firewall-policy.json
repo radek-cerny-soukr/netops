@@ -1,0 +1,138 @@
+{
+  "platform": "fortios",
+  "table": "firewall policy",
+  "versions": [
+    "7.6.8 build3744",
+    "8.0.2 build0251"
+  ],
+  "ops": [
+    "create",
+    "update"
+  ],
+  "undo_ops": [
+    "delete"
+  ],
+  "exact_versions": true,
+  "table_scoped_key": true,
+  "key_pattern": "^[1-9][0-9]{0,9}$",
+  "protected_keys": [],
+  "attributes": {
+    "srcintf": {
+      "type": "name-list",
+      "required_on_create": true,
+      "update": true,
+      "unset": false,
+      "referenced_update": true
+    },
+    "dstintf": {
+      "type": "name-list",
+      "required_on_create": true,
+      "update": true,
+      "unset": false,
+      "referenced_update": true
+    },
+    "srcaddr": {
+      "type": "name-list",
+      "required_on_create": true,
+      "update": true,
+      "unset": false,
+      "referenced_update": true
+    },
+    "dstaddr": {
+      "type": "name-list",
+      "required_on_create": true,
+      "update": true,
+      "unset": false,
+      "referenced_update": true
+    },
+    "service": {
+      "type": "name-list",
+      "required_on_create": true,
+      "update": true,
+      "unset": false,
+      "referenced_update": true
+    },
+    "schedule": {
+      "type": "text",
+      "max_length": 35,
+      "required_on_create": true,
+      "update": true,
+      "unset": false,
+      "referenced_update": true
+    },
+    "action": {
+      "type": "text",
+      "max_length": 6,
+      "default": "deny",
+      "pattern": "^(accept|deny)$",
+      "required_on_create": true,
+      "update": true,
+      "unset": false,
+      "referenced_update": true,
+      "undo_to_default": true
+    },
+    "status": {
+      "type": "text",
+      "max_length": 7,
+      "default": "enable",
+      "pattern": "^(enable|disable)$",
+      "required_on_create": true,
+      "update": true,
+      "unset": false,
+      "referenced_update": true,
+      "undo_to_default": true
+    },
+    "logtraffic": {
+      "type": "text",
+      "max_length": 7,
+      "default": "utm",
+      "pattern": "^(all|utm|disable)$",
+      "required_on_create": false,
+      "update": true,
+      "unset": true,
+      "referenced_update": true
+    },
+    "name": {
+      "type": "text",
+      "max_length": 35,
+      "required_on_create": false,
+      "update": true,
+      "unset": true,
+      "referenced_update": true
+    },
+    "comments": {
+      "type": "text",
+      "max_length": 1023,
+      "required_on_create": false,
+      "update": true,
+      "unset": true,
+      "referenced_update": true
+    }
+  },
+  "fixed": {},
+  "volatile": [
+    "uuid"
+  ],
+  "reserved_values": {},
+  "inverse_identity_changes": {
+    "delete": [
+      "uuid"
+    ]
+  },
+  "create_values": {
+    "status": "disable"
+  },
+  "create_position": "last",
+  "isolated_update": [
+    "status"
+  ],
+  "provisional": true,
+  "rollback_evidence": "Measured on FortiGate-60F v7.6.8,build3744 on 2026-10-31: the default of status is enable and of logtraffic is utm (show omits them, show full-configuration lists them); get on a new policy before any set showed action deny, status enable and logtraffic utm; unset status returned status enable; after abort the entry was not found. In one run on 2026-10-31, a policy created with next and end was listed last in show firewall policy, after all existing policies, and after its delete the output of show firewall policy and of show full-configuration firewall policy had the same sha256 as before the run. From the FortiOS 7.6.8 CLI Reference: policyid 0-4294967294 and the automation-action script at most 1023 characters. 7.6.8 build3744 is listed because admin enroll --probe 192.0.2.252/30 ended reverted on the same device on 2026-10-31. Measured on 2026-11-02 on FortiGate-60F v7.6.8,build3744 and on a FortiGate 80F active-passive HA pair with 8.0.2 build0251: after create, the policy id appeared in show full-configuration only in the edit line of the new policy, and after undo it did not appear. 8.0.0 build0167 and 7.6.7 build3704 are not listed. On 8.0.2 build0251 the cli-script safeguard does not work (on a FortiGate 80F the enrollment self-test ended unknown, firing not proven, with the probe address still present after trigger-datetime), so from FortiOS 8.0.1 NetOps uses the webhook safeguard (docs/fortios-webhook-safeguard-contract.md). Measured on 2026-11-01 on a FortiGate 80F active-passive HA pair with 8.0.2 build0251: a one-shot stitch whose webhook action called the REST API of the same FortiGate with a temporary API user (access profile fwgrp read-write, trusthost the device address /32) removed a new address and a new policy (DELETE) and restored a changed policy comments attribute (PUT with http-body) after the administrator session had ended, 4 to 5 seconds after trigger-datetime, without traffic loss and with the HA pair in sync. On 2026-11-02 the full admin apply orchestration with the webhook safeguard ran on the same HA pair with a super_admin write account: admin enroll --probe ended reverted; create, update and undo ended confirmed; with the check account lost after change_applied the result was reverted for an update (PUT), a create (DELETE) and an undo of a create (POST), each after trigger-datetime; SIGKILL after change_applied then admin recover gave reverted; a policy holding the protected interface was refused. With the whole management path blocked after change_applied the result was unknown and further changes were blocked, the webhook removed the policy after trigger-datetime, the netops-sg stitch, trigger, action, API user and access profile were removed by hand and admin unblock ran; the configuration after cleanup equalled the configuration before and the HA pair was in sync. The rollback through the one-shot automation stitch was measured on the same device on 2026-10-31 with a test account whose access profile has fwgrp read-write: the automation-action cli-script deleting the new policy, the trigger scheduled once with trigger-datetime 180 seconds ahead and the stitch, as rendered by render_safeguard, were accepted and safeguard_state reported them verified; the policy was then created and not confirmed; after trigger-datetime the policy was not found while the action, trigger and stitch still existed; after render_safeguard_removal all three were not found and no netops-sg name was listed, and show firewall policy with show full-configuration firewall policy had the same sha256 as before the run. Measured with the commands rendered by the code and the readbacks checked by safeguard_state and safeguard_absent, not through the full admin execute orchestration. On 2026-11-01 the full admin apply orchestration ran on the same device with an accept policy, status disable and service HTTPS: create, update and undo of both confirmed; a policy holding the protected interface refused; with the check account blocked after change_applied the result was reverted and the stitch removed the policy after trigger-datetime; SIGKILL after change_applied then admin recover gave reverted; with the whole management path blocked after change_applied the result was unknown, the policy was removed by the stitch, the three netops-sg objects were removed by hand and admin unblock ran; show firewall policy, show full-configuration firewall policy, address, addrgrp, automation stitch, trigger and action and the admin names had the same sha256 before and after. A deny policy without logtraffic ended reverted on a prediction mismatch (FortiOS sets logtraffic disable), so value_requires asks for logtraffic with action deny; the same full run with action deny and logtraffic all then passed with the same results and the same sha256 before and after. The profile stays provisional: create and undo of a policy were measured on 7.6.8 build3744 and on 8.0.2 build0251 with the same result, the cleanup was verified (configuration equal to the one before, HA pair in sync, admin recover found nothing), but on 8.0.2 the run with the whole management path blocked was recorded only once, with NetOps reaching the device through a translated (DNAT) address, and its repeat was not completed.",
+  "value_requires": {
+    "action": {
+      "deny": [
+        "logtraffic"
+      ]
+    }
+  }
+}

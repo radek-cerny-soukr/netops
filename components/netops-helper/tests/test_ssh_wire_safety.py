@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 import importlib.util
 import json
 import os
@@ -390,3 +391,145 @@ def test_a_login_that_never_answers_names_no_transcript(wire, monkeypatch) -> No
     assert result["ok"] is False
     assert "garbage banner" not in result["error"]
     assert PASSWORD not in result["error"]
+
+
+FORTIOS_PTY_CLIENT = '''#!/usr/bin/env python3
+import json, os, sys, time
+
+record = {{"argv": sys.argv[1:], "env": dict(os.environ), "stdin_isatty": sys.stdin.isatty()}}
+for item in sys.argv:
+    if item.startswith("UserKnownHostsFile="):
+        record["known_hosts"] = open(item.split("=", 1)[1]).read()
+with open({log!r}, "a") as handle:
+    handle.write(json.dumps(record) + "\\n")
+if not sys.stdin.isatty():
+    sys.stdout.write({status!r})
+    sys.exit(0)
+transcript = open({transcript!r}, "a")
+sys.stdout.write("\\n" + {prompt!r})
+sys.stdout.flush()
+while True:
+    line = sys.stdin.readline()
+    if not line:
+        break
+    transcript.write(line)
+    transcript.flush()
+    sys.stdout.write(open({body!r}).read())
+    if {answers!r}:
+        sys.stdout.write("\\n" + {prompt!r})
+    sys.stdout.flush()
+    if not {answers!r}:
+        time.sleep(30)
+'''
+FORTIOS_HA_HOST = "FGT80F-SYNTH"
+DNS_CACHE_BODY = (
+    "worker idx: 0\n"
+    "vfid=0, name=www.synthetic.test, ttl=1800:1700:1500\n"
+    "\t 192.0.2.10 (ttl=1700) 198.51.100.10 (ttl=1700)\n"
+    "CACHE num=1"
+)
+
+
+def _fortios_terminal(wire, prompt: str, body: str, answers: bool = True) -> None:
+    body_file = wire["binaries"].parent / "terminal-body.txt"
+    body_file.write_text(body, encoding="utf-8")
+    _write_client(
+        wire["binaries"], "ssh",
+        FORTIOS_PTY_CLIENT.format(
+            log=str(wire["log"]), transcript=str(wire["transcript"]),
+            status=FORTIOS_STATUS, prompt=prompt, body=str(body_file), answers=answers,
+        ),
+    )
+
+
+@pytest.mark.parametrize("query_name,command", (
+    ("dns_cache", "diagnose test application dnsproxy 7"),
+    ("fqdn_cache", "diagnose test application dnsproxy 6"),
+))
+@pytest.mark.parametrize("role", ("(Primary)", "(Secondary)", ""))
+def test_the_fortios_dns_caches_are_read_on_a_terminal_behind_the_ha_prompt(
+    wire, query_name, command, role,
+) -> None:
+    _fortios_terminal(wire, f"{FORTIOS_HA_HOST}{role} # ", DNS_CACHE_BODY)
+    result = engine.ssh_read(
+        _target("fortinet", query_name), "fortinet", query_name, {}, 0, 16_000,
+    )
+
+    assert result["ok"] is True, result
+    assert result["transport"] == "pty"
+    assert result["rc"] is None
+    assert result["untrusted_device_output"] == DNS_CACHE_BODY
+    calls = _device_calls(wire)
+    assert [call["stdin_isatty"] for call in calls] == [False, True]
+    assert calls[0]["argv"][-1] == engine._IDENTITY_COMMAND
+    assert calls[1]["argv"][:3] == ["-F", "/dev/null", "-tt"]
+    for call in calls:
+        _assert_hardened(call["argv"], PASSWORD, call["env"])
+        assert call["known_hosts"] == KNOWN_HOSTS_LINE + "\n"
+    assert wire["transcript"].read_text(encoding="utf-8").splitlines() == [command]
+
+
+def test_a_fortios_terminal_read_still_requires_the_verified_output_standard(wire) -> None:
+    _fortios_terminal(wire, f"{FORTIOS_HA_HOST}(Primary) # ", DNS_CACHE_BODY)
+    target = replace(_target("fortinet", "dns_cache"), fortios_output_standard_verified=False)
+    result = engine.ssh_read(target, "fortinet", "dns_cache", {}, 0, 16_000)
+    assert result["ok"] is False
+    assert "output standard" in result["error"]
+    assert _device_calls(wire) == []
+
+
+def test_a_fortios_terminal_read_is_limited_to_the_enabled_queries(wire) -> None:
+    _fortios_terminal(wire, f"{FORTIOS_HA_HOST}(Primary) # ", DNS_CACHE_BODY)
+    with pytest.raises(ValueError, match="SSH query is not enabled"):
+        engine.ssh_read(_target("fortinet", "dns_cache"), "fortinet", "fqdn_cache", {}, 0, 16_000)
+    assert _device_calls(wire) == []
+
+
+def test_a_full_fortios_dns_cache_is_read_whole_and_paged(wire) -> None:
+    entries = "".join(
+        f"vfid=0, name=host-{index:05d}.synthetic.test, ttl=1800:1700:1500\n"
+        f"\t 192.0.2.{index % 250 + 1} (ttl=1700) 198.51.100.{index % 250 + 1} (ttl=1700)"
+        f" 203.0.113.{index % 250 + 1} (ttl=1700)\n"
+        for index in range(5000)
+    )
+    body = "worker idx: 0\n" + entries + "CACHE num=5000"
+    assert len(body.encode()) < engine._SSH_CAPTURE_MAX_BYTES
+    _fortios_terminal(wire, f"{FORTIOS_HA_HOST}(Primary) # ", body)
+    target = _target("fortinet", "dns_cache")
+    pages = [engine.ssh_read(target, "fortinet", "dns_cache", {}, 0, 48_000)]
+    while pages[-1]["next_offset"] is not None:
+        pages.append(engine.ssh_read(
+            target, "fortinet", "dns_cache", {}, pages[-1]["next_offset"], 48_000,
+            pages[0]["content_sha256"],
+        ))
+    assert all(page["ok"] for page in pages), pages[-1]
+    assert pages[0]["total_bytes"] == len(body.encode())
+    assert "".join(page["untrusted_device_output"] for page in pages) == body
+    assert len(_device_calls(wire)) == 2
+
+
+def test_a_fortios_dns_cache_over_the_capture_cap_is_refused_by_name(wire, monkeypatch) -> None:
+    monkeypatch.setattr(engine, "_SSH_CAPTURE_MAX_BYTES", 200_000)
+    _fortios_terminal(wire, f"{FORTIOS_HA_HOST}(Primary) # ", "worker idx: 0\n" + "x" * 300_000)
+    result = engine.ssh_read(
+        _target("fortinet", "dns_cache"), "fortinet", "dns_cache", {}, 0, 16_000,
+    )
+    assert result["ok"] is False
+    assert "more than 200000 bytes" in result["error"] and "was stopped" in result["error"]
+    assert "untrusted_device_output" not in result
+    assert not engine._SSH_PAGE_CACHE
+
+
+def test_a_fortios_terminal_that_never_returns_the_prompt_is_refused_by_name(
+    wire, monkeypatch,
+) -> None:
+    monkeypatch.setattr(engine, "_SSH_READ_TIMEOUT_SECONDS", 1.0)
+    _fortios_terminal(
+        wire, f"{FORTIOS_HA_HOST}(Primary) # ", "worker idx: 0\n--More-- ", answers=False,
+    )
+    result = engine.ssh_read(
+        _target("fortinet", "dns_cache"), "fortinet", "dns_cache", {}, 0, 16_000,
+    )
+    assert result["ok"] is False
+    assert "within 1.0 seconds" in result["error"]
+    assert "untrusted_device_output" not in result

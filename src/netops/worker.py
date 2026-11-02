@@ -6,7 +6,7 @@ import os
 import sys
 import uuid
 from . import __version__
-from .files import MAX_MESSAGE, RUNTIME, STATE, UIDS, read_private
+from .files import MAX_MESSAGE, RUNTIME, STATE, TARGET_LOCK_DIR, TARGET_LOCK_GID, TARGET_LOCK_ROLES, UIDS, read_private
 from .ipc import peer_uid
 from .bootstrap import role_environment
 from .state import AUDITOR_DEFAULTS, admin_devices, auditor_settings
@@ -99,6 +99,14 @@ def _admin_configuration_refusal(module):
 async def run(role):
     if os.geteuid() != UIDS[role] or os.getegid() != UIDS[role]:
         raise ValueError("Internal workers require their isolated role UID/GID")
+    supplementary = set(os.getgroups())
+    expected_supplementary = {TARGET_LOCK_GID} if role in TARGET_LOCK_ROLES else set()
+    if supplementary != expected_supplementary:
+        raise ValueError("Internal worker has an invalid shared target lock group")
+    if role in TARGET_LOCK_ROLES:
+        os.environ["NETOPS_TARGET_LOCK_DIR"] = str(TARGET_LOCK_DIR)
+    else:
+        os.environ.pop("NETOPS_TARGET_LOCK_DIR", None)
     directory = role_environment(role)
     os.environ["NETOPS_INVENTORY_PATH"] = str(directory / "inventory.json")
     os.environ["NETOPS_VAULT_PATH"] = str(directory / "vault.json")

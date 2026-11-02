@@ -1,0 +1,24 @@
+vdom name is root
+	virtual-server: VS_APP_HTTP, availability:HEALTHY
+		APP Response: 0
+		Client RTT: 1
+		Concurrent Connections: 0
+		Inbound Throughput: 0
+		Outbound Throughput: 0
+		Requests: 0
+		Server RTT: 1
+		real-server-pool: POOL_APP
+		id:1, hc_state: UP, last-state-change-time: 2026-10-30 00:48:28
+			APP Response: 0
+			Concurrent Connections: 0
+			Inbound Throughput: 0
+			Outbound Throughput: 0
+			Requests: 0
+			Server RTT: 1
+		id:2, hc_state: UP, last-state-change-time: 2026-10-30 00:37:05
+			APP Response: 0
+			Concurrent Connections: 0
+			Inbound Throughput: 0
+			Outbound Throughput: 0
+			Requests: 0
+			Server RTT: 1

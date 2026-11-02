@@ -156,7 +156,7 @@ def test_evidence_survives_diacritics_quotes_and_scalars():
     evidence = (
         ("dstaddr", "198.51.100.0/24"),
         ("hits", 0),
-        ("popis", """pravidlo "any-any" na rozhraní wan1, příliš široké"""),
+        ("description", """rule "any-any" on interface wan1 is too broad – naïve"""),
         ("utm", False),
     )
     with Store(":memory:") as store:
@@ -444,7 +444,7 @@ def test_accept_baseline_is_idempotent_over_the_same_run():
         assert accept(store, run_id, accepted_at="2026-09-01T05:00:00Z") == 3
         first = store.baseline_entries(TENANT, DEVICE)
         assert accept(store, run_id, accepted_at="2026-09-11T05:00:00Z") == 0
-        assert accept(store, run_id, accepted_by="nekdo jiny", note="jiny duvod") == 0
+        assert accept(store, run_id, accepted_by="someone else", note="another reason") == 0
         assert baseline_count(store) == 3
         assert store.baseline_entries(TENANT, DEVICE) == first
 
@@ -649,7 +649,7 @@ def test_forget_baseline_without_scope_is_refused(field, value):
         assert baseline_count(store) == 1
 
 
-CANARY = "KANARCI-RETEZEC-NESMI-UNIKNOUT"
+CANARY = "CANARY-STRING-MUST-NOT-LEAK"
 
 CHANNEL_EVENT_SCHEMA = (
     "id",

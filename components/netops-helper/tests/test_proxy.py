@@ -84,7 +84,7 @@ def _write_test_vault(path: Path) -> None:
                 "kind": "password", "login": "selected-user", "value": "selected-secret",
             },
             "device-a-community": {
-                "kind": "snmp-community", "value": "separate-community",
+                **{"kind": "snmpv3-authpriv", "login": "usm-reader", "value": "fixture-auth-key-1", "priv_value": "fixture-priv-key-1", "auth_protocol": "sha256", "priv_protocol": "aes128"},
             },
         },
     }, indent=2) + "\n")
@@ -165,7 +165,7 @@ def test_request_injects_the_read_only_scope_and_the_pinned_host_key(
     }).encode())
     assert transformed is not None
     assert proxy.response_secrets[21] == (
-        "selected-secret", "separate-community",
+        "selected-secret", "fixture-auth-key-1", "fixture-priv-key-1",
         json.loads(transformed)["params"]["arguments"]["auth_context"],
     )
     scope = _decode_context(transformed)
@@ -173,7 +173,7 @@ def test_request_injects_the_read_only_scope_and_the_pinned_host_key(
         "alias", "host", "port", "login", "credential_kind", "secret",
         "host_key_fingerprint", "legacy_ssh", "account_role", "ssh_platform",
         "enabled_queries", "read_inventory", "sftp_roots",
-        "fortios_output_standard_verified", "egress",
+        "fortios_output_standard_verified", "egress", "configuration_limits",
     }
     assert scope["account_role"] == "read-only"
     assert scope["credential_kind"] == "password"
@@ -515,7 +515,7 @@ def test_vault_schema_permissions_and_auth_material_are_distinct(
         MODULE.Proxy()._vault()
 
 
-def test_snmp_community_is_a_separate_enrolled_record_without_fallback(
+def test_snmp_usm_is_a_separate_enrolled_record_without_fallback(
     tmp_path: Path, monkeypatch,
 ) -> None:
     inventory, _, _, _ = _paths(tmp_path, monkeypatch)
@@ -525,10 +525,11 @@ def test_snmp_community_is_a_separate_enrolled_record_without_fallback(
     ))
     assert transformed is not None
     context = _decode_context(transformed)
-    assert context["snmp_community"] == "separate-community"
+    assert context["snmp_usm"] == {"user": "usm-reader", "auth_protocol": "sha256", "auth_key": "fixture-auth-key-1", "priv_protocol": "aes128", "priv_key": "fixture-priv-key-1"}
+    assert "snmp_community" not in context
     assert context["secret"] == "selected-secret"
-    assert proxy.response_secrets[70][:2] == ("selected-secret", "separate-community")
-    assert proxy.response_secrets[70][2] == json.loads(
+    assert proxy.response_secrets[70][:3] == ("selected-secret", "fixture-auth-key-1", "fixture-priv-key-1")
+    assert proxy.response_secrets[70][3] == json.loads(
         transformed,
     )["params"]["arguments"]["auth_context"]
 
@@ -608,7 +609,7 @@ def test_target_scope_is_local_non_secret_and_tools_list_advertises_it(
     assert "ssh_host_key_enrolled" not in scope
     serialized = json.dumps(scope)
     for secret in (
-        "selected-secret", "separate-community", "selected-user", DEVICE_PIN,
+        "selected-secret", "fixture-auth-key-1", "fixture-priv-key-1", "usm-reader", "selected-user", DEVICE_PIN,
     ):
         assert secret not in serialized
 
@@ -754,7 +755,7 @@ def test_target_vault_materializes_only_its_enrolled_credentials(tmp_path, monke
     transformed = proxy.request(_tool_call(991, "snmp_get", {"target": "device-a", "oids": ["1.3.6.1.2.1.1.3.0"]}))
     context = _decode_context(transformed)
     assert context["secret"] == "selected-secret"
-    assert context["snmp_community"] == "separate-community"
+    assert context["snmp_usm"]["auth_key"] == "fixture-auth-key-1"
     assert "runner-secret" not in json.dumps(context)
     assert "runner-secret" not in repr(proxy.response_secrets)
 
@@ -1211,11 +1212,46 @@ def test_admin_bounded_role_needs_a_catalogue_boundary_on_a_platform_without_a_r
     _admin_bounded_inventory(
         inventory, platform="fortios", account_role="admin-bounded", role_boundary="catalogue",
     )
-    with pytest.raises(MODULE.RoleRejectedError):
-        MODULE.Proxy()._target("device-a")
-    entry = MODULE.Proxy()._load_inventory()[0]
-    with pytest.raises(helper_inventory.RoleError, match="ruckus_unleashed"):
-        helper_inventory.section(entry)
+    document = json.loads(inventory.read_text())
+    wlan_queries = [
+        "system_status", "wifi_access_points", "wifi_ap_detail",
+        "wifi_clients", "wifi_client_detail", "wifi_ssid_mapping",
+    ]
+    document["devices"][0]["helper"].update({
+        "enabled_queries": wlan_queries,
+        "read_inventory": {"wireless_clients": ["00:00:5e:00:53:01"]},
+        "sftp_roots": [],
+    })
+    _rewrite(inventory, document)
+    wlan_proxy = MODULE.Proxy()
+    entry, section, _ = wlan_proxy._target("device-a")
+    assert section.enabled_queries == tuple(wlan_queries)
+    assert section.read_inventory == {"wireless_clients": ("00:00:5e:00:53:01",)}
+    forwarded_wlan = wlan_proxy.request(json.dumps({
+        "jsonrpc": "2.0", "id": 103, "method": "tools/call",
+        "params": {"name": "ssh_read", "arguments": {
+            "target": "device-a", "platform": "fortinet", "query": "wifi_client_detail",
+            "parameters": {"mac": "00:00:5e:00:53:01"},
+        }},
+    }).encode())
+    wlan_context = _decode_context(forwarded_wlan)
+    wlan_auth = TargetAuth.decode(
+        "device-a", MODULE.urlsafe_b64encode(json.dumps(wlan_context).encode()).decode(),
+    )
+    assert (wlan_auth.account_role, wlan_auth.role_boundary) == ("admin-bounded", "catalogue")
+    wlan_scope = wlan_proxy._target_scope_payload("device-a")
+    assert (wlan_scope["account_role"], wlan_scope["role_boundary"]) == ("admin-bounded", "catalogue")
+    with pytest.raises(MODULE.PolicyScopeError):
+        MODULE.Proxy._authorize_tool(
+            "ssh_read", {"platform": "fortinet", "query": "system_performance"}, entry, section,
+        )
+    without_wlan_boundary = dict(wlan_context)
+    del without_wlan_boundary["role_boundary"]
+    with pytest.raises(AuthenticationContextError, match="enrolled"):
+        TargetAuth.decode(
+            "device-a",
+            MODULE.urlsafe_b64encode(json.dumps(without_wlan_boundary).encode()).decode(),
+        )
     _admin_bounded_inventory(inventory, platform="fortios", account_role="read-only", role_boundary=None)
     assert MODULE.Proxy()._target("device-a")[1].account_role == "read-only"
 
@@ -1232,6 +1268,21 @@ def test_admin_bounded_role_needs_a_catalogue_boundary_on_a_platform_without_a_r
     without = dict(context); del without["role_boundary"]
     with pytest.raises(AuthenticationContextError, match="enrolled"):
         TargetAuth.decode("device-a", MODULE.urlsafe_b64encode(json.dumps(without).encode()).decode())
+    fortiadc = TargetAuth.decode(
+        "device-a", forged(ssh_platform="fortiadc", enabled_queries=["system_status"]),
+    )
+    assert (fortiadc.account_role, fortiadc.role_boundary) == ("admin-bounded", "catalogue")
+
+
+def test_fortiadc_enrolls_read_only_or_admin_bounded_with_a_catalogue_boundary() -> None:
+    from netops_helper import inventory as helper_inventory
+
+    check = helper_inventory._checked_role_boundary
+    assert check("w", "admin-bounded", "fortiadc", {"role_boundary": "catalogue"}) == "catalogue"
+    assert check("w", "read-only", "fortiadc", {}) is None
+    for item in ({}, {"role_boundary": "read-only"}):
+        with pytest.raises(helper_inventory.RoleError, match="role_boundary"):
+            check("w", "admin-bounded", "fortiadc", item)
 
 
 def test_unicode_json_escaped_secret_is_redacted_in_unlabeled_text() -> None:

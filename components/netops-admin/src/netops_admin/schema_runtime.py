@@ -205,11 +205,11 @@ def verify(plan,raw,expect):
             "rest_matches":matches,"generated_bindings":generated,
             "differences":[] if matches else ["configuration differs from the calibrated transaction prediction"]}
 
-def audit_snapshot(plan,text,policy,required_table=None):
+def audit_snapshot(plan,text,policy,required_table=None,prior=None):
     lib=library(plan);tree=_clean(_parse(text),plan)
     found,states=scoped_fortios.run(lib,tree,"netops-admin",plan["device"],policy)
     required=set((policy or {}).get("required_rules",[]))
-    from netops_admin.audit_gate import TABLE_RULES
+    from netops_admin.audit_gate import BASELINE, TABLE_RULES, UNEVALUATED, tolerated
     for step in plan["schema_plan"]["operations"]:
         required|=TABLE_RULES.get(step["operation"]["path"],set())
     statuses={}
@@ -217,9 +217,11 @@ def audit_snapshot(plan,text,policy,required_table=None):
         _,rule=json.loads(key)
         name=rule.removeprefix("fortios.management.") if rule.startswith("fortios.management.") else None
         statuses[key]={"status":state,"reason":reason,"required":name is None or name in required}
-    if not evaluation_complete(found,statuses):
+    catalog={key for key in statuses if not json.loads(key)[1].startswith("fortios.management.")}
+    checked={key:dict(item,required=item["required"] and not (key in catalog and tolerated(prior,key,item))) for key,item in statuses.items()}
+    if not evaluation_complete(found,checked):
         from netops_admin.audit_gate import Incomplete
-        codes={key:item["reason"] or item["status"] for key,item in statuses.items() if item["required"] and item["status"]!=EVALUATED}
+        codes={key:item["reason"] or item["status"] for key,item in checked.items() if item["required"] and item["status"]!=EVALUATED}
         raise Incomplete(["schema transaction mandatory catalog coverage is incomplete"],codes)
     refs,coverage=schema_checks.references(lib,tree,True)
     for step in plan["schema_plan"]["operations"]:
@@ -231,13 +233,17 @@ def audit_snapshot(plan,text,policy,required_table=None):
     for finding in found:
         signature=hashlib.sha256(json.dumps(dict(finding.evidence),sort_keys=True).encode()).hexdigest()
         result[finding.fingerprint()]=(finding.rule_id,finding.severity,signature)
+    if prior==BASELINE:
+        for key,item in sorted(statuses.items()):
+            if item["required"] and key in catalog and tolerated(prior,key,item):
+                result[UNEVALUATED+key]=(key,item["status"],item["reason"] or item["status"])
     for finding in refs:
         signature=schema_plan._digest(finding)
         result["reference:"+signature]=("schema.reference","high",signature)
     return result,{"catalog":statuses,"references":coverage}
 
 def after_audit(plan,before,text,policy):
-    after,coverage=audit_snapshot(plan,text,policy)
+    after,coverage=audit_snapshot(plan,text,policy,None,before)
     blocking=sorted({value[0] for key,value in after.items() if value[1] in ("high","medium") and (key not in before or tuple(before[key])!=tuple(value))})
     return blocking,coverage
 
@@ -266,7 +272,7 @@ def Access(base,device):
 
 
 def doctor(runtime,device,report):
-    from netops_admin import enrollment, exec_schema_fortios
+    from netops_admin import audit_gate, enrollment, exec_schema_fortios
     reached,context=report.attempt("schema identity and write account",
         lambda:Access(runtime.access_factory(device),device))
     if not reached:
@@ -311,7 +317,8 @@ def doctor(runtime,device,report):
                 if context.observe(plan)!=expected:
                     raise Rejected(["the independent account sees another object state"])
             report.attempt("check account",check)
-            report.attempt("audit policy",lambda:audit_snapshot(plan,text,device.audit_policy))
+            report.attempt("audit policy",lambda:audit_snapshot(plan,text,device.audit_policy,None,audit_gate.BASELINE),
+                           lambda found:audit_gate.summary(found[0]))
         else:
             report.add("check account","missing","no calibrated existing object is available for a read-only probe")
             report.skip("audit policy")

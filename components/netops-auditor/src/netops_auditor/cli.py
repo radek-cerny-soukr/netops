@@ -14,6 +14,7 @@ from netops_core import vault
 
 from . import management
 from . import checks_exos
+from . import checks_fortiadc
 from . import checks_fortios
 from . import collect
 from . import inventory
@@ -35,9 +36,11 @@ from .suppressions import migrate_file as migrate_suppressions
 PLATFORMS = {
     "exos": (checks_exos, l1_exos),
     "fortios": (checks_fortios, l1_fortios),
+    "fortiadc": (checks_fortiadc, l1_fortios),
 }
 
 PARSE_ERRORS = (l1_exos.ParseError, l1_fortios.ParseError)
+RUN_ONLY_PLATFORMS = frozenset({"fortiadc"})
 
 SEVERITY_ORDER = ("high", "medium", "low", "info")
 
@@ -122,6 +125,7 @@ def _parser() -> argparse.ArgumentParser:
     audit.add_argument("--device", required=True)
     audit.add_argument("--config", required=True)
     audit.add_argument("--policy")
+    audit.add_argument("--snapshot-meta", dest="snapshot_meta")
     audit.add_argument("--store")
     audit.add_argument("--suppressions")
     audit.add_argument("--baseline-accept", action="store_true", dest="baseline_accept")
@@ -223,6 +227,21 @@ def _rules_version(platform: str, rules) -> str:
     except OSError as error:
         raise Failure("cannot read catalog: %s" % error)
     return "%s:%d:%s" % (platform, len(rules), digest)
+
+
+def _with_context(args, policy, digest):
+    path = getattr(args, "snapshot_meta", None)
+    if args.platform != "fortiadc":
+        if path:
+            raise Failure("--snapshot-meta applies to platform fortiadc only")
+        return policy
+    context = None
+    if path:
+        try:
+            context = checks_fortiadc.load_context(path, digest)
+        except checks_fortiadc.ContextError as error:
+            raise Failure("snapshot metadata %s: %s" % (path, error)) from None
+    return checks_fortiadc.attach(policy, context)
 
 
 def _audit(platform: str, text: str, tenant: str, device: str, rules, policy=None) -> tuple:
@@ -602,7 +621,7 @@ def _command_run(args) -> int:
     policy, coverage = _policy(args, args.platform, text, args.config)
     if policy:
         rules_version += ":" + management.policy_digest(policy)
-    findings, states = _audit(args.platform, text, args.tenant, args.device, rules, policy)
+    findings, states = _audit(args.platform, text, args.tenant, args.device, rules, _with_context(args, policy, digest))
     rule_status = _rule_status(args.platform, rules, states, policy)
     previous, baseline, accepted = (), frozenset(), None
     if args.store:
@@ -686,6 +705,11 @@ def _catalog_platform(record) -> str:
         raise Failure(
             "device %s runs platform %s, the auditor holds no rule catalog for it"
             % (record.name, record.platform)
+        )
+    if record.platform in RUN_ONLY_PLATFORMS:
+        raise Failure(
+            "device %s runs platform %s, collect does not read it; audit an exported"
+            " snapshot with run --platform %s" % (record.name, record.platform, record.platform)
         )
     return record.platform
 
@@ -979,8 +1003,9 @@ def _policy(args, platform, text, source, incomplete=False):
             raise Failure("cannot parse configuration %s: %s" % (source, exc)) from None
         tree = None
     try:
-        coverage = (management.coverage(platform, tree, policy) if tree is not None
-                    else dict.fromkeys(management.RULES[platform], "not-evaluated"))
+        known = management.RULES.get(platform, {})
+        coverage = (management.coverage(platform, tree, policy) if tree is not None and known
+                    else dict.fromkeys(known, "not-evaluated"))
     except ValueError as exc:
         raise Failure("policy cannot be evaluated over configuration %s: %s" % (source, exc)) from None
     missing = [name for name in (policy or {}).get("required_rules", []) if coverage[name] != "evaluated"]

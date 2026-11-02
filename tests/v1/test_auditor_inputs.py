@@ -10,6 +10,21 @@ from netops import auditor_inputs
 from netops.files import UIDS
 
 CANARY = "SYNTHETIC_SECRET_MUST_NOT_BE_PRINTED"
+MINIMAL_SNAPSHOT = (b'config system global\n set hostname "fw-example"\nend\n'
+                    b'config system admin\n edit "admin-example"\n set accprofile "super_admin"\n'
+                    b' set trusthost1 192.0.2.0 255.255.255.0\n'
+                    b' set ip6-trusthost1 2001:db8::/32\n next\nend\n'
+                    b'config firewall address\n edit "host-example"\n set subnet 192.0.2.20 255.255.255.255\n next\nend\n')
+COMPLETE_SNAPSHOT = MINIMAL_SNAPSHOT + (b'config system interface\n edit "port1"\n set ip 192.0.2.1 255.255.255.0\n'
+                                        b' set allowaccess ping https ssh\n set role lan\n next\nend\n'
+                                        b'config firewall policy\nend\n')
+MINIMAL_MISSING = {
+    **{"fortios." + rule: "section-missing: firewall policy" for rule in (
+        "appctrl.default-port-not-enforced", "dnsfilter.log-all-domain-disabled", "policy.logging-disabled",
+        "policy.service-all", "policy.utm-without-ssl", "policy.wan-missing-profile", "ref.dangling")},
+    **{"fortios.mgmt." + rule: "section-missing: system interface" for rule in (
+        "plaintext-admin-access", "wan-admin-access")},
+}
 
 
 class AuditorImports(unittest.TestCase):
@@ -64,7 +79,7 @@ class AuditorImports(unittest.TestCase):
 
     def test_file_collect_and_policy_run_use_actual_imported_inputs(self):
         from netops_auditor import cli
-        snapshot_data = b'config firewall address\n edit "host-example"\n set subnet 192.0.2.20 255.255.255.255\n next\nend\n'
+        snapshot_data = COMPLETE_SNAPSHOT
         policy_data = json.dumps({"version": 1, "platform": "fortios",
                                   "address_networks": ["198.51.100.0/24"]}).encode()
         self.assertEqual(self.invoke("import-snapshot", snapshot_data)[0], 0)
@@ -92,7 +107,7 @@ class AuditorImports(unittest.TestCase):
             if command[0] == "collect":
                 self.assertEqual(report["collection"]["channel"], "file")
                 self.assertFalse(any(item["rule_id"].endswith(".snapshot.incomplete") for item in report["findings"]))
-        entry["auditor"]["required_sections"].append("system global")
+        entry["auditor"]["required_sections"].append("router static")
         inventory.write_text(json.dumps({"version": 2, "devices": [entry]}))
         output = io.StringIO()
         with contextlib.redirect_stdout(output):
@@ -101,6 +116,20 @@ class AuditorImports(unittest.TestCase):
         self.assertEqual(code, 3)
         self.assertTrue(any(item["rule_id"] == "fortios.snapshot.incomplete"
                             for item in json.loads(output.getvalue())["findings"]))
+
+    def test_a_snapshot_without_policy_and_interface_sections_is_not_complete(self):
+        from netops_auditor import cli
+        snapshot = self.root / "minimal.conf"
+        snapshot.write_bytes(MINIMAL_SNAPSHOT)
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output):
+            code = cli.main(["run", "--platform", "fortios", "--config", str(snapshot),
+                             "--tenant", "example-tenant", "--device", "example-device", "--json"])
+        report = json.loads(output.getvalue())
+        self.assertEqual(code, 3)
+        self.assertFalse(report["evaluation_complete"])
+        self.assertEqual({rule: item["reason"] for rule, item in report["rule_status"].items()
+                          if item["required"] and item["status"] != "evaluated"}, MINIMAL_MISSING)
 
     def test_unsafe_names_and_unknown_arguments_do_not_escape_or_echo(self):
         for name in ("", ".", "..", "../config", "/absolute", "a/b", "a\\b", "a.b",

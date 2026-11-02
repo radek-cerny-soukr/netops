@@ -28,7 +28,7 @@ line: a reader can split the file on newlines without parsing it.
 | `status` | when present, one of `STATUSES = ("started", "ok", "failed")` |
 | `operation_id` | when present, matches `op_[0-9a-f]{32}` |
 
-`FIELDS` is `channel`, `count`, `detail`, `device`, `finished_at`, `item_count`, `legacy_ssh`, `max_bytes`, `offset`, `operation_id`, `pagination_source`, `path_sha256`, `plaintext_acknowledged`, `platform`, `port`, `query`, `rc`, `recipe`, `request`, `response_bytes`, `response_sha256`, `result_sha256`, `returned_bytes`, `started_at`, `status`, `timeout`, `total_bytes`, `transport`, `use_tls`.
+`FIELDS` is `channel`, `count`, `detail`, `device`, `finished_at`, `item_count`, `legacy_ssh`, `max_bytes`, `offset`, `operation_id`, `pagination_source`, `path_sha256`, `plaintext_acknowledged`, `platform`, `port`, `query`, `rc`, `recipe`, `request`, `response_bytes`, `response_sha256`, `result_sha256`, `returned_bytes`, `started_at`, `status`, `timeout`, `total_bytes`, `transport`, `use_tls`, `virtual_server`.
 
 `recipe` and `timeout` are optional diagnostic metadata accepted by the recorder. The
 recorder checks the closed set of field names, plus the `status` and `operation_id`

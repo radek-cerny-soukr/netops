@@ -1,4 +1,4 @@
-"""One connection queue per device: FortiOS pacing and the cached host key line.
+"""One connection queue per device: Fortinet/FortiADC pacing and the cached host key line.
 
 Twenty-six SSH-family connections in a row (one `ssh-keyscan` plus one `ssh`
 per query) made a real FortiGate refuse further connections. `engine.py`
@@ -27,6 +27,7 @@ import pytest
 
 from conftest import (
     EXEC_CLIENT,
+    FORTIADC_STATUS,
     FORTIOS_STATUS,
     HOST_KEY_PIN,
     KNOWN_HOSTS_LINE,
@@ -98,7 +99,7 @@ def _fortios_wire(wire) -> None:
     )
 
 
-def test_two_fortinet_reads_are_spaced_five_seconds_apart(wire, monkeypatch) -> None:
+def test_fortinet_and_fortiadc_reads_are_spaced_five_seconds_apart(wire, monkeypatch) -> None:
     clock = _install_clock(monkeypatch)
     _warm_host_key_cache(clock)
     query_name = "system_status"
@@ -115,6 +116,24 @@ def test_two_fortinet_reads_are_spaced_five_seconds_apart(wire, monkeypatch) -> 
     assert len(clock.sleeps) == 1
     assert clock.sleeps[0] == pytest.approx(5.0 - 1.5)
     assert _keyscans(wire) == []
+
+    adc_host = "127.0.0.7"
+    _warm_host_key_cache(clock, host=adc_host)
+    _write_client(
+        wire["binaries"], "ssh",
+        EXEC_CLIENT.format(log=str(wire["log"]), output=FORTIADC_STATUS, code=0),
+    )
+    adc_target = _target("fortiadc", query_name, host=adc_host)
+    sleeps_before_adc = len(clock.sleeps)
+    first_adc = engine.ssh_read(adc_target, "fortiadc", query_name, {}, 0, 16_000)
+    assert first_adc["ok"] is True
+    assert len(clock.sleeps) == sleeps_before_adc
+
+    clock.now += 1.5
+    second_adc = engine.ssh_read(adc_target, "fortiadc", query_name, {}, 0, 16_000)
+    assert second_adc["ok"] is True
+    assert len(clock.sleeps) == sleeps_before_adc + 1
+    assert clock.sleeps[-1] == pytest.approx(5.0 - 1.5)
 
 
 def test_a_fortinet_query_other_than_system_status_takes_a_second_connection_after_five_seconds(

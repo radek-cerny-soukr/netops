@@ -143,6 +143,48 @@ def test_the_pty_session_logs_in_as_the_enrolled_account_with_a_bound(monkeypatc
     assert 0 < session["timeout_seconds"] <= 60
 
 
+def test_an_adc_prompt_read_sends_only_the_command_and_returns_its_answer(monkeypatch) -> None:
+    sessions = []
+
+    class Prompted(_Session):
+        def __init__(self, *args, **options) -> None:
+            super().__init__(*args, **options)
+            self.answers = iter([b"banner\r\nSYNTH-ADC # ",
+                                 b"get router info routing-table all\r\r\nS>* 0.0.0.0/0 marker\r\r\n\r\nSYNTH-ADC # "])
+            self.closed = False
+            sessions.append(self)
+
+        def close(self) -> None:
+            self.closed = True
+
+    _Session.created, _Session.failure = [], None
+    monkeypatch.setattr(engine.core_session, "Session", Prompted)
+    assert engine._prompt_read(_auth("fortiadc"), "fortiadc", "get router info routing-table all") == (
+        None, "S>* 0.0.0.0/0 marker",
+    )
+    assert sessions[0].sent == ["get router info routing-table all"] and sessions[0].closed
+    assert 0 < _Session.created[0]["timeout_seconds"] <= 60
+    for platform in ("linux", "ruckus_unleashed"):
+        with pytest.raises(ValueError, match="prompt reads"):
+            engine.read_from_device(_auth(platform), platform, "show sysinfo", prompt=True)
+    with pytest.raises(ValueError, match="prompt reads"):
+        engine.read_from_device(_auth("fortinet"), "fortinet", "diagnose test application dnsproxy 7",
+                                prompt=True, stdout_consumer=lambda chunk: None)
+
+
+@pytest.mark.parametrize("prompt", [b"(P) SYNTH-ADC # ", b"(S) SYNTH-ADC # ", b"(I) SYNTH-ADC # "])
+def test_an_adc_prompt_read_accepts_the_ha_role_of_the_node(monkeypatch, prompt) -> None:
+    class Prompted(_Session):
+        def __init__(self, *args, **options) -> None:
+            super().__init__(*args, **options)
+            self.answers = iter([b"banner\r\n" + prompt,
+                                 b"get system ha-status\r\r\nmarker\r\r\n\r\n" + prompt])
+
+    _Session.created, _Session.failure = [], None
+    monkeypatch.setattr(engine.core_session, "Session", Prompted)
+    assert engine._prompt_read(_auth("fortiadc"), "fortiadc", "get system ha-status") == (None, "marker")
+
+
 def test_a_failed_pty_session_forgets_the_host_key_of_that_device(monkeypatch) -> None:
     _Session.created, _Session.failure = [], engine.core_session.SessionError("refused")
     monkeypatch.setattr(engine.core_session, "Session", _Session)

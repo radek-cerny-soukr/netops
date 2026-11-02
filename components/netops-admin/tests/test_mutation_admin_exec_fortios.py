@@ -38,16 +38,44 @@ def test_the_account_fingerprint_follows_the_access_profile_in_the_snapshot():
 def test_an_access_profile_missing_from_the_snapshot_refuses_the_account_check():
     with pytest.raises(Rejected) as caught:
         exec_fortios.accounts_check(Access(), device("operator"), GLOBAL)
-    assert caught.value.reasons == ["an administrator access profile is not visible in the snapshot"]
+    assert caught.value.reasons == ["an administrator access profile is not visible in the snapshot: ops-profile"]
 
 
-def test_other_visible_administrators_are_refused_with_their_count():
+def test_a_super_admin_write_account_passes_without_the_builtin_profile_in_the_snapshot():
+    table = ADMINS.replace("end\n", ' edit "netops-sa"\n set accprofile "super_admin"\n next\nend\n')
+    access = Access(table, login="netops-sa")
+    fingerprint = exec_fortios.accounts_check(access, device("netops-sa", "operator"), GLOBAL + PROFILE)
+    assert fingerprint == fortios.admin_fingerprint(table, GLOBAL + PROFILE, immutable_profiles=("super_admin",))
+
+
+def test_a_custom_profile_missing_beside_super_admin_is_still_refused_by_name():
+    table = ADMINS.replace("end\n", ' edit "netops-sa"\n set accprofile "super_admin"\n next\nend\n')
+    with pytest.raises(Rejected) as caught:
+        exec_fortios.accounts_check(Access(table, login="netops-sa"), device("netops-sa", "operator"), GLOBAL)
+    assert caught.value.reasons == ["an administrator access profile is not visible in the snapshot: ops-profile"]
+
+
+def test_other_visible_administrators_are_refused_by_name():
     table = ADMINS.replace("end\n", ' edit "intruder"\n next\nend\n')
     access = Access(table)
     with pytest.raises(Rejected) as caught:
         exec_fortios.accounts_check(access, device("operator"), GLOBAL + PROFILE)
-    assert caught.value.reasons == ["the write account sees other administrators than the configured ones (2 accounts)"]
+    assert caught.value.reasons == ["the write account sees other administrators than the configured ones: not configured: intruder"]
     assert access.queries == [fortios.QUERY_ADMINS]
+
+
+def test_configured_administrators_that_are_not_visible_are_named_too():
+    table = ADMINS.replace("end\n", ' edit "intruder"\n next\n edit "b-extra"\n next\nend\n')
+    with pytest.raises(Rejected) as caught:
+        exec_fortios.accounts_check(Access(table), device("operator", "ghost"), GLOBAL + PROFILE)
+    assert caught.value.reasons == ["the write account sees other administrators than the configured ones: "
+                                    "not configured: b-extra, intruder; not visible: ghost"]
+
+
+def test_only_missing_configured_administrators_omit_the_not_configured_part():
+    with pytest.raises(Rejected) as caught:
+        exec_fortios.accounts_check(Access(), device("operator", "ghost"), GLOBAL + PROFILE)
+    assert caught.value.reasons == ["the write account sees other administrators than the configured ones: not visible: ghost"]
 
 
 @pytest.mark.parametrize("body", ["config firewall address\nend\n", "config system global\n set timezone 28\nend\n"])

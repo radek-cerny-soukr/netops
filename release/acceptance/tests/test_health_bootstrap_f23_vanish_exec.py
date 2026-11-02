@@ -42,7 +42,7 @@ def raises(test, kind):
 
 class ExecTransitionDuringRetry(unittest.TestCase):
     def retry(self, *, commands=(("runc", "init"), HEALTH), stats=((KEY, 95), (KEY, 95)),
-              cgroups=(CGROUP, CGROUP), exe=((88, 1002), (88, 5555))):
+              cgroups=(CGROUP, CGROUP), exe=((88, 1002), (88, 5555)), partial=None):
         handle = {"key": KEY, "directory": 11, "pidfd": 12, "evidence": {}}
         identities = [SimpleNamespace(st_dev=dev, st_ino=ino) for dev, ino in exe]
         with mock.patch.object(col, "clock", return_value=101.09), \
@@ -54,7 +54,7 @@ class ExecTransitionDuringRetry(unittest.TestCase):
                 mock.patch.object(col, "identity_maps"), \
                 mock.patch.object(col, "shim", return_value=copy.deepcopy(SHIM)), \
                 mock.patch.object(col, "runtime_parent", side_effect=FileNotFoundError(errno.ENOENT, "parent")):
-            return col.runtime_parent_after_enoent(handle, KEY, 90, CID, base.runtime_fixture(), CGROUP, [88, 1002])
+            return col.runtime_parent_after_enoent(handle, KEY, 90, CID, base.runtime_fixture(), CGROUP, [88, 1002], partial=partial)
 
     def original_error(self, **kwargs):
         with raises(self, col.EvidenceError) as caught:
@@ -94,6 +94,40 @@ class ExecTransitionDuringRetry(unittest.TestCase):
 
     def test_changed_cgroup_keeps_original_error(self):
         self.original_error(cgroups=(CGROUP, "/foreign"), exe=SAME_EXE)
+
+    def test_runc_failure_records_exact_failed_invariants(self):
+        partial = {}
+        self.original_error(commands=(("runc", "init"), ("runc", "init")),
+                            stats=((KEY, 95), ((KEY[0], KEY[1] + 1), 96)),
+                            exe=SAME_EXE, partial=partial)
+        evidence = partial["runtime_parent_retry_failure"]
+        self.assertEqual(evidence["stage"], "runc")
+        self.assertEqual({name for name, passed in evidence["checks"].items() if not passed},
+                         {"key_after", "parent"})
+        self.assertEqual(col.failure(col.EvidenceError("runtime-parent-retry-child-changed"),
+                                     partial_observation=partial)["partial_observation"], partial)
+
+    def test_health_failure_records_exact_failed_invariants(self):
+        partial = {}
+        self.original_error(commands=(HEALTH, HEALTH), exe=SAME_EXE, partial=partial)
+        self.assertEqual(partial["runtime_parent_retry_failure"],
+                         {"stage": "health", "checks": {"executable": True, "parent": False}})
+
+    def test_empty_command_failure_records_exact_failed_invariants(self):
+        partial = {}
+        self.original_error(commands=(("runc", "init"), col.EvidenceError("empty-process-command")),
+                            partial=partial)
+        evidence = partial["runtime_parent_retry_failure"]
+        self.assertEqual(evidence["stage"], "empty-command")
+        self.assertEqual({name for name, passed in evidence["checks"].items() if not passed},
+                         {"executable_after"})
+
+    def test_unknown_command_is_not_copied_to_diagnostics(self):
+        partial = {}
+        self.original_error(commands=(("runc", "init"), ("secret-value-sentinel",)), exe=SAME_EXE,
+                            partial=partial)
+        self.assertNotIn("secret-value-sentinel", str(partial))
+        self.assertFalse(partial["runtime_parent_retry_failure"]["checks"]["argv_after"])
 
     def test_unchanged_runc_init_still_retries_until_exhausted(self):
         handle_retry = dict(commands=[("runc", "init")] * 6, stats=[(KEY, 95)] * 6,

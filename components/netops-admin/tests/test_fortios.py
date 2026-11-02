@@ -155,7 +155,7 @@ def test_delete_inverse_verifies_despite_a_new_uuid(fortios_snapshot):
     ({"changes": {"subnet": "192.0.2.30/32", "comment": ""}}, "use null"),
     ({"key": "bad name"}, "does not match"),
     ({"key": "x" * 80}, "does not match"),
-    ({"table": "firewall policy"}, "no profile"),
+    ({"table": "firewall vip"}, "no profile"),
 ])
 def test_rejections(fortios_snapshot, fields, fragment):
     rejected(fortios_snapshot, fragment, **fields)

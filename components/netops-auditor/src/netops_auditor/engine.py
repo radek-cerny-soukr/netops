@@ -16,6 +16,7 @@ EVALUATED = "evaluated"
 NOT_EVALUATED = "not-evaluated"
 UNSUPPORTED = "unsupported"
 RULE_STATES = (EVALUATED, NOT_EVALUATED, UNSUPPORTED)
+SECTION_MISSING = "section-missing"
 
 
 class CatalogError(Exception):
@@ -39,6 +40,12 @@ class Rule:
     refs: tuple
     known_false_positives: str
     scope_gate: bool = False
+    sections: tuple = ()
+    default_sections: tuple = ()
+
+
+def section_missing(name: str) -> str:
+    return "%s: %s" % (SECTION_MISSING, name)
 
 
 def check(name, contextual=False, status=None):
@@ -64,6 +71,14 @@ def load_catalog(platform: str) -> tuple:
     document = json.loads(path.read_text(encoding="utf-8"))
     rules, seen = [], set()
     for item in document["rules"]:
+        sections = item.get("sections")
+        if not isinstance(sections, list) or not all(isinstance(name, str) and name for name in sections):
+            raise CatalogError("%s: sections are not declared" % item["id"])
+        defaults = item.get("default_sections", [])
+        if not isinstance(defaults, list) or not all(isinstance(name, str) and name for name in defaults):
+            raise CatalogError("%s: default sections are not a list of names" % item["id"])
+        if set(sections) & set(defaults):
+            raise CatalogError("%s: a section is both required and default" % item["id"])
         rule = Rule(
             id=item["id"],
             version=item["version"],
@@ -76,6 +91,8 @@ def load_catalog(platform: str) -> tuple:
             refs=tuple(item.get("refs", ())),
             known_false_positives=item.get("known_false_positives", ""),
             scope_gate=bool(item.get("scope_gate", False)),
+            sections=tuple(sections),
+            default_sections=tuple(defaults),
         )
         if rule.id in seen:
             raise CatalogError("duplicate rule id %s" % rule.id)
@@ -132,20 +149,22 @@ def _ordered(findings) -> tuple:
     return tuple(sorted(findings, key=lambda f: (f.rule_id, f.object_key)))
 
 
-def run(tree, tenant: str, device: str, rules, policy=None) -> tuple:
-    gated = _collect(tree, tenant, device, [rule for rule in rules if rule.scope_gate], policy)
-    if gated:
-        return _ordered(gated)
-    return _ordered(_collect(tree, tenant, device, [rule for rule in rules if not rule.scope_gate], policy))
+def _present(tree, name) -> bool:
+    modules = getattr(tree, "modules", None)
+    if modules is not None:
+        return name in modules
+    return tree.section(name) is not None
 
 
 def _status(rule, tree, policy) -> tuple:
     probe = _STATUS.get(rule.check)
-    if probe is None:
-        return EVALUATED, ""
-    state, reason = probe(tree, policy)
+    state, reason = (EVALUATED, "") if probe is None else probe(tree, policy)
     if state not in RULE_STATES:
         raise CheckError("%s: unknown rule state %s" % (rule.id, state))
+    if state == EVALUATED:
+        for name in rule.sections:
+            if not _present(tree, name):
+                return NOT_EVALUATED, section_missing(name)
     return state, reason
 
 
@@ -165,3 +184,7 @@ def evaluate(tree, tenant: str, device: str, rules, policy=None) -> tuple:
         if states[rule.id][0] == EVALUATED:
             findings.extend(_collect(tree, tenant, device, [rule], policy))
     return _ordered(findings), states
+
+
+def run(tree, tenant: str, device: str, rules, policy=None) -> tuple:
+    return evaluate(tree, tenant, device, rules, policy)[0]

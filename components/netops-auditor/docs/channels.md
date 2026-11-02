@@ -347,9 +347,14 @@ When the device prints no prompt the cleaner does nothing and both hashes are eq
   quietly incomplete view, and the counts of `config` and `end` still match, so nothing looks wrong.
   Measured on FortiOS: an account with a read-only
   profile (every group `read`, `cli-show enable`) collects the full `show` with the same 2,165
-  top-level sections as a `super_admin` account, but `system admin`, `system api-user` and
-  `system accprofile` list **only the account's own entries** and `system automation-action` is
-  shorter, 20,493 lines against 20,574. Nothing in the answer says so. **The auditor account on
+  top-level sections as a `super_admin` account, but `system admin` and `system api-user` list
+  **only the account's own entries**, `system accprofile` leaves out `super_admin` and
+  `system automation-action` is shorter, 20,493 lines against 20,574. Read-only accounts on
+  FortiOS 7.6.8 and 8.0.2 showed the same: their own administrator entry only, and the custom
+  access profiles without `super_admin`. Nothing in the answer says so; the auditor therefore
+  leaves `fortios.mgmt.default-admin-account` and `fortios.mgmt.admin-no-trusthost` `not-evaluated`
+  (`admin-visibility-unproven`) unless
+  the snapshot lists a `super_admin` administrator, and the run ends with exit code 3. **The auditor account on
   FortiOS is therefore a `super_admin` administrator** (decision of 17 September 2026): it is the
   only profile whose `show` carries every administrator, API user and access profile, and rules
   over `system admin` need exactly those. The auditor then holds an account that could write; the

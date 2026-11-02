@@ -40,9 +40,24 @@ SCOPED_TEXT = """config global
  config system global
   set strong-crypto enable
  end
+ config system interface
+ end
+ config system admin
+  edit netadmin
+   set accprofile "super_admin"
+   set trusthost1 192.0.2.0 255.255.255.0
+   set ip6-trusthost1 2001:db8::/32
+  next
+ end
+ config system auto-install
+ end
 end
 config vdom
  edit root
+  config system snmp community
+  end
+  config user ldap
+  end
   config firewall policy
    edit 1
     set srcaddr "lan%snet"
@@ -129,7 +144,7 @@ def _waiver(rule_id=RULE, device=DEVICE, object_key=OBJECT, tenant=TENANT):
 def _library():
     nodes = {path: {"kind": "table", "scope": "vdom", "available": True, "attrs": {}}
              for path in set(scoped_fortios.PRIMARY_PATHS.values())}
-    for path in ("system interface", "system global", "system admin", "system auto-install"):
+    for path in ("system interface", "system global", "system admin", "system auto-install", "system password-policy", "log fortianalyzer setting"):
         nodes[path]["scope"] = "global"
     nodes["system interface"]["scope"] = "global+vdom"
     nodes["system interface"]["attrs"] = {"vdom": {"type": "string", "default": "root"}}
@@ -324,7 +339,7 @@ def _object_cases(directory):
     exos = (EMPTY_VLAN / "positive.conf").read_text(encoding="utf-8").replace("guest", "gu%sest" % SEPARATOR)
     exos = _written(directory / "exos.conf", exos)
     return {
-        "fortios": ((fortios,), {}, "rule fortios.mgmt.wan-admin-access, line 10"),
+        "fortios": ((fortios,), {}, "rule fortios.mgmt.wan-admin-access, line 27"),
         "exos": ((exos, "--policy", EMPTY_VLAN / "positive.policy.json"), {"platform": "exos"},
                  "rule exos.management.vlan-empty, line 0"),
     }

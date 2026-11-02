@@ -59,7 +59,7 @@ class RoleConfigAdmission(unittest.TestCase):
         self.put(path, None)
         path.symlink_to(path.parent / "missing-role-config-target")
 
-    def upgrade(self, admin_enabled=False, product_version="1.0.3"):
+    def upgrade(self, admin_enabled=False, product_version="1.0.4"):
         self.store(dict(self.settings, admin_enabled=admin_enabled, product_version=product_version))
         self.children.reset_mock()
         self.gateway_start.reset_mock()
@@ -92,11 +92,14 @@ class RoleConfigAdmission(unittest.TestCase):
             except (ValueError, OSError, TypeError, KeyError, AttributeError, ImportError) as exc:
                 self.fail(description + " was refused: " + type(exc).__name__ + ": " + str(exc))
         after = self.snapshot()
+        pending = after.pop("gateway/upgrade-pending.json")
+        before.pop("gateway/upgrade-pending.json", None)
+        self.assertEqual(json.loads(pending[0]), {"from": "1.0.4", "to": "1.0.5"})
         self.assertEqual(set(after), set(before))
         for name in before:
             if name != "gateway/config.json":
                 self.assertEqual(after[name], before[name], name)
-        self.assertEqual(json.loads(self.path.read_bytes())["product_version"], "1.0.4")
+        self.assertEqual(json.loads(self.path.read_bytes())["product_version"], "1.0.5")
         self.gateway_start.assert_called_once()
 
     def test_upgrade_refuses_corrupt_auditor_config_before_commit(self):
@@ -185,7 +188,7 @@ class RoleConfigAdmission(unittest.TestCase):
 
     def test_current_start_keeps_role_config_refusal_in_the_worker(self):
         with self.roles_owned_by_caller():
-            self.upgrade(product_version="1.0.4")
+            self.upgrade(product_version="1.0.5")
             self.put(self.auditor, b'{"tenant":')
             try:
                 self.start()
@@ -198,6 +201,7 @@ class RoleConfigAdmission(unittest.TestCase):
         module = SimpleNamespace(configure=lambda **options: None)
         with patch.object(worker.os, "geteuid", return_value=UIDS["auditor"]), \
              patch.object(worker.os, "getegid", return_value=UIDS["auditor"]), \
+             patch.object(worker.os, "getgroups", return_value=[]), \
              patch.object(worker, "role_environment", return_value=self.auditor.parent), \
              patch.object(worker, "importlib", SimpleNamespace(import_module=lambda name: module)), \
              patch.object(worker.asyncio, "start_unix_server", side_effect=WorkerStarted), \

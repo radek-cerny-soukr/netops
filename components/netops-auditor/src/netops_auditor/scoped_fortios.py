@@ -10,6 +10,17 @@ MAX_VDOMS = 64
 MAX_FINDINGS = 10000
 MAX_VIEW_ITEMS = 250000
 PRIMARY_PATHS = {
+ "password_policy":"system password-policy",
+ "single_cpu_high":"system global",
+ "gui_display_hostname":"system global",
+ "admin_no_trusthost":"system admin",
+ "event_disabled":"log eventfilter",
+ "faz_unencrypted":"log fortianalyzer setting",
+ "ssl_legacy_tls":"vpn ssl settings",
+ "av_detection_disabled":"antivirus settings",
+ "policy_wan_missing_profile":"firewall policy",
+ "dnsfilter_log_all_domain":"dnsfilter profile",
+ "appctrl_default_port":"application list",
  "dangling_reference":"firewall policy",
  "admin_access_on_untrusted_interface":"system interface",
  "utm_without_ssl_profile":"firewall policy",
@@ -27,6 +38,7 @@ PRIMARY_PATHS = {
  "policy_service_all":"firewall policy",
  "policy_logging_disabled":"firewall policy",
  "ldap_without_tls":"user ldap",
+ "netops_safeguard_leftover":"system automation-stitch",
  "management_fortios_address_unused":"firewall address",
  "management_fortios_address_policy":"firewall address",
  "management_fortios_group_empty":"firewall addrgrp",

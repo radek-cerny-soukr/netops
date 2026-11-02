@@ -1,6 +1,6 @@
 # Security policy
 
-This policy applies to NetOps 1.0.4, the current release. Its changes are listed in the [1.0.4 release notes](release/notes-1.0.4.md). NetOps 1.0.2 fixed one security issue in the Core SFTP banner handling, described in the [1.0.2 release notes](release/notes-1.0.2.md#security-fix); the fixes for [issue #6](https://github.com/radek-cerny-soukr/netops/issues/6) are listed in the [1.0.1 release notes](release/notes-1.0.1.md).
+This policy applies to NetOps 1.0.5, the current release. Its changes are listed in the [1.0.5 release notes](release/notes-1.0.5.md); the changes of 1.0.4 are in the [1.0.4 release notes](release/notes-1.0.4.md). NetOps 1.0.2 fixed one security issue in the Core SFTP banner handling, described in the [1.0.2 release notes](release/notes-1.0.2.md#security-fix); the fixes for [issue #6](https://github.com/radek-cerny-soukr/netops/issues/6) are listed in the [1.0.1 release notes](release/notes-1.0.1.md).
 
 ## Scope and reporting
 

@@ -1512,7 +1512,8 @@ class ExecTransitionPoints(unittest.TestCase):
                     exe_after=None, partial=None):
         handle = {"key": KNOWN, "directory": 11, "pidfd": 12, "evidence": {"procdir_identity": [9, 200]}}
         own, path, said = list(stats), list(cgroups), [tuple(argv)] + list(commands)
-        permissions = {"uids": [uid] * 4, "gids": [uid] * 4, "groups": [], "nnp": 1,
+        permissions = {"uids": [uid] * 4, "gids": [uid] * 4,
+                       "groups": [51004] if list(argv)[-2:] in (["worker", "helper"], ["worker", "admin"]) else [], "nnp": 1,
                        "caps": dict.fromkeys(("inh", "prm", "eff", "bnd", "amb"), 0)}
         info = SimpleNamespace(st_dev=88, st_ino=1002, st_mode=0o100755, st_uid=0, st_size=32,
                                st_mtime_ns=1000000000, st_ctime_ns=1000000000)
@@ -3261,7 +3262,7 @@ class ReapedBeforeRestat(unittest.TestCase):
                 return dict(proof, sha256="e" * 64) if kernel.fds[fd][1] == RUNC_PARENT[0] else proof
             kernel.hash_executable = other
 
-        def h1_error(kernel):
+        def first_hash_error(kernel):
             original = kernel.hash_executable
 
             def broken(fd, before, opened_at):
@@ -3285,7 +3286,7 @@ class ReapedBeforeRestat(unittest.TestCase):
                 kernel.scope = scope
             return change
 
-        def back_in_cgroup_after_h1(kernel):
+        def back_in_cgroup_after_first_hash(kernel):
             original, members, seen = kernel.hash_executable, kernel.members, []
 
             def hashed(fd, before, opened_at):
@@ -3312,12 +3313,12 @@ class ReapedBeforeRestat(unittest.TestCase):
             "parent-ns": (field("ns", OWN), "retire-reaped-parent-facts"),
             "parent-same-start": (same_start, "retire-reaped-parent-not-older"),
             "parent-content": (content_mismatch, "retire-reaped-parent-content"),
-            "parent-h1-enoent": (h1_error, "retire-reaped-parent-content"),
+            "parent-first-hash-enoent": (first_hash_error, "retire-reaped-parent-content"),
             "parent-fact-enoent": (failing("permissions_at", lambda k, fd: k.fds[fd][1] == RUNC_PARENT[0]), "retire-reaped-parent-facts"),
             "shim-cgroup-enoent": (failing("cgroup_path", lambda k, pid: pid == 90), "retire-reaped-parent-facts"),
             "parent-dead-after-proof": (parent_dead_after_proof, "retire-no-parent-link"),
             "child-still-member": (still_member, "retire-still-member"),
-            "child-in-cgroup-after-h1": (back_in_cgroup_after_h1, "retire-reaped-still-member"),
+            "child-in-cgroup-after-first-hash": (back_in_cgroup_after_first_hash, "retire-reaped-still-member"),
             "child-visible-in-namespace": (visible, "retire-reaped-visible-in-namespace"),
             "parent-pin-ambiguous": (stale_pins((8000, 8100)), "retire-reaped-identity"),
             "parent-pin-without-facts": (stale_pins((8000,)), "retire-reaped-parent-facts"),
@@ -3848,11 +3849,11 @@ class EarlyParentLinkControls(unittest.TestCase):
 
 
 class StableRetryHealthControls(unittest.TestCase):
-    def collect_facts(self, trace, *, parent=90, after_parent=None, after_inode=1003, after_key=None, group=None):
+    def collect_facts(self, trace, *, parent=90, after_parent=None, after_inode=1003, after_key=None, group=None, before_inode=1003):
         row = trace["samples"][13]["processes"][-1]
         key = tuple(row["key"])
         handle = {"key": key, "directory": 11, "pidfd": 12, "evidence": row["binding"]}
-        before = SimpleNamespace(st_dev=88, st_ino=1003)
+        before = SimpleNamespace(st_dev=88, st_ino=before_inode)
         after = SimpleNamespace(st_dev=88, st_ino=after_inode)
         with mock.patch.object(col, "clock", return_value=row["read_started_at"]), \
              mock.patch.object(col, "check_binding"), \
@@ -3874,6 +3875,107 @@ class StableRetryHealthControls(unittest.TestCase):
         trace = health_trace()
         item = attempt(trace, facts=self.collect_facts(trace))
         return with_attempts(trace, [item]), item
+
+    def mixed_attempt(self, trace, **changes):
+        item = attempt(trace, facts=self.collect_facts(trace, **changes))
+        proof = item["partial"]["runtime_executable"]["file"]
+        for name in ("stat_before", "stat_after"):
+            proof[name] = [88, 1002] + proof[name][2:]
+        return item
+
+    def test_process_keeps_opened_runtime_proof_then_refreshes_health(self):
+        for before_inode, first_parent in ((1002, 95), (1003, 95)):
+            with self.subTest(before_inode=before_inode):
+                trace = health_trace()
+                row = trace["samples"][13]["processes"][-1]
+                key, group = tuple(row["key"]), trace["cgroup"]
+                handle = {"key": key, "directory": 11, "pidfd": 12, "evidence": row["binding"]}
+                proof = copy.deepcopy(runc_proof()["file"])
+                for name in ("stat_before", "stat_after"):
+                    proof[name] = [88, 1002] + proof[name][2:]
+                values = proof["stat_before"]
+                info = SimpleNamespace(**dict(zip(("st_dev", "st_ino", "st_mode", "st_uid", "st_size",
+                                                    "st_mtime_ns", "st_ctime_ns"), values)))
+                fresh_permissions = {name: row[name] for name in ("uids", "gids", "groups", "nnp", "caps")}
+                partial = {"pid": key[0]}
+                with ExitStack() as stack:
+                    for target, name, kwargs in (
+                            (col, "clock", {"return_value": row["read_started_at"]}),
+                            (col, "check_binding", {}),
+                            (col, "proc_stat", {"side_effect": [(key, first_parent), (key, 90), ((90, 900), 1), (key, 90)]}),
+                            (col, "stat_at", {"side_effect": [(key, first_parent), (key, 90)]}),
+                            (col, "command", {"side_effect": [("runc", "init")] + [tuple(base.HEALTH)] * 4}),
+                            (col, "permissions_at", {"side_effect": [ROOT_PERMISSIONS, fresh_permissions]}),
+                            (col, "runtime_parent", {"side_effect": FileNotFoundError()}),
+                            (col, "shim", {"return_value": trace["samples"][13]["shim"]}),
+                            (col, "identity_maps", {}),
+                            (col, "cgroup_at", {"return_value": group}),
+                            (col, "cgroup_path", {"return_value": group}),
+                            (col.os, "open", {"return_value": 47}),
+                            (col.os, "fstat", {"return_value": info}),
+                            (col.os, "stat", {"side_effect": [SimpleNamespace(st_dev=88, st_ino=before_inode),
+                                                             SimpleNamespace(st_dev=88, st_ino=1003)]})):
+                        stack.enter_context(mock.patch.object(target, name, **kwargs))
+                    hashed = stack.enter_context(mock.patch.object(col, "hash_executable", return_value=proof))
+                    closed = stack.enter_context(mock.patch.object(col.os, "close"))
+                    with self.assertRaises(col.RuntimeExecTransition) as caught:
+                        col.process(key[0], group, 90, CID, trace["runtime"], handle, partial=partial)
+                    hashed.assert_called_once_with(47, values, row["read_started_at"])
+                    closed.assert_called_once_with(47)
+                    fresh = col.process(key[0], group, 90, CID, trace["runtime"], handle, partial={"pid": key[0]})
+                item = attempt(trace, reason=caught.exception.args[0], facts=caught.exception.args[1])
+                item["partial"] = partial
+                fresh["exec_transitions"] = [item]
+                trace["samples"][13]["processes"][-1] = fresh
+                result = assessed(trace)
+                self.assertTrue(result["passed"], result)
+
+    def test_exec_crossing_before_command_read_is_verified_by_profile(self):
+        trace = health_trace()
+        item = self.mixed_attempt(trace, before_inode=1002)
+        result = assessed(with_attempts(trace, [item]))
+        self.assertTrue(result['passed'], result)
+
+    def test_parent_reaped_between_health_reads_is_verified_by_profile(self):
+        trace = health_trace()
+        item = self.mixed_attempt(trace, parent=95, after_parent=90)
+        result = assessed(with_attempts(trace, [item]))
+        self.assertTrue(result['passed'], result)
+
+    def test_mixed_retry_window_requires_original_opened_runtime_proof(self):
+        for changes in ({'before_inode': 1002}, {'parent': 95, 'after_parent': 90}):
+            for corruption in ('missing-proof', 'different-runtime', 'foreign-parent', 'different-key', 'foreign-cgroup'):
+                with self.subTest(changes=changes, corruption=corruption):
+                    trace = health_trace()
+                    item = self.mixed_attempt(trace, **changes)
+                    read = item['facts']['retry_read']
+                    if corruption == 'missing-proof':
+                        item['partial'].pop('runtime_executable')
+                    elif corruption == 'different-runtime':
+                        read['initial_exe_identity'] = [88, 9999]
+                    elif corruption == 'foreign-parent':
+                        read['parent_pid_after'] = 91
+                    elif corruption == 'different-key':
+                        read['key_after'] = [200, 10101]
+                    else:
+                        read['cgroup_after'] = '/foreign'
+                    self.assertFalse(assessed(with_attempts(trace, [item]))['passed'])
+
+    def test_retry_transition_label_cannot_override_observed_facts(self):
+        for mode in ("unknown", "parent-already-shim", "runtime-exe-unchanged"):
+            with self.subTest(mode=mode):
+                trace = health_trace()
+                item = self.mixed_attempt(trace, before_inode=1002)
+                read = item["facts"]["retry_read"]
+                if mode == "unknown":
+                    read["transition"] = "x"
+                elif mode == "parent-already-shim":
+                    read["transition"] = "parent-reaped"
+                    read["exe_identity_before"] = read["exe_identity_after"]
+                    read["parent_pid_before"] = read["parent_pid_after"]
+                else:
+                    read["exe_identity_after"] = read["initial_exe_identity"]
+                self.assertFalse(assessed(with_attempts(trace, [item]))["passed"])
 
     def test_actual_collector_stable_health_facts_pass_the_profile(self):
         trace, item = self.prepared()

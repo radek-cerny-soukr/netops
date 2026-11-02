@@ -22,34 +22,46 @@ class AuditCancellation(unittest.IsolatedAsyncioTestCase):
         with tempfile.TemporaryDirectory() as directory:
             audit = Audit(directory, {"mode": "local"})
             payload = {"oids": [1] * 2097077, "password": "synthetic-private-canary"}
+            interval = 0.05
             complete = asyncio.Event()
-            delays = []
+            loop_ran = threading.Event()
+            loop_ran_during_redaction = []
+            samples = []
             async def heartbeat():
                 previous = time.monotonic()
                 while not complete.is_set():
-                    await asyncio.sleep(0.05)
+                    await asyncio.sleep(interval)
                     now = time.monotonic()
-                    delays.append(now - previous)
+                    samples.append((now, now - previous))
                     previous = now
+                    loop_ran.set()
+            def gated_redact(*args, **kwargs):
+                loop_ran_during_redaction.append(loop_ran.wait(timeout=2.0))
+                return redact(*args, **kwargs)
             pulse = asyncio.create_task(heartbeat())
             await asyncio.sleep(0)
             started = time.monotonic()
             try:
-                await audit.record("request", payload, "maximum")
+                with patch.object(audit_module, "redact", gated_redact):
+                    await audit.record("request", payload, "maximum")
+                finished = time.monotonic()
             finally:
                 complete.set()
                 await pulse
-            wall = time.monotonic() - started
-            stall_share = max(delays) / wall
+            wall = finished - started
+            delays = [delay for end, delay in samples if end <= finished]
             print("AUDIT_RECORD_LOOP=" + json.dumps({"wall": wall, "samples": len(delays),
-                "max_interval": max(delays), "stall_share": stall_share}), flush=True)
+                "max_interval": max(delays, default=None)}), flush=True)
             records = self.records(audit)
             self.assertEqual(len(records), 1)
             self.assertEqual(len(records[0]["payload"]["oids"]), len(payload["oids"]))
             self.assertTrue(all(item == 1 for item in records[0]["payload"]["oids"]))
             self.assertEqual(records[0]["payload"]["password"], "[REDACTED]")
-            self.assertLess(stall_share, 0.5)
+            self.assertEqual(loop_ran_during_redaction, [True], "The event loop must keep running while the record is redacted")
+            self.assertGreaterEqual(len(delays), 1)
             self.assertLess(max(delays), 2.0, "A single event loop stall must stay bounded even when the record itself is slow")
+            if wall >= 10 * interval:
+                self.assertLess(max(delays) / wall, 0.5)
 
     async def test_repeated_cancel_waits_for_redaction_and_durable_commit(self):
         for mode in ("local", "syslog"):

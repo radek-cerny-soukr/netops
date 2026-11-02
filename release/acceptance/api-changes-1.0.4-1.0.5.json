@@ -1,0 +1,879 @@
+{
+ "from": "1.0.4",
+ "to": "1.0.5",
+ "changes": [
+  {
+   "tool": "triage_slb",
+   "kind": "added",
+   "reason": "new tool: read-only triage of one enrolled FortiADC virtual server"
+  },
+  {
+   "tool": "triage_health",
+   "kind": "added",
+   "reason": "new tool: read-only FortiOS health triage from fixed facts; findings cite device output"
+  },
+  {
+   "tool": "triage_routing",
+   "kind": "added",
+   "reason": "new tool: read-only FortiOS routing triage for one enrolled IPv4 address"
+  },
+  {
+   "tool": "triage_vpn",
+   "kind": "added",
+   "reason": "new tool: read-only FortiOS IPsec tunnel triage"
+  },
+  {
+   "tool": "snmp_get",
+   "kind": "definition",
+   "breaking": true,
+   "changed_keys": {
+    "/description": {
+     "sha256": "bd014857b42655a9b407bc5baf22a2666d0d1b294b148acadf19ade3d2f75314"
+    }
+   },
+   "reason": "SNMP is limited to v3 authPriv (sha256, aes128); v2c and every other mode is refused before any network access; clients using v2c must enroll SNMPv3 credentials"
+  },
+  {
+   "tool": "config_read",
+   "kind": "definition",
+   "added_keys": {
+    "/inputSchema/properties/include_defaults": {
+     "sha256": "f56777819c8be28f711bc04bdfdb5fb6a82bdaf4109198c616273cb0003e4137"
+    },
+    "/inputSchema/properties/redaction": {
+     "sha256": "0c405409001b069a75c7dbc95bbd4447ffe65a9869cd803614b77308972e2389"
+    }
+   },
+   "changed_keys": {
+    "/description": {
+     "sha256": "25d794d3215de0222bd698f689efc6a020ee5490904978c683494dc295c559a1"
+    }
+   },
+   "reason": "full FortiOS and FortiADC configuration captures with a redaction mode and optional defaults"
+  },
+  {
+   "tool": "config_read",
+   "kind": "definition",
+   "added_keys": {
+    "/inputSchema/properties/contains": {
+     "sha256": "8df079e90ae598d81db07cf8abf57ab17d9efaef8841009037533af591d9bb77"
+    },
+    "/inputSchema/properties/context": {
+     "sha256": "a2061045cf7038719614fa805b09480d4992371931dbe6ea919f35c43df9d4bf"
+    },
+    "/inputSchema/properties/filter_sha256": {
+     "sha256": "8df079e90ae598d81db07cf8abf57ab17d9efaef8841009037533af591d9bb77"
+    },
+    "/inputSchema/properties/content_sha256": {
+     "sha256": "8df079e90ae598d81db07cf8abf57ab17d9efaef8841009037533af591d9bb77"
+    }
+   },
+   "reason": "literal text filter over the redacted configuration capture"
+  },
+  {
+   "tool": "fortios_diagnostics",
+   "kind": "definition",
+   "added_keys": {
+    "/inputSchema/properties/source_address": {
+     "sha256": "8df079e90ae598d81db07cf8abf57ab17d9efaef8841009037533af591d9bb77"
+    },
+    "/inputSchema/properties/source_port": {
+     "sha256": "033303405191c2a584fe206b8db2bcda3a831619dc4bbaa76b1fd2fe212d241b"
+    },
+    "/inputSchema/properties/destination_port": {
+     "sha256": "033303405191c2a584fe206b8db2bcda3a831619dc4bbaa76b1fd2fe212d241b"
+    },
+    "/inputSchema/properties/protocol": {
+     "sha256": "033303405191c2a584fe206b8db2bcda3a831619dc4bbaa76b1fd2fe212d241b"
+    }
+   },
+   "changed_keys": {
+    "/description": {
+     "sha256": "f7be6bafb9c94a8d677ea7d27b14ab1e0417e556324fb01f82a0981a6ec7155b"
+    }
+   },
+   "reason": "bounded TCP/UDP session filters with tuple direction from source_address to address; the description also documents FortiADC timeouts and the FortiADC event, session_list and persistence_list recipes"
+  },
+  {
+   "tool": "fortios_diagnostics",
+   "kind": "definition",
+   "added_keys": {
+    "/inputSchema/properties/since": {
+     "sha256": "8df079e90ae598d81db07cf8abf57ab17d9efaef8841009037533af591d9bb77"
+    },
+    "/inputSchema/properties/until": {
+     "sha256": "8df079e90ae598d81db07cf8abf57ab17d9efaef8841009037533af591d9bb77"
+    }
+   },
+   "reason": "bounded FortiOS log reader: optional since and until time window for the logs recipe, both default to null"
+  },
+  {
+   "tool": "fortios_diagnostics",
+   "kind": "definition",
+   "added_keys": {
+    "/inputSchema/properties/health_check": {
+     "sha256": "8df079e90ae598d81db07cf8abf57ab17d9efaef8841009037533af591d9bb77"
+    }
+   },
+   "reason": "new FortiADC health_check_verify recipe"
+  },
+  {
+   "tool": "target_scope",
+   "kind": "response",
+   "added_keys": {
+    "/configuration_limits": {
+     "sha256": "25e02cd2dce22267b2a68640e26fd954319765d208a77d1b49772d4ab7348a8e"
+    }
+   },
+   "reason": "target policy limits for configuration captures"
+  },
+  {
+   "tool": "target_scope",
+   "kind": "response",
+   "added_keys": {
+    "/snmp_security": {
+     "sha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+     "value": null
+    }
+   },
+   "reason": "SNMPv3 authPriv security of the target (null when SNMP is not enrolled)"
+  },
+  {
+   "tool": "read_query_catalog",
+   "kind": "response",
+   "added_keys": {
+    "/queries/fortinet/dns_cache": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/query_metadata/fortinet/dns_cache": {
+     "sha256": "5e19d416dcf31d466a41cf4f9110b5bcad104187e88c5f02cd768cafd55e7555"
+    },
+    "/queries/fortinet/ha_nonsync_checksum": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/query_metadata/fortinet/ha_nonsync_checksum": {
+     "sha256": "dd0ac72bfef2ecc2e974048f9aeffa184c65be6100bc3f0733b57cf0d51e18b8"
+    },
+    "/queries/fortinet/ha_sync_statistics": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/query_metadata/fortinet/ha_sync_statistics": {
+     "sha256": "f0ed7fa56273ddcfa1f49009eff4fa2ccb781c4c73b7a4e09243b2dd08053781"
+    }
+   },
+   "reason": "new FortiOS DNS cache and HA synchronization reads (3 queries)"
+  },
+  {
+   "tool": "read_query_catalog",
+   "kind": "response",
+   "added_keys": {
+    "/queries/fortiadc/dos_access_limit": {
+     "sha256": "80d485fd88ba6a8bff2345f6d29f80fcbd9a15f4dd2ed86ea32cba4ce6e3cbb1"
+    },
+    "/query_metadata/fortiadc/dos_access_limit": {
+     "sha256": "c5ffcd3a745e492333554d0dd4c5a33408a8d37b44c303b8573d20584fe1f517"
+    },
+    "/queries/fortiadc/dos_conn_limit": {
+     "sha256": "80d485fd88ba6a8bff2345f6d29f80fcbd9a15f4dd2ed86ea32cba4ce6e3cbb1"
+    },
+    "/query_metadata/fortiadc/dos_conn_limit": {
+     "sha256": "1aa3e3003f47777876bc7431124d618222fd29f429229577d36e170487aa9c4b"
+    },
+    "/queries/fortiadc/dos_req_limit": {
+     "sha256": "80d485fd88ba6a8bff2345f6d29f80fcbd9a15f4dd2ed86ea32cba4ce6e3cbb1"
+    },
+    "/query_metadata/fortiadc/dos_req_limit": {
+     "sha256": "5b7f11b100681097381644edfa490dd3696e9db11056f02f635a6b8351468f32"
+    }
+   },
+   "reason": "new FortiADC DoS block counter reads for enrolled targets (3 queries)"
+  },
+  {
+   "tool": "read_query_catalog",
+   "kind": "response",
+   "added_keys": {
+    "/queries/fortinet/policy_routes_ipv4": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/query_metadata/fortinet/policy_routes_ipv4": {
+     "sha256": "d3d6999a94e7a0124426684903dcaeae21c7c69c16097b813d465a7e5954cf5e"
+    }
+   },
+   "reason": "new FortiOS IPv4 policy route query (1 query)"
+  },
+  {
+   "tool": "read_query_catalog",
+   "kind": "response",
+   "added_keys": {
+    "/queries/fortinet/conserve_state": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/query_metadata/fortinet/conserve_state": {
+     "sha256": "a3eada1b0d0f1c1ade044aef1a7b309b7ea1875807c99cb0ec29e99900e5af1d"
+    },
+    "/queries/fortinet/cpu_cores": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/query_metadata/fortinet/cpu_cores": {
+     "sha256": "079a0754f3d16f82b0f08c27fd75644fbd99a3342118314d1a19b0fa32a79d8c"
+    },
+    "/queries/fortinet/fortiguard_communication": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/query_metadata/fortinet/fortiguard_communication": {
+     "sha256": "f17d543f8a72086576bc8bb8013952ef959b6dfcbaafda3927ab8a706d2a70bc"
+    }
+   },
+   "reason": "new read-only FortiOS resource and FortiGuard diagnostics (3 queries)"
+  },
+  {
+   "tool": "read_query_catalog",
+   "kind": "response",
+   "added_keys": {
+    "/queries/fortinet/fqdn_cache": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/query_metadata/fortinet/fqdn_cache": {
+     "sha256": "882f728778c2de567a6d79712a46d4baecd6cba63c0555aa1f110edc9bccb656"
+    },
+    "/queries/fortinet/nat_pool_assignments": {
+     "sha256": "38f6edf94dbdeea495376f208fa98cfa5d325a1a6dd20d39d0cc244725f127ef"
+    },
+    "/query_metadata/fortinet/nat_pool_assignments": {
+     "sha256": "d75c45356e77fa6eb8b07b388ce93ca90a591a69821955a3ec70bba1b9744964"
+    },
+    "/queries/fortinet/sdwan_zone": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/query_metadata/fortinet/sdwan_zone": {
+     "sha256": "d99bc584831294354082c9bd241c52b57205428b2e889f0defab33d380a6dcf8"
+    },
+    "/queries/fortinet/switch_lldp_port": {
+     "sha256": "eb329aaa2b8b188393987ffeecd02d5afa8e3cd3f57fbbea901a3a2592a7740f"
+    },
+    "/query_metadata/fortinet/switch_lldp_port": {
+     "sha256": "4be849caca0c39d28f08528ce4a3d9e55cbc989103e5693a6c6ffe49bf815bf4"
+    },
+    "/queries/fortinet/switch_mac_limit": {
+     "sha256": "eb329aaa2b8b188393987ffeecd02d5afa8e3cd3f57fbbea901a3a2592a7740f"
+    },
+    "/query_metadata/fortinet/switch_mac_limit": {
+     "sha256": "9d1bc871af509afcdfda70c003a4140daab9c04232d1d6eaa2eb37d0881a78b7"
+    }
+   },
+   "reason": "new FortiOS zone, FQDN, NAT and switch-port reads (5 queries)"
+  },
+  {
+   "tool": "read_query_catalog",
+   "kind": "response",
+   "added_keys": {
+    "/queries/fortinet/switch_bpdu_guard": {
+     "sha256": "f72892d2106f0d15281fe126d716ee94efcb1b7480b03e34f1bad81b0dfd47c7"
+    },
+    "/query_metadata/fortinet/switch_bpdu_guard": {
+     "sha256": "921affb08fd67a814552016a90ae490739b047d0ddb691b0f48ff2c36d5866cd"
+    },
+    "/queries/fortinet/switch_dhcp_snooping": {
+     "sha256": "f72892d2106f0d15281fe126d716ee94efcb1b7480b03e34f1bad81b0dfd47c7"
+    },
+    "/query_metadata/fortinet/switch_dhcp_snooping": {
+     "sha256": "f73013cf7e03e4c9276e05a6c5f9bba23954cdd8bbcbc6216df3380cd550fb37"
+    },
+    "/queries/fortinet/switch_flap_guard": {
+     "sha256": "f72892d2106f0d15281fe126d716ee94efcb1b7480b03e34f1bad81b0dfd47c7"
+    },
+    "/query_metadata/fortinet/switch_flap_guard": {
+     "sha256": "b0cf8f581c6764021297f634262b5f66ed13fd13de92d4cef7460f145ec87f02"
+    },
+    "/queries/fortinet/switch_loop_guard": {
+     "sha256": "f72892d2106f0d15281fe126d716ee94efcb1b7480b03e34f1bad81b0dfd47c7"
+    },
+    "/query_metadata/fortinet/switch_loop_guard": {
+     "sha256": "9b8cebc9e2cc1e93ff854a7214c3e4904c7e58c0d6abdd06c6240974e3568b14"
+    },
+    "/queries/fortinet/switch_source_guard": {
+     "sha256": "f72892d2106f0d15281fe126d716ee94efcb1b7480b03e34f1bad81b0dfd47c7"
+    },
+    "/query_metadata/fortinet/switch_source_guard": {
+     "sha256": "379160c87a89b1d5b8a2093ed854f2f9090b0a915e0e06e674fce014bc25ffb7"
+    }
+   },
+   "reason": "new managed FortiSwitch guard diagnostics (5 queries); switch_dhcp_snooping uses the command whose output matches FortiOS 8.0.2"
+  },
+  {
+   "tool": "read_query_catalog",
+   "kind": "response",
+   "added_keys": {
+    "/queries/fortiadc/tls_handshake_stats": {
+     "sha256": "80d485fd88ba6a8bff2345f6d29f80fcbd9a15f4dd2ed86ea32cba4ce6e3cbb1"
+    },
+    "/query_metadata/fortiadc/tls_handshake_stats": {
+     "sha256": "5f1deb6c0037122f9155f19928bf1ca150ffbd906c3f4d7d1ee92f987dbb2cb0"
+    },
+    "/queries/fortiadc/tls_session_reuse": {
+     "sha256": "80d485fd88ba6a8bff2345f6d29f80fcbd9a15f4dd2ed86ea32cba4ce6e3cbb1"
+    },
+    "/query_metadata/fortiadc/tls_session_reuse": {
+     "sha256": "22c762ff70d03499cf0ea7d83f8f762500a819cf2b1423a64589c604cd5ad535"
+    }
+   },
+   "reason": "new FortiADC TLS handshake and session reuse statistics for enrolled targets (2 queries)"
+  },
+  {
+   "tool": "read_query_catalog",
+   "kind": "response",
+   "added_keys": {
+    "/queries/fortinet/ipsec_tunnel_statistics": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/query_metadata/fortinet/ipsec_tunnel_statistics": {
+     "sha256": "a568af23690746b8eecf32dc563f73df4431d4bfcb1da5e3fdadf04266999286"
+    }
+   },
+   "reason": "new aggregate IPsec tunnel statistics (1 query)"
+  },
+  {
+   "tool": "read_query_catalog",
+   "kind": "response",
+   "added_keys": {
+    "/queries/fortinet/fqdn_object_detail": {
+     "sha256": "f61d12870bc37a17e18549a584cb3ca205af840f34f5cb6a854aee17e1d2fc67"
+    },
+    "/query_metadata/fortinet/fqdn_object_detail": {
+     "sha256": "483850a6b27be63ed60066459bd6decf6b7cc5d6100911956d4d59237f1ce461"
+    }
+   },
+   "reason": "new FortiOS FQDN object lookup bound to the inventory (1 query)"
+  },
+  {
+   "tool": "read_query_catalog",
+   "kind": "response",
+   "added_keys": {
+    "/queries/fortinet/ospf_database_brief_ipv4": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/query_metadata/fortinet/ospf_database_brief_ipv4": {
+     "sha256": "8e953f525459285c08d06c1f332ac49c64d2f75e40b19740de624335d2301783"
+    },
+    "/queries/fortinet/route_cache": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/query_metadata/fortinet/route_cache": {
+     "sha256": "8f90155f79e126a0b990cf92028b632027749a3be57ec437ddebb3da2f1b000e"
+    }
+   },
+   "reason": "new route cache and OSPF database brief reads (2 queries)"
+  },
+  {
+   "tool": "read_query_catalog",
+   "kind": "response",
+   "added_keys": {
+    "/queries/fortinet/policy_lookup_ipv4": {
+     "sha256": "f94b1ae7d66a552c5f6f2c9bfe0512d1fc7cd1a878a3960acaddb2f13895a105"
+    },
+    "/query_metadata/fortinet/policy_lookup_ipv4": {
+     "sha256": "1cdc0ce07a219284fb6a28dad5d422f30d63b1f5f7d289fdacd933db1b7adb05"
+    },
+    "/queries/fortinet/policy_lookup_ipv6": {
+     "sha256": "f94b1ae7d66a552c5f6f2c9bfe0512d1fc7cd1a878a3960acaddb2f13895a105"
+    },
+    "/query_metadata/fortinet/policy_lookup_ipv6": {
+     "sha256": "eb65ef246d34569d88ff2741e97efd8d9756c430ea1af10c7debf899387c441e"
+    }
+   },
+   "reason": "new FortiOS policy lookups for enrolled flows (2 queries)"
+  },
+  {
+   "tool": "read_query_catalog",
+   "kind": "response",
+   "added_keys": {
+    "/queries/fortinet/policy_routes_ipv6": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/query_metadata/fortinet/policy_routes_ipv6": {
+     "sha256": "52ed1515b6d6afef86c273b8e57ce94bbecb65e1125e80c5006fbcc3501381d1"
+    }
+   },
+   "reason": "new FortiOS IPv6 policy route query (1 query)"
+  },
+  {
+   "tool": "read_query_catalog",
+   "kind": "response",
+   "added_keys": {
+    "/queries/fortinet/lacp_detail": {
+     "sha256": "37f92fb4454703a557f1ce4164232033b90a64aceb6e11b0e6de2711e1cd406a"
+    },
+    "/query_metadata/fortinet/lacp_detail": {
+     "sha256": "84b6f00bb553647ccae2bb3678556fd3745e9537b9670155370253a109a5abee"
+    }
+   },
+   "reason": "new FortiOS LACP detail read bound to the inventory (1 query)"
+  },
+  {
+   "tool": "read_query_catalog",
+   "kind": "response",
+   "added_keys": {
+    "/queries/fortinet/dhcp_leases": {
+     "sha256": "37f92fb4454703a557f1ce4164232033b90a64aceb6e11b0e6de2711e1cd406a"
+    },
+    "/query_metadata/fortinet/dhcp_leases": {
+     "sha256": "cc15a4ea2e5202535098aed93ec2672560f094317789260003b1250b57ab1e34"
+    }
+   },
+   "reason": "new DHCP lease listing limited to an enrolled interface (1 query)"
+  },
+  {
+   "tool": "read_query_catalog",
+   "kind": "response",
+   "added_keys": {
+    "/queries/fortinet/ospf_database_ipv6": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/query_metadata/fortinet/ospf_database_ipv6": {
+     "sha256": "7ef8dde6567de3aea7f653935b1b8b1dc2ba3457c5f1d7a693956d992dd9d775"
+    }
+   },
+   "reason": "new OSPF IPv6 database read (1 query)"
+  },
+  {
+   "tool": "read_query_catalog",
+   "kind": "response",
+   "added_keys": {
+    "/queries/fortinet/fqdn_resolved_addresses": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/query_metadata/fortinet/fqdn_resolved_addresses": {
+     "sha256": "eebc7fa54f2b020023233977126e4f5755fd8796886954bfd9efba813bc9030d"
+    },
+    "/queries/fortinet/ike_errors": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/query_metadata/fortinet/ike_errors": {
+     "sha256": "25adfe885e77fe5f1361cf678cdd74ce1648f084a07837a8ccad2d3babd2723e"
+    },
+    "/queries/fortinet/ike_object_counts": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/query_metadata/fortinet/ike_object_counts": {
+     "sha256": "ef4ad8dc57fd0bd2941ae99c8d876b0a176203c49d102e9aecf3967dd8864daa"
+    },
+    "/queries/fortinet/ike_statistics": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/query_metadata/fortinet/ike_statistics": {
+     "sha256": "cc85a173b9569ce1d6b60bf1d2f969fe33159e92fcd4909d645c89df3b434fe7"
+    },
+    "/queries/fortinet/nat_pool_usage": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/query_metadata/fortinet/nat_pool_usage": {
+     "sha256": "9a84722f5b34e73eb948fed7d4e8b4a43ef76135157326d16c379682cd7cec07"
+    }
+   },
+   "reason": "new FortiOS NAT, FQDN and aggregate IKE diagnostics (5 queries)"
+  },
+  {
+   "tool": "read_query_catalog",
+   "kind": "response",
+   "added_keys": {
+    "/queries/fortiadc/bgp_neighbors": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/query_metadata/fortiadc/bgp_neighbors": {
+     "sha256": "11beafe8242cce6af6f678a4986946a4b5d22d64d8dd468c7b06bfc8b3e9410a"
+    },
+    "/queries/fortiadc/bgp_summary": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/query_metadata/fortiadc/bgp_summary": {
+     "sha256": "44a143244d2692007c714c21461f3537169553fe1f27420e5069906fe6f8465f"
+    },
+    "/queries/fortiadc/ha_status": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/query_metadata/fortiadc/ha_status": {
+     "sha256": "2aec4cb204d20169c73c6b7f6f162c9f7e4c7214ab06009375ecd5743624e66b"
+    },
+    "/queries/fortiadc/llb_policy": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/query_metadata/fortiadc/llb_policy": {
+     "sha256": "a5274ffa71ce902e6be8ab02b3e128fbd3a34fc1c235c2f8302a064819f73e0d"
+    },
+    "/queries/fortiadc/lldp_neighbors": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/query_metadata/fortiadc/lldp_neighbors": {
+     "sha256": "8281f507cc41ed36f2ffcd90d4e8b79184b903757a56b0e56a581344405f544a"
+    },
+    "/queries/fortiadc/log_files": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/query_metadata/fortiadc/log_files": {
+     "sha256": "fe55201dbc6f8a4b744fc8e5da129ea26a25946087b39a081eb686dc8291a9d6"
+    },
+    "/queries/fortiadc/ospf_neighbors": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/query_metadata/fortiadc/ospf_neighbors": {
+     "sha256": "283e06621fd98470e828d223e2c08d782d63ccc3e5e5743772207c7cc4f4e03f"
+    },
+    "/queries/fortiadc/system_date": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/query_metadata/fortiadc/system_date": {
+     "sha256": "128c142e80467e59b35920df79a76aa8297edc5feccfe9c672f4e7b32d44b701"
+    },
+    "/queries/fortiadc/traffic_group_status": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/query_metadata/fortiadc/traffic_group_status": {
+     "sha256": "f7a9c2c1a2858714409d82096f57b767d614da363a178fe24ecd9bd02ed4f0fd"
+    }
+   },
+   "reason": "new read-only FortiADC troubleshooting reads (9 queries)"
+  },
+  {
+   "tool": "read_query_catalog",
+   "kind": "response",
+   "added_keys": {
+    "/queries/fortinet/link_monitor_status": {
+     "sha256": "8a08e0ae9faafe824071f9ba8835ced91c172e8636698ae1096e923607934aa2"
+    },
+    "/query_metadata/fortinet/link_monitor_status": {
+     "sha256": "891810704b30af0410a0a4cc6480d8c3333e2b1d033358c68ba3a62368315771"
+    },
+    "/queries/fortinet/sdwan_sla_history": {
+     "sha256": "2749024c4ad015cdae5d46b27c3c90eb5047ce86e684d60646ad2ccdebc63999"
+    },
+    "/query_metadata/fortinet/sdwan_sla_history": {
+     "sha256": "f480a5722902d4067fd3c267589eb4a9432d638c1cd50a04cb5bced3d5c49f6a"
+    }
+   },
+   "reason": "new SD-WAN SLA history and link-monitor status bound to the inventory (2 queries)"
+  },
+  {
+   "tool": "read_query_catalog",
+   "kind": "response",
+   "added_keys": {
+    "/queries/fortinet/sdwan_interface_quality": {
+     "sha256": "37f92fb4454703a557f1ce4164232033b90a64aceb6e11b0e6de2711e1cd406a"
+    },
+    "/query_metadata/fortinet/sdwan_interface_quality": {
+     "sha256": "f33f6d89a557f74d2c6355a18943ad9343120ad2144f1d62b43d76c3f5827684"
+    },
+    "/queries/fortinet/wifi_access_points": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/query_metadata/fortinet/wifi_access_points": {
+     "sha256": "6041c884d4e0e1e38e5eca2326d054b7a730d1afabc46e1f69753d4c096f6262"
+    },
+    "/queries/fortinet/wifi_ap_detail": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/query_metadata/fortinet/wifi_ap_detail": {
+     "sha256": "d8f3244cc601e51be67c3aaf83cca21afce5712d6eb0fb5eca95dd8120a5c262"
+    },
+    "/queries/fortinet/wifi_client_detail": {
+     "sha256": "35464abb19aa4cdede6b9d6030fb4e5b1f6822d6780abcbf67ded9cf21f43f6b"
+    },
+    "/query_metadata/fortinet/wifi_client_detail": {
+     "sha256": "54baa4bb29693442582cc9c924940f9cb0ca713f29efe270ae6105f43b98346c"
+    },
+    "/queries/fortinet/wifi_clients": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/query_metadata/fortinet/wifi_clients": {
+     "sha256": "a144d5e8123159dbc20b93dcc76a629c3b4ff3dd8a8b66f0972286c6113c85e1"
+    },
+    "/queries/fortinet/wifi_ssid_mapping": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/query_metadata/fortinet/wifi_ssid_mapping": {
+     "sha256": "7e96e09c846dc05d8b25f8f92e8dec2b4da4885a02679186e061d4cd06e9ae2f"
+    }
+   },
+   "reason": "new Wi-Fi, SD-WAN and VLAN mapping reads (6 queries)"
+  },
+  {
+   "tool": "read_query_catalog",
+   "kind": "response",
+   "added_keys": {
+    "/queries/fortiadc/slb_vs_stat": {
+     "sha256": "4f4a28482680c2bf003bad3f469f760d694a16c60e5588983bb66f7f969927f4"
+    },
+    "/query_metadata/fortiadc/slb_vs_stat": {
+     "sha256": "017b816341893ddc0d40a23d58145e6dc051d8f2bca0bda3e6dcb44aa7573b31"
+    },
+    "/queries/fortiadc/waf_signature_status": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/query_metadata/fortiadc/waf_signature_status": {
+     "sha256": "2cf0f72d4c36a8b6e4730096dbecc74394c1456951315e0752690bc3dc4c5969"
+    }
+   },
+   "reason": "new FortiADC virtual server statistics and WAF signature status (2 queries)"
+  },
+  {
+   "tool": "read_query_catalog",
+   "kind": "response",
+   "added_keys": {
+    "/queries/fortiadc/arp_table": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/query_metadata/fortiadc/arp_table": {
+     "sha256": "d5340d0a6663e32d8447627c9041f7774e3219d97035fc059841dbcb65cf9986"
+    },
+    "/queries/fortiadc/firewall_timeouts": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/query_metadata/fortiadc/firewall_timeouts": {
+     "sha256": "b58739d330b961910b4c20c30eaf1a7f11d810133875d70154400b76319e9d8d"
+    },
+    "/queries/fortiadc/interface_counters": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/query_metadata/fortiadc/interface_counters": {
+     "sha256": "915de4e7c4edf93349fe70b90d6af85d1c6fff814236e710a9c404458de0b260"
+    },
+    "/queries/fortiadc/interface_state": {
+     "sha256": "37f92fb4454703a557f1ce4164232033b90a64aceb6e11b0e6de2711e1cd406a"
+    },
+    "/query_metadata/fortiadc/interface_state": {
+     "sha256": "143ee9d5287048c30c201f9d1f4a75a5c9ea5750673752dede58d3e83e7ddf7a"
+    },
+    "/queries/fortiadc/routing_table": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/query_metadata/fortiadc/routing_table": {
+     "sha256": "385c134bf3a3726839691b16e2d96f7e7672b63f1bf6ccfebe10321d2406a740"
+    },
+    "/queries/fortiadc/slb_load": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/query_metadata/fortiadc/slb_load": {
+     "sha256": "67db07d78369024f53eae67e8173538a4a1e1bc84110e3d5fb2c7156199b7581"
+    },
+    "/queries/fortiadc/system_performance": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/query_metadata/fortiadc/system_performance": {
+     "sha256": "34dfeeca79e10e7d1cc2b05c4e4c34da9d285939af967a07a27a856709027825"
+    },
+    "/queries/fortiadc/vm_license": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/query_metadata/fortiadc/vm_license": {
+     "sha256": "40f25378285586f80949c7a787b9ae7915f937c02018edef9c4318614eb84607"
+    }
+   },
+   "reason": "new read-only FortiADC diagnostics (8 queries)"
+  },
+  {
+   "tool": "read_query_catalog",
+   "kind": "response",
+   "added_keys": {
+    "/queries/fortinet/bgp_accepted_ipv4": {
+     "sha256": "c0a5f6dec220496c26c4492ebeb03cda74d30ce1a1a791125865e3648a9185ce"
+    },
+    "/query_metadata/fortinet/bgp_accepted_ipv4": {
+     "sha256": "336719053f59494e8192f492b240d8a797bd0253da78fe0c6850a8ccc121bd2e"
+    },
+    "/queries/fortinet/bgp_accepted_ipv6": {
+     "sha256": "c0a5f6dec220496c26c4492ebeb03cda74d30ce1a1a791125865e3648a9185ce"
+    },
+    "/query_metadata/fortinet/bgp_accepted_ipv6": {
+     "sha256": "d6ff7d3e5be2a357cd5bca7d11c15ef07e482917622f8e8d71b9501125ab4fde"
+    },
+    "/queries/fortinet/bgp_advertised_ipv4": {
+     "sha256": "c0a5f6dec220496c26c4492ebeb03cda74d30ce1a1a791125865e3648a9185ce"
+    },
+    "/query_metadata/fortinet/bgp_advertised_ipv4": {
+     "sha256": "ad2c50721d3379f78b7efcc06d373d06e2dc470bbd28acda38e898fc2b005549"
+    },
+    "/queries/fortinet/bgp_advertised_ipv6": {
+     "sha256": "c0a5f6dec220496c26c4492ebeb03cda74d30ce1a1a791125865e3648a9185ce"
+    },
+    "/query_metadata/fortinet/bgp_advertised_ipv6": {
+     "sha256": "f5d76dabd4077a3c94bd22170b7d9fd501ceb55d0acca2e4e4ec6e91abdec337"
+    },
+    "/queries/fortinet/bgp_received_ipv4": {
+     "sha256": "c0a5f6dec220496c26c4492ebeb03cda74d30ce1a1a791125865e3648a9185ce"
+    },
+    "/query_metadata/fortinet/bgp_received_ipv4": {
+     "sha256": "e8fa0056dede81c18a3cea8278a0803ae811dacf8d743be453556924ac2d1277"
+    },
+    "/queries/fortinet/bgp_received_ipv6": {
+     "sha256": "c0a5f6dec220496c26c4492ebeb03cda74d30ce1a1a791125865e3648a9185ce"
+    },
+    "/query_metadata/fortinet/bgp_received_ipv6": {
+     "sha256": "a0e3fbad17595599e7b1a9182ef30297bd101fc0cb13e079d38ac5f9c62b6b99"
+    },
+    "/queries/fortinet/ospf_interfaces_ipv4": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/query_metadata/fortinet/ospf_interfaces_ipv4": {
+     "sha256": "f27191e7dc0f50b3bbc438ba62d33f72e0c1f9c0cf4b9ac5a4256a8744aded5c"
+    },
+    "/queries/fortinet/ospf_interfaces_ipv6": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/query_metadata/fortinet/ospf_interfaces_ipv6": {
+     "sha256": "edee0f4613a46704c52d754d794c0948b8c1925cb79fc65e262ae2ffba219324"
+    }
+   },
+   "reason": "new BGP route and OSPF interface diagnostics for enrolled targets (8 queries)"
+  },
+  {
+   "tool": "read_query_catalog",
+   "kind": "response",
+   "added_keys": {
+    "/queries/fortiadc/autoupdate_contract": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/query_metadata/fortiadc/autoupdate_contract": {
+     "sha256": "cf77290a85d35a37c9a65a4c7128fd49ed9ab56d926b8bb9b884e35279e99e15"
+    },
+    "/queries/fortiadc/cpu_info": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/query_metadata/fortiadc/cpu_info": {
+     "sha256": "2aa79987523c4c0db94c62d0de276f53aa5d37afccf758077df56cb596cb6957"
+    },
+    "/queries/fortiadc/log_list_attack": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/query_metadata/fortiadc/log_list_attack": {
+     "sha256": "b9b30b6db7fdbe69028a7183ad9b7d0b23d39bec05030b8c057852664d9310f9"
+    },
+    "/queries/fortiadc/log_list_traffic": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/query_metadata/fortiadc/log_list_traffic": {
+     "sha256": "4b743aa57116a53acc772ac2964386dd93bc4d5bbf711f8a0fdf172fd522f702"
+    },
+    "/queries/fortiadc/nic_detail": {
+     "sha256": "37f92fb4454703a557f1ce4164232033b90a64aceb6e11b0e6de2711e1cd406a"
+    },
+    "/query_metadata/fortiadc/nic_detail": {
+     "sha256": "1cddd2656511564aecf6893b44bfe11922ec213aa2262043882dc158fdd8920b"
+    },
+    "/queries/fortiadc/persistence_sessions": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/query_metadata/fortiadc/persistence_sessions": {
+     "sha256": "f12bdceb413bccc6574f458faff9a9675e017e49c4c6a992ab7ca50efa5ef3e7"
+    },
+    "/queries/fortiadc/slb_sessions": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/query_metadata/fortiadc/slb_sessions": {
+     "sha256": "d17c0547bb91ef7486a1e84b90474af1efd3f840cf07575cfedeb9380b4938d0"
+    },
+    "/queries/fortiadc/waf_block_ip": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/query_metadata/fortiadc/waf_block_ip": {
+     "sha256": "ac33493cdfb6d93cc969fce4112204b056a0c015d49c990689f6dc489cdf9b2d"
+    }
+   },
+   "reason": "new read-only FortiADC reads for update contract, CPU, NIC, logs, sessions and WAF blocks (8 queries)"
+  },
+  {
+   "tool": "read_query_catalog",
+   "kind": "response",
+   "added_keys": {
+    "/queries/fortinet/sdwan_member_detail": {
+     "sha256": "f326643b141098846b0de5612c4f8d56b9fb51f6e9523df15722d1de3903ae21"
+    },
+    "/query_metadata/fortinet/sdwan_member_detail": {
+     "sha256": "ff903cd883d48697fb7a11d572bb0b3eb9d3e91e90c630da2660a6fa474c2fa0"
+    },
+    "/queries/fortinet/sdwan_routes_ipv4": {
+     "sha256": "f326643b141098846b0de5612c4f8d56b9fb51f6e9523df15722d1de3903ae21"
+    },
+    "/query_metadata/fortinet/sdwan_routes_ipv4": {
+     "sha256": "1821f29962be5743e716f361a32898f84c272e9b99cca9e38f4baffb23426657"
+    },
+    "/queries/fortinet/sdwan_routes_ipv6": {
+     "sha256": "f326643b141098846b0de5612c4f8d56b9fb51f6e9523df15722d1de3903ae21"
+    },
+    "/query_metadata/fortinet/sdwan_routes_ipv6": {
+     "sha256": "5fae42488f7b1d874c793a29c6a1db14798fc236a45732e5f9c3fc5cd9f4968b"
+    },
+    "/queries/fortinet/sdwan_service_ipv4": {
+     "sha256": "6c6baf08003a2e3eb2dceaf6e638230b58537410a52b819dafb277cfa180dd50"
+    },
+    "/query_metadata/fortinet/sdwan_service_ipv4": {
+     "sha256": "9dbd3e3324df55ade23fb12e8b96083cd74f78eafc6c62f61b5182fdedf13ca7"
+    },
+    "/queries/fortinet/sdwan_service_ipv6": {
+     "sha256": "6c6baf08003a2e3eb2dceaf6e638230b58537410a52b819dafb277cfa180dd50"
+    },
+    "/query_metadata/fortinet/sdwan_service_ipv6": {
+     "sha256": "4e2079a0a326cb75e2c912a5eceee7f1be0b73d5bf5f0c07dec6fad82d95069d"
+    }
+   },
+   "reason": "new FortiOS SD-WAN path diagnostics bound to the inventory (5 queries)"
+  },
+  {
+   "tool": "read_query_catalog",
+   "kind": "response",
+   "added_keys": {
+    "/queries/fortinet/switch_dhcp_bindings": {
+     "sha256": "f72892d2106f0d15281fe126d716ee94efcb1b7480b03e34f1bad81b0dfd47c7"
+    },
+    "/query_metadata/fortinet/switch_dhcp_bindings": {
+     "sha256": "ef98deafdff0120e2c4065797c1314ff7c638bf39bf33f9e09a58ce77c7a7773"
+    },
+    "/queries/fortinet/switch_fan_health": {
+     "sha256": "f72892d2106f0d15281fe126d716ee94efcb1b7480b03e34f1bad81b0dfd47c7"
+    },
+    "/query_metadata/fortinet/switch_fan_health": {
+     "sha256": "4dbb1747387875e07ec0a23f35e6c57158a2528bd4dce162242126eaf304d94a"
+    }
+   },
+   "reason": "new managed switch DHCP binding and fan reads (2 queries); switch_dhcp_bindings uses the command whose output matches FortiOS 8.0.2"
+  },
+  {
+   "tool": "read_query_catalog",
+   "kind": "response",
+   "added_keys": {
+    "/queries/fortinet/switch_mclag_consistency": {
+     "sha256": "6e47a0c78b1fd37bb5e2989026234bacaac5c9c608b6f0bbecf25100f2f4040e"
+    },
+    "/queries/fortinet/switch_mclag_icl": {
+     "sha256": "f72892d2106f0d15281fe126d716ee94efcb1b7480b03e34f1bad81b0dfd47c7"
+    },
+    "/queries/fortinet/switch_trunk_status": {
+     "sha256": "6e47a0c78b1fd37bb5e2989026234bacaac5c9c608b6f0bbecf25100f2f4040e"
+    },
+    "/query_metadata/fortinet/switch_mclag_consistency": {
+     "sha256": "02429117bdae79e649f20a8b08b86bad4819a8fbae7cd0a2e952f5033a20b1d4"
+    },
+    "/query_metadata/fortinet/switch_mclag_icl": {
+     "sha256": "461468ef1921100aac83663c732a3ec72834da96d2fb997758db18fe51c1fa57"
+    },
+    "/query_metadata/fortinet/switch_trunk_status": {
+     "sha256": "cc6ca77c4942a8ac8c0c3c9b5568e136ba0af49c456ce1e5177f80dbaa8c67b6"
+    }
+   },
+   "reason": "new read-only FortiSwitch MCLAG, ICL and trunk state reads (3 queries)"
+  },
+  {
+   "tool": "read_query_catalog",
+   "kind": "response",
+   "changed_keys": {
+    "/catalog_sha256": {
+     "sha256": "a71d29b49238e5f00f9b56ea9c0691ba546d02b0b2dbe77555a8578a750d4434",
+     "value": "e172c53c708c03035865aae3b4cf3600c7637617e315560d7b44d22c733275e1"
+    },
+    "/total": {
+     "sha256": "2af4dd48399a5cf64c23fc7933e11aaf6171d80001b4b1377498ae6056b1acbf",
+     "value": 380
+    }
+   },
+   "reason": "the query catalogue grows by 90 queries; catalogue digest and total follow"
+  }
+ ]
+}

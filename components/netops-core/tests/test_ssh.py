@@ -24,8 +24,8 @@ COMMAND = "show"
 BLOB = "cmVwbGFjZS1tZS1ob3N0LWtleS1tYXRlcmlhbC1B"
 PIN = "SHA256:9M3h8iWlwyP5wyoVC6j2DSPB/1Cp4FZhaD1HXhhC7m8"
 HOST_KEY_LINE = "%s ssh-ed25519 %s" % (HOST, BLOB)
-CANARY_KEY = "-----BEGIN OPENSSH PRIVATE KEY-----\nKANARCI-KLIC-NESMI-UNIKNOUT\n"
-CANARY_PASSWORD = "KANARCI-HESLO-NESMI-UNIKNOUT"
+CANARY_KEY = "-----BEGIN OPENSSH PRIVATE KEY-----\nCANARY-KEY-MUST-NOT-LEAK\n"
+CANARY_PASSWORD = "CANARY-PASSWORD-MUST-NOT-LEAK"
 CONFIG = b"config system global\nend\n"
 LEGACY_PROFILE = "rsa-sha1"
 LEGACY_OPTIONS = ("HostKeyAlgorithms=+ssh-rsa", "PubkeyAcceptedAlgorithms=+ssh-rsa")
@@ -578,3 +578,13 @@ def test_a_temporary_directory_with_a_percent_sign_is_refused_before_the_client_
     assert run_command(HOST, PORT, LOGIN, key_credential(), HOST_KEY_LINE, COMMAND, run=run).rc == 0
     assert len(run.calls) == 1
     assert list(plain.iterdir()) == []
+
+
+def test_the_result_carries_what_the_device_wrote_on_stderr():
+    result = call(FakeRun(stdout=b"adc # ", stderr=b"vdom name is root\n\tid:1, hc_state: UP\n"))
+    assert result.stdout == b"adc # "
+    assert result.stderr == b"vdom name is root\n\tid:1, hc_state: UP\n"
+
+
+def test_a_result_built_without_stderr_carries_none():
+    assert Result(rc=0, stdout=b"", said="", started_at="a", finished_at="b").stderr == b""

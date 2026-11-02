@@ -95,69 +95,65 @@ def _context(**overrides: object) -> str:
     return urlsafe_b64encode(raw).decode("ascii").rstrip("=")
 
 
-def test_snmp_community_is_optional_for_non_snmp_tools() -> None:
+def _snmp_usm(**changes):
+    material = {
+        "user": "monitor", "auth_protocol": "sha256",
+        "auth_key": "snmp-auth-secret", "priv_protocol": "aes128",
+        "priv_key": "snmp-priv-secret",
+    }
+    material.update(changes)
+    return material
+
+
+def test_snmp_usm_is_optional_for_non_snmp_tools() -> None:
     auth = TargetAuth.decode("device-a", _context())
-    assert auth.snmp_community is None
+    assert auth.snmp_usm is None
     try:
-        auth.require_snmp_community()
+        auth.require_snmp_usm()
     except AuthenticationMaterialError as exc:
         assert exc.error_code == "auth_material"
     else:
-        raise AssertionError("missing SNMP community was accepted")
+        raise AssertionError("missing SNMPv3 authPriv material was accepted")
 
 
-def test_snmp_community_is_distinct_and_part_of_secret_set() -> None:
-    auth = TargetAuth.decode("device-a", _context(snmp_community="snmp-secret"))
-    assert auth.require_snmp_community() == "snmp-secret"
-    assert auth.secrets == ("ssh-secret", "snmp-secret")
+def test_snmp_usm_keys_are_part_of_secret_set() -> None:
+    auth = TargetAuth.decode("device-a", _context(snmp_usm=_snmp_usm()))
+    assert auth.require_snmp_usm() == _snmp_usm()
+    assert auth.secrets == ("ssh-secret", "snmp-auth-secret", "snmp-priv-secret")
 
 
-def test_equal_snmp_and_ssh_secrets_are_rejected() -> None:
-    try:
-        TargetAuth.decode("device-a", _context(snmp_community="ssh-secret"))
-    except AuthenticationMaterialError as exc:
-        assert exc.error_code == "auth_material"
-        assert "ssh-secret" not in str(exc)
-    else:
-        raise AssertionError("SNMP community reused the SSH password")
-
-
-def test_non_ascii_snmp_and_ssh_secrets_compare_as_utf8() -> None:
+def test_equal_snmp_and_ssh_secrets_are_accepted() -> None:
     auth = TargetAuth.decode(
         "device-a",
-        _context(secret="ssh-heslo-ž", snmp_community="snmp-komunita-č"),
+        _context(snmp_usm=_snmp_usm(auth_key="ssh-secret", priv_key="ssh-secret")),
     )
-    assert auth.require_snmp_community() == "snmp-komunita-č"
-    try:
-        TargetAuth.decode(
-            "device-a",
-            _context(secret="stejné-heslo", snmp_community="stejné-heslo"),
-        )
-    except AuthenticationMaterialError:
-        pass
-    else:
-        raise AssertionError("equal non-ASCII secrets were accepted")
+    assert auth.require_snmp_usm()["priv_key"] == "ssh-secret"
+    assert auth.secrets == ("ssh-secret",)
+
+
+def test_non_ascii_snmp_and_ssh_secrets_are_utf8() -> None:
+    material = _snmp_usm(auth_key="snmp-secret-ž", priv_key="snmp-secret-č")
+    auth = TargetAuth.decode(
+        "device-a", _context(secret="ssh-secret-ž", snmp_usm=material),
+    )
+    assert auth.require_snmp_usm() == material
+    shared = _snmp_usm(auth_key="same-secret-é", priv_key="same-secret-é")
+    assert TargetAuth.decode(
+        "device-a", _context(secret="same-secret-é", snmp_usm=shared),
+    ).require_snmp_usm() == shared
 
 
 def test_direct_snmp_accessor_rejects_malformed_material_cleanly() -> None:
-    malformed = (
-        (7, "account-secret"),
-        (chr(0xD800), "account-secret"),
-        ("snmp-secret", 7),
-        ("snmp-secret", chr(0xD800)),
-    )
-    for community, password in malformed:
+    for material in (
+        7, _snmp_usm(auth_key=chr(0xD800)),
+        _snmp_usm(priv_key=7), _snmp_usm(priv_protocol="none"),
+    ):
         auth = TargetAuth(
-            "device-a",
-            TEST_ADDRESS,
-            22,
-            "reader",
-            password,
-            HOST_KEY_PIN,
-            snmp_community=community,
+            "device-a", TEST_ADDRESS, 22, "reader", "account-secret",
+            HOST_KEY_PIN, snmp_usm=material,
         )
         try:
-            auth.require_snmp_community()
+            auth.require_snmp_usm()
         except AuthenticationMaterialError as exc:
             assert exc.error_code == "auth_material"
         except (AttributeError, TypeError, UnicodeError) as exc:
@@ -168,14 +164,20 @@ def test_direct_snmp_accessor_rejects_malformed_material_cleanly() -> None:
             raise AssertionError("malformed direct SNMP material was accepted")
 
 
-def test_unsafe_snmp_community_is_invalid() -> None:
-    for value in (None, "ab", "bad\nvalue"):
+def test_unsafe_snmp_usm_and_legacy_community_are_invalid() -> None:
+    for value in (None, _snmp_usm(auth_key="short"), _snmp_usm(priv_key="bad" + chr(10) + "value")):
         try:
-            TargetAuth.decode("device-a", _context(snmp_community=value))
+            TargetAuth.decode("device-a", _context(snmp_usm=value))
         except AuthenticationContextError:
             pass
         else:
-            raise AssertionError("unsafe SNMP community was accepted")
+            raise AssertionError("unsafe SNMPv3 authPriv material was accepted")
+    try:
+        TargetAuth.decode("device-a", _context(snmp_community="legacy-secret"))
+    except AuthenticationContextError:
+        pass
+    else:
+        raise AssertionError("legacy SNMP community envelope was accepted")
 
 
 def test_identity_types_and_top_level_fields_fail_closed() -> None:
@@ -1199,6 +1201,10 @@ def test_phase1_server_and_engine_expose_no_generic_body_reads() -> None:
         "ftp_list",
         "config_read",
         "config_diff",
+        "triage_slb",
+        "triage_health",
+        "triage_routing",
+        "triage_vpn",
     }
 
     server_engine_imports = {
@@ -1388,12 +1394,12 @@ def test_server_start_makes_no_network_lookup_or_connection() -> None:
 
 
 def main() -> int:
-    test_snmp_community_is_optional_for_non_snmp_tools()
-    test_snmp_community_is_distinct_and_part_of_secret_set()
-    test_equal_snmp_and_ssh_secrets_are_rejected()
-    test_non_ascii_snmp_and_ssh_secrets_compare_as_utf8()
+    test_snmp_usm_is_optional_for_non_snmp_tools()
+    test_snmp_usm_keys_are_part_of_secret_set()
+    test_equal_snmp_and_ssh_secrets_are_accepted()
+    test_non_ascii_snmp_and_ssh_secrets_are_utf8()
     test_direct_snmp_accessor_rejects_malformed_material_cleanly()
-    test_unsafe_snmp_community_is_invalid()
+    test_unsafe_snmp_usm_and_legacy_community_are_invalid()
     test_identity_types_and_top_level_fields_fail_closed()
     test_hostname_requires_dns_and_explicit_addresses_during_decode()
     test_policy_fields_are_mandatory_and_egress_shape_is_exact()

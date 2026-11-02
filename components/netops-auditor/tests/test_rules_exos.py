@@ -21,7 +21,7 @@ SYSLOG_LINE = "configure syslog add 192.0.2.9 local1\n"
 COMMUNITY_LINE = "configure snmpv3 add community office-index name office-read user v1v2c_ro\n"
 TELNET_LINE = "disable telnet\n"
 
-MARKERS = tuple("KANARCI-TAJEMSTVI-EXOS-%02d" % number for number in range(1, 12))
+MARKERS = tuple("CANARY-SECRET-EXOS-%02d" % number for number in range(1, 12))
 
 
 def clean_text():

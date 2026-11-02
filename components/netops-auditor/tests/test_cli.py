@@ -12,7 +12,8 @@ import pytest
 from netops_auditor import cli
 from netops_auditor import sarif
 from netops_auditor.collect import ChannelEvent, CollectError, Snapshot
-from netops_auditor.engine import CATALOG_DIR
+from netops_auditor import l1_exos, l1_fortios
+from netops_auditor.engine import CATALOG_DIR, load_catalog
 from netops_auditor.store import Store
 from netops_auditor.findings import fingerprint_of, fingerprint_v1
 from netops_auditor.suppressions import FILE_VERSION as SUPPRESSION_FILE_VERSION
@@ -20,7 +21,7 @@ from netops_auditor.suppressions import SuppressionError, load_for_tenant
 from netops_core.ssh import SshError, UNKNOWN_REASON, reason
 
 FIXTURES = Path(__file__).parent / "fixtures"
-CANARY = "KANARCI-RETEZEC-NESMI-UNIKNOUT"
+CANARY = "CANARY-STRING-MUST-NOT-LEAK"
 TENANT = "tenant-a"
 DEVICE = "fw-example"
 WAN_RULE = "fortios.mgmt.wan-admin-access"
@@ -47,6 +48,25 @@ def dirty_text():
     text = mutate(text, "        unset comments\n", '        set comments "%s"\n' % CANARY)
     text = mutate(text, 'set comment "site\nlocal network"', 'set comment "site\n%s\nlocal network"' % CANARY)
     return text
+
+
+FILLED = {
+    "system admin": 'config system admin\n    edit "netadmin"\n        set accprofile "super_admin"\n        set trusthost1 192.0.2.0 255.255.255.0\n        set ip6-trusthost1 2001:db8::/32\n    next\nend\n',
+}
+
+
+def complete(text, platform="fortios"):
+    names = sorted({name for rule in load_catalog(platform) if not rule.check.startswith("management_")
+                    for name in rule.sections})
+    if platform == "fortios":
+        tree = l1_fortios.parse(text)
+        blocks = [FILLED.get(name, "config %s\nend\n" % name) for name in names if tree.section(name) is None]
+    else:
+        modules = l1_exos.parse(text).modules
+        blocks = ["#\n# Module %s configuration.\n#\n" % name for name in names if name not in modules]
+    if blocks and text and not text.endswith("\n"):
+        text += "\n"
+    return text + "".join(blocks)
 
 
 def write_config(directory, text, name="device.conf"):
@@ -365,7 +385,7 @@ def test_open_known_stays_visible_and_apart_from_suppressed(tmp_path, capsys):
     path = write_config(tmp_path, dirty_text())
     database = tmp_path / "audit.sqlite"
     first_code, first_out, first_err = invoke(
-        capsys, full_args(path, store=database, as_json=True, accept=("operator", "prevzato pri nasazeni"))
+        capsys, full_args(path, store=database, as_json=True, accept=("operator", "accepted at deployment"))
     )
     assert first_code == 0
     first = json.loads(first_out)
@@ -741,11 +761,11 @@ def test_status_rejects_a_threshold_that_is_not_positive(tmp_path, capsys):
         assert err.startswith("error: ")
 
 
-CANARY_TOKEN = "KANARCI-TOKEN-NESMI-UNIKNOUT"
+CANARY_TOKEN = "CANARY-TOKEN-MUST-NOT-LEAK"
 KEY_HEADER = "-----BEGIN " + "OPENSSH PRIVATE KEY-----"
 KEY_FOOTER = "-----END " + "OPENSSH PRIVATE KEY-----"
-CANARY_KEY = "%s\nKANARCI-KLIC-NESMI-UNIKNOUT\n%s\n" % (KEY_HEADER, KEY_FOOTER)
-CANARY_STDERR = "KANARCI-STDERR-ZARIZENI-NESMI-UNIKNOUT"
+CANARY_KEY = "%s\nCANARY-KEY-MUST-NOT-LEAK\n%s\n" % (KEY_HEADER, KEY_FOOTER)
+CANARY_STDERR = "CANARY-DEVICE-STDERR-MUST-NOT-LEAK"
 CREDENTIAL_NAME = "fw-example-audit-ro"
 REST_HOST = "192.0.2.10"
 SSH_HOST = "198.51.100.10"
@@ -1239,7 +1259,7 @@ def test_an_unknown_credential_name_is_an_error_that_does_not_repeat_the_name(tm
     assert CREDENTIAL_NAME not in err
 
 
-REFERENCE_CANARY = "kanarek-odkazu-4711"
+REFERENCE_CANARY = "canary-reference-4711"
 
 
 @pytest.mark.parametrize("case", ["without the vault", "unknown in the vault", "of another kind"])
@@ -1714,7 +1734,7 @@ def exos_inventory(directory, config, sections=EXOS_SECTIONS, name="exos-invento
 
 
 def test_both_platforms_are_offered_on_the_command_line():
-    assert sorted(cli.PLATFORMS) == ["exos", "fortios"]
+    assert sorted(cli.PLATFORMS) == ["exos", "fortiadc", "fortios"]
 
 
 def test_an_exos_configuration_is_audited_by_the_exos_catalog(tmp_path, capsys):
@@ -1740,7 +1760,7 @@ def test_an_exos_defect_is_reported_over_the_command_line(tmp_path, capsys):
 def test_an_exos_configuration_is_not_parsed_by_the_fortios_parser(tmp_path, capsys):
     path = write_config(tmp_path, exos_clean_text(), name="switch.conf")
     code, out, _ = audit(capsys, path, as_json=True, device=EXOS_DEVICE)
-    assert code == 0
+    assert code == cli.EXIT_INCOMPLETE
     assert json.loads(out)["findings"] != []
 
 
@@ -1789,6 +1809,23 @@ def test_collect_still_refuses_a_platform_without_a_catalogue(tmp_path, capsys):
     assert out == ""
     assert "the auditor holds no rule catalog for it" in err
     assert "linux" in err
+
+
+def test_collect_refuses_fortiadc_before_it_loads_the_credential(tmp_path, capsys, monkeypatch):
+    def forbidden(*args, **kwargs):
+        raise AssertionError("credential or channel touched")
+
+    monkeypatch.setattr(cli.vault, "load", forbidden)
+    monkeypatch.setattr(cli.collect, "collect_ssh", forbidden)
+    inventory_path = write_inventory(
+        tmp_path, [ssh_item(platform="fortiadc", name="adc-a")], name="adc-inventory.json"
+    )
+    vault_path = write_vault(tmp_path, kind="password", login="netops-read")
+    code, out, err = gather(capsys, inventory_path, device="adc-a", vault_path=vault_path)
+    assert code == 2
+    assert out == ""
+    assert "collect does not read it" in err
+    assert "run --platform fortiadc" in err
 
 
 def test_migrate_suppressions_writes_a_bound_file_and_leaves_the_input_alone(tmp_path, capsys):

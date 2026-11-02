@@ -92,6 +92,10 @@ The release documentation is completed in this order: the candidate workflow bui
 
 The red-team startup-stop check exercises the operator path on the same container and nonempty local audit: normal stop, start, restart followed immediately by stop, and restoration. It requires clean exit codes, preserved audit prefixes through restoration, instance_stop as the last stopped-state record and the same container, image, CA and token. This ordinary timing test complements separate controlled startup-barrier checks; it does not deterministically select the instant before the signal handler is installed.
 
+The audit test of a maximum-cardinality record proves that the event loop keeps running while the record is redacted: redaction waits for a loop heartbeat and the test requires that it arrived. It does not require a minimum number of heartbeat samples. The number of samples within one record depends on the speed and load of the test host; a minimum of five samples at a 0.01 s interval failed in 14 of 32 runs on one host while the loop was not blocked. With redaction moved back onto the event loop the test fails in every run.
+
+The Helper proxy contract test requires mode 0755 or 0775 of `netops_helper/proxy.py` in the tested tree and, in a git checkout, index mode 100755. The engine regression image copies the checkout without `.git`, so it prints `index_mode_check=skipped reason=not a git repository` and checks the file mode, which git set from the index at checkout. No 1.0 deliverable depends on this mode: the production image sets every application file to 0644 and loads the proxy as a module.
+
 ## Retained source and branch-coverage checks
 
 The shared-product source gate checks tracked files from the sealed clean candidate checkout. It is not a scanner for untracked workstation files or a comparison of staged blobs with a dirty working tree. All public source and release assets still require their privacy checks.
@@ -99,3 +103,28 @@ The shared-product source gate checks tracked files from the sealed clean candid
 The mixed historical repository gate is preserved byte for byte, with an individual disposition for every original test, in [the root-gate archive](archive/0.x/root-release-gate/INDEX.json). Its live privacy edge cases run in the current source-gate test module. Its three independent except/else coverage controls remain in tests/test_release_gate.py. They require the hash-locked pytest and coverage tools in the separate QA environment, NETOPS_REQUIRE_RUNTIME_TESTS=1 and NETOPS_EXCEPT_COVERAGE=1. Missing prerequisites are errors. Before a release, run those controls and measure all four engines against the recorded module and component floors. Keep the raw component logs and JSON using scripts/except_branch_coverage.py --log-dir and --json; do not lower floors or use report-only to accept a release. These controls are maintainer QA outside the release test layers; they are not a signing requirement.
 
 One product packages the root MIT LICENSE. The component source copies are checked during release review; no automated duplicate-copy mutation gate is claimed. Current workflow action references are reviewed for immutable SHA pins. Automated future-unpin mutations, a source Markdown link resolver and the historical parent-alias case remain follow-up QA work. The current source privacy gate does not resolve Markdown links or anchors. Release review checks the actual installation instructions and changed relative links and anchors; this is not a claim that every historical documentation resolver test is active.
+
+## Source checkout problems
+
+### Build behind TLS inspection
+
+If a proxy or firewall decrypts TLS, the package downloads in `docker build` fail. The production `Dockerfile` stops in its first step with `TLS: server certificate not trusted` from `apk`, followed by `ERROR: Not continuing due to stale/unavailable repositories.`; a pip step prints `ERROR: Could not find a version that satisfies the requirement <package>==<version> (from versions: none)`. Both Dockerfiles accept a CA bundle that contains the inspection CA as the optional BuildKit secret `extra_ca`. On a Debian or Ubuntu host that trusts the inspection CA, pass the system bundle:
+
+```sh
+docker build --secret id=extra_ca,src=/etc/ssl/certs/ca-certificates.crt --build-arg SOURCE_DATE_EPOCH="$(git log -1 --format=%ct)" .
+docker build --secret id=extra_ca,src=/etc/ssl/certs/ca-certificates.crt --build-arg NETOPS_TEST_IMAGE="$NETOPS_IMAGE" -f release/engine-regression.Dockerfile -t netops-engine-tests .
+```
+
+The bundle is appended to the image's own bundle in a temporary directory only while a download step runs; no image layer contains it. Without the secret both builds run the same commands as before. The wheel built with the secret is byte-identical to the wheel built without it from the same commit. Do not run two builds of the same Dockerfile at the same time, one with and one without the secret: BuildKit runs identical concurrent steps once and does not distinguish them by the secret, so one of the builds can fail with the download error above.
+
+### Seal refused in a checkout made under umask 0002
+
+The seal of the private collector captures, `release/acceptance/process_profile_seal.py --directory … --age-dir …`, reads the recipient list `release/acceptance/process_profile_recipients.txt` and refuses it when the file is writable by group or others; it then prints `{"schema": "netops-process-profile-seal-status/1", "sealed": false, "reason": "seal-refused"}` and exits 1. git and tar create files according to the umask, so a checkout or an extracted source archive made under `umask 0002`, the default for user accounts on Ubuntu, has this file with mode 664. The release itself seals in the candidate workflow on the GitHub runner; a run of the seal from your own checkout needs the group and other write bits removed:
+
+```sh
+stat -c %a release/acceptance/process_profile_recipients.txt
+chmod go-w release/acceptance/process_profile_recipients.txt
+stat -c %a release/acceptance/process_profile_recipients.txt
+```
+
+The first `stat` prints `664` in such a checkout, the second `644`. Alternatively make the checkout under `umask 022`. The source tests of the seal copy the file into a private test directory, so they pass under either umask.

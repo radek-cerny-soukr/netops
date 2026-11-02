@@ -30,7 +30,8 @@ DEVICE_PIN = "SHA256:" + "A" * 43
 RUNNER_PIN = "SHA256:" + "B" * 43
 DEVICE_SECRET = "ssh-password"
 RUNNER_SECRET = "runner-password"
-COMMUNITY = "snmp-community-value"
+COMMUNITY = "fixture-auth-key-1"
+PRIV_KEY = "fixture-priv-key-1"
 RUNNER_HOST_KEY = b64encode(b"runner-host-key-material").decode("ascii")
 
 
@@ -125,7 +126,7 @@ def _vault_document() -> dict:
                 "kind": "password", "login": "reader", "value": DEVICE_SECRET,
             },
             "device-a-community": {
-                "kind": "snmp-community", "value": COMMUNITY,
+                **{"kind": "snmpv3-authpriv", "login": "usm-reader", "value": "fixture-auth-key-1", "priv_value": "fixture-priv-key-1", "auth_protocol": "sha256", "priv_protocol": "aes128"},
             },
         },
     }
@@ -275,7 +276,7 @@ def check_section_schema_and_consumer_binding(module, directory: Path) -> None:
 def check_credential_kinds_and_discovery_survive(module, directory: Path) -> None:
     inventory, vault, _, _ = _configure(module, directory)
     document = _vault_document()
-    document["credentials"]["device-a-community"]["kind"] = "api-token"
+    document["credentials"]["device-a-community"] = {"kind": "api-token", "value": COMMUNITY}
     _write(vault, document, 0o600)
 
     proxy = module.Proxy()
@@ -393,13 +394,15 @@ def check_scope_and_no_overinjection(module, directory: Path) -> None:
     assert "known_hosts" not in auth
     assert "password" not in auth
     assert "snmp_community" not in auth
+    assert "snmp_usm" not in auth
 
     snmp = proxy.request(_request(2, "snmp_get", {
         "target": "device-a", "oids": ["1.3.6.1.2.1.1.1.0"], "port": 161,
     }))
     assert snmp is not None
     auth = _envelope(snmp)
-    assert auth["snmp_community"] == COMMUNITY
+    assert auth["snmp_usm"] == {"user": "usm-reader", "auth_protocol": "sha256", "auth_key": "fixture-auth-key-1", "priv_protocol": "aes128", "priv_key": "fixture-priv-key-1"}
+    assert "snmp_community" not in auth
 
     proxy = module.Proxy()
     _assert_policy_error(proxy, _request(3, "tcp_probe", {
@@ -478,7 +481,7 @@ def check_discovery_notifications_and_rate_cost(module, directory: Path) -> None
     assert scope["snmp_enrolled"] is True
     assert "https_endpoints" not in scope
     visible = json.dumps(scope)
-    for secret in (DEVICE_SECRET, COMMUNITY, "reader", RUNNER_SECRET, DEVICE_PIN):
+    for secret in (DEVICE_SECRET, COMMUNITY, PRIV_KEY, "reader", RUNNER_SECRET, DEVICE_PIN):
         assert secret not in visible
 
     emitted.clear()
@@ -751,7 +754,7 @@ def check_query_authority_and_typed_pre_auth(
     }
     expected_counts = {
         "linux": 16,
-        "fortinet": 50,
+        "fortinet": 108,
         "extreme_exos": 48,
         "cisco_ios": 27,
         "cisco_xe": 27,
@@ -760,7 +763,7 @@ def check_query_authority_and_typed_pre_auth(
         "juniper_junos": 25,
         "juniper_junos_els": 29,
         "ruckus_unleashed": 4,
-        "fortiadc": 1,
+        "fortiadc": 33,
     }
     assert module.PLATFORM_MAP == expected_aliases
     assert {
@@ -773,14 +776,26 @@ def check_query_authority_and_typed_pre_auth(
         for name in sorted(names)
     )
     assert hashlib.sha256(name_contract.encode()).hexdigest() == (
-        "e5fa96c9abb5d5820373d9893c53591dfeddadd6419e2fb5727c816ef29de101"
+        "adf453e66e4e9296c2cc205c4e607fc3e6984da1fcbfc2994944a9e943b946d9"
     )
-    assert sum(expected_counts.values()) == 290
+    assert sum(expected_counts.values()) == 380
 
     expected_kind_inventory = {
+        "fortios_sdwan_health_check": "sdwan_health_checks",
+        "fortios_link_monitor": "link_monitors",
+        "fortios_sdwan_member": "sdwan_members",
+        "fortios_sdwan_rule": "sdwan_rules",
         "vlan_name": "vlans",
         "managed_switch_serial": "managed_switches",
+        "managed_switch_port": "managed_switch_ports",
+        "managed_switch_trunk": "managed_switch_trunks",
         "certificate_name": "certificates",
+        "fortios_address_object": "firewall_addresses",
+        "flow_port": "flow_ports",
+        "ip_protocol": "ip_protocols",
+        "fortios_policy_type": "policy_types",
+        "fortios_station_mac": "wireless_clients",
+        "fortios_nat_pool": "nat_pools",
         "address": "addresses",
         "ipv4_address": "addresses",
         "ipv6_address": "addresses",
@@ -789,6 +804,9 @@ def check_query_authority_and_typed_pre_auth(
         "switch": "switches",
         "fortios_interface": "interfaces",
         "fortios_physical_interface": "interfaces",
+        "fortiadc_interface": "interfaces",
+        "fortiadc_vdom": "adc_vdoms",
+        "fortiadc_virtual_server": "adc_virtual_servers",
         "cisco_ios_interface": "interfaces",
         "cisco_ios_physical_interface": "interfaces",
         "cisco_xe_interface": "interfaces",
@@ -815,6 +833,28 @@ def check_query_authority_and_typed_pre_auth(
                 assert slot_name
                 assert set(slot) == {"inventory", "kind"}
                 assert slot["inventory"] == expected_kind_inventory[slot["kind"]]
+    flow_slot_kinds = {
+        "src_ip": ("addresses", "ipv4_address"),
+        "src_port": ("flow_ports", "flow_port"),
+        "dst_ip": ("addresses", "ipv4_address"),
+        "dst_port": ("flow_ports", "flow_port"),
+        "protocol": ("ip_protocols", "ip_protocol"),
+        "device": ("interfaces", "fortios_interface"),
+        "pol_type": ("policy_types", "fortios_policy_type"),
+    }
+    for query, address_kind in (
+        ("policy_lookup_ipv4", "ipv4_address"),
+        ("policy_lookup_ipv6", "ipv6_address"),
+    ):
+        expected = dict(flow_slot_kinds)
+        expected["src_ip"] = ("addresses", address_kind)
+        expected["dst_ip"] = ("addresses", address_kind)
+        slots = module.READ_QUERY_SLOTS["fortinet"][query]
+        assert slots == {
+            name: {"inventory": inventory_name, "kind": kind}
+            for name, (inventory_name, kind) in expected.items()
+        }
+
     assert "ports_configuration" in module.READ_QUERY_NAMES["extreme_exos"]
     assert "ports_configuration" not in module.READ_QUERY_SLOTS["extreme_exos"]
 
@@ -843,6 +883,9 @@ def check_query_authority_and_typed_pre_auth(
         assert section.catalog_platform() == canonical
 
     expected_slots = {
+        ("fortinet", "lacp_detail"): (
+            "interfaces", "fortios_interface",
+        ),
         ("linux", "interface_link"): (
             "interfaces", "interface",
         ),
@@ -857,6 +900,15 @@ def check_query_authority_and_typed_pre_auth(
         ),
         ("fortinet", "interface_hardware"): (
             "interfaces", "fortios_physical_interface",
+        ),
+        ("fortinet", "nat_pool_assignments"): (
+            "nat_pools", "fortios_nat_pool",
+        ),
+        ("fortinet", "fqdn_object_detail"): (
+            "firewall_addresses", "fortios_address_object",
+        ),
+        ("fortiadc", "interface_state"): (
+            "interfaces", "fortiadc_interface",
         ),
         ("cisco_ios", "interface_details"): (
             "interfaces", "cisco_ios_interface",
@@ -915,6 +967,8 @@ def check_query_authority_and_typed_pre_auth(
         ("juniper_junos", "lacp_interface"): (
             "interfaces", "junos_lacp_interface",
         ),
+        ('fortinet', 'wifi_client_detail'): ('wireless_clients', 'fortios_station_mac'),
+        ('fortinet', 'sdwan_interface_quality'): ('interfaces', 'fortios_interface'),
     }
     for (platform, query), expected in expected_slots.items():
         slots = module.READ_QUERY_SLOTS[platform][query]
@@ -922,6 +976,11 @@ def check_query_authority_and_typed_pre_auth(
         slot = next(iter(slots.values()))
         assert set(slot) == {"inventory", "kind"}
         assert (slot["inventory"], slot["kind"]) == expected
+    for query in ("switch_lldp_port", "switch_mac_limit"):
+        assert module.READ_QUERY_SLOTS["fortinet"][query] == {
+            "managed_switch": {"inventory": "managed_switches", "kind": "managed_switch_serial"},
+            "port": {"inventory": "managed_switch_ports", "kind": "managed_switch_port"},
+        }
 
     valid_queries = (
         ("fortinet", "interface_details", "port1"),
@@ -932,6 +991,7 @@ def check_query_authority_and_typed_pre_auth(
         ("cisco_xe", "interface_errors", "Te1/0/24"),
         ("cisco_nxos", "interface_details", "Port-channel4096.4094"),
         ("cisco_nxos", "interface_errors", "Loopback1023"),
+        ("fortinet", "fqdn_object_detail", "api.example"),
         ("cisco_ios", "route_lookup", "192.0.2.20"),
         ("cisco_nxos", "ipv6_route_lookup", "2001:db8::1"),
         ("extreme_exos", "interface_details", "1:1"),
@@ -948,6 +1008,8 @@ def check_query_authority_and_typed_pre_auth(
         ("juniper_junos", "interface_optics", "xe-0/0/1"),
         ("juniper_junos", "arp_interface", "ge-1/0/47.0"),
         ("juniper_junos", "lacp_interface", "et-0/0/0"),
+        ('fortinet', 'wifi_client_detail', '00:00:5e:00:53:01'),
+        ('fortinet', 'sdwan_interface_quality', 'wan1'),
     )
 
     canonical_of = {
@@ -998,7 +1060,24 @@ def check_query_authority_and_typed_pre_auth(
         }))
         assert forwarded is not None, (platform, query, value)
 
+    for index, query in enumerate(("switch_lldp_port", "switch_mac_limit"), start=450):
+        candidate = _section()
+        candidate["ssh_platform"] = "fortios"
+        candidate["enabled_queries"] = [query]
+        candidate["read_inventory"] = {
+            "managed_switches": ["S124FPTF23000001"],
+            "managed_switch_ports": ["port1"],
+        }
+        _write(inventory, _inventory(_device(candidate, "fortios")))
+        forwarded = module.Proxy().request(_request(index, "ssh_read", {
+            "target": "device-a", "platform": "fortinet", "query": query,
+            "parameters": {"managed_switch": "S124FPTF23000001", "port": "port1"},
+        }))
+        assert forwarded is not None
+
     invalid_queries = (
+        ("fortinet", "fqdn_object_detail", "api.example;clear", "api.example;clear"),
+        ("fortinet", "fqdn_object_detail", "api.example", "other.example"),
         (
             "cisco_ios", "route_lookup",
             "2001:db8::1", "2001:db8::1",
@@ -1070,8 +1149,12 @@ def check_query_authority_and_typed_pre_auth(
         }))
         assert result is None, (platform, query, parameter_value)
         category = emitted[-1]["error"]["data"]["category"]
-        if platform in {"cisco_ios", "cisco_nxos"} and query.endswith(
-            "route_lookup"
+        if (
+            platform in {"cisco_ios", "cisco_nxos"} and query.endswith("route_lookup")
+        ) or (
+            platform == "fortinet"
+            and query == "fqdn_object_detail"
+            and parameter_value == "api.example"
         ):
             assert category == "policy_scope"
         else:
@@ -1081,6 +1164,76 @@ def check_query_authority_and_typed_pre_auth(
         assert proxy.rate_history == before == {}
         assert not proxy.pending
         assert not proxy.response_secrets
+
+
+def check_policy_lookup_query_envelopes(module, directory: Path) -> None:
+    inventory, _, _, _ = _configure(module, directory)
+    cases = (
+        (
+            "policy_lookup_ipv4",
+            {
+                "src_ip": "192.0.2.10", "src_port": "40000",
+                "dst_ip": "198.51.100.10", "dst_port": "443",
+                "protocol": "6", "device": "port2", "pol_type": "policy",
+            },
+        ),
+        (
+            "policy_lookup_ipv6",
+            {
+                "src_ip": "2001:db8::10", "src_port": "40000",
+                "dst_ip": "2001:db8::20", "dst_port": "443",
+                "protocol": "6", "device": "port2", "pol_type": "policy",
+            },
+        ),
+    )
+    for index, (query, parameters) in enumerate(cases, start=700):
+        candidate = _section()
+        candidate["ssh_platform"] = "fortios"
+        candidate["enabled_queries"] = [query]
+        candidate["read_inventory"] = {
+            "addresses": [parameters["src_ip"], parameters["dst_ip"]],
+            "interfaces": [parameters["device"]],
+            "flow_ports": [parameters["src_port"], parameters["dst_port"]],
+            "ip_protocols": [parameters["protocol"]],
+            "policy_types": [parameters["pol_type"]],
+        }
+        _write(inventory, _inventory(_device(candidate, "fortios")))
+        forwarded = module.Proxy().request(_request(index, "ssh_read", {
+            "target": "device-a", "platform": "fortinet", "query": query,
+            "parameters": parameters,
+        }))
+        assert forwarded is not None, query
+        decoded = json.loads(forwarded)
+        assert decoded["params"]["arguments"]["query"] == query
+        assert decoded["params"]["arguments"]["parameters"] == parameters
+
+    query, parameters = cases[0]
+    candidate = _section()
+    candidate["ssh_platform"] = "fortios"
+    candidate["enabled_queries"] = [query]
+    candidate["read_inventory"] = {
+        "addresses": [parameters["src_ip"], parameters["dst_ip"]],
+        "interfaces": [parameters["device"]],
+        "flow_ports": [parameters["src_port"]],
+        "ip_protocols": [parameters["protocol"]],
+        "policy_types": [parameters["pol_type"]],
+    }
+    _write(inventory, _inventory(_device(candidate, "fortios")))
+    proxy = module.Proxy()
+    auth_calls = []
+    rate_calls = []
+    proxy._auth_context = lambda *args: auth_calls.append(args) or "unexpected"
+    proxy._consume_rate_limit = lambda *args: rate_calls.append(args)
+    emitted = []
+    proxy._emit = emitted.append
+    result = proxy.request(_request(702, "ssh_read", {
+        "target": "device-a", "platform": "fortinet", "query": query,
+        "parameters": parameters,
+    }))
+    assert result is None
+    assert emitted[-1]["error"]["data"]["category"] == "policy_scope"
+    assert auth_calls == [] and rate_calls == []
+    assert proxy.rate_history == {}
 
 
 def check_standalone_isolated_help(directory: Path) -> None:
@@ -1568,7 +1721,7 @@ def check_end_to_end_over_a_fake_ssh(module, directory: Path) -> None:
         "alias", "host", "port", "login", "credential_kind", "secret",
         "host_key_fingerprint", "legacy_ssh", "account_role", "ssh_platform",
         "enabled_queries", "read_inventory", "sftp_roots",
-        "fortios_output_standard_verified", "egress",
+        "fortios_output_standard_verified", "egress", "configuration_limits",
     }
     assert envelope["host_key_fingerprint"] == DEVICE_PIN
     assert envelope["credential_kind"] == "password"
@@ -1647,6 +1800,57 @@ def check_a_dead_child_is_reported_while_stdin_stays_open(module, directory: Pat
     assert code != 0
     remaining = process.stderr.read()
     assert b"netops_proxy_transport" not in remaining
+
+
+FAKE_EARLY_DEAD_SSH = """#!%s
+import os, sys, time
+
+sys.stderr.write("Error response from daemon: No such container: netops-helper" + chr(10))
+sys.stderr.flush()
+os.close(0)
+open(os.environ["NETOPS_FAKE_SSH_RECORD"], "w").close()
+time.sleep(1.0)
+sys.exit(1)
+"""
+
+
+def check_a_child_gone_before_the_first_request_is_reported(module, directory: Path) -> None:
+    _, _, _, runner_path = _configure(module, directory)
+    _write(runner_path, _runner(module.hostkey.fingerprint_of(RUNNER_HOST_KEY)))
+    binaries = _fake_tools(directory)
+    early = binaries / "ssh"
+    early.write_text(FAKE_EARLY_DEAD_SSH % sys.executable, encoding="utf-8")
+    early.chmod(0o755)
+    closed = directory / "fake-ssh-stdin-closed"
+    closed.unlink(missing_ok=True)
+    process = subprocess.Popen(
+        [sys.executable, "-B", str(LAUNCHER)],
+        cwd=directory,
+        env=_proxy_environment(module, directory, binaries, closed),
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    try:
+        deadline = time.monotonic() + 20
+        while not closed.exists():
+            assert time.monotonic() < deadline, "the fake SSH never closed its input"
+            time.sleep(0.02)
+        stdout, stderr = process.communicate(
+            _request(1, "helper_status", {}) + b"\n", timeout=30,
+        )
+    finally:
+        if process.poll() is None:
+            process.kill()
+            process.wait(timeout=10)
+    assert process.returncode != 0, (process.returncode, stderr)
+    assert stderr.decode().splitlines() == [
+        "netops_proxy_transport category=remote_exec message=%s"
+        % "The fixed remote container command could not start."
+    ], stderr
+    answers = [json.loads(line) for line in stdout.splitlines()]
+    assert [answer.get("id") for answer in answers] == [1], answers
+    assert answers[0]["error"]["data"]["reason"] == "transport_closed", answers
 
 
 SERVER_REQUEST_REFUSAL = {
@@ -2549,6 +2753,20 @@ def check_bounded_diagnostic_scope(module):
     section=SimpleNamespace(egress={},catalog_platform=lambda:"fortinet",
                             enabled_queries=("system_status",),read_inventory=inventory)
     module.Proxy._authorize_tool("fortios_diagnostics",request,None,section)
+    tuple_request={**request,"recipe":"sessions","source_address":"192.0.2.184",
+                   "source_port":49152,"destination_port":443,"protocol":6}
+    inventory["diagnostic_recipes"]=("ping","sessions")
+    inventory["addresses"]=("192.0.2.183","192.0.2.184")
+    section.read_inventory=inventory
+    assert module.Proxy._validate_tool_arguments("fortios_diagnostics",tuple_request)==tuple_request
+    module.Proxy._authorize_tool("fortios_diagnostics",tuple_request,None,section)
+    section.read_inventory={**inventory,"addresses":("192.0.2.183",)}
+    try:
+        module.Proxy._authorize_tool("fortios_diagnostics",tuple_request,None,section)
+    except module.PolicyScopeError:
+        pass
+    else:
+        raise AssertionError("unenrolled diagnostic source address accepted")
     for category in inventory:
         section.read_inventory={key:value for key,value in inventory.items() if key!=category}
         try:
@@ -2559,16 +2777,43 @@ def check_bounded_diagnostic_scope(module):
             raise AssertionError("unenrolled diagnostic request accepted")
 
 
+def check_proxy_index_mode() -> None:
+    relative = str(SCRIPT.relative_to(ROOT))
+    try:
+        completed = subprocess.run(
+            ["git", "-C", str(ROOT), "ls-files", "-s", "--", relative],
+            capture_output=True, text=True, check=False, env={**os.environ, "LC_ALL": "C"},
+        )
+    except FileNotFoundError:
+        if not any((parent / ".git").exists() for parent in (ROOT, *ROOT.parents)):
+            print("index_mode_check=skipped reason=not a git repository")
+            return
+        raise AssertionError("git binary missing: cannot verify index mode of proxy.py") from None
+    if completed.returncode != 0:
+        first = (completed.stderr.splitlines() or [""])[0]
+        if completed.returncode == 128 and "not a git repository" in first:
+            print("index_mode_check=skipped reason=not a git repository")
+            return
+        raise AssertionError(f"git ls-files rc={completed.returncode}: {first}")
+    tracked = completed.stdout.split()
+    if not tracked:
+        print("index_mode_check=skipped reason=proxy.py not tracked by git")
+        return
+    assert tracked[0] == "100755", tracked[0]
+
+
 def main(base: Path | None = None) -> int:
     module = _load_proxy()
     check_bounded_diagnostic_scope(module)
-    assert stat.S_IMODE(SCRIPT.stat().st_mode) == 0o755
+    mode = stat.S_IMODE(SCRIPT.stat().st_mode)
+    assert mode in (0o755, 0o775), oct(mode)
+    check_proxy_index_mode()
     assert module.DEFAULT_RATE_REQUESTS == 30
     expected_control = {"helper_status", "read_query_catalog", "target_scope"}
     expected_device = {
         "dns_probe", "tcp_probe", "icmp_probe", "tls_probe", "ssh_read",
         "snmp_get", "sftp_stat", "ftp_list", "schema_read", "fortios_diagnostics",
-        "config_read", "config_diff",
+        "config_read", "config_diff", "triage_slb", "triage_health", "triage_routing", "triage_vpn",
     }
     assert module.CONTROL_TOOLS == expected_control
     assert module.DEVICE_TOOLS == expected_device
@@ -2578,8 +2823,9 @@ def main(base: Path | None = None) -> int:
     ) - {"target_scope"}
     assert module.SSH_TOOLS == {
         "ssh_read", "sftp_stat", "schema_read", "fortios_diagnostics", "config_read", "config_diff",
+        "triage_slb", "triage_health", "triage_routing", "triage_vpn",
     }
-    assert len(module.TOOL_ARGUMENT_SCHEMAS) == 15
+    assert len(module.TOOL_ARGUMENT_SCHEMAS) == 19
     assert module.SSH_TRANSPORT_FAILURE_MESSAGE == (
         "The remote MCP SSH transport failed."
     )
@@ -2623,6 +2869,7 @@ def main(base: Path | None = None) -> int:
         check_pre_auth_scope_for_query_slots_paths_and_alias(module, directory)
         check_exos_sharing_is_excluded(module, directory)
         check_query_authority_and_typed_pre_auth(module, directory)
+        check_policy_lookup_query_envelopes(module, directory)
         check_standalone_isolated_help(directory)
         check_batch_and_tools_list(module, directory)
         check_ssh_stderr_classification(module)
@@ -2631,6 +2878,7 @@ def main(base: Path | None = None) -> int:
         check_ssh_launch_hardening(module, directory)
         check_end_to_end_over_a_fake_ssh(module, directory)
         check_a_dead_child_is_reported_while_stdin_stays_open(module, directory)
+        check_a_child_gone_before_the_first_request_is_reported(module, directory)
         check_server_output_is_never_relayed_unredacted(module)
         check_a_secret_escaped_in_the_text_of_a_result_is_redacted(module)
         check_server_requests_to_the_client_are_refused(module)
@@ -2658,3 +2906,11 @@ def test_dependency_free_proxy_contracts(tmp_path: Path) -> None:
 if __name__ == "__main__":
     raise SystemExit(main())
 
+
+def test_typed_query_authority_through_proxy(tmp_path: Path) -> None:
+    from netops_helper import proxy
+    check_query_authority_and_typed_pre_auth(proxy, tmp_path)
+
+def test_policy_lookup_queries_through_proxy(tmp_path: Path) -> None:
+    from netops_helper import proxy
+    check_policy_lookup_query_envelopes(proxy, tmp_path)

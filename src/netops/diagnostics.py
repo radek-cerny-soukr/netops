@@ -5,7 +5,7 @@ REASONS = {
     "required": "is required for the selected platform, credential kind or channel",
     "text": "must be a non-empty string",
     "login": "must be a plain user name without a leading hyphen, @, colon, slash or whitespace",
-    "credential-kind": "kind must be password, ssh-key, api-token or snmp-community",
+    "credential-kind": "kind must be password, ssh-key, api-token or snmpv3-authpriv",
     "private-key": "must contain the private key text with a private-key header, rather than a path or public key",
     "reference": "must name an existing record",
     "owner": "file must belong to the process user",
@@ -47,7 +47,8 @@ REASONS = {
     "fingerprint-component": "must be a string without U+001F, the finding fingerprint separator",
     "absolute": "must be an absolute path without NUL",
     "integer": "must be an integer in the documented range",
-    "admin-platform": "must be fortios or exos",
+    "admin-platform": "must be fortios, exos or fortiadc",
+    "opt-in": "must be a list of distinct opt-in table names; the only table is firewall policy",
     "protected": "must map table names to lists of names",
     "distinct-names": "must be a list of distinct non-empty account names",
     "different-address": "must be a different address from the write address",
@@ -62,10 +63,18 @@ REASONS = {
     "policy": "audit policy cannot be loaded or is invalid for the platform",
     "channel-credential": "credential kind must match the collection channel: ssh uses password or ssh-key, fortios-rest uses api-token, file uses no credential",
     "auditor-platform": "the Auditor has no rule catalog for this platform",
+    "snmp-usm": "SNMPv3 authPriv needs auth_protocol sha256, priv_protocol aes128 and a value and priv_value of 8 to 4096 UTF-8 bytes each",
+    "tls-ca-path": "must be a canonical absolute path to a PEM file under /etc/netops-helper/certs, not inline PEM",
+    "tls-ca-symlink": "symlink leaves the /etc/netops-helper/certs directory",
+    "tls-ca-missing": "file not found under /etc/netops-helper/certs; is the certs directory mounted?",
+    "tls-ca-read": "file cannot be read within 64 KiB",
+    "tls-ca-private-key": "contains a private key; supply only the CA certificate",
+    "tls-ca-not-ca": "not a CA certificate; supply PEM certificates with basicConstraints CA=true",
 }
 FIELDS = {
     "configuration", "vault", "vault.version", "vault.credentials", "vault.credentials[]",
     "vault.credentials[].name", "vault.credentials[].kind", "vault.credentials[].login", "vault.credentials[].value",
+    "vault.credentials[].priv_value",
     "inventory", "inventory.version", "inventory.devices", "inventory.devices[]",
     "config", "config.version", "config.devices", "config.devices[]", "config.notify",
     "config.notify.server", "config.notify.topic_file", "config.notify.timeout_seconds",
@@ -76,12 +85,12 @@ FIELDS = {
 }
 FIELDS.update("inventory.devices[]." + field for field in (
     "name", "platform", "address", "port", "role", "credential", "host_key_fingerprint",
-    "legacy_ssh", "helper", "auditor", "auditor.channel", "auditor.source",
+    "legacy_ssh", "helper", "helper.tls_ca_certificate", "auditor", "auditor.channel", "auditor.source",
     "auditor.required_sections", "auditor.required_sections[]", "auditor.tls_fingerprint"))
 FIELDS.update("config.devices[]." + field for field in (
     "name", "platform", "address", "port", "host_key_fingerprint", "vault", "credential", "firmware",
     "safeguard_seconds", "confirm_margin_seconds", "protected", "legacy_ssh", "accounts",
-    "check_credential", "check_address", "audit_policy"))
+    "check_credential", "check_address", "audit_policy", "opt_in"))
 FIELDS.update("config." + field for field in (
     "state_dir", "audit_file", "vault", "audit_policy", "schema.library", "schema.calibration",
     "export_status_file", "safeguard_seconds", "confirm_margin_seconds", "port",
@@ -166,6 +175,7 @@ SYSLOG_MESSAGES = {
     "certificate-ca": "The supplied public certificate must be a CA",
     "certificate": "ca_pem must contain a PEM-encoded CA certificate with BasicConstraints",
     "host": "Invalid certificate DNS name",
+    "host-type": "Syslog host must be a DNS name or IP address written as a JSON string",
 }
 
 JSON_INPUT_MESSAGES = {

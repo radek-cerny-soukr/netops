@@ -455,11 +455,197 @@
       "baseline": "FortiADC 7.6.7",
       "url": "https://docs.fortinet.com/document/fortiadc/7.6.7/cli-reference"
     },
+    "F-ADC-DIAGNOSE-HARDWARE-DEVICEINFO-76": {
+      "vendor": "Fortinet",
+      "title": "FortiADC 7.6.7 CLI Reference: diagnose hardware deviceinfo",
+      "baseline": "FortiADC 7.6.7",
+      "url": "https://docs.fortinet.com/document/fortiadc/7.6.7/cli-reference/273890/diagnose-hardware-deviceinfo"
+    },
+    "F-ADC-DIAGNOSE-HARDWARE-SYSINFO-76": {
+      "vendor": "Fortinet",
+      "title": "FortiADC 7.6.7 CLI Reference: diagnose hardware sysinfo",
+      "baseline": "FortiADC 7.6.7",
+      "url": "https://docs.fortinet.com/document/fortiadc/7.6.7/cli-reference/106768/diagnose-hardware-sysinfo"
+    },
+    "F-ADC-DIAGNOSE-LLB-POLICY-LIST-76": {
+      "vendor": "Fortinet",
+      "title": "FortiADC 7.6.7 CLI Reference: diagnose llb policy list",
+      "baseline": "FortiADC 7.6.7",
+      "url": "https://docs.fortinet.com/document/fortiadc/7.6.7/cli-reference/410726/diagnose-llb-policy-list"
+    },
+    "F-ADC-DIAGNOSE-LLDPRX-NEIGHBOR-76": {
+      "vendor": "Fortinet",
+      "title": "FortiADC 7.6.7 CLI Reference: diagnose lldprx neighbor",
+      "baseline": "FortiADC 7.6.7",
+      "url": "https://docs.fortinet.com/document/fortiadc/7.6.7/cli-reference/51527/diagnose-lldprx-neighbor"
+    },
+    "F-ADC-DIAGNOSE-NETLINK-DEVICE-76": {
+      "vendor": "Fortinet",
+      "title": "FortiADC 7.6.7 CLI Reference: diagnose netlink device",
+      "baseline": "FortiADC 7.6.7",
+      "url": "https://docs.fortinet.com/document/fortiadc/7.6.7/cli-reference/176977/diagnose-netlink-device"
+    },
+    "F-ADC-DIAGNOSE-NETLINK-INTERFACE-76": {
+      "vendor": "Fortinet",
+      "title": "FortiADC 7.6.7 CLI Reference: diagnose netlink interface",
+      "baseline": "FortiADC 7.6.7",
+      "url": "https://docs.fortinet.com/document/fortiadc/7.6.7/cli-reference/188513/diagnose-netlink-interface"
+    },
+    "F-ADC-DIAGNOSE-NETLINK-NEIGHBOR-76": {
+      "vendor": "Fortinet",
+      "title": "FortiADC 7.6.7 CLI Reference: diagnose netlink neighbor/neighbor6",
+      "baseline": "FortiADC 7.6.7",
+      "url": "https://docs.fortinet.com/document/fortiadc/7.6.7/cli-reference/354318/diagnose-netlink-neighbor-neighbor6"
+    },
+    "F-ADC-DIAGNOSE-SERVER-LOAD-BALANCE-PERSISTENCE-76": {
+      "vendor": "Fortinet",
+      "title": "FortiADC 7.6.7 CLI Reference: diagnose server-load-balance persistence",
+      "baseline": "FortiADC 7.6.7",
+      "url": "https://docs.fortinet.com/document/fortiadc/7.6.7/cli-reference/136507/diagnose-server-load-balance-persistence"
+    },
+    "F-ADC-DIAGNOSE-SERVER-LOAD-BALANCE-SESSION-76": {
+      "vendor": "Fortinet",
+      "title": "FortiADC 7.6.7 CLI Reference: diagnose server-load-balance session",
+      "baseline": "FortiADC 7.6.7",
+      "url": "https://docs.fortinet.com/document/fortiadc/7.6.7/cli-reference/894949/diagnose-server-load-balance-session"
+    },
+    "F-ADC-DIAGNOSE-SERVER-LOAD-BALANCE-SLB-LOAD-76": {
+      "vendor": "Fortinet",
+      "title": "FortiADC 7.6.7 CLI Reference: diagnose server-load-balance slb_load",
+      "baseline": "FortiADC 7.6.7",
+      "url": "https://docs.fortinet.com/document/fortiadc/7.6.7/cli-reference/242244/diagnose-server-load-balance-slb-load"
+    },
+    "F-ADC-DIAGNOSE-SERVER-LOAD-BALANCE-VS-STAT-76": {
+      "vendor": "Fortinet",
+      "title": "FortiADC 7.6.7 CLI Reference: diagnose server-load-balance vs_stat",
+      "baseline": "FortiADC 7.6.7",
+      "url": "https://docs.fortinet.com/document/fortiadc/7.6.7/cli-reference/531193/diagnose-server-load-balance-vs-stat"
+    },
+    "F-ADC-DIAGNOSE-SYSTEM-VM-76": {
+      "vendor": "Fortinet",
+      "title": "FortiADC 7.6.7 CLI Reference: diagnose system vm",
+      "baseline": "FortiADC 7.6.7",
+      "url": "https://docs.fortinet.com/document/fortiadc/7.6.7/cli-reference/878940/diagnose-system-vm"
+    },
+    "F-ADC-EXECUTE-AUTOUPDATE-76": {
+      "vendor": "Fortinet",
+      "title": "FortiADC 7.6.7 CLI Reference: execute autoupdate",
+      "baseline": "FortiADC 7.6.7",
+      "url": "https://docs.fortinet.com/document/fortiadc/7.6.7/cli-reference/244507/execute-autoupdate"
+    },
+    "F-ADC-EXECUTE-DATE-76": {
+      "vendor": "Fortinet",
+      "title": "FortiADC 7.6.7 CLI Reference: execute date",
+      "baseline": "FortiADC 7.6.7",
+      "url": "https://docs.fortinet.com/document/fortiadc/7.6.7/cli-reference/979351/execute-date"
+    },
+    "F-ADC-EXECUTE-DOS-GET-76": {
+      "vendor": "Fortinet",
+      "title": "FortiADC 7.6.7 CLI Reference: execute dos get",
+      "baseline": "FortiADC 7.6.7",
+      "url": "https://docs.fortinet.com/document/fortiadc/7.6.7/cli-reference/705032/execute-dos-get"
+    },
+    "F-ADC-EXECUTE-LOG-LIST-TYPE-76": {
+      "vendor": "Fortinet",
+      "title": "FortiADC 7.6.7 CLI Reference: execute log list-type",
+      "baseline": "FortiADC 7.6.7",
+      "url": "https://docs.fortinet.com/document/fortiadc/7.6.7/cli-reference/36340/execute-log-list-type"
+    },
+    "F-ADC-EXECUTE-SSL-CLIENT-SESSION-76": {
+      "vendor": "Fortinet",
+      "title": "FortiADC 7.6.7 CLI Reference: execute ssl-client-side-session-statistics",
+      "baseline": "FortiADC 7.6.7",
+      "url": "https://docs.fortinet.com/document/fortiadc/7.6.7/cli-reference/617840/execute-ssl-client-side-session-statistics"
+    },
+    "F-ADC-EXECUTE-SSL-HANDSHAKE-RECORD-76": {
+      "vendor": "Fortinet",
+      "title": "FortiADC 7.6.7 CLI Reference: execute ssl-handshake-n-record-statistics",
+      "baseline": "FortiADC 7.6.7",
+      "url": "https://docs.fortinet.com/document/fortiadc/7.6.7/cli-reference/606888/execute-ssl-handshake-record-statistics"
+    },
+    "F-ADC-EXECUTE-WAF-BLOCK-IP-76": {
+      "vendor": "Fortinet",
+      "title": "FortiADC 7.6.7 CLI Reference: execute waf block-ip",
+      "baseline": "FortiADC 7.6.7",
+      "url": "https://docs.fortinet.com/document/fortiadc/7.6.7/cli-reference/503984/execute-waf-block-ip"
+    },
+    "F-ADC-GET-FIREWALL-GLOBAL-76": {
+      "vendor": "Fortinet",
+      "title": "FortiADC 7.6.7 CLI Reference: get firewall global",
+      "baseline": "FortiADC 7.6.7",
+      "url": "https://docs.fortinet.com/document/fortiadc/7.6.7/cli-reference/492107/get-firewall-global"
+    },
+    "F-ADC-GET-ROUTER-INFO-BGP-NEIGHBORS-76": {
+      "vendor": "Fortinet",
+      "title": "FortiADC 7.6.7 CLI Reference: get router info bgp neighbors",
+      "baseline": "FortiADC 7.6.7",
+      "url": "https://docs.fortinet.com/document/fortiadc/7.6.7/cli-reference/756515/get-router-info-bgp-neighbors"
+    },
+    "F-ADC-GET-ROUTER-INFO-BGP-SUMMARY-76": {
+      "vendor": "Fortinet",
+      "title": "FortiADC 7.6.7 CLI Reference: get router info bgp summary",
+      "baseline": "FortiADC 7.6.7",
+      "url": "https://docs.fortinet.com/document/fortiadc/7.6.7/cli-reference/858752/get-router-info-bgp-summary"
+    },
+    "F-ADC-GET-ROUTER-INFO-OSPF-76": {
+      "vendor": "Fortinet",
+      "title": "FortiADC 7.6.7 CLI Reference: get router info ospf",
+      "baseline": "FortiADC 7.6.7",
+      "url": "https://docs.fortinet.com/document/fortiadc/7.6.7/cli-reference/765439/get-router-info-ospf"
+    },
+    "F-ADC-GET-ROUTER-INFO-ROUTING-TABLE-76": {
+      "vendor": "Fortinet",
+      "title": "FortiADC 7.6.7 CLI Reference: get router info routing-table",
+      "baseline": "FortiADC 7.6.7",
+      "url": "https://docs.fortinet.com/document/fortiadc/7.6.7/cli-reference/474071/get-router-info-routing-table"
+    },
+    "F-ADC-GET-SECURITY-WAF-SIGNATURE-STATUS-76": {
+      "vendor": "Fortinet",
+      "title": "FortiADC 7.6.7 CLI Reference: get security waf-signature-status",
+      "baseline": "FortiADC 7.6.7",
+      "url": "https://docs.fortinet.com/document/fortiadc/7.6.7/cli-reference/165394/get-security-waf-signature-status"
+    },
+    "F-ADC-GET-SYSTEM-HA-STATUS-76": {
+      "vendor": "Fortinet",
+      "title": "FortiADC 7.6.7 CLI Reference: get system ha-status",
+      "baseline": "FortiADC 7.6.7",
+      "url": "https://docs.fortinet.com/document/fortiadc/7.6.7/cli-reference/935095/get-system-ha-status"
+    },
+    "F-ADC-GET-SYSTEM-PERFORMANCE-76": {
+      "vendor": "Fortinet",
+      "title": "FortiADC 7.6.7 CLI Reference: get system performance",
+      "baseline": "FortiADC 7.6.7",
+      "url": "https://docs.fortinet.com/document/fortiadc/7.6.7/cli-reference/420036/get-system-performance"
+    },
     "F-ADC-GET-SYSTEM-STATUS-76": {
       "vendor": "Fortinet",
       "title": "FortiADC 7.6.7 CLI Reference: get system status",
       "baseline": "FortiADC 7.6.7",
       "url": "https://docs.fortinet.com/document/fortiadc/7.6.7/cli-reference/379949/get-system-status"
+    },
+    "F-ADC-GET-SYSTEM-TRAFFIC-GROUP-STATUS-76": {
+      "vendor": "Fortinet",
+      "title": "FortiADC 7.6.7 CLI Reference: get system traffic-group status",
+      "baseline": "FortiADC 7.6.7",
+      "url": "https://docs.fortinet.com/document/fortiadc/7.6.7/cli-reference/593476/get-system-traffic-group-status"
+    },
+    "F-ADMIN-CHEAT-768": {
+      "vendor": "Fortinet",
+      "title": "FortiOS 7.6.8 Administration Guide: CLI troubleshooting cheat sheet (explicit shared 7.6 reference)",
+      "baseline": "FortiOS 7.6.8; explicitly links the shared FortiOS 7.6.0 troubleshooting cheat sheet",
+      "url": "https://docs.fortinet.com/document/fortigate/7.6.8/administration-guide/574215/cli-troubleshooting-cheat-sheet"
+    },
+    "F-ADMIN-DNS-768": {
+      "vendor": "Fortinet",
+      "title": "FortiOS 7.6.8 Administration Guide: DNS troubleshooting",
+      "baseline": "FortiOS 7.6.8",
+      "url": "https://docs.fortinet.com/document/fortigate/7.6.8/administration-guide/126629/dns-troubleshooting"
+    },
+    "F-ADMIN-DNS-802": {
+      "vendor": "Fortinet",
+      "title": "FortiOS 8.0.2 Administration Guide: DNS troubleshooting",
+      "baseline": "FortiOS 8.0.2",
+      "url": "https://docs.fortinet.com/document/fortigate/8.0.2/administration-guide/126629/dns-troubleshooting"
     },
     "F-BFD-80": {
       "vendor": "Fortinet",
@@ -514,6 +700,12 @@
       "title": "FortiGate / FortiOS 7.6.4 CLI Reference",
       "baseline": "FortiOS 7.6.x and 8.0.0",
       "url": "https://docs.fortinet.com/document/fortigate/7.6.4/cli-reference"
+    },
+    "F-CLI-768": {
+      "vendor": "Fortinet",
+      "title": "FortiGate / FortiOS 7.6.8 CLI Reference",
+      "baseline": "FortiOS 7.6.8",
+      "url": "https://docs.fortinet.com/document/fortigate/7.6.8/cli-reference"
     },
     "F-CLI-80": {
       "vendor": "Fortinet",
@@ -2297,6 +2489,240 @@
         "E-VLAN"
       ]
     },
+    "fortiadc/arp_table": {
+      "profile": "fortiadc",
+      "query": "arp_table",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "F-ADC-CLI-76",
+        "F-ADC-DIAGNOSE-NETLINK-NEIGHBOR-76"
+      ]
+    },
+    "fortiadc/autoupdate_contract": {
+      "profile": "fortiadc",
+      "query": "autoupdate_contract",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "F-ADC-CLI-76",
+        "F-ADC-EXECUTE-AUTOUPDATE-76"
+      ]
+    },
+    "fortiadc/bgp_neighbors": {
+      "profile": "fortiadc",
+      "query": "bgp_neighbors",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "F-ADC-CLI-76",
+        "F-ADC-GET-ROUTER-INFO-BGP-NEIGHBORS-76"
+      ]
+    },
+    "fortiadc/bgp_summary": {
+      "profile": "fortiadc",
+      "query": "bgp_summary",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "F-ADC-CLI-76",
+        "F-ADC-GET-ROUTER-INFO-BGP-SUMMARY-76"
+      ]
+    },
+    "fortiadc/cpu_info": {
+      "profile": "fortiadc",
+      "query": "cpu_info",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "F-ADC-CLI-76",
+        "F-ADC-DIAGNOSE-HARDWARE-SYSINFO-76"
+      ]
+    },
+    "fortiadc/dos_access_limit": {
+      "profile": "fortiadc",
+      "query": "dos_access_limit",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "F-ADC-CLI-76",
+        "F-ADC-EXECUTE-DOS-GET-76"
+      ]
+    },
+    "fortiadc/dos_conn_limit": {
+      "profile": "fortiadc",
+      "query": "dos_conn_limit",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "F-ADC-CLI-76",
+        "F-ADC-EXECUTE-DOS-GET-76"
+      ]
+    },
+    "fortiadc/dos_req_limit": {
+      "profile": "fortiadc",
+      "query": "dos_req_limit",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "F-ADC-CLI-76",
+        "F-ADC-EXECUTE-DOS-GET-76"
+      ]
+    },
+    "fortiadc/firewall_timeouts": {
+      "profile": "fortiadc",
+      "query": "firewall_timeouts",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "F-ADC-CLI-76",
+        "F-ADC-GET-FIREWALL-GLOBAL-76"
+      ]
+    },
+    "fortiadc/ha_status": {
+      "profile": "fortiadc",
+      "query": "ha_status",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "F-ADC-CLI-76",
+        "F-ADC-GET-SYSTEM-HA-STATUS-76"
+      ]
+    },
+    "fortiadc/interface_counters": {
+      "profile": "fortiadc",
+      "query": "interface_counters",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "F-ADC-CLI-76",
+        "F-ADC-DIAGNOSE-NETLINK-DEVICE-76"
+      ]
+    },
+    "fortiadc/interface_state": {
+      "profile": "fortiadc",
+      "query": "interface_state",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "F-ADC-CLI-76",
+        "F-ADC-DIAGNOSE-NETLINK-INTERFACE-76"
+      ]
+    },
+    "fortiadc/llb_policy": {
+      "profile": "fortiadc",
+      "query": "llb_policy",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "F-ADC-CLI-76",
+        "F-ADC-DIAGNOSE-LLB-POLICY-LIST-76"
+      ]
+    },
+    "fortiadc/lldp_neighbors": {
+      "profile": "fortiadc",
+      "query": "lldp_neighbors",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "F-ADC-CLI-76",
+        "F-ADC-DIAGNOSE-LLDPRX-NEIGHBOR-76"
+      ]
+    },
+    "fortiadc/log_files": {
+      "profile": "fortiadc",
+      "query": "log_files",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "F-ADC-CLI-76",
+        "F-ADC-EXECUTE-LOG-LIST-TYPE-76"
+      ]
+    },
+    "fortiadc/log_list_attack": {
+      "profile": "fortiadc",
+      "query": "log_list_attack",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "F-ADC-CLI-76",
+        "F-ADC-EXECUTE-LOG-LIST-TYPE-76"
+      ]
+    },
+    "fortiadc/log_list_traffic": {
+      "profile": "fortiadc",
+      "query": "log_list_traffic",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "F-ADC-CLI-76",
+        "F-ADC-EXECUTE-LOG-LIST-TYPE-76"
+      ]
+    },
+    "fortiadc/nic_detail": {
+      "profile": "fortiadc",
+      "query": "nic_detail",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "F-ADC-CLI-76",
+        "F-ADC-DIAGNOSE-HARDWARE-DEVICEINFO-76"
+      ]
+    },
+    "fortiadc/ospf_neighbors": {
+      "profile": "fortiadc",
+      "query": "ospf_neighbors",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "F-ADC-CLI-76",
+        "F-ADC-GET-ROUTER-INFO-OSPF-76"
+      ]
+    },
+    "fortiadc/persistence_sessions": {
+      "profile": "fortiadc",
+      "query": "persistence_sessions",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "F-ADC-CLI-76",
+        "F-ADC-DIAGNOSE-SERVER-LOAD-BALANCE-PERSISTENCE-76"
+      ]
+    },
+    "fortiadc/routing_table": {
+      "profile": "fortiadc",
+      "query": "routing_table",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "F-ADC-CLI-76",
+        "F-ADC-GET-ROUTER-INFO-ROUTING-TABLE-76"
+      ]
+    },
+    "fortiadc/slb_load": {
+      "profile": "fortiadc",
+      "query": "slb_load",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "F-ADC-CLI-76",
+        "F-ADC-DIAGNOSE-SERVER-LOAD-BALANCE-SLB-LOAD-76"
+      ]
+    },
+    "fortiadc/slb_sessions": {
+      "profile": "fortiadc",
+      "query": "slb_sessions",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "F-ADC-CLI-76",
+        "F-ADC-DIAGNOSE-SERVER-LOAD-BALANCE-SESSION-76"
+      ]
+    },
+    "fortiadc/slb_vs_stat": {
+      "profile": "fortiadc",
+      "query": "slb_vs_stat",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "F-ADC-CLI-76",
+        "F-ADC-DIAGNOSE-SERVER-LOAD-BALANCE-VS-STAT-76"
+      ]
+    },
+    "fortiadc/system_date": {
+      "profile": "fortiadc",
+      "query": "system_date",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "F-ADC-CLI-76",
+        "F-ADC-EXECUTE-DATE-76"
+      ]
+    },
+    "fortiadc/system_performance": {
+      "profile": "fortiadc",
+      "query": "system_performance",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "F-ADC-CLI-76",
+        "F-ADC-GET-SYSTEM-PERFORMANCE-76"
+      ]
+    },
     "fortiadc/system_status": {
       "profile": "fortiadc",
       "query": "system_status",
@@ -2304,6 +2730,60 @@
       "source_ids": [
         "F-ADC-CLI-76",
         "F-ADC-GET-SYSTEM-STATUS-76"
+      ]
+    },
+    "fortiadc/tls_handshake_stats": {
+      "profile": "fortiadc",
+      "query": "tls_handshake_stats",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "F-ADC-CLI-76",
+        "F-ADC-EXECUTE-SSL-HANDSHAKE-RECORD-76"
+      ]
+    },
+    "fortiadc/tls_session_reuse": {
+      "profile": "fortiadc",
+      "query": "tls_session_reuse",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "F-ADC-CLI-76",
+        "F-ADC-EXECUTE-SSL-CLIENT-SESSION-76"
+      ]
+    },
+    "fortiadc/traffic_group_status": {
+      "profile": "fortiadc",
+      "query": "traffic_group_status",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "F-ADC-CLI-76",
+        "F-ADC-GET-SYSTEM-TRAFFIC-GROUP-STATUS-76"
+      ]
+    },
+    "fortiadc/vm_license": {
+      "profile": "fortiadc",
+      "query": "vm_license",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "F-ADC-CLI-76",
+        "F-ADC-DIAGNOSE-SYSTEM-VM-76"
+      ]
+    },
+    "fortiadc/waf_block_ip": {
+      "profile": "fortiadc",
+      "query": "waf_block_ip",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "F-ADC-CLI-76",
+        "F-ADC-EXECUTE-WAF-BLOCK-IP-76"
+      ]
+    },
+    "fortiadc/waf_signature_status": {
+      "profile": "fortiadc",
+      "query": "waf_signature_status",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "F-ADC-CLI-76",
+        "F-ADC-GET-SECURITY-WAF-SIGNATURE-STATUS-76"
       ]
     },
     "fortinet/arp_table": {
@@ -2357,6 +2837,66 @@
         "F-CLI-802"
       ]
     },
+    "fortinet/bgp_accepted_ipv4": {
+      "profile": "fortinet",
+      "query": "bgp_accepted_ipv4",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "F-ADMIN-CHEAT-768",
+        "F-CHEAT-76",
+        "F-CHEAT-802"
+      ]
+    },
+    "fortinet/bgp_accepted_ipv6": {
+      "profile": "fortinet",
+      "query": "bgp_accepted_ipv6",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "F-ADMIN-CHEAT-768",
+        "F-CHEAT-76",
+        "F-CHEAT-802"
+      ]
+    },
+    "fortinet/bgp_advertised_ipv4": {
+      "profile": "fortinet",
+      "query": "bgp_advertised_ipv4",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "F-ADMIN-CHEAT-768",
+        "F-CHEAT-76",
+        "F-CHEAT-802"
+      ]
+    },
+    "fortinet/bgp_advertised_ipv6": {
+      "profile": "fortinet",
+      "query": "bgp_advertised_ipv6",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "F-ADMIN-CHEAT-768",
+        "F-CHEAT-76",
+        "F-CHEAT-802"
+      ]
+    },
+    "fortinet/bgp_received_ipv4": {
+      "profile": "fortinet",
+      "query": "bgp_received_ipv4",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "F-ADMIN-CHEAT-768",
+        "F-CHEAT-76",
+        "F-CHEAT-802"
+      ]
+    },
+    "fortinet/bgp_received_ipv6": {
+      "profile": "fortinet",
+      "query": "bgp_received_ipv6",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "F-ADMIN-CHEAT-768",
+        "F-CHEAT-76",
+        "F-CHEAT-802"
+      ]
+    },
     "fortinet/bgp_summary": {
       "profile": "fortinet",
       "query": "bgp_summary",
@@ -2386,12 +2926,39 @@
         "F-CERT-LOCAL"
       ]
     },
+    "fortinet/conserve_state": {
+      "profile": "fortinet",
+      "query": "conserve_state",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "F-CLI-768",
+        "F-CLI-802"
+      ]
+    },
+    "fortinet/cpu_cores": {
+      "profile": "fortinet",
+      "query": "cpu_cores",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "F-CLI-768",
+        "F-CLI-802"
+      ]
+    },
     "fortinet/debug_state": {
       "profile": "fortinet",
       "query": "debug_state",
       "source_type": "official_vendor",
       "source_ids": [
         "F-DEBUG-80"
+      ]
+    },
+    "fortinet/dhcp_leases": {
+      "profile": "fortinet",
+      "query": "dhcp_leases",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "F-CLI-768",
+        "F-CLI-802"
       ]
     },
     "fortinet/disk_status": {
@@ -2404,12 +2971,61 @@
         "F-CLI-802"
       ]
     },
+    "fortinet/dns_cache": {
+      "profile": "fortinet",
+      "query": "dns_cache",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "F-ADMIN-DNS-768",
+        "F-ADMIN-DNS-802",
+        "F-CLI-768",
+        "F-CLI-802"
+      ]
+    },
     "fortinet/firewall_auth_users": {
       "profile": "fortinet",
       "query": "firewall_auth_users",
       "source_type": "official_vendor",
       "source_ids": [
         "F-CLI-80",
+        "F-CLI-802"
+      ]
+    },
+    "fortinet/fortiguard_communication": {
+      "profile": "fortinet",
+      "query": "fortiguard_communication",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "F-CLI-768",
+        "F-CLI-802"
+      ]
+    },
+    "fortinet/fqdn_cache": {
+      "profile": "fortinet",
+      "query": "fqdn_cache",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "F-ADMIN-DNS-768",
+        "F-ADMIN-DNS-802",
+        "F-CLI-768",
+        "F-CLI-802"
+      ]
+    },
+    "fortinet/fqdn_object_detail": {
+      "profile": "fortinet",
+      "query": "fqdn_object_detail",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "F-CLI-768",
+        "F-CLI-802"
+      ]
+    },
+    "fortinet/fqdn_resolved_addresses": {
+      "profile": "fortinet",
+      "query": "fqdn_resolved_addresses",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "F-CLI-768",
         "F-CLI-802"
       ]
     },
@@ -2432,6 +3048,15 @@
         "F-HA-76"
       ]
     },
+    "fortinet/ha_nonsync_checksum": {
+      "profile": "fortinet",
+      "query": "ha_nonsync_checksum",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "F-CLI-768",
+        "F-CLI-802"
+      ]
+    },
     "fortinet/ha_status": {
       "profile": "fortinet",
       "query": "ha_status",
@@ -2443,6 +3068,15 @@
         "F-HA-76"
       ]
     },
+    "fortinet/ha_sync_statistics": {
+      "profile": "fortinet",
+      "query": "ha_sync_statistics",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "F-CLI-768",
+        "F-CLI-802"
+      ]
+    },
     "fortinet/hardware_memory": {
       "profile": "fortinet",
       "query": "hardware_memory",
@@ -2450,6 +3084,33 @@
       "source_ids": [
         "F-DIAG-HW-76",
         "F-CLI-80",
+        "F-CLI-802"
+      ]
+    },
+    "fortinet/ike_errors": {
+      "profile": "fortinet",
+      "query": "ike_errors",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "F-CLI-768",
+        "F-CLI-802"
+      ]
+    },
+    "fortinet/ike_object_counts": {
+      "profile": "fortinet",
+      "query": "ike_object_counts",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "F-CLI-768",
+        "F-CLI-802"
+      ]
+    },
+    "fortinet/ike_statistics": {
+      "profile": "fortinet",
+      "query": "ike_statistics",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "F-CLI-768",
         "F-CLI-802"
       ]
     },
@@ -2525,6 +3186,15 @@
         "F-IPSEC-ALIAS-80"
       ]
     },
+    "fortinet/ipsec_tunnel_statistics": {
+      "profile": "fortinet",
+      "query": "ipsec_tunnel_statistics",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "F-CLI-768",
+        "F-CLI-802"
+      ]
+    },
     "fortinet/ipv6_bfd_neighbors": {
       "profile": "fortinet",
       "query": "ipv6_bfd_neighbors",
@@ -2589,6 +3259,24 @@
         "F-CLI-802"
       ]
     },
+    "fortinet/lacp_detail": {
+      "profile": "fortinet",
+      "query": "lacp_detail",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "F-CLI-768",
+        "F-CLI-802"
+      ]
+    },
+    "fortinet/link_monitor_status": {
+      "profile": "fortinet",
+      "query": "link_monitor_status",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "F-CLI-768",
+        "F-CLI-802"
+      ]
+    },
     "fortinet/lldp_summary": {
       "profile": "fortinet",
       "query": "lldp_summary",
@@ -2643,6 +3331,24 @@
         "F-CHEAT-802"
       ]
     },
+    "fortinet/nat_pool_assignments": {
+      "profile": "fortinet",
+      "query": "nat_pool_assignments",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "F-CLI-768",
+        "F-CLI-802"
+      ]
+    },
+    "fortinet/nat_pool_usage": {
+      "profile": "fortinet",
+      "query": "nat_pool_usage",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "F-CLI-768",
+        "F-CLI-802"
+      ]
+    },
     "fortinet/ntp_status": {
       "profile": "fortinet",
       "query": "ntp_status",
@@ -2651,6 +3357,46 @@
         "F-DIAG-SYS-80",
         "F-CLI-80",
         "F-CLI-802"
+      ]
+    },
+    "fortinet/ospf_database_brief_ipv4": {
+      "profile": "fortinet",
+      "query": "ospf_database_brief_ipv4",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "F-ADMIN-CHEAT-768",
+        "F-CHEAT-76",
+        "F-CHEAT-802"
+      ]
+    },
+    "fortinet/ospf_database_ipv6": {
+      "profile": "fortinet",
+      "query": "ospf_database_ipv6",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "F-ADMIN-CHEAT-768",
+        "F-CHEAT-76",
+        "F-CHEAT-802"
+      ]
+    },
+    "fortinet/ospf_interfaces_ipv4": {
+      "profile": "fortinet",
+      "query": "ospf_interfaces_ipv4",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "F-ADMIN-CHEAT-768",
+        "F-CHEAT-76",
+        "F-CHEAT-802"
+      ]
+    },
+    "fortinet/ospf_interfaces_ipv6": {
+      "profile": "fortinet",
+      "query": "ospf_interfaces_ipv6",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "F-ADMIN-CHEAT-768",
+        "F-CHEAT-76",
+        "F-CHEAT-802"
       ]
     },
     "fortinet/ospf_neighbors": {
@@ -2709,6 +3455,54 @@
         "F-PING-OPTIONS-76"
       ]
     },
+    "fortinet/policy_lookup_ipv4": {
+      "profile": "fortinet",
+      "query": "policy_lookup_ipv4",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "F-CLI-768",
+        "F-CLI-802"
+      ]
+    },
+    "fortinet/policy_lookup_ipv6": {
+      "profile": "fortinet",
+      "query": "policy_lookup_ipv6",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "F-CLI-768",
+        "F-CLI-802"
+      ]
+    },
+    "fortinet/policy_routes_ipv4": {
+      "profile": "fortinet",
+      "query": "policy_routes_ipv4",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "F-CLI-768",
+        "F-ADMIN-CHEAT-768",
+        "F-CHEAT-76",
+        "F-CLI-802",
+        "F-CHEAT-802"
+      ]
+    },
+    "fortinet/policy_routes_ipv6": {
+      "profile": "fortinet",
+      "query": "policy_routes_ipv6",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "F-CLI-768",
+        "F-CLI-802"
+      ]
+    },
+    "fortinet/route_cache": {
+      "profile": "fortinet",
+      "query": "route_cache",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "F-CLI-768",
+        "F-CLI-802"
+      ]
+    },
     "fortinet/route_lookup": {
       "profile": "fortinet",
       "query": "route_lookup",
@@ -2755,6 +3549,78 @@
         "F-SDWAN-80"
       ]
     },
+    "fortinet/sdwan_interface_quality": {
+      "profile": "fortinet",
+      "query": "sdwan_interface_quality",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "F-CLI-768",
+        "F-CLI-802"
+      ]
+    },
+    "fortinet/sdwan_member_detail": {
+      "profile": "fortinet",
+      "query": "sdwan_member_detail",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "F-CLI-768",
+        "F-CLI-802"
+      ]
+    },
+    "fortinet/sdwan_routes_ipv4": {
+      "profile": "fortinet",
+      "query": "sdwan_routes_ipv4",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "F-CLI-768",
+        "F-CLI-802"
+      ]
+    },
+    "fortinet/sdwan_routes_ipv6": {
+      "profile": "fortinet",
+      "query": "sdwan_routes_ipv6",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "F-CLI-768",
+        "F-CLI-802"
+      ]
+    },
+    "fortinet/sdwan_service_ipv4": {
+      "profile": "fortinet",
+      "query": "sdwan_service_ipv4",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "F-CLI-768",
+        "F-CLI-802"
+      ]
+    },
+    "fortinet/sdwan_service_ipv6": {
+      "profile": "fortinet",
+      "query": "sdwan_service_ipv6",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "F-CLI-768",
+        "F-CLI-802"
+      ]
+    },
+    "fortinet/sdwan_sla_history": {
+      "profile": "fortinet",
+      "query": "sdwan_sla_history",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "F-CLI-768",
+        "F-CLI-802"
+      ]
+    },
+    "fortinet/sdwan_zone": {
+      "profile": "fortinet",
+      "query": "sdwan_zone",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "F-CLI-768",
+        "F-CLI-802"
+      ]
+    },
     "fortinet/session_filter_state": {
       "profile": "fortinet",
       "query": "session_filter_state",
@@ -2793,6 +3659,114 @@
         "F-CLI-802"
       ]
     },
+    "fortinet/switch_bpdu_guard": {
+      "profile": "fortinet",
+      "query": "switch_bpdu_guard",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "F-CLI-768",
+        "F-CLI-802"
+      ]
+    },
+    "fortinet/switch_dhcp_bindings": {
+      "profile": "fortinet",
+      "query": "switch_dhcp_bindings",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "F-CLI-768",
+        "F-CLI-802"
+      ]
+    },
+    "fortinet/switch_dhcp_snooping": {
+      "profile": "fortinet",
+      "query": "switch_dhcp_snooping",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "F-CLI-768",
+        "F-CLI-802"
+      ]
+    },
+    "fortinet/switch_fan_health": {
+      "profile": "fortinet",
+      "query": "switch_fan_health",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "F-CLI-768",
+        "F-CLI-802"
+      ]
+    },
+    "fortinet/switch_flap_guard": {
+      "profile": "fortinet",
+      "query": "switch_flap_guard",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "F-CLI-768",
+        "F-CLI-802"
+      ]
+    },
+    "fortinet/switch_lldp_port": {
+      "profile": "fortinet",
+      "query": "switch_lldp_port",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "F-CLI-768",
+        "F-CLI-802"
+      ]
+    },
+    "fortinet/switch_loop_guard": {
+      "profile": "fortinet",
+      "query": "switch_loop_guard",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "F-CLI-768",
+        "F-CLI-802"
+      ]
+    },
+    "fortinet/switch_mac_limit": {
+      "profile": "fortinet",
+      "query": "switch_mac_limit",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "F-CLI-768",
+        "F-CLI-802"
+      ]
+    },
+    "fortinet/switch_mclag_consistency": {
+      "profile": "fortinet",
+      "query": "switch_mclag_consistency",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "F-CLI-768",
+        "F-CLI-802"
+      ]
+    },
+    "fortinet/switch_mclag_icl": {
+      "profile": "fortinet",
+      "query": "switch_mclag_icl",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "F-CLI-768",
+        "F-CLI-802"
+      ]
+    },
+    "fortinet/switch_source_guard": {
+      "profile": "fortinet",
+      "query": "switch_source_guard",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "F-CLI-768",
+        "F-CLI-802"
+      ]
+    },
+    "fortinet/switch_trunk_status": {
+      "profile": "fortinet",
+      "query": "switch_trunk_status",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "F-CLI-768",
+        "F-CLI-802"
+      ]
+    },
     "fortinet/system_status": {
       "profile": "fortinet",
       "query": "system_status",
@@ -2822,6 +3796,56 @@
       "source_type": "official_vendor",
       "source_ids": [
         "F-TRACE-OPTIONS-80"
+      ]
+    },
+    "fortinet/wifi_access_points": {
+      "profile": "fortinet",
+      "query": "wifi_access_points",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "F-CHEAT-76",
+        "F-CLI-768",
+        "F-CLI-802"
+      ]
+    },
+    "fortinet/wifi_ap_detail": {
+      "profile": "fortinet",
+      "query": "wifi_ap_detail",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "F-CHEAT-76",
+        "F-CLI-768",
+        "F-CLI-802"
+      ]
+    },
+    "fortinet/wifi_client_detail": {
+      "profile": "fortinet",
+      "query": "wifi_client_detail",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "F-CHEAT-76",
+        "F-CLI-768",
+        "F-CLI-802"
+      ]
+    },
+    "fortinet/wifi_clients": {
+      "profile": "fortinet",
+      "query": "wifi_clients",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "F-CHEAT-76",
+        "F-CLI-768",
+        "F-CLI-802"
+      ]
+    },
+    "fortinet/wifi_ssid_mapping": {
+      "profile": "fortinet",
+      "query": "wifi_ssid_mapping",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "F-CHEAT-76",
+        "F-CLI-768",
+        "F-CLI-802"
       ]
     },
     "juniper_junos/arp_interface": {
