@@ -516,7 +516,7 @@ def finding_detail(store, tenant, device, fingerprint, suppressions=(), now=None
         match, STATE_NOT_EVALUATED if historical_match else dict(result.states)[fingerprint], rule_state
     )
     if historical_match:
-        last = historical_run
+        last = match.get("carried_from", historical_run)
     entry["tenant"] = tenant
     entry["device"] = device
     entry["run_id"] = last["id"]

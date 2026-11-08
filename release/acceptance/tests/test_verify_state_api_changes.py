@@ -86,18 +86,18 @@ class ApiChanges(unittest.TestCase):
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
 
-    def run_report(self, from_mcp, to_mcp, changes=None, versions=("1.0.4", "1.0.5"), raw=None):
+    def run_report(self, from_mcp, to_mcp, changes=None, versions=("1.0.5", "1.0.6"), raw=None):
         work, out = self.root / "work", self.root / "out"
         work.mkdir(exist_ok=True)
         out.mkdir(exist_ok=True)
-        (work / "params.json").write_text(json.dumps({"FROM_IMAGE": "f", "TO_IMAGE": "t", "FROM_VERSION": "1.0.4",
-                                                      "TO_VERSION": "1.0.5", "SERVER_NAME": "localhost", "PORT": "1", "NONCE": "n"}))
+        (work / "params.json").write_text(json.dumps({"FROM_IMAGE": "f", "TO_IMAGE": "t", "FROM_VERSION": "1.0.5",
+                                                      "TO_VERSION": "1.0.6", "SERVER_NAME": "localhost", "PORT": "1", "NONCE": "n"}))
         (work / "from-mcp.json").write_text(json.dumps(from_mcp))
         (work / "to-mcp.json").write_text(json.dumps(to_mcp))
         (work / "to-logs.txt").write_text("log\n")
         (self.root / "token").write_text(TOKEN)
         (self.root / "vault").write_text(VAULT)
-        declaration = self.root / "api-changes-1.0.4-1.0.5.json"
+        declaration = self.root / "api-changes-1.0.5-1.0.6.json"
         declaration.unlink(missing_ok=True)
         if raw is not None:
             declaration.write_text(raw)
@@ -317,7 +317,7 @@ class ApiChanges(unittest.TestCase):
     def test_invalid_declarations_fail_both_checks(self):
         good = {"tool": "triage_slb", "kind": "added", "reason": "new read-only triage tool"}
         keyed = {"tool": "ssh_read", "kind": "definition", "reason": "x", "added_keys": keys(a=1)}
-        cases = {"versions": dict(changes=[good], versions=("1.0.3", "1.0.4")),
+        cases = {"versions": dict(changes=[good], versions=("1.0.4", "1.0.5")),
                  "kind": dict(changes=[dict(good, kind="renamed")]),
                  "old-kind": dict(changes=[dict(good, kind="response-shape")]),
                  "reason": dict(changes=[dict(good, reason=" ")]),
@@ -331,12 +331,12 @@ class ApiChanges(unittest.TestCase):
                  "extra-expectation-key": dict(changes=[good, dict(keyed, added_keys={"/a": dict(fp(1), note=1)})]),
                  "removed-with-values": dict(changes=[good, dict(keyed, added_keys={}, removed_keys=keys(a=1))]),
                  "removed-not-list": dict(changes=[good, dict(keyed, removed_keys=7)]),
-                 "duplicate-json-key": dict(raw='{"from": "1.0.4", "to": "1.0.5", "changes": [], "changes": []}'),
+                 "duplicate-json-key": dict(raw='{"from": "1.0.5", "to": "1.0.6", "changes": [], "changes": []}'),
                  "breaking-type": dict(changes=[dict(good, breaking="yes")]),
                  "duplicate": dict(changes=[good, good]),
                  "duplicate-pointer": dict(changes=[good, keyed, dict(keyed, reason="y")]),
                  "not-json": dict(raw="{"),
-                 "shape": dict(raw=json.dumps({"from": "1.0.4", "to": "1.0.5", "changes": [good], "extra": 1}))}
+                 "shape": dict(raw=json.dumps({"from": "1.0.5", "to": "1.0.6", "changes": [good], "extra": 1}))}
         for name, kwargs in cases.items():
             with self.subTest(case=name):
                 (tools, detail), (resp, _) = self.results(mcp(), mcp(BASE_TOOLS + [tool("triage_slb")]), **kwargs)

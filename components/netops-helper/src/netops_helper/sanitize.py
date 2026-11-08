@@ -10,10 +10,13 @@ from typing import Iterable
 _SECRET_LABELS = (
     r"(?:api|access)[_ -]?token|bearer|token|api[_ -]?key|password|passwd|secret|community"
 )
+# Escape-aware quoted values; an unclosed quote redacts to the end of the line.
+_DOUBLE_QUOTED = r'"(?:\\[^\r\n]|[^"\\\r\n])*(?:"|[^\r\n]*)'
+_SINGLE_QUOTED = r"'(?:\\[^\r\n]|[^'\\\r\n])*(?:'|[^\r\n]*)"
 ASSIGNED_QUOTED_SECRET = re.compile(
     rf"""(?ix)
     (?P<prefix>(?<![\w-])["']?(?:{_SECRET_LABELS})["']?\s*[:=]\s*)
-    (?:"[^"\r\n]*"|'[^'\r\n]*')
+    (?:{_DOUBLE_QUOTED}|{_SINGLE_QUOTED})
     """
 )
 ASSIGNED_BARE_SECRET = re.compile(
@@ -33,7 +36,7 @@ CISCO_USER_SECRET = re.compile(
     r"(?im)^([^\S\n]*username\s+\S+\s+(?:password|secret)(?:\s+\d+)?\s+)\S+"
 )
 SNMP_CLI_SECRET = re.compile(
-    r'(?im)^([^\S\n]*(?:snmp-server\s+community|set\s+community)\s+)(?:"[^"\r\n]*"|\S+)'
+    r"(?im)^([^\S\n]*(?:snmp-server\s+community|set\s+community)\s+)(?:" + _DOUBLE_QUOTED + "|" + _SINGLE_QUOTED + r"|\S+)"
 )
 SNMP_STATUS_SECRET = re.compile(
     r"(?i)(\bSNMP\s+community\s+string\s+(?:configured|is)\s*[:=]\s*)\S+"
@@ -41,12 +44,14 @@ SNMP_STATUS_SECRET = re.compile(
 COMMUNITY_VALUE_SECRET = re.compile(r"(?i)(\bcommunity[ \t]+)(?!string\b)\S+")
 CISCO_TYPE7_SECRET = re.compile(r"(?im)(\b(?:key|key-string|md5|password)[ \t]+7[ \t]+)\S+")
 PRESHARED_SECRET = re.compile(
-    r'(?im)(\b(?:pre-shared-key|psksecret|psk|wpa-passphrase|bind-password)(?:[ \t]*[:=][ \t]*|[ \t]+))(?:"[^"\r\n]*"|\S+)'
+    r"(?im)(\b(?:pre-shared-key|psksecret|psk|wpa-passphrase|bind-password)(?:[ \t]*[:=][ \t]*|[ \t]+))(?:"
+    + _DOUBLE_QUOTED + "|" + _SINGLE_QUOTED + r"|\S+)"
 )
 DYNAMIC_PSK_STATE = re.compile(r"(?i)[ \t]*dynamic[ \t]+psk[ \t]*=[ \t]*(?:enabled|disabled)[ \t]*\r?")
 RUCKUS_PASSPHRASE = re.compile(r"(?im)^([ \t]*passphrase[ \t]*=[ \t]*)[^\r\n]*")
 CLI_OPTION_SECRET = re.compile(
-    r"""(?i)((?<!\S)--(?:password|passwd|secret|token|api-key|api-token|access-token)(?:=|[ \t]+))(?:"[^"\r\n]*"|'[^'\r\n]*'|\S+)"""
+    r"(?i)((?<!\S)--(?:password|passwd|secret|token|api-key|api-token|access-token)(?:=|[ \t]+))(?:"
+    + _DOUBLE_QUOTED + "|" + _SINGLE_QUOTED + r"|\S+)"
 )
 SHADOW_HASH = re.compile(r"(?m)^([^:\r\n]+:)(?:[!*][^:\r\n]*|\$[^:\r\n]+)(?=:)")
 FORTI_ENC = re.compile(r"\bENC\s+\S+")
@@ -68,6 +73,14 @@ def _replace_preshared(match: re.Match[str]) -> str:
 
 def _replace_quoted(match: re.Match[str]) -> str:
     return match.group("prefix") + '"<REDACTED>"'
+
+
+def _quoted_only(replace):
+    def apply(match: re.Match[str]) -> str:
+        if match.string.startswith(('"', "'"), match.end(1)):
+            return replace(match)
+        return match.group(0)
+    return apply
 
 
 def _wtp_128_length_password_capability(match: re.Match[str]) -> bool:
@@ -123,6 +136,11 @@ def redact(text: object, secrets: Iterable[str] = (), limit: int | None = None) 
     for secret in sorted({str(item) for item in secrets if len(str(item).encode("utf-8")) >= 3}, key=len, reverse=True):
         value = value.replace(secret, "<REDACTED>")
     value = PRIVATE_PEM.sub("<PRIVATE-KEY-REDACTED>", value)
+    # Quoted values go first, so that an ENC or bearer token cannot consume their closing quote.
+    value = SNMP_CLI_SECRET.sub(_quoted_only(lambda match: match.group(1) + "<REDACTED>"), value)
+    value = PRESHARED_SECRET.sub(_quoted_only(_replace_preshared), value)
+    value = CLI_OPTION_SECRET.sub(_quoted_only(lambda match: match.group(1) + "<REDACTED>"), value)
+    value = _assigned(ASSIGNED_QUOTED_SECRET, _replace_quoted, value)
     value = FORTI_ENC.sub("ENC <REDACTED>", value)
     value = SHADOW_HASH.sub(lambda match: match.group(1) + "<REDACTED>", value)
     value = CISCO_ENABLE_SECRET.sub(lambda match: match.group(1) + "<REDACTED>", value)
@@ -135,7 +153,6 @@ def redact(text: object, secrets: Iterable[str] = (), limit: int | None = None) 
     value = RUCKUS_PASSPHRASE.sub(lambda match: match.group(1) + "<REDACTED>", value)
     value = CLI_OPTION_SECRET.sub(lambda match: match.group(1) + "<REDACTED>", value)
     value = BEARER_SECRET.sub(lambda match: match.group(1) + "<REDACTED>", value)
-    value = _assigned(ASSIGNED_QUOTED_SECRET, _replace_quoted, value)
     value = _assigned(ASSIGNED_BARE_SECRET, _replace_bare, value)
     if limit is not None and len(value) > limit:
         raise ValueError("redacted output exceeds the explicit limit")

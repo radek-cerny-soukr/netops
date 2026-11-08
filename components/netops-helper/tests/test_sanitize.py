@@ -3,6 +3,8 @@
 
 from __future__ import annotations
 
+import pytest
+
 from netops_helper.sanitize import redact
 
 
@@ -144,3 +146,82 @@ def test_secret_length_threshold_is_three_utf8_bytes() -> None:
         for short in ("ab", "ž", "7"):
             assert clean(f"device says {short} here", [short]) == f"device says {short} here"
         assert clean("device says abc here", ["abc"]) == "device says <REDACTED> here"
+
+
+QUOTED_SECRET_CASES = {
+    "assigned-double": ('password="SYNTHHEAD\\" SYNTHTAIL42" user=reader', "user=reader"),
+    "assigned-single": ("token: 'SYNTHHEAD\\' SYNTHTAIL42' user=reader", "user=reader"),
+    "assigned-double-odd-backslashes": ('password="SYNTHHEAD\\\\\\" SYNTHTAIL42" user=reader', "user=reader"),
+    "assigned-double-trailing-backslash-pair": ('password="SYNTHHEAD\\" SYNTHTAIL42\\\\" user=reader', "user=reader"),
+    "assigned-double-unclosed": ('password="SYNTHHEAD SYNTHTAIL42\nuser=reader', "user=reader"),
+    "assigned-single-unclosed": ("token: 'SYNTHHEAD SYNTHTAIL42\nuser=reader", "user=reader"),
+    "assigned-double-unclosed-trailing-backslash": ('password="SYNTHHEAD SYNTHTAIL42\\\nuser=reader', "user=reader"),
+    "cli-option-double": ('--password "SYNTHHEAD\\" SYNTHTAIL42" --host=sw1', "--host=sw1"),
+    "cli-option-single": ("--token 'SYNTHHEAD\\' SYNTHTAIL42' --host=sw1", "--host=sw1"),
+    "cli-option-double-trailing-backslash-pair": ('--password "SYNTHHEAD\\" SYNTHTAIL42\\\\" --host=sw1', "--host=sw1"),
+    "cli-option-double-unclosed": ('--password "SYNTHHEAD SYNTHTAIL42\n--host=sw1', "--host=sw1"),
+    "cli-option-single-unclosed": ("--token 'SYNTHHEAD SYNTHTAIL42\n--host=sw1", "--host=sw1"),
+    "preshared-double": ('set psksecret "SYNTHHEAD\\" SYNTHTAIL42" ssid=lab', "ssid=lab"),
+    "preshared-double-trailing-backslash-pair": ('set psksecret "SYNTHHEAD\\" SYNTHTAIL42\\\\" ssid=lab', "ssid=lab"),
+    "preshared-double-unclosed": ('set psksecret "SYNTHHEAD SYNTHTAIL42\nset ssid=lab', "set ssid=lab"),
+    "preshared-single": ("set psksecret 'SYNTHHEAD\\' SYNTHTAIL42' ssid=lab", "ssid=lab"),
+    "preshared-single-trailing-backslash-pair": ("set psksecret 'SYNTHHEAD\\' SYNTHTAIL42\\\\' ssid=lab", "ssid=lab"),
+    "preshared-single-unclosed": ("set psksecret 'SYNTHHEAD SYNTHTAIL42\nset ssid=lab", "set ssid=lab"),
+    "snmp-cli-double": ('snmp-server community "SYNTHHEAD\\" SYNTHTAIL42" RO', "RO"),
+    "snmp-cli-double-trailing-backslash-pair": ('set community "SYNTHHEAD\\" SYNTHTAIL42\\\\" RO', "RO"),
+    "snmp-cli-single": ("snmp-server community 'SYNTHHEAD\\' SYNTHTAIL42' RO", "RO"),
+    "snmp-cli-single-trailing-backslash-pair": ("set community 'SYNTHHEAD\\' SYNTHTAIL42\\\\' RO", "RO"),
+    "snmp-cli-single-unclosed": ("snmp-server community 'SYNTHHEAD SYNTHTAIL42\nsnmp-server host 192.0.2.1", "snmp-server host 192.0.2.1"),
+    "snmp-cli-double-unclosed": ('snmp-server community "SYNTHHEAD SYNTHTAIL42\nsnmp-server host 192.0.2.1', "snmp-server host 192.0.2.1"),
+}
+
+
+@pytest.mark.parametrize("source,public", QUOTED_SECRET_CASES.values(), ids=QUOTED_SECRET_CASES.keys())
+def test_quoted_secret_leaves_no_fragment_in_the_output(source: str, public: str) -> None:
+    cleaned = redact(source)
+    assert "SYNTH" not in cleaned
+    assert "TAIL42" not in cleaned
+    assert "<REDACTED>" in cleaned
+    assert public in cleaned
+
+
+def test_quoted_secret_without_escapes_keeps_the_neighboring_value() -> None:
+    assert redact('password="plain value" user=reader') == "password=<REDACTED> user=reader"
+
+
+@pytest.mark.parametrize("keyword", ["ENC", "bearer"])
+def test_closed_quoted_secret_with_a_token_keyword_keeps_the_neighboring_value(keyword: str) -> None:
+    assert redact(f'password="{keyword} value" user=reader') == "password=<REDACTED> user=reader"
+
+
+@pytest.mark.parametrize("keyword", ["ENC", "bearer"])
+def test_unclosed_quoted_secret_with_a_token_keyword_is_redacted_to_the_end_of_the_line(keyword: str) -> None:
+    assert redact(f'password="{keyword} value user=reader\nnext=public') == "password=<REDACTED>\nnext=public"
+
+
+@pytest.mark.parametrize("keyword", ["ENC", "bearer"])
+@pytest.mark.parametrize("quote", ['"', "'"])
+@pytest.mark.parametrize("punctuation", [",", "}", "]"])
+def test_token_with_an_inner_quote_and_punctuation_is_redacted_whole(keyword: str, quote: str, punctuation: str) -> None:
+    token = f"SYNTHHEAD{quote}{punctuation}SYNTHTAIL42"
+    assert redact(f"{keyword} {token}") == f"{keyword} <REDACTED>"
+    cleaned = redact(f"{keyword} {token} {keyword} SECONDSECRET")
+    assert cleaned == f"{keyword} <REDACTED> {keyword} <REDACTED>"
+
+
+@pytest.mark.parametrize("keyword", ["ENC", "bearer"])
+@pytest.mark.parametrize("quote", ['"', "'"])
+def test_escaped_quote_after_a_token_keyword_does_not_end_the_quoted_secret(keyword: str, quote: str) -> None:
+    source = f"password={quote}{keyword} SYNTHHEAD\\{quote} SYNTHTAIL42{quote} user=reader"
+    assert redact(source) == "password=<REDACTED> user=reader"
+
+
+@pytest.mark.parametrize("keyword", ["ENC", "bearer"])
+def test_closed_quoted_secret_with_only_a_token_keyword_keeps_the_neighboring_value(keyword: str) -> None:
+    assert redact(f'password="{keyword} " user=reader') == "password=<REDACTED> user=reader"
+
+
+@pytest.mark.parametrize("keyword", ["ENC", "bearer"])
+def test_token_keyword_does_not_shift_the_next_quoted_secret(keyword: str) -> None:
+    source = f'password="{keyword} value" token="SYNTHHEAD SYNTHTAIL42"'
+    assert redact(source) == "password=<REDACTED> token=<REDACTED>"

@@ -203,9 +203,9 @@ class SemanticAdmission(unittest.TestCase):
     def assert_metadata_only_conversion(self, before):
         after = self.snapshot()
         pending = after.pop("gateway/upgrade-pending.json")
-        self.assertEqual(json.loads(pending[0]), {"from": "1.0.4", "to": "1.0.5"})
+        self.assertEqual(json.loads(pending[0]), {"from": "1.0.5", "to": "1.0.6"})
         self.assertEqual(set(after), set(before))
-        self.assertEqual(json.loads(self.path.read_bytes()), dict(self.settings, product_version="1.0.5"))
+        self.assertEqual(json.loads(self.path.read_bytes()), dict(self.settings, product_version="1.0.6"))
         for name in before:
             if name != "gateway/config.json":
                 self.assertEqual(after[name], before[name], name)
@@ -267,7 +267,7 @@ class SemanticAdmission(unittest.TestCase):
                                ("identity", "NETOPS_SERVER_NAME is"),
                                ("pair", "certificate files are missing or do not match")):
             with self.subTest(fault=fault), ExitStack() as stack:
-                settings = dict(self.settings, product_version="1.0.5")
+                settings = dict(self.settings, product_version="1.0.6")
                 self.store(settings)
                 write_private(self.path.parent / "server.key", original_key, UIDS["gateway"], replace=True)
                 tail = self.audit_directory / "current.jsonl"
@@ -287,7 +287,7 @@ class SemanticAdmission(unittest.TestCase):
                 self.children.assert_not_called()
 
     def test_valid_current_gateway_reaches_only_the_inert_application_boundary(self):
-        settings = dict(self.settings, product_version="1.0.5")
+        settings = dict(self.settings, product_version="1.0.6")
         self.store(settings)
         with patch.object(init, "check_start", wraps=init.check_start) as check:
             error, renew, application = self.current_gateway(settings)
@@ -299,7 +299,7 @@ class SemanticAdmission(unittest.TestCase):
         self.children.assert_not_called()
 
     def test_current_config_reader_policy_after_successful_privileged_open(self):
-        self.store(dict(self.settings, product_version="1.0.5"))
+        self.store(dict(self.settings, product_version="1.0.6"))
         original_open = os.open
         for mode in (0o200, 0o400, 0o600):
             with self.subTest(mode=oct(mode)):

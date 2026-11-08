@@ -71,3 +71,13 @@ def test_malformed_catalog_coverage_is_refused(tmp_path,mutation):
  elif mutation=="oversize":value["reason"]="x"*257
  report["catalog_coverage"]={key:value};save_report(manifest,path,report)
  with pytest.raises(ValueError):schema_reports.read(manifest,"tenant-a","device-a","catalog")
+
+@pytest.mark.parametrize("count,accepted",[(schema_reports.MAX_CATALOG_COVERAGE,True),(schema_reports.MAX_CATALOG_COVERAGE+1,False)])
+def test_catalog_coverage_limit_is_the_shared_constant(tmp_path,count,accepted):
+ manifest,path,report=fixture(tmp_path)
+ value={"status":"evaluated","reason":"","required":True}
+ report["catalog_coverage"]={'["VD%d","fortios.ref.dangling"]'%index:value for index in range(count)}
+ save_report(manifest,path,report)
+ if accepted:assert schema_reports.read(manifest,"tenant-a","device-a","catalog")["total"]==count
+ else:
+  with pytest.raises(ValueError,match="cannot be verified"):schema_reports.read(manifest,"tenant-a","device-a","catalog")

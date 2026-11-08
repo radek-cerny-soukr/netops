@@ -18,6 +18,10 @@ def previous_redact(text, secrets=()):
     for secret in sorted({str(item) for item in secrets if len(str(item).encode("utf-8")) >= 3}, key=len, reverse=True):
         value = value.replace(secret, "<REDACTED>")
     value = sanitize.PRIVATE_PEM.sub("<PRIVATE-KEY-REDACTED>", value)
+    value = sanitize.SNMP_CLI_SECRET.sub(sanitize._quoted_only(lambda match: match.group(1) + "<REDACTED>"), value)
+    value = sanitize.PRESHARED_SECRET.sub(sanitize._quoted_only(lambda match: match.group(1) + "<REDACTED>"), value)
+    value = sanitize.CLI_OPTION_SECRET.sub(sanitize._quoted_only(lambda match: match.group(1) + "<REDACTED>"), value)
+    value = sanitize.ASSIGNED_QUOTED_SECRET.sub(sanitize._replace_quoted, value)
     value = sanitize.FORTI_ENC.sub("ENC <REDACTED>", value)
     value = sanitize.SHADOW_HASH.sub(lambda match: match.group(1) + "<REDACTED>", value)
     value = sanitize.CISCO_ENABLE_SECRET.sub(lambda match: match.group(1) + "<REDACTED>", value)
@@ -28,7 +32,6 @@ def previous_redact(text, secrets=()):
     value = sanitize.CISCO_TYPE7_SECRET.sub(lambda match: match.group(1) + "<REDACTED>", value)
     value = sanitize.PRESHARED_SECRET.sub(lambda match: match.group(1) + "<REDACTED>", value)
     value = sanitize.BEARER_SECRET.sub(lambda match: match.group(1) + "<REDACTED>", value)
-    value = sanitize.ASSIGNED_QUOTED_SECRET.sub(sanitize._replace_quoted, value)
     value = sanitize.ASSIGNED_BARE_SECRET.sub(sanitize._replace_bare, value)
     return value
 

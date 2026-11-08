@@ -149,8 +149,38 @@ def test_incomplete_gateway_arp_is_a_finding_but_absence_is_only_a_hypothesis():
     assert result["chain"]["gateways"][0] == {"gateway": "192.0.2.1", "arp": "incomplete"}
     result, _ = run(outputs(arp_table=ARP.replace("192.0.2.1 ", "192.0.2.9 ")))
     assert result["findings"] == [] and ids(result["hypotheses"]) == ["H-NEXTHOP-NO-ARP"]
+    assert "gateway 192.0.2.1 is not in the ARP table" in result["hypotheses"][0]["text"]
     assert result["verdict"] == "no_fault_in_checked_data"
     assert result["chain"]["gateways"][0] == {"gateway": "192.0.2.1", "arp": "absent"}
+
+
+def test_gateway_arp_is_correlated_by_egress_interface():
+    incomplete = "192.0.2.1         0          00:00:00:00:00:00 wan1\n"
+    header = "Address           Age(min)   Hardware Addr      Interface\n"
+    other = "192.0.2.1         0          00:00:5e:00:53:01 wan2\n"
+    route = ROUTE_STATIC.replace("  * vrf 0 203.0.113.1, via wan2\n", "")
+    result, _ = run(outputs(route_lookup=route, arp_table=header + incomplete))
+    assert ids(result["findings"]) == ["F-NEXTHOP-ARP-INCOMPLETE"] and result["verdict"] == "fault_found"
+    assert result["chain"]["gateways"] == [{"gateway": "192.0.2.1", "arp": "incomplete"}]
+    result, _ = run(outputs(route_lookup=route, arp_table=header + incomplete + other))
+    assert ids(result["findings"]) == ["F-NEXTHOP-ARP-INCOMPLETE"] and result["verdict"] == "fault_found"
+    assert result["chain"]["gateways"] == [{"gateway": "192.0.2.1", "arp": "incomplete"}]
+    result, _ = run(outputs(route_lookup=route, arp_table=header + other))
+    assert result["findings"] == [] and ids(result["hypotheses"]) == ["H-NEXTHOP-NO-ARP"]
+    text = result["hypotheses"][0]["text"]
+    assert "no ARP entry on egress interface wan1" in text and "only on another interface" in text
+    assert "is not in the ARP table" not in text
+    assert result["chain"]["gateways"] == [{"gateway": "192.0.2.1", "arp": "absent"}]
+
+
+def test_gateway_arp_is_unknown_when_the_egress_interface_is_not_known():
+    route = ROUTE_STATIC.replace("  * vrf 0 192.0.2.1, via wan1\n", "  * vrf 0 192.0.2.1\n").replace(
+        "  * vrf 0 203.0.113.1, via wan2\n", "")
+    arp = "Address           Age(min)   Hardware Addr      Interface\n192.0.2.1         0          00:00:00:00:00:00 wan1\n"
+    result, _ = run(outputs(route_lookup=route, arp_table=arp))
+    assert result["chain"]["route"]["next_hops"][0]["interface"] is None
+    assert result["findings"] == [] and result["hypotheses"] == []
+    assert result["chain"]["gateways"] == [{"gateway": "192.0.2.1", "arp": "unknown"}]
 
 
 def test_connected_and_recursive_routes_are_not_checked_against_arp_or_sdwan():

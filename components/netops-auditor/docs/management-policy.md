@@ -56,4 +56,4 @@ Sources: FortiOS 7.6 CLI reference for `config firewall addrgrp` and `config sys
 
 ## Policy history
 
-Stored history for a device is bound to its operator policy digest. Changing, adding or removing that policy requires a separate store for the new policy. A run refuses before recording instead of marking findings under the old policy as gone or reusing its accepted baseline. In NetOps 1.0, omitting `--store` uses the configured persistent store.
+Stored history for a device is bound to its operator policy digest. Changing, adding or removing that policy requires a separate store for the new policy. A run refuses before recording instead of marking findings under the old policy as gone or reusing its accepted baseline. A run for a different platform under the same tenant and device alias refuses the same way, and needs a new alias or a separate store. In NetOps 1.0, omitting `--store` uses the configured persistent store.

@@ -1,5 +1,25 @@
 # NetOps changelog
 
+## 1.0.6 - 2026-11-08
+
+### Changed
+
+- Base image refreshed to the current `python:3.14.10-alpine3.24` digest; this fixes `zlib` CVE-2026-4738 (Critical) and `openssh` CVE-2026-123158 (High), reported for the 1.0.5 image after its release (#7.9).
+- Known limitation (#7.9): the refreshed image still has 4 High, 11 Medium and 2 Low scan findings in `python` 3.14.10, `sqlite-libs` 3.53.4-r0 and `busybox` 1.37.0-r31, because no fixed packages exist in Python 3.14.x or Alpine 3.24. See the [1.0.6 release notes](release/notes-1.0.6.md#known-limitations). The base image will be refreshed when fixes are available, probably in the next release.
+- NetOps 1.0.6 upgrades the state of NetOps 1.0.5; see [Upgrade from the previous release](docs/quickstart-1.0.md#upgrade-from-the-previous-release).
+- Documentation: the installation steps in the README and the quickstart can be repeated after a failed download, state that only the `env.example` of the release assets pins the image, pull the image before `init` and give script variants of the steps; the upgrade and rollback procedure names its blocks, downloads the 1.0.6 image while preparing the new instance and lists what to check after a rollback.
+
+### Fixed
+
+- Helper redaction completely redacts quoted secrets containing escaped quotes; an unclosed quote is redacted to the end of the line (#7.1).
+- SNMPv3 authPriv `snmp_get` now works in the shipped image; the worker no longer refuses it before the Helper policy (#7.3).
+- Routing triage correlates the next-hop ARP entry with the egress interface (#7.2).
+- Auditor text output labels not-evaluated findings `(not-evaluated)` instead of `(gone)` (#7.8).
+- Auditor refuses to write history when the platform changes under the same alias; use a new alias or a separate store (#7.4).
+- Auditor finding detail for a carried finding names the run that holds its evidence (#7.6).
+- Auditor REST collector refuses an answer with ambiguous framing: conflicting or non-numeric `Content-Length`, or `Content-Length` together with `Transfer-Encoding` (#7.5).
+- Auditor `schema-check --full-snapshot --catalog-vdoms` refuses, before writing the report, a catalog coverage above the reader limit of 1600 entries instead of producing a report the reader rejects (#7.7).
+
 ## 1.0.5 - 2026-11-01
 
 ### Breaking

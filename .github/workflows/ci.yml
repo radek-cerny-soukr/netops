@@ -3,7 +3,7 @@ name: CI
 on:
   push:
     branches-ignore:
-      - "release/1.0.5-candidate"
+      - "release/1.0.6-candidate"
     tags:
       - "**"
   pull_request:

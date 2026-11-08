@@ -278,14 +278,14 @@ Rules (each finding names its rule, query, object and the fact that fired it):
 | route | `route_lookup` (`address`) | matched prefix, protocol, distance, metric, best flag, every next hop (gateway, interface, FIB flag, recursive tunnels); `% Network not in table` means no route |
 | policy routes | `policy_routes_ipv4` | number of entries; entries whose destination covers the address (id, SD-WAN rule, outgoing interfaces, gateway); entries with internet services or negation are listed as not evaluated |
 | SD-WAN | `sdwan_health` | health-check state of the members that are next-hop interfaces |
-| neighbours | `arp_table` | for each directly reachable gateway: ARP entry complete, incomplete (all-zero hardware address) or absent; hardware addresses are not returned |
+| neighbours | `arp_table` | for each directly reachable gateway, only the ARP entries on the next hop's egress interface count: complete, incomplete (all-zero hardware address) or absent (an entry on another interface does not count); `unknown` when the egress interface is not known; hardware addresses are not returned |
 
 | Rule | Kind | Fires when |
 |---|---|---|
 | F-ROUTE-NONE | finding | the route lookup prints `% Network not in table` |
 | F-EGRESS-SDWAN-DEAD | finding | a FIB next-hop interface is an SD-WAN member in `state(dead)` |
-| F-NEXTHOP-ARP-INCOMPLETE | finding | the gateway of a FIB next hop has only incomplete ARP entries |
-| H-NEXTHOP-NO-ARP | hypothesis | the gateway is not in the ARP table (it may not have answered, or the entry aged out) |
+| F-NEXTHOP-ARP-INCOMPLETE | finding | the gateway of a FIB next hop has only incomplete ARP entries on its egress interface |
+| H-NEXTHOP-NO-ARP | hypothesis | the gateway has no ARP entry on the next hop's egress interface, or is not in the ARP table at all (it may not have answered, or the entry aged out); not evaluated when the egress interface is unknown |
 | H-POLICY-ROUTE | hypothesis | a policy route or SD-WAN rule covers the address and would override the route when its other match fields fit |
 | H-POLICY-UNEVALUATED | hypothesis | some policy routes could not be evaluated |
 

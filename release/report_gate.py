@@ -106,6 +106,16 @@ VENDOR_HOST_DIGESTS = set(VENDOR_SCHEMA["vendor_host_sha256"])
 
 def vendor_host(name):
     return name in ALLOWED_HOSTS or hashlib.sha256(name.encode()).hexdigest() in VENDOR_HOST_DIGESTS
+
+
+PRIVATE_SUFFIXES = set(VENDOR_SCHEMA["private_suffixes"])
+
+
+def advisory_host(name):
+    # Vulnerability records come from the scanner database, not from our hosts: a public DNS name is
+    # accepted there, a single label or a private-use suffix (lan, home, internal, ...) is not.
+    labels = name.rstrip(".").split(".")
+    return vendor_host(name) or (len(labels) > 1 and labels[-1] not in PRIVATE_SUFFIXES)
 IDENTIFIER_SUFFIXES = set(VENDOR_SCHEMA["identifier_suffixes"])
 
 
@@ -198,16 +208,19 @@ def all_variants(texts, found, decode_base64=True):
 
 def vendor_field_findings(kind, text, asset_names):
     found = collections.Counter()
+    advisory = kind.startswith("advisory_")
+    allowed_host = advisory_host if advisory else vendor_host
+    kind = kind[len("advisory_"):] if advisory else kind
     if kind == "url":
         host = (urllib.parse.urlsplit(text).hostname or "") if URL.fullmatch(text) else None
         if host is None:
             found["vendor value not a URL"] += 1
-        elif host and not vendor_host(host.lower()):
+        elif host and not allowed_host(host.lower()):
             found["host name"] += 1
         return found + public_text_findings(text, asset_names, hosts=False)
     if kind == "email":
         for match in EMAIL.finditer(text):
-            if not vendor_host(match.group(0).split("@", 1)[1].lower()):
+            if not allowed_host(match.group(0).split("@", 1)[1].lower()):
                 found["host name"] += 1
         return found + public_text_findings(EMAIL.sub(" ", text), asset_names)
     if kind == "identifier" and IDENTIFIER.fullmatch(text) is not None:
@@ -218,7 +231,8 @@ def vendor_field_findings(kind, text, asset_names):
         return found + public_text_findings(text, asset_names, hosts=False)
     documented = set(VENDOR_SCHEMA["documented_tokens"])
     for match in DOTTED.finditer(text):
-        if match.group(0).lower() not in documented and match.group(0).lower() not in ALLOWED_HOSTS:
+        token = match.group(0).lower()
+        if token not in documented and token not in ALLOWED_HOSTS and not (advisory and advisory_host(token)):
             found["host name"] += 1
     return found + public_text_findings(text, asset_names, hosts=False)
 

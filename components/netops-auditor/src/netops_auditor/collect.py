@@ -294,6 +294,7 @@ class _RestConnection:
             if response.status != 200:
                 self._bounded(deadline, response.read, REST_ERROR_HEAD_BYTES)
                 return response.status, b""
+            _checked_framing(response)
             chunks, size = [], 0
             while True:
                 chunk = self._bounded(deadline, response.read, READ_CHUNK_BYTES)
@@ -347,6 +348,25 @@ def _open(host, port, timeout, pinned):
     connection = http.client.HTTPSConnection(host, port, timeout=timeout, context=context)
     connection.connect()
     return _RestConnection(connection, timeout)
+
+
+def _checked_framing(response) -> None:
+    lengths = response.msg.get_all("Content-Length") or []
+    if lengths and response.msg.get_all("Transfer-Encoding"):
+        raise http.client.HTTPException("Content-Length together with Transfer-Encoding")
+    values = set()
+    for line in lengths:
+        for value in line.split(","):
+            value = value.strip()
+            if not (value.isascii() and value.isdigit()):
+                raise http.client.HTTPException("Content-Length is not a whole number")
+            values.add(int(value))
+    if len(values) > 1:
+        raise http.client.HTTPException("conflicting Content-Length values")
+    if values:
+        # http.client leaves the length unset for merged values such as "34, 34" and would
+        # then wait for the peer to close; read exactly the verified length instead.
+        response.length = values.pop()
 
 
 def _closed(connection) -> None:

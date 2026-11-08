@@ -649,6 +649,83 @@ class ReportGate(unittest.TestCase):
                 self.assertIn(expected, out)
                 self.assertNotIn(host, out)
 
+    def advisory_scan(self):
+        # Records of the 1.0.6 candidate scan (grype 0.120.1, database built 2026-11-07T06:18:48Z) whose
+        # advisory hosts and dotted code names failed the gate with "host name x87".
+        sqlite, vendor, research = DOT.join(("sqlite", "org")), DOT.join(("www", "vulncheck", "com")), DOT.join(("abraxaslabs", "tech"))
+        records = (
+            ("CVE-2026-119586", ["https://" + research + "/research/sqlite-cli-recover",
+                                 "https://github.com/sqlite/sqlite/blob/version-3.54.1/src/shell.c.in#L7877-L7891",
+                                 "https://" + vendor + "/advisories/sqlite-cli-through-3.54.1-command-injection-via-recover-output"],
+             "SQLite command-line shell through 3.54.1 contains a command injection vulnerability in the .recover command that emits "
+             "attacker-planted dot-commands stored in sqlite_schema" + DOT + "sql values verbatim.",
+             "disclosure@" + DOT.join(("vulncheck", "com"))),
+            ("CVE-2026-119374", ["https://" + sqlite + "/releaselog/3_54_0.html", "https://" + sqlite + "/src/info/9cd4f9e920"],
+             "SQLite before 3.54.0 built with FTS5 contains a heap buffer overflow in fts5DoSecureDelete().",
+             "nvd@" + DOT.join(("nist", "gov"))),
+            ("CVE-2026-116566", ["https://github.com/python/cpython/issues/160898"],
+             "socket" + DOT + "getaddrinfo() previously accepted null bytes within *host* and *port* parameters which can cause the "
+             "values to be silently truncated.", "cna@python.org"))
+        return {"matches": [{"vulnerability": {
+                    "id": cve, "dataSource": "https://nvd.nist.gov/vuln/detail/" + cve, "urls": urls, "description": description,
+                    "cvss": [{"source": source, "type": "Secondary"}], "cwes": [{"cve": cve, "cwe": "CWE-78", "source": source, "type": "Secondary"}]}}
+                    for cve, urls, description, source in records], "descriptor": {"name": "grype"}}
+
+    def test_advisory_records_of_the_scanner_database_pass(self):
+        files = self.clean()
+        files["netops-1.0.0-linux-amd64-grype.json"] = self.advisory_scan()
+        rc, out = self.run_gate(files)
+        self.assertEqual(rc, 0, out)
+        self.assertIn("report_gate=PASS", out)
+
+    def test_advisory_records_still_refuse_internal_names_and_addresses(self):
+        cases = (("urls", "https://nas" + DOT + "lan/advisory", "host name"),
+                 ("urls", "https://fixture-host/advisory", "host name"),
+                 ("urls", "https://" + PRIVATE_V4 + "/advisory", "network address"),
+                 ("dataSource", "https://wiki" + DOT + "corp/CVE-2026-119586", "host name"),
+                 ("source", "owner@router" + DOT + "internal", "host name"),
+                 ("cwe_source", "owner@gw" + DOT + "home" + DOT + "arpa", "host name"),
+                 ("description", "reproduced on fixture-host" + DOT + "local", "host name"),
+                 ("description", "reproduced on fixture-host%2elan", "host name"),
+                 ("description", "reproduced on " + "rpi" + "5-master", "private marker"),
+                 ("description", "reproduced in " + HOME_PATH, "private path"),
+                 ("description", "reproduced in a VM on ESXi", "laboratory wording"))
+        for key, value, expected in cases:
+            with self.subTest(key=key, expected=expected):
+                files = self.clean()
+                scan = self.advisory_scan()
+                vulnerability = scan["matches"][0]["vulnerability"]
+                if key == "urls":
+                    vulnerability["urls"].append(value)
+                elif key == "source":
+                    vulnerability["cvss"][0]["source"] = value
+                elif key == "cwe_source":
+                    vulnerability["cwes"][0]["source"] = value
+                else:
+                    vulnerability[key] = value
+                files["netops-1.0.0-linux-amd64-grype.json"] = scan
+                rc, out = self.run_gate(files)
+                self.assertEqual(rc, 1, out)
+                self.assertIn(expected, out)
+                self.assertNotIn(value, out)
+
+    def test_public_hosts_stay_strict_outside_advisory_records(self):
+        host = DOT.join(("sqlite", "org"))
+        cases = (("netops-1.0.0-linux-amd64-grype.json",
+                  {"matches": [], "descriptor": {"name": "grype", "db": {"status": {"from": "https://" + host + "/db.tar.zst"}}}}),
+                 ("netops-1.0.0-linux-amd64-grype.json",
+                  {"matches": [{"artifact": {"locations": [{"path": "/etc/" + host}]}}], "descriptor": {"name": "grype"}}),
+                 ("netops-1.0.0-linux-amd64.cdx.json",
+                  {"bomFormat": "CycloneDX", "components": [{"name": "pkg", "externalReferences": [{"url": "https://" + host + "/"}]}]}),
+                 ("acceptance-ubuntu-amd64-blackbox.json", report("peer " + host)))
+        for name, content in cases:
+            with self.subTest(name=name):
+                files = self.clean()
+                files[name] = content
+                rc, out = self.run_gate(files)
+                self.assertEqual(rc, 1, out)
+                self.assertIn("host name", out)
+
     def test_actual_assessment_evidence_passes_without_a_filename_host_exemption(self):
         files = self.clean()
         path = pathlib.Path(GATE).with_name("vulnerability-assessments.json")

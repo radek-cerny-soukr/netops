@@ -62,8 +62,8 @@ class HelperBridge:
         return descriptors
 
     async def call(self, server, name, arguments):
-        if name == "snmp_get" or name == "ftp_list":
-            return {"content": [{"type": "text", "text": "unencrypted_protocol: SNMPv2c and FTP/FTPS are unavailable in the SSH/HTTPS-only default profile"}], "isError": True}
+        if name == "ftp_list":
+            return {"content": [{"type": "text", "text": "unencrypted_protocol: FTP/FTPS is unavailable in the SSH/HTTPS-only default profile"}], "isError": True}
         request_id = uuid.uuid4().hex
         request = {"jsonrpc": "2.0", "id": request_id, "method": "tools/call", "params": {"name": name, "arguments": arguments}}
         self.proxy.emitted = None

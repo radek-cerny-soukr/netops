@@ -1,3 +1,4 @@
+import hashlib
 import json
 import pytest
 from netops_core import fortios,schema
@@ -150,3 +151,33 @@ def test_scoped_view_limit_is_checked_before_copying(monkeypatch):
  monkeypatch.setattr(scoped_fortios.copy,"deepcopy",copy_was_not_allowed)
  with pytest.raises(CheckError,match="view size"):
   scoped_fortios.views(lib,tree)
+
+def run_catalog_cli(tmp_path,capsys):
+ from netops_auditor.cli import main
+ lib=library();source=tmp_path/"schema.json";source.write_text(json.dumps(lib._document))
+ snapshot=tmp_path/"snapshot.conf";snapshot.write_text(TEXT)
+ code=main(["schema-check","--library",str(source),"--hardware",lib.identity[0],
+  "--os-version",lib.identity[1],"--build",lib.identity[2],"--config",str(snapshot),
+  "--tenant","tenant","--device","device","--full-snapshot","--catalog-vdoms"])
+ return code,capsys.readouterr()
+
+def test_cli_catalog_coverage_at_the_reader_limit_is_written_and_read(tmp_path,capsys,monkeypatch):
+ from netops_auditor import schema_reports
+ _,first=run_catalog_cli(tmp_path,capsys)
+ report=json.loads(first.out);size=len(report["catalog_coverage"])
+ monkeypatch.setattr(schema_reports,"MAX_CATALOG_COVERAGE",size)
+ code,second=run_catalog_cli(tmp_path,capsys)
+ assert code==1 and json.loads(second.out)==report
+ path=tmp_path/"report.json";path.write_text(second.out)
+ manifest=tmp_path/"manifest.json";manifest.write_text(json.dumps({"format":1,"tenant":"tenant","reports":{"device":{"file":path.name,"sha256":hashlib.sha256(path.read_bytes()).hexdigest()}}}))
+ assert schema_reports.read(manifest,"tenant","device","catalog")["total"]==size
+
+def test_cli_catalog_coverage_above_the_reader_limit_makes_no_report(tmp_path,capsys,monkeypatch):
+ from netops_auditor import schema_reports
+ _,first=run_catalog_cli(tmp_path,capsys)
+ size=len(json.loads(first.out)["catalog_coverage"])
+ monkeypatch.setattr(schema_reports,"MAX_CATALOG_COVERAGE",size-1)
+ code,second=run_catalog_cli(tmp_path,capsys)
+ assert code==2
+ assert second.out==""
+ assert "coverage exceeds %d entries; narrow the VDOMs"%(size-1) in second.err

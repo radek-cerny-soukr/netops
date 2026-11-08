@@ -1838,6 +1838,7 @@ def test_a_snapshot_command_that_reports_a_nonzero_exit_status_is_refused():
 class FakeHttpResponse:
     def __init__(self, status, blocks):
         self.status = status
+        self.msg = http.client.HTTPMessage()
         self._blocks = list(blocks)
         self.reads = []
 
@@ -2104,3 +2105,97 @@ def test_rest_real_http_close_still_rejects_oversized_body(real_http_peer):
     with real_http_peer(headers, b"x" * 20000) as connection:
         with pytest.raises(ResponseTooLarge):
             connection.request(REST_METHOD, REST_TARGET, {}, 1024)
+
+
+def framed_headers(*lines):
+    return b"HTTP/1.1 200 OK\r\n" + b"".join(line + b"\r\n" for line in lines) + b"\r\n"
+
+
+@pytest.mark.parametrize(
+    "lines",
+    (
+        (b"Content-Length: 14", b"Content-Length: 34"),
+        (b"Content-Length: 34", b"Content-Length: 14"),
+        (b"Content-Length: 14, 34",),
+        (b"Content-Length: abc",),
+        (b"Content-Length: -34",),
+    ),
+)
+def test_rest_real_http_ambiguous_framing_never_becomes_a_snapshot(real_http_peer, lines):
+    body = config_text(canary=True).encode()
+    assert len(body) > 34
+    with real_http_peer(framed_headers(*lines), body) as connection:
+        error = rest_failure(lambda *args: connection, fingerprint=None)
+        assert "HTTPException" in str(error)
+        assert error.event.outcome == "failed"
+        assert error.event.response_bytes == 0
+        assert CANARY not in str(error)
+        assert CANARY not in repr(error.event)
+
+
+@pytest.mark.parametrize(
+    "lines",
+    (
+        (b"Content-Length: %d", b"Content-Length: %d"),
+        (b"Content-Length: %d, %d",),
+        (b"Content-Length: %d",),
+    ),
+)
+def test_rest_real_http_identical_content_lengths_are_accepted(real_http_peer, lines):
+    body = config_text().encode()
+    headers = framed_headers(*(line.replace(b"%d", b"%d" % len(body)) for line in lines))
+    with real_http_peer(headers, body) as connection:
+        snapshot, event = rest_call(lambda *args: connection, fingerprint=None)
+        assert snapshot.text.encode() == body
+        assert event.outcome == "ok"
+
+
+@pytest.mark.parametrize(
+    "line",
+    (b"Content-Length: %d, %d", b"Content-Length: %d,%d", b"Content-Length: %d"),
+)
+def test_rest_real_http_identical_content_length_reads_the_body_without_eof(line):
+    body = config_text().encode()
+    headers = framed_headers(line.replace(b"%d", b"%d" % len(body)))
+    left, right = socket.socketpair()
+    connection = http.client.HTTPConnection("example.invalid")
+    connection.sock = left
+    finished = threading.Event()
+
+    def serve():
+        try:
+            right.recv(4096)
+            right.sendall(headers + body)
+            finished.wait(5)
+        except OSError:
+            pass
+        finally:
+            right.close()
+
+    worker = threading.Thread(target=serve, daemon=True)
+    worker.start()
+    try:
+        started = time.monotonic()
+        snapshot, event = rest_call(
+            lambda *args: _RestConnection(connection, 1.0), fingerprint=None
+        )
+        assert time.monotonic() - started < 0.8
+        assert snapshot.text.encode() == body
+        assert event.outcome == "ok"
+        assert event.response_bytes == len(body)
+    finally:
+        finished.set()
+        connection.close()
+        worker.join(2)
+        assert not worker.is_alive()
+
+
+def test_rest_real_http_content_length_with_transfer_encoding_is_refused(real_http_peer):
+    body = config_text(canary=True).encode()
+    wire = b"%x\r\n" % len(body) + body + b"\r\n0\r\n\r\n"
+    headers = framed_headers(b"Content-Length: %d" % len(body), b"Transfer-Encoding: chunked")
+    with real_http_peer(headers, wire) as connection:
+        error = rest_failure(lambda *args: connection, fingerprint=None)
+        assert "HTTPException" in str(error)
+        assert error.event.outcome == "failed"
+        assert CANARY not in str(error)

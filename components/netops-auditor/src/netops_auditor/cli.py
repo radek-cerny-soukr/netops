@@ -338,6 +338,8 @@ def _previous(store, tenant: str, device: str) -> tuple:
 
 def _policy_scope(rules_version):
     def admit(previous):
+        if previous is not None and str(previous).split(":")[0] != str(rules_version).split(":")[0]:
+            raise Failure("platform differs from this device history; use a new alias or a separate store for the new platform")
         if previous is not None and str(previous).split(":")[3:] != str(rules_version).split(":")[3:]:
             raise Failure("operator policy differs from this device history; use a separate store for the new policy")
     return admit
@@ -462,10 +464,10 @@ def _finding_lines(item) -> list:
     return lines
 
 
-def _gone_lines(item) -> list:
+def _gone_lines(item, state) -> list:
     return [
         "",
-        "[%s] %s (%s)" % (item["severity"], item["rule_id"], STATE_GONE),
+        "[%s] %s (%s)" % (item["severity"], item["rule_id"], state),
         "  object: %s" % item["object_key"],
         "  fingerprint: %s" % item["fingerprint"],
     ]
@@ -515,7 +517,7 @@ def _text_report(report: dict) -> str:
     lines.append("")
     lines.append("state %s: %d" % (STATE_GONE, len(report["gone"])))
     for item in report["gone"]:
-        lines.extend(_gone_lines(item))
+        lines.extend(_gone_lines(item, STATE_GONE))
     for name in SUPPRESSION_SECTIONS:
         lines.append("")
         lines.append("%s suppressions: %d" % (name, len(waivers[name])))
@@ -532,7 +534,7 @@ def _text_report(report: dict) -> str:
     if "not_evaluated" in report:
         lines.append("state not-evaluated: %d" % len(report["not_evaluated"]))
         for item in report["not_evaluated"]:
-            lines.extend(_gone_lines(item))
+            lines.extend(_gone_lines(item, STATE_NOT_EVALUATED))
     return "\n".join(lines) + "\n"
 
 
@@ -558,7 +560,7 @@ def _render(report: dict, as_json: bool, renderer) -> str:
 
 def _command_schema_check(args) -> int:
     from netops_core import schema
-    from . import schema_checks, scoped_fortios
+    from . import schema_checks, schema_reports, scoped_fortios
     catalog_coverage = None
     try:
         library = schema.load(args.library, args.schema_sha256)
@@ -587,6 +589,8 @@ def _command_schema_check(args) -> int:
                 _scope, rule = json.loads(key)
                 name = rule[len("fortios.management."):] if rule.startswith("fortios.management.") else None
                 catalog_coverage[key] = {"status": status, "reason": reason, "required": name is None or name in required}
+            if len(catalog_coverage) > schema_reports.MAX_CATALOG_COVERAGE:
+                raise Failure("coverage exceeds %d entries; narrow the VDOMs" % schema_reports.MAX_CATALOG_COVERAGE)
     except CatalogError as error:
         raise Failure("catalog fortios: %s" % error) from None
     except CheckError as error:

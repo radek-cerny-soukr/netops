@@ -402,10 +402,10 @@
    ".descriptor.configuration.db.update-url": "url",
    ".descriptor.configuration.externalSources.maven.baseUrl": "url",
    ".descriptor.db.status.from": "url",
-   ".matches[].vulnerability.dataSource": "url",
-   ".matches[].vulnerability.urls[]": "url",
-   ".matches[].vulnerability.cvss[].source": "email",
-   ".matches[].vulnerability.cwes[].source": "email",
+   ".matches[].vulnerability.dataSource": "advisory_url",
+   ".matches[].vulnerability.urls[]": "advisory_url",
+   ".matches[].vulnerability.cvss[].source": "advisory_email",
+   ".matches[].vulnerability.cwes[].source": "advisory_email",
    ".descriptor.configuration.file": "identifier",
    ".descriptor.db.status.path": "identifier",
    ".matches[].artifact.locations[].accessPath": "identifier",
@@ -413,18 +413,31 @@
    ".matches[].artifact.metadata.files[].path": "identifier",
    ".source.target.layers[].mediaType": "identifier",
    ".source.target.mediaType": "identifier",
-   ".matches[].vulnerability.description": "free_text",
-   ".matches[].relatedVulnerabilities[].dataSource": "url",
-   ".matches[].relatedVulnerabilities[].urls[]": "url",
-   ".matches[].relatedVulnerabilities[].cvss[].source": "email",
-   ".matches[].relatedVulnerabilities[].cwes[].source": "email",
-   ".matches[].relatedVulnerabilities[].description": "free_text"
+   ".matches[].vulnerability.description": "advisory_text",
+   ".matches[].relatedVulnerabilities[].dataSource": "advisory_url",
+   ".matches[].relatedVulnerabilities[].urls[]": "advisory_url",
+   ".matches[].relatedVulnerabilities[].cvss[].source": "advisory_email",
+   ".matches[].relatedVulnerabilities[].cwes[].source": "advisory_email",
+   ".matches[].relatedVulnerabilities[].description": "advisory_text"
   }
  },
  "documented_tokens": {
   "shutil.rmtree": "CVE-2026-12345 description in the grype vulnerability database (Python standard library function named by the advisory)",
   "tempfile.temporarydirectory": "CVE-2026-12345 description in the grype vulnerability database (Python standard library class named by the advisory)"
  },
+ "advisory_fields_origin": "Fields of type advisory_url, advisory_email and advisory_text hold the vulnerability records of the scanner database (advisory links, CVSS and CWE sources, descriptions), not data of the scanned host: a dotted name there passes when it is a listed vendor host or a public DNS name of at least two labels whose last label is not in private_suffixes. Private markers, private paths, network and hardware addresses and laboratory wording are still refused in these fields.",
+ "private_suffixes": [
+  "arpa",
+  "corp",
+  "home",
+  "internal",
+  "intranet",
+  "lan",
+  "local",
+  "localdomain",
+  "localhost",
+  "private"
+ ],
  "identifier_suffixes": [
   "cnf",
   "conf",

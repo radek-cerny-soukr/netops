@@ -201,15 +201,23 @@ def _evaluate(address, parsed, sources):
         for hop in hops:
             if hop["gateway"] is None or hop["recursive"]:
                 continue
-            rows = [row for row in arp if row["address"] == hop["gateway"]]
+            if hop["interface"] is None:
+                continue
+            rows = [row for row in arp if row["address"] == hop["gateway"] and row["interface"] == hop["interface"]]
             if any(not row["complete"] for row in rows) and not any(row["complete"] for row in rows):
                 findings.append({"id": "F-NEXTHOP-ARP-INCOMPLETE", "layer": "neighbor", "object": "arp:" + hop["gateway"],
                                  "fact": "gateway %s has an ARP entry with hardware address 00:00:00:00:00:00" % hop["gateway"],
                                  "sources": [sources["route_lookup"], sources["arp_table"]]})
             elif not rows:
+                if any(row["address"] == hop["gateway"] for row in arp):
+                    text = ("gateway %s has no ARP entry on egress interface %s (it is in the ARP table only on "
+                            "another interface): it may not have answered ARP there, or the entry aged out" % (
+                                hop["gateway"], hop["interface"]))
+                else:
+                    text = ("gateway %s is not in the ARP table: it may not have answered ARP, "
+                            "or the entry aged out" % hop["gateway"])
                 hypotheses.append({"id": "H-NEXTHOP-NO-ARP", "basis": [sources["route_lookup"], sources["arp_table"]],
-                                   "text": "gateway %s is not in the ARP table: it may not have answered ARP, "
-                                           "or the entry aged out" % hop["gateway"]})
+                                   "text": text})
     proute = parsed.get("policy_routes_ipv4")
     if proute:
         for entry in proute["covering"]:
@@ -279,9 +287,10 @@ def run(read, clock, address):
     if route and arp is not None:
         for hop in route["next_hops"]:
             if hop["fib"] and hop["gateway"] and not hop["recursive"]:
-                rows = [row for row in arp if row["address"] == hop["gateway"]]
+                rows = [row for row in arp if row["address"] == hop["gateway"] and row["interface"] == hop["interface"]]
                 gateways.append({"gateway": hop["gateway"],
-                                 "arp": "absent" if not rows else
+                                 "arp": "unknown" if hop["interface"] is None else
+                                 "absent" if not rows else
                                  "complete" if any(row["complete"] for row in rows) else "incomplete"})
     sdwan = parsed.get("sdwan_health")
     chain = {

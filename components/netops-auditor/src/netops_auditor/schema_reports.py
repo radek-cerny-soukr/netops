@@ -8,6 +8,7 @@ import re
 from netops_core.inputs import read_regular
 
 MAX_REPORT_BYTES=4*1024*1024
+MAX_CATALOG_COVERAGE=1600
 SHA256=re.compile(r"^[a-f0-9]{64}$")
 
 def unique(pairs):
@@ -58,7 +59,7 @@ def read(manifest_path,tenant,device,view="findings",offset=0,limit=100):
   if upgrade is not None and (not isinstance(upgrade,dict) or not isinstance(upgrade.get("not_evaluated"),list)):raise ValueError()
   catalog=report.get("catalog_coverage")
   if "catalog_coverage" in report:
-   if not isinstance(catalog,dict) or not catalog or len(catalog)>1600:raise ValueError()
+   if not isinstance(catalog,dict) or not catalog or len(catalog)>MAX_CATALOG_COVERAGE:raise ValueError()
    for key,item in catalog.items():
     context=json.loads(key)
     if not isinstance(context,list) or len(context)!=2 or context[0] is not None and (not isinstance(context[0],str) or not context[0].isprintable() or not 1<=len(context[0].encode())<=128):raise ValueError()

@@ -84,7 +84,7 @@ def _carried(store, tenant, runs, skipped) -> tuple:
         statuses = stored_statuses(store, tenant, run["id"])
         if not evaluation_complete(findings, statuses):
             continue
-        carried.extend(item for item in findings if item["rule_id"] in skipped)
+        carried.extend(dict(item, carried_from=run) for item in findings if item["rule_id"] in skipped)
         skipped = skipped & unevaluated_rules(statuses)
     return tuple(carried)
 

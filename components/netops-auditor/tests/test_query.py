@@ -659,6 +659,35 @@ def test_finding_detail_carries_the_suppression_and_its_validity(populated):
     assert later["state"] == STATE_NEW
 
 
+def test_a_carried_finding_detail_points_at_the_run_that_stores_it(store):
+    optional = "exos.port.optional"
+    skipped = {optional: {"status": "not-evaluated", "reason": "no-vlan-content", "required": False}}
+    evaluated = {optional: {"status": "evaluated", "reason": "", "required": False}}
+    finding = make_finding(rule_id=optional, object_key="port/1:1")
+    first = store.record_run(
+        TENANT, DEVICE, SNAPSHOT, CANARY_SOURCE, RULES_VERSION, [finding],
+        started_at="2026-09-09T06:00:00Z", rule_status=evaluated,
+    )
+    for moment in ("2026-09-10T06:00:00Z", "2026-09-11T06:00:00Z"):
+        store.record_run(
+            TENANT, DEVICE, SNAPSHOT, CANARY_SOURCE, RULES_VERSION, [],
+            started_at=moment, rule_status=skipped,
+        )
+    fingerprint = finding.fingerprint()
+    detail = query.finding_detail(store, TENANT, DEVICE, fingerprint, now=NOW)
+    assert detail["state"] == "not-evaluated"
+    assert (detail["run_id"], detail["started_at"]) == (first, "2026-09-09T06:00:00Z")
+    incomplete = {"exos.snapshot.incomplete": {"status": "evaluated", "reason": "", "required": True}}
+    store.record_run(
+        TENANT, DEVICE, SNAPSHOT, CANARY_SOURCE, RULES_VERSION,
+        [make_finding(rule_id="exos.snapshot.incomplete", object_key="snapshot")],
+        started_at="2026-09-12T06:00:00Z", rule_status=incomplete,
+    )
+    detail = query.finding_detail(store, TENANT, DEVICE, fingerprint, now=NOW)
+    assert detail["state"] == "not-evaluated"
+    assert (detail["run_id"], detail["started_at"]) == (first, "2026-09-09T06:00:00Z")
+
+
 def test_finding_detail_of_something_absent_is_none(populated, store):
     assert query.finding_detail(populated.store, TENANT, DEVICE, "0" * 64, now=NOW) is None
     assert query.finding_detail(populated.store, TENANT, SECOND_DEVICE, populated.kept.fingerprint(), now=NOW) is None

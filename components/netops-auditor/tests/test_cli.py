@@ -1748,6 +1748,27 @@ def test_an_exos_configuration_is_audited_by_the_exos_catalog(tmp_path, capsys):
     assert report["rules_version"].startswith("exos:9:")
 
 
+def test_a_platform_change_under_the_same_alias_is_refused_and_nothing_is_gone(tmp_path, capsys):
+    dirty = write_config(tmp_path, dirty_text(), name="dirty.conf")
+    switch = write_config(tmp_path, exos_clean_text(), name="switch.conf")
+    database = tmp_path / "audit.sqlite"
+    code, _, err = audit(capsys, dirty, as_json=True, store=database)
+    assert code == 0, err
+    with Store(database) as store:
+        first = store.last_run(TENANT, DEVICE)
+        assert first["rules_version"].startswith("fortios:")
+    code, out, err = audit(capsys, switch, as_json=True, store=database, platform="exos")
+    assert code == cli.EXIT_ERROR
+    assert out == ""
+    assert "platform differs from this device history" in err
+    assert "new alias or a separate store" in err
+    with Store(database) as store:
+        assert [item["id"] for item in store.runs_for_device(TENANT, DEVICE)] == [first["id"]]
+    code, out, err = audit(capsys, dirty, as_json=True, store=database)
+    assert code == 0, err
+    assert json.loads(out)["states"]["gone"] == 0
+
+
 def test_an_exos_defect_is_reported_over_the_command_line(tmp_path, capsys):
     path = write_config(tmp_path, exos_positive_text(EXOS_TELNET_RULE), name="switch.conf")
     code, out, err = audit(capsys, path, as_json=True, platform="exos", device=EXOS_DEVICE)
@@ -1922,6 +1943,28 @@ def test_migrate_store_lets_the_cli_open_the_store_again(tmp_path, capsys):
     code, out, err = invoke(capsys, full_args(path, as_json=True, store=database))
     assert code == 0
     assert json.loads(out)["states"]["gone"] == 0
+
+
+def test_text_output_labels_not_evaluated_findings_not_gone(tmp_path, capsys):
+    database = tmp_path / "history.sqlite"
+    first = write_config(tmp_path, complete(mutate(clean_text(), "    set log-single-cpu-high enable\n", "")), name="first.conf")
+    code, out, err = invoke(capsys, run_args(first, as_json=True, store=database))
+    assert code == cli.EXIT_OK
+    assert [item["rule_id"] for item in json.loads(out)["findings"]] == ["fortios.logging.single-cpu-high"]
+    block = clean_text().split("config system password-policy\n")[0]
+    second = write_config(tmp_path, mutate(clean_text(), block, ""), name="second.conf")
+    code, out, err = invoke(capsys, run_args(second, as_json=True, store=database))
+    report = json.loads(out)
+    assert code == cli.EXIT_INCOMPLETE and report["evaluation"] == "not-evaluated"
+    assert "fortios.logging.single-cpu-high" in {item["rule_id"] for item in report["not_evaluated"]}
+    assert {item["state"] for item in report["not_evaluated"]} == {"not-evaluated"}
+    assert report["gone"] == [] and report["states"]["gone"] == 0
+    assert report["summary"] == {"high": 0, "medium": 0, "low": 0, "info": 0, "total": 0}
+    code, out, err = invoke(capsys, run_args(second, store=database))
+    assert code == cli.EXIT_INCOMPLETE
+    section = out.split("state not-evaluated: ")[1]
+    assert "[low] fortios.logging.single-cpu-high (not-evaluated)" in section
+    assert "(gone)" not in out and "state gone: 0" in out
 
 
 def test_migrate_store_needs_a_store_that_exists(tmp_path, capsys):
