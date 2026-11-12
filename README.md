@@ -12,7 +12,7 @@ NetOps is a self-hosted MCP server that gives Claude Code, Codex or any other MC
 
 NetOps is an independent, open-source, multi-vendor tool. It is not a product of any vendor whose devices, software or MCP clients it supports or names, and it is not affiliated with, endorsed by or supported by any of them; see the [disclaimer](#disclaimer).
 
-The image contains no AI agents. Any MCP client that verifies TLS normally can connect; the quickstart covers Claude Code and Codex. See [Tested MCP clients](#tested-mcp-clients) for the clients and models tested for 1.0.1, 1.0.4, 1.0.6 and 1.0.7.
+The image contains no AI agents. Any MCP client that verifies TLS normally can connect; the quickstart covers Claude Code and Codex. See [Tested MCP clients](#tested-mcp-clients) for the dated 1.0.7 results and earlier release history.
 
 **Start here:** [NetOps 1.0 quickstart](docs/quickstart-1.0.md)
 
@@ -46,9 +46,9 @@ Normalized tables (`switch_read`) and endpoint location:
 
 | OS (profile) | Verified live on | Interfaces | VLAN | Port VLAN | MAC | ARP | LLDP | Routes | OSPF | BGP | LAG | STP | Errors / flaps | IP interfaces | `locate_endpoint` |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| ExtremeXOS (`extreme_exos`) | X435-8P-4S and three X440G2-12p-10G4 with 33.7.1.6; EXOS-VM 33.6.1.14 | ✓ | ✓ | ✓⁸ | ✓ | ✓ | ✓ | ✓ | – | – | ✓ `aggregate`, `lag`⁴⁶ | – | ✓ CRC/TX | ✓ | live located: 13 end hosts on physical X440G2/X440 (24/24) and an end host on EXOS-VM port 2, VLAN 10, 2026-11-11⁵ |
-| Cisco IOS (`cisco_ios`) | IOSv 15.9(3)M12 (router), IOSvL2 15.2(20200924) (switch) | ✓ | ✓ | ✓⁸ | ✓ | ✓ | ✓ | ✓ | ✓ | docs | ✓⁶ | ✓ | replay: show interfaces | ✓ | live located: end host on IOSvL2 Gi0/3, VLAN 10 untagged, 2026-11-11⁵ |
-| Cisco IOS XE (`cisco_xe`) | IOL XE 17.18.2 (router image) | ✓⁹ router | docs | docs⁸ | docs | ✓ | ✓ | ✓ | ✓ | ✓¹ | docs⁶ | docs | replay: show interfaces | ✓ | ARP in completed live search, 2026-11-10⁵ |
+| ExtremeXOS (`extreme_exos`) | X435-8P-4S and three X440G2-12p-10G4 with 33.7.1.6-patch1-11; EXOS-VM 33.6.1.14 | ✓ | ✓ | ✓⁸ | ✓ | ✓ | ✓ | ✓ | – | – | ✓ `aggregate`, `lag`⁴⁶ | – | ✓ CRC/TX | ✓ | live located: 13 physical end hosts on X440G2/X440 by MAC; 11 also by IP (24/24 executed searches matched CLI; two IP searches not run because no ARP mapping was available) and an end host on EXOS-VM port 2, VLAN 10, 2026-11-11⁵ |
+| Cisco IOS (`cisco_ios`) | IOSv 15.9(3)M12 (router), IOSvL2 15.2(20200924) (switch) | ✓ | ✓ | ✓⁸ | ✓ | ✓ | ✓ | ✓ | ✓ | docs | ✓⁶ | ✓ | live MCP fallback: show interfaces (2026-11-11) | ✓ | live located: end host on IOSvL2 Gi0/3, VLAN 10 untagged, 2026-11-11⁵ |
+| Cisco IOS XE (`cisco_xe`) | IOL XE 17.18.2 (router image) | ✓⁹ router | docs | docs⁸ | docs | ✓ | ✓ | ✓ | ✓ | ✓¹ | docs⁶ | docs | live MCP fallback: show interfaces (2026-11-11) | ✓ | ARP in completed live search, 2026-11-10⁵ |
 | Cisco NX-OS (`cisco_nxos`) | Nexus 9300v, NX-OS 9.3(12) | ✓ | ✓ | ✓⁸ | ✓ | ✓ | ✓² | ✓ | ✓ | ✓¹ | ✓⁶ | ✓ | prior canonical replay; new capture refused | ✓ | live located, 2026-11-10⁵ |
 | Arista EOS (`arista_eos`) | cEOS 4.36.1F | ✓ | ✓ | ✓⁸ | ✓ | ✓ | ✓ | ✓ | ✓ | docs | ✓⁶ | ✓ | ✓ errors; discards prior replay | ✓ | live transit, 2026-11-10⁵ |
 | Junos ELS, EX/QFX (`juniper_junos_els`) | vJunos-switch 26.2R1.7 | ✓ | ✓ | ✓⁸ | ✓ | ✓ | ✓ | ✓ | ✓ | docs | docs⁶ | ✓⁶ | ✓ extensive | ✓ | live located: end host on ge-0/0/1, VLAN 20 untagged, 2026-11-11⁵ |
@@ -61,17 +61,16 @@ returned FortiSwitch MAC, LLDP, 29 port-state/error rows and 28 configured
 port-VLAN rows per switch. The AP was live `located` on port3, VLAN 100
 untagged, with link up and 1000 Mb/s, in eight reads (about 45 s); the second
 switch was transit over the ICL. VLAN membership is `source: configuration`,
-not forwarding evidence. FortiSwitch firmware was not captured. FortiGate-local
-reads added afterward were independently executed with `netops-test-ro` on the
-same 80F/build: 11 physical interfaces, eight VLAN interfaces with ID/parent/IP,
-and two local LLDP neighbors via `diagnose lldp rx neighbor summary`. Those new
-normalized tables are tested through the engine with a fake transport, not a
-new live MCP run. The enrolled local `internal` bridge read succeeded but was
-empty; populated local FDB layouts remain unparsed. Without an enabled and
-enrolled bridge, local `mac_entry` is `not_applicable` (clients: ARP/FortiSwitch).
-Local LLDP has no management IP/capabilities; CRC and flap counters stay null.
+not forwarding evidence. FortiSwitch firmware was not captured.
+The local interface, VLAN and LLDP tables were verified through live MCP on
+2026-11-11: 11 physical interfaces, eight VLAN interfaces and two LLDP neighbors,
+compared with independent CLI reads on the same 80F/build. The enrolled local
+`internal` bridge read succeeded but was empty; populated local FDB layouts
+remain unparsed. Without an enabled and enrolled bridge, local `mac_entry` is
+`not_applicable` (clients: ARP/FortiSwitch). Local LLDP has no management
+IP/capabilities; CRC and flap counters stay null.
 
-⁸ `port_vlan` is tested by offline replay of read-only captures: IOSvL2 15.2(20200924), Nexus 9300v 9.3(12), cEOS 4.36.1F, vJunos-switch 26.2R1.7, EXOS-VM 33.6.1.14, X435 31.7.3.37 and X440G2 33.7.1.6. The 2026-11-09 PTY captures add EXOS `show vlan detail`; transport echo, prompt and pager artefacts were removed before anonymization. NX-OS and Junos success uses the existing captures of the exact catalogue commands (`show interface trunk`, `show ethernet-switching interface | no-more`); the new plural-command refusals are negative fixtures. IOL XE 17.18.2 is a router image that refuses the switching commands, so positive IOS XE membership remains a shared-parser synthetic test, not live evidence. Membership describes allowed VLANs, independently of forwarding or link state.
+⁸ `port_vlan` is tested by offline replay of read-only captures: IOSvL2 15.2(20200924), Nexus 9300v 9.3(12), cEOS 4.36.1F, vJunos-switch 26.2R1.7, EXOS-VM 33.6.1.14, X435-8P-4S 33.7.1.6 (booted secondary image) and X440G2 33.7.1.6. The 2026-11-09 PTY captures add EXOS `show vlan detail`; transport echo, prompt and pager artefacts were removed before anonymization. NX-OS and Junos success uses the existing captures of the exact catalogue commands (`show interface trunk`, `show ethernet-switching interface | no-more`); the new plural-command refusals are negative fixtures. IOL XE 17.18.2 is a router image that refuses the switching commands, so positive IOS XE membership remains a shared-parser synthetic test, not live evidence. Membership describes allowed VLANs, independently of forwarding or link state.
 
 
 `interface_errors` evidence added on 2026-11-09: live captures replayed in
@@ -85,8 +84,8 @@ new read-only `show interfaces` captures from IOSv 15.9(3)M12 (7 interfaces),
 IOSvL2 15.2(20200924) (7) and IOL XE 17.18.2 (19) verify offline replay of the
 authorized whole-port fallback, including RX/CRC/TX and queue/total output
 drops. Refused or empty counter-table sources remain negative fixtures; the
-corrected fallback was not measured through live MCP. Nonzero IOS/XE counters
-remain synthetic coverage. The NX-OS 9.3(12) supplied capture refused the plural
+authorized fallback was also verified through live MCP on IOSv, IOSvL2 and
+IOL XE on 2026-11-11. Nonzero IOS/XE counters remain synthetic coverage. The NX-OS 9.3(12) supplied capture refused the plural
 command; the catalogue uses singular `show interface counters errors`.
 The new cEOS 4.36.1F LLDP capture verifies all nine neighbors, including seven
 with day-old discovery/change ages, with complete parser coverage. EXOS direct
@@ -99,7 +98,7 @@ other firmware or hardware; device configuration was unchanged.
 
 ⁴ EXOS provides `table="aggregate"` using `show lacp` (`name`, `member_count`) and `table="lag"` using the explicitly enrolled `lag_summary` query (`show sharing`; `name`, `protocol`, `status`, `members`). The EXOS-VM sharing capture is empty. A populated physical X440G2 33.7.1.6 sharing group with members was captured on 2026-11-10 and is replayed by the engine tests; it is distinct from the empty VM capture. Populated LACP aggregates were also captured on physical EXOS switches on 2026-11-08.
 
-⁵ Live acceptance on 2026-11-11 located GNS3 end hosts behind IOSvL2 Gi0/3 (VLAN 10), NX-OS Ethernet1/2 (VLAN 20), EXOS-VM port 2 (VLAN 10) and vJunos ge-0/0/1 (VLAN 20), each by IP and MAC in two rounds across all seven enrolled targets, and 13 end hosts on physical ExtremeXOS X440G2/X440 switches (24/24 searches matching the CLI forwarding table); cEOS and the router images were searched live as transit. Endpoint parsers are also tested on real captures. The physical NAS case was live located behind X440G2; the enrolled inter-switch link is transit. FortiLink acceptance on candidate source `51840b1` located the AP on port3, VLAN 100 untagged (`edge_behind_ap`, eight reads), and the second switch MAC as `own_interface_of_target` (three reads). An enrolled device's own address is not an access-host result. Phones and populated IPv6 ND remain unverified. Common Junos was not separately enrolled; IOS XE switch layouts remain documentation-only.
+⁵ Live acceptance on 2026-11-11 located GNS3 end hosts behind IOSvL2 Gi0/3 (VLAN 10), NX-OS Ethernet1/2 (VLAN 20), EXOS-VM port 2 (VLAN 10) and vJunos ge-0/0/1 (VLAN 20), each by IP and MAC in two rounds across all seven enrolled targets, and 13 physical end hosts on ExtremeXOS X440G2/X440 switches by MAC; 11 also by IP. All 24 executed searches matched the CLI forwarding table; two IP searches were not run because no ARP mapping was available. cEOS was observed as transit in a completed live search; IOSv and IOL XE were included as router ARP readers. No access-host result on these router images is claimed. Endpoint parsers are also tested on real captures. The physical NAS case was live located behind X440G2; the enrolled inter-switch link is transit. FortiLink acceptance on candidate source `51840b1` located the AP on port3, VLAN 100 untagged (`edge_behind_ap`, eight reads), and the second switch MAC as `own_interface_of_target` (three reads). An enrolled device's own address is not an access-host result. Phones and populated IPv6 ND remain unverified. Common Junos was not separately enrolled; IOS XE switch layouts remain documentation-only.
 
 ⁶ Earlier IOS/EOS/NX-OS LAG captures remain dated evidence. In the later MCP run, LAG was empty on IOSvL2, NX-OS and cEOS, refused (`permission_denied`) on IOSv and IOL XE, and LACP was not running on vJunos; EXOS-VM `aggregate` was empty. No populated LAG/aggregate table was verified on any of the seven OS in that 2026-11-09 run; this does not negate the later physical EXOS sharing capture. The 2026-11-10 acceptance also exercised OSPF/LAG; exact per-OS populated row counts are unavailable, so no additional per-OS positive LAG claim is made here. vJunos RSTP port output was captured earlier on 2026-11-09 with temporary configuration; in the later run STP was disabled (`Spanning-tree is not enabled at global level.`, `not_applicable`).
 
@@ -107,14 +106,16 @@ other firmware or hardware; device configuration was unchanged.
 
 ⁹ `ip_interface` (IPv4 address, prefix length, SVI VLAN, state) was added on 2026-11-09 and is parsed from the anonymised live outputs of `show ip interface brief` with `show ip route` (IOS, IOS XE, NX-OS), `show ip interface brief` (EOS), `show ipconfig` with `show vlan` (EXOS), `show interfaces terse` (Junos) and `get system interface` (FortiGate 80F, FortiOS 8.0.2 build0251, read-only account, 2026-11-09); FortiOS gives no link state, so `oper_status` stays null there. On the IOL XE router image the `interface` table comes from `show ip interface brief` (name, status, protocol) when the target declares `device_types: ["router"]` without `switch`; the IOSv router uses the same rule.
 
+IOS / IOS XE IPv4 route lookups use the authorized whole routing table as a fallback when the direct lookup is empty.
+
 Catalogue, triage, Wi-Fi, Auditor and Admin:
 
 FortiLink capacity is bounded by the 5-second connection spacing on each FortiGate: at the observed ~5.6 seconds per read, an IP lookup with all edge queries fits roughly four managed switches (N + 6 reads) into 59.5 seconds; larger sites can return partial findings with incomplete coverage. Startup, latency and multiple matching switches reduce this capacity.
 
-| Platform | `ssh_read` templates 1.0.6 → 1.0.7 | Run live for 1.0.7⁴ | Triage and Wi-Fi | Auditor | Admin |
+| Platform | `ssh_read` templates 1.0.6 → 1.0.7 | Run live for 1.0.7¹⁰ | Triage and Wi-Fi | Auditor | Admin |
 |---|---|---|---|---|---|
-| FortiOS (FortiGate) | 108 → 119 | the 7 new Wi-Fi reads, `system_interfaces`, local physical/VLAN/LLDP and empty bridge reads (2026-11-10), the 3 FortiSwitch port/VLAN reads and the `triage_routing` and `triage_flow` reads, FortiGate 80F 8.0.2 | new: `triage_flow` (FortiGate 80F 8.0.2, VDOMs disabled), `wifi_triage`, `wifi_clients`, `wifi_aps_live`, `wifi_rogue` (FortiGate 80F 8.0.2 with two FortiAP; live Wi-Fi needs [optional REST token](docs/fortios-wifi-rest.md#create-access-on-fortigate)); `triage_routing`, `triage_health`, `triage_vpn` | 37 rules | address, address group, DHCP reservation, firewall policy (unchanged) |
-| FortiADC | 33 → 33 | – | `triage_slb` (FortiADC-KVM 7.6.7) | 8 rules on an exported configuration | pool member, command line only (unchanged) |
+| FortiOS (FortiGate) | 108 → 119 | the 7 new Wi-Fi reads, `system_interfaces`, local physical/VLAN/LLDP and empty bridge reads (live MCP, 2026-11-11), the 3 FortiSwitch port/VLAN reads and the `triage_routing` and `triage_flow` reads, FortiGate 80F 8.0.2 | new: `triage_flow` (FortiGate 80F 8.0.2, VDOMs disabled), `wifi_triage`, `wifi_clients`, `wifi_aps_live`, `wifi_rogue` (FortiGate 80F 8.0.2 with two FortiAP; live Wi-Fi needs [optional REST token](docs/fortios-wifi-rest.md#create-access-on-fortigate)); `triage_routing`, `triage_health`, `triage_vpn` | 37 rules | address, address group, DHCP reservation, firewall policy (unchanged) |
+| FortiADC | 33 → 33 | Selected catalogue reads, nine diagnostic recipes and `triage_slb` exercised live on FortiADC-KVM 7.6.7, 2026-11-11; not a full 33-template qualification | `triage_slb` (FortiADC-KVM 7.6.7) | 8 rules on an exported configuration | pool member, command line only (unchanged) |
 | FortiSwitch (FortiLink) | existing FortiOS catalogue reads | MAC/LLDP, port-stats and configured VLANs; live AP located, 2026-11-10, through FortiGate 80F 8.0.2 build0251 | `switch_read` with `managed_switch` | – | – |
 | ExtremeXOS | 48 → 65 | 63 earlier catalogue reads plus VLAN detail on EXOS-VM; VLAN detail also on physical X435/X440G2; `lag_summary` replays empty VM and populated physical X440G2 sharing captures (2026-11-10) | – | 9 rules | VLAN, port display string, port VLAN membership (unchanged) |
 | Cisco IOS | 27 → 49 | 43, docs-only 6 (error counters, environment, optics, PoE, stack) | – | – | – |
@@ -123,21 +124,21 @@ FortiLink capacity is bounded by the 5-second connection spacing on each FortiGa
 | Arista EOS | 33 → 54 | 53, docs-only 1 (PoE) | – | – | – |
 | Junos ELS (EX/QFX) | 29 → 55 | 51, docs-only 4 (Virtual Chassis, PoE) | – | – | – |
 | Junos (common) | 25 → 41 | 41, on the vJunos-switch | – | – | – |
-| Linux | 16 → 16 | – | – | – | – |
+| Linux | 16 → 16 | `kernel` (`uname -a`), CLI/MCP comparison, 2026-11-11; not a full 16-template qualification | – | – | – |
 | Ruckus Unleashed | 4 → 4 | – | – | – | – |
 | **Total** | **380 → 547** | | | | |
 
-⁴ The template was sent to the device with the read-only account. This includes empty and "not configured" answers and the reads that the built-in read-only role refuses: `show logging` and `stp_inconsistent` on IOS and IOS XE privilege 1, `stp_summary` on the IOSv router, and the two Junos log reads, which need more than the built-in `read-only` class. The per-template results are in the [Cisco](components/netops-helper/docs/vendor-cli-references/cisco.md#lab-measurements-gns3-lab-2026-11-08), [Arista](components/netops-helper/docs/vendor-cli-references/arista-eos.md#lab-measurements-gns3-lab-2026-11-08), [Junos](components/netops-helper/docs/vendor-cli-references/juniper-junos.md#lab-measurements-gns3-lab-2026-11-0809) and [ExtremeXOS](components/netops-helper/docs/vendor-cli-references/extreme-switch-engine.md#exos-vm-336114-compatibility) notes; device roles in [Accounts and least privilege](components/netops-helper/docs/read-only-accounts.md), details in [Verified platform support](docs/verified-support.md#helper-coverage-by-os-netops-107).
+¹⁰ The template was sent to the device with the read-only account. This includes empty and "not configured" answers and the reads that the built-in read-only role refuses: `show logging` and `stp_inconsistent` on IOS and IOS XE privilege 1, `stp_summary` on the IOSv router, and the two Junos log reads, which need more than the built-in `read-only` class. The per-template results are in the [Cisco](components/netops-helper/docs/vendor-cli-references/cisco.md#lab-measurements-gns3-lab-2026-11-08), [Arista](components/netops-helper/docs/vendor-cli-references/arista-eos.md#lab-measurements-gns3-lab-2026-11-08), [Junos](components/netops-helper/docs/vendor-cli-references/juniper-junos.md#lab-measurements-gns3-lab-2026-11-0809) and [ExtremeXOS](components/netops-helper/docs/vendor-cli-references/extreme-switch-engine.md#exos-vm-336114-compatibility) notes; device roles in [Accounts and least privilege](components/netops-helper/docs/read-only-accounts.md), details in [Verified platform support](docs/verified-support.md#helper-coverage-by-os-netops-107).
 
 ## Highlights
 
 - **One product, one image.** A single multi-architecture image for `linux/amd64` and `linux/arm64`, pinned by digest in the release `env.example`. Core, Helper, Auditor and Admin share one dependency closure and one product version.
 - **One MCP endpoint.** HTTPS only, bearer token, instance-local certificate authority with name constraints and an automatically renewed short-lived server certificate.
-- **Audit before action.** Requests are durably recorded before dispatch and responses before delivery. If the audit cannot be written, the operation is refused (`audit_unavailable`). The audit goes to a TLS syslog receiver (recommended) or to a local, size-limited log.
+- **Audit before action.** MCP requests are durably recorded before dispatch and responses before delivery. The local diagnostic `/healthz` endpoint remains available during an audit failure; successful health checks are not audited. If the audit cannot be written, the operation is refused (`audit_unavailable`). The audit goes to a TLS syslog receiver (recommended) or to a local, size-limited log.
 - **Role isolation.** Gateway and roles run as separate long-running processes under their own UID/GID (51000–51003), with no Linux capabilities, `no-new-privileges`, a read-only root filesystem and CPU, memory and process limits. A short start-up bootstrap uses the capabilities listed in `compose.yaml` and then drops all of them.
 - **Explicit device scope.** No device is enrolled implicitly. Each role has its own inventory and credentials; MCP clients pass enrolled aliases, never device credentials.
 - **Device output is untrusted data**, never instructions.
-- **Safeguarded changes.** Admin changes run behind an on-device safeguard with prediction, independent readback and verified return; unknown writes are never retried automatically.
+- **Safeguarded changes.** MCP Admin changes on FortiOS and ExtremeXOS run behind an on-device safeguard with prediction, independent readback and verified return. FortiADC pool-member commands are operator CLI operations with readback and a best-effort return, without an autonomous on-device safeguard. Unknown writes are never retried automatically.
 - **Errors stay visible.** Refused, failed or uncertain operations are MCP errors (`isError`) with their full structured result.
 - **Signed releases.** The checksum list is signed with Sigstore; SBOMs, vulnerability scans with written assessments and acceptance reports are covered by it.
 
@@ -163,12 +164,12 @@ Read-only queries against enrolled targets, using a named query catalogue of **5
 | `tcp_probe` | Enrolled TCP port reachability |
 | `icmp_probe` | Explicitly permitted bounded diagnostics |
 | `tls_probe` | Verified peer certificate and enrolled SNI/port |
-| `switch_read` | Normalized interface, IP interface, interface error counters, port VLAN tagging/mode, VLAN, MAC, ARP/ND, LLDP, route, OSPF neighbour, BGP peer, LAG and STP records for EXOS, IOS/IOS XE, NX-OS, EOS and Junos (the tables of each OS in [What's new](#coverage-by-vendor-and-operating-system)), ARP/ND, IPv4 routes and IP interfaces of a FortiGate and managed FortiSwitch MAC/LLDP, link/speed, errors/drops and configured VLANs via an enrolled `managed_switch` serial; source hashes, coverage and explicit unparsed lines ([coverage](components/netops-helper/docs/tools.md#normalized-tables-switch_read)) |
+| `switch_read` | Normalized interface, IP interface, interface error counters, port VLAN tagging/mode, VLAN, MAC, ARP/ND, LLDP, route, OSPF neighbour, BGP peer, LAG and STP records for EXOS, IOS/IOS XE, NX-OS, EOS and Junos (the tables of each OS in [What's new](#coverage-by-vendor-and-operating-system)), ARP/ND, IPv4 routes, IP interfaces, physical interfaces, VLAN interfaces, LLDP and bridge MAC of a FortiGate and managed FortiSwitch MAC/LLDP, link/speed, errors/drops and configured VLANs via an enrolled `managed_switch` serial; source hashes, coverage and explicit unparsed lines ([coverage](components/netops-helper/docs/tools.md#normalized-tables-switch_read)) |
 | `locate_endpoint` | One IP/MAC literal across 1–64 enrolled targets (including managed-switch slots), 8 concurrent readers, 40 CLI reads including identity for at most 8 aliases and otherwise 8 per alias, shared 59.5-second deadline; edge/transit port, LLDP, VLAN and vantage, with missing evidence ([guide](components/netops-helper/docs/tools.md#endpoint-location-locate_endpoint)) |
 | `ssh_read` | Enabled named query, pinned SSH host key, bounded/paginated output; FortiOS and FortiADC targets are first checked to be the selected product (`product_identity`) |
 | `sftp_stat` | Metadata within enrolled roots; no file content |
 | `schema_read` | Not a supported workflow in 1.0 (see [Known limitations](#known-limitations)) |
-| `fortios_diagnostics` | Enrolled bounded recipes, no schema registry needed. FortiOS: single-VDOM root only, exact measured identities FortiGate-VM64 8.0.2 build 0251, FortiGate-80F 8.0.2 build 0251, FortiGate-VM64-KVM 7.6.7 build 3704 and 8.0.0 build 0167 (TCP/UDP tuples only on FortiGate-VM64 8.0.2 build 0251, FortiGate-60F 7.6.8 build 3744 and FortiGate-80F 8.0.2 build 0251); FortiADC: FortiADC-KVM 7.6.7 build 0676. Needs the target's `system_status` query enabled; see [Helper tools](components/netops-helper/docs/tools.md) |
+| `fortios_diagnostics` | Enrolled bounded recipes, no schema registry needed. FortiOS: verified single-VDOM mode without a selector, or an explicit `vdom` enrolled in `diagnostic_vdoms` that equals the session's current VDOM (VDOM-scoped administrator); exact measured identities FortiGate-VM64 8.0.2 build 0251, FortiGate-80F 8.0.2 build 0251, FortiGate-VM64-KVM 7.6.7 build 3704 and 8.0.0 build 0167 (TCP/UDP tuples only on FortiGate-VM64 8.0.2 build 0251, FortiGate-60F 7.6.8 build 3744 and FortiGate-80F 8.0.2 build 0251); FortiADC: FortiADC-KVM 7.6.7 build 0676. Needs the target's `system_status` query enabled; see [Helper tools](components/netops-helper/docs/tools.md) |
 | `config_read` / `config_diff` | Opt-in redacted configuration capture of a FortiOS or FortiADC target and comparison of two captures; see [Helper tools](components/netops-helper/docs/tools.md) |
 | `snmp_get` | SNMPv3 authPriv GET (SHA256, AES128) with the `snmp_credential` of the target, 1 to 20 OIDs, UDP port within the egress scope; SNMPv1, SNMPv2c, noAuthNoPriv and authNoPriv are not supported |
 | `ftp_list` | FTP and FTPS refused in the shipped profile |
@@ -255,11 +256,11 @@ Compatibility is scoped to the exact platform, firmware build, model, account po
 
 Auditor catalogs cover FortiOS, ExtremeXOS and FortiADC. Admin MCP execution (MCP tools and the profile command `netops-admin apply`) is limited to the FortiOS and ExtremeXOS profiles listed above; on FortiADC, Admin offers only the command-line `pool-member`, `pool-member-add` and `pool-member-remove` commands, with no MCP tool ([FortiADC bounds](docs/verified-support.md#fortiadc-bounds)). A read catalogue on another platform does not imply Admin support there. The opt-in FortiOS `managed_switch_stacking` and `managed_switch_poe` queries are unverified on stacking- or PoE-capable hardware. The seven `wifi_*` reads for a read-only FortiOS account (`wifi_ap_status`, `wifi_vap_status`, `wifi_neighbors`, `wifi_controller_status`, `wifi_controller_statistics`, `wifi_rf_analysis`, `wifi_events`) and `wifi_triage` were measured on FortiGate-80F 8.0.2 build0251 with two FortiAP only, on 2026-11-08; the SSH reads list no live client and no client RSSI; optional [read-only Wi-Fi REST enrollment](docs/fortios-wifi-rest.md) adds `wifi_clients`, `wifi_aps_live`, `wifi_rogue` and live RSSI/SNR in triage, and the five `diagnose wireless-controller` queries remain for an `admin-bounded` account ([measurement](components/netops-helper/docs/vendor-cli-references/fortinet-fortios.md#wi-fi-reads-for-a-read-only-account-measured)).
 
-Live verification of NetOps 1.0.7 on 2026-11-08: development builds of the 1.0.7 source before the release candidate, read-only accounts only. A physical FortiGate 80F in active-passive HA mode (primary unit, single VDOM) with FortiOS 8.0.2 build0251: the reads of `triage_routing` and `triage_flow` (routes, policy routes, SD-WAN, ARP, policy lookup, sessions of a flow), the seven Wi-Fi reads for a read-only account, `wifi_triage` and the read-only Wi-Fi REST endpoints of `wifi_clients`, `wifi_aps_live` and `wifi_rogue`; the other HA member was not read. Four physical ExtremeXOS switches (X435-8P-4S and three X440G2-12p-10G4) with 33.7.1.6, and a GNS3 lab with IOSv 15.9(3)M12, IOSvL2 15.2(20200924), cEOS 4.36.1F and EXOS-VM 33.6.1.14: every catalogue template of these profiles. The anonymised outputs are the fixtures of the automated tests of `switch_read`, `locate_endpoint` and the triage tools ([verified support](docs/verified-support.md#live-verification-of-netops-107)).
+Live verification of NetOps 1.0.7 on 2026-11-08: development builds of the 1.0.7 source before the release candidate, read-only accounts only. A physical FortiGate 80F in active-passive HA mode (primary unit, single VDOM) with FortiOS 8.0.2 build0251: the reads of `triage_routing` and `triage_flow` (routes, policy routes, SD-WAN, ARP, policy lookup, sessions of a flow), the seven Wi-Fi reads for a read-only account, `wifi_triage` and the read-only Wi-Fi REST endpoints of `wifi_clients`, `wifi_aps_live` and `wifi_rogue`; the other HA member was not read. Four physical ExtremeXOS switches (X435-8P-4S and three X440G2-12p-10G4) with 33.7.1.6-patch1-11 (X435 booted the secondary image), and a GNS3 lab with IOSv 15.9(3)M12, IOSvL2 15.2(20200924), cEOS 4.36.1F and EXOS-VM 33.6.1.14: the catalogue templates available on that date, with gaps. Physical EXOS `ipv6_neighbor_address` was not run because no IPv6 neighbour was available. EXOS `vlan_detail` and `lag_summary`, and IOS `interfaces counters errors`, were captured on 2026-11-09/10. The anonymised outputs are the fixtures of the automated tests of `switch_read`, `locate_endpoint` and the triage tools ([verified support](docs/verified-support.md#live-verification-of-netops-107)).
 
-Live verification of NetOps 1.0.7 on 2026-11-09: earlier SSH captures in the same GNS3 lab, IOL XE 17.18.2, Nexus 9300v with NX-OS 9.3(12) and vJunos-switch 26.2R1.7 (every catalogue template of these profiles, read-only accounts), and on the FortiGate 80F with FortiOS 8.0.2 build0251 the IP range syntax of the `sessions` and `flow` filters (filter set and cleared, no traffic test). Hardware Cisco, Arista and Juniper devices were not tested.
+Live verification of NetOps 1.0.7 on 2026-11-09: earlier SSH captures in the same GNS3 lab, IOL XE 17.18.2, Nexus 9300v with NX-OS 9.3(12) and vJunos-switch 26.2R1.7 (read-only accounts; IOL XE `interfaces counters errors` was captured on 2026-11-09/10), and on the FortiGate 80F with FortiOS 8.0.2 build0251 the IP range syntax of the `sessions` and `flow` filters (filter set and cleared, no traffic test). Hardware Cisco, Arista and Juniper devices were not tested.
 
-Later that day (14:10–14:20 UTC), direct HTTPS MCP calls measured 67 normalized tables on all seven GNS3 OS. The lab had no independent end host; IP/MAC endpoint runs returned transit evidence and `incomplete`, with seven-target runs reaching the 60-second limit. BGP on NX-OS and STP on vJunos were disabled. Historical fixture samples and these later feature states are distinguished in the coverage notes above and [verified support](docs/verified-support.md#later-gns3-mcp-verification-2026-11-09).
+Later that day (14:10–14:20 UTC), direct HTTPS MCP calls measured 67 normalized tables on all seven GNS3 OS. The lab had no independent end host; IP/MAC endpoint runs returned transit evidence and `incomplete`, with seven-target runs reaching the 59.5-second limit. Later runs with lab end hosts on 2026-11-10/11 located them on the correct edge port and VLAN ([verified support](docs/verified-support.md#release-candidate-acceptance-2026-11-10)). BGP on NX-OS and STP on vJunos were disabled. Historical fixture samples and these later feature states are distinguished in the coverage notes above and [verified support](docs/verified-support.md#later-gns3-mcp-verification-2026-11-09).
 
 Live verification of NetOps 1.0.6 on 2026-11-07: FortiGate 60F with FortiOS 7.6.8 build3744, standalone (Admin `firewall policy` create, update and undo of an accept policy and of a deny policy, with two `firewall address` objects created and deleted through Admin), a physical FortiGate 80F in active-passive HA mode (primary unit) with FortiOS 8.0.2 build0251, managing two FortiSwitch 224E-POE with 8.0.1 and FortiAP 231K and 23JK with 8.0.0 (Helper `system_status`, FortiSwitch status, `switch_dhcp_bindings` returning an empty binding table, MCLAG ICL, trunk and consistency status, and `wifi_access_points`, `wifi_ap_detail`, `wifi_clients` with no associated station and `wifi_ssid_mapping` under an administrator-bounded account; `wifi_client_detail` was not measured), and SNMPv3 `snmp_get` of the system name on a FortiGate 80F and on FortiADC-KVM 7.6.7, measured with development builds of the 1.0.6 source before the release candidate ([verified support](docs/verified-support.md)).
 
@@ -269,11 +270,11 @@ Details: [Verified platform support](docs/verified-support.md) · [Compatibility
 
 ## Supported platforms
 
-- **Host:** Linux with Docker Engine and the Compose plugin on Ubuntu, Debian, Fedora Server (SELinux enforcing, with SELinux support enabled in the Docker daemon) or Raspberry Pi OS 64-bit, natively or in a Linux virtual machine.
-- **Architectures:** `linux/amd64` and `linux/arm64`; Raspberry Pi OS is arm64.
-- **Docker Engine:** as root or in rootless mode.
+- **Host:** Linux with Docker Engine and the Compose plugin. NetOps 1.0.7 was qualified on Debian 13 (amd64, arm64) and Fedora 44 (amd64 Server, arm64 Cloud Edition), with local state volumes. Fedora requires SELinux enforcing and SELinux support enabled in the Docker daemon.
+- **Architectures:** `linux/amd64` and `linux/arm64`.
+- **Other documented setups:** Ubuntu, Raspberry Pi OS 64-bit and rootless Docker follow the documented quickstart but were not qualified for 1.0.7.
 - **Not supported as runtime:** Docker Desktop. Network-backed state storage, including NFS, is not qualified.
-- **Clients:** macOS and Windows are supported only as MCP client hosts (Claude Code, Codex), not as NetOps servers. MCP clients connect over the network from any system.
+- **Clients:** macOS and Windows are MCP client hosts only. Claude Code was tested there for 1.0.1; Codex was tested on Linux only. MCP clients connect over the network.
 
 ## Security model
 
@@ -283,7 +284,7 @@ Details: [Verified platform support](docs/verified-support.md) · [Compatibility
 - **Redaction:** explicit. Known token values, secret-bearing fields, private-key blocks and documented password forms are redacted; worker-side credentials are removed before reaching the gateway. Audit is parsed protocol content, not a raw byte transcript, and output is escaped for terminals. Device output remains sensitive after redaction.
 - **Untrusted device output:** device text is data, never instructions; a diagnostic finding does not authorize a write, retry or another target.
 - **UID separation:** gateway, Helper, Auditor and Admin have separate UID/GID, private state and credentials; local IPC authenticates the peer UID in both directions. This is process and filesystem isolation inside one container, not a boundary against the host administrator or the container runtime. The runtime never mounts the Docker socket or uses host networking.
-- **TLS probe trust:** `tls_probe` verifies the peer chain and the hostname/SAN with TLS 1.2 or newer, against the system store or, per target, only against a CA file enrolled as `tls_ca_certificate` from a read-only directory; verification cannot be switched off.
+- **TLS probe trust:** `tls_probe` verifies the peer chain and the hostname/SAN with TLS 1.2 or newer, against the system store or, per target, only against a CA file enrolled as `tls_ca_certificate` from a read-only directory; verification cannot be switched off. After failed verification, a second, unverified handshake only retrieves certificate details for diagnosis. No application data is sent, and the result stays `certificate_verified: false`.
 - **Syslog over TLS:** the bounded, durable syslog queue sends to a verified TLS receiver. A successful delivery is a TLS transport hand-over, not a receiver acknowledgement; a full queue blocks new operations.
 - **Fail-closed:** an unwritable audit, an incomplete final local audit record, a full syslog queue, a second instance on the same state or state of another product version or state schema stops operations instead of continuing silently. The one exception is the state of the immediately preceding release: the first start of the new release converts it under the instance lock and changes only its recorded product version. There is no downgrade.
 - **CIS:** the container architecture and the release tests are inspired by the recommendations of the CIS Docker Benchmark; NetOps does not claim compliance with CIS.
@@ -374,8 +375,10 @@ Claude Code:
 
 ```sh
 export NODE_EXTRA_CA_CERTS="$PWD/netops-ca.pem"
-claude mcp add-json -s user netops '{"type":"http","url":"https://<server-name>:<port>/mcp","headers":{"Authorization":"Bearer ${NETOPS_TOKEN}"}}'
-claude mcp list
+cat > mcp.json <<'JSON'
+{"mcpServers":{"netops":{"type":"http","url":"https://<server-name>:<port>/mcp","headers":{"Authorization":"Bearer ${NETOPS_TOKEN}"}}}}
+JSON
+claude --mcp-config ./mcp.json
 ```
 
 Codex (`~/.codex/config.toml`, token kept in the environment):
@@ -396,25 +399,18 @@ Other MCP clients must enable normal CA/SAN verification. Never disable TLS veri
 
 #### Tested MCP clients
 
-Tested for 1.0.1 against a NetOps 1.0.1 instance, with each call found in the audit as a request and a response record:
+**Tested for NetOps 1.0.7 (2026-11-12)** against the released image `ghcr.io/radek-cerny-soukr/netops@sha256:e04b19091819897e1bb4dec11416253b1dd598c18d5567325583b7e7e5fb8dfc`:
 
-| Client | Version | Platform | Models |
-|---|---|---|---|
-| Claude Code | 2.1.310 | Linux (Ubuntu 26.04, blind run of the quickstart), macOS 26.6.2 arm64, Windows 11 (PowerShell 5.1) as a remote client | Claude models of the client's provider account |
-| Open WebUI | v0.12.3 | container image | Laguna XS 2.1 Q4 and gpt-oss-120b MXFP4, local, through llama.cpp `llama-server` (OpenAI-compatible API), 16,384-token context |
-| Codex CLI | 0.164.0 | Linux (Debian GNU/Linux 13, amd64) | gpt-6.1-sol (medium reasoning) |
+| Client | Version | Platform | Model | Result |
+|---|---|---|---|---|
+| Codex CLI | 0.167.2 | Linux (Debian 13, amd64) | Client default (no model override) | PASS 69/69 |
+| Claude Code | 2.1.322 | Linux (Ubuntu 24.04.5 LTS, amd64) | claude-haiku-4-5-20251001 | PASS 2/2 |
 
-For NetOps 1.0.7, Codex CLI 0.163.0 (gpt-6.1-sol) and Claude Code 2.1.310 (claude-haiku-4-5) were tested on Debian 13 amd64 against the 1.0.7 candidate on 2026-11-10. Each client called `helper_status` through MCP with the instance token and CA; the successful call was matched in the audit. Negative checks covered a wrong token and a missing CA. Newer client versions were not tested for 1.0.7.
+Each listed client called `helper_status` over MCP with the instance bearer token and CA; its successful request and response were matched in the audit. Negative checks verified rejection of a wrong token and a missing CA.
 
-For NetOps 1.0.6, Codex CLI 0.167.0 (gpt-6.1-sol, selected with `--model`) and Claude Code 2.1.319 (claude-haiku-4-5) were tested on Linux (Ubuntu 26.04.1 LTS, amd64) against a NetOps 1.0.6 instance on the same host, a development build of the 1.0.6 source: each client listed the tools and made one `snmp_get` call that returned the system name of a FortiADC-KVM over SNMPv3, and each call was found in the audit as a request and a response record. The other clients in the table were not tested again for 1.0.6.
+Tests of NetOps 1.0.1–1.0.6 are documented in the [release history](https://github.com/radek-cerny-soukr/netops/releases); Open WebUI v0.12.3 was last tested with 1.0.1.
 
-For NetOps 1.0.5, the clients in this table were not tested again against a NetOps 1.0.5 instance. The 1.0.5 live `triage_slb` and `tls_probe` calls of 2026-11-01 were sent to the MCP endpoint as JSON-RPC `tools/call` requests over Streamable HTTP with curl, and each call was found in the audit.
-
-For 1.0.4, Codex CLI 0.164.0 on Linux arm64 was tested against a NetOps 1.0.4 instance on Debian 13 amd64: nine authenticated calls (three Helper, three Auditor and three expected Admin `admin_not_configured` refusals), each matched in the audit as a request and a response record.
-
-In the 1.0.1 test, Codex CLI made three read-only calls per role. The three Admin calls returned the expected `admin_not_configured` refusal on an instance without enrolled devices, so no device changes were tested with Codex.
-
-Other MCP clients with Streamable HTTP, bearer tokens and normal TLS verification can be used; the [quickstart](docs/quickstart-1.0.md#open-webui) has notes for Open WebUI.
+Other MCP clients supporting Streamable HTTP, bearer tokens and normal TLS verification can be used; see the [quickstart](docs/quickstart-1.0.md#open-webui).
 
 **7. Enroll devices.** Start with `helper_status` and `read_query_catalog`. Enrollment is an operator action with the instance stopped, using private JSON files (mode 600) outside the source repository:
 
@@ -498,5 +494,3 @@ NetOps is open-source software provided **"as is", without warranty of any kind*
 - **Not a vendor product.** NetOps is not a product of Fortinet, Extreme Networks, Cisco, Arista, Juniper, Ruckus or any other vendor whose devices or software it supports, nor of the vendors of the MCP clients and models named in this documentation. These vendors bear no responsibility for defects or errors in NetOps or for its effects on their devices, and they provide no support for it. Product and company names are trademarks of their respective owners and are used only to describe compatibility.
 - **No certification.** Published tests, qualification results and supported-platform lists describe their documented scope and observations. They are not a guarantee, certification or fitness-for-purpose statement for your deployment.
 - **Forks and redistributions.** Anyone may fork or redistribute NetOps under the MIT license, including commercially. Such versions are not provided, endorsed or supported by the author, and they create no obligation on the author's part toward their users.
-
-IOS / IOS XE IPv4 route lookups use the authorized whole routing table as a fallback when the direct lookup is empty.

@@ -6,16 +6,16 @@ Compatibility is scoped to the exact platform, firmware build, model, account po
 
 ## Host operating system
 
-NetOps deployment hosts run Linux with Docker Engine and Compose. Supported host families are Ubuntu, Debian and Fedora Server on amd64 and arm64, and Raspberry Pi OS 64-bit on arm64. Fedora requires Docker SELinux support with the host enforcing. Docker Engine runs as root or in rootless mode. macOS and Windows are supported only as MCP client hosts (Claude Code, Codex); they are not supported or tested as NetOps servers. The [single-product quickstart](quickstart-1.0.md) is the only installation path. Engines are not separately installed. Support is bounded by the exact current release qualification; no platform inherits PASS from an older candidate.
+NetOps deployment hosts run Linux with Docker Engine and Compose. NetOps 1.0.7 was qualified on Debian 13 (amd64, arm64) and Fedora 44 (amd64 Server, arm64 Cloud Edition), with local state volumes. Fedora requires Docker SELinux support with the host enforcing. Ubuntu, Raspberry Pi OS 64-bit and rootless Docker follow the documented quickstart but were not qualified for 1.0.7. macOS and Windows are MCP client hosts only: Claude Code was tested there for 1.0.1; Codex was tested on Linux only. They are not supported or tested as NetOps servers. The [single-product quickstart](quickstart-1.0.md) is the only installation path. Engines are not separately installed. Support is bounded by the exact current release qualification; no platform inherits PASS from an older build.
 
 ## Live verification of NetOps 1.0.7
 
-NetOps 1.0.7 was verified live with development builds and the 2026-11-10 release candidate (including source `51840b1`), using read-only device accounts. The dated results below distinguish those runs; they do not qualify a later rebuilt image. MCP calls went to the endpoint as direct JSON-RPC requests over Streamable HTTP; no MCP client application was tested.
+NetOps 1.0.7 was verified live with development builds and the 2026-11-10 release candidate (including source `51840b1`), using read-only device accounts. The dated results below distinguish those runs; they do not qualify a later rebuilt image. Those device measurements used direct JSON-RPC requests over Streamable HTTP. Separately, Codex CLI 0.167.2 (Debian 13 amd64, client-default model, PASS 69/69) and Claude Code 2.1.322 (Ubuntu 24.04.5 LTS amd64, claude-haiku-4-5-20251001, PASS 2/2) were tested against the released image on 2026-11-12. Each called `helper_status` with the instance bearer token and CA; request and response matched the audit. Wrong-token and missing-CA checks were rejected. See [Tested MCP clients](../README.md#tested-mcp-clients).
 
 - 2026-11-08, physical FortiGate 80F in active-passive HA mode (primary unit, single VDOM), FortiOS 8.0.2 build0251: the reads of `triage_routing` and `triage_flow`, the seven Wi-Fi reads for a read-only account, `wifi_triage` and the read-only Wi-Fi REST endpoints (details below and in the [Wi-Fi REST guide](fortios-wifi-rest.md)). The other HA member was not read.
-- 2026-11-08, four physical ExtremeXOS switches, X435-8P-4S and three X440G2-12p-10G4, all 33.7.1.6: every EXOS catalogue template, read-only `user` account.
-- 2026-11-08, GNS3 lab: IOSv 15.9(3)M12 (router), IOSvL2 15.2(20200924:215270) (switch), cEOS 4.36.1F and EXOS-VM 33.6.1.14, every catalogue template of the profile with the read-only account.
-- 2026-11-09, the same GNS3 lab: IOL XE 17.18.2 (router), Nexus 9300v with NX-OS 9.3(12) and vJunos-switch 26.2R1.7, every catalogue template of the profile with the read-only account.
+- 2026-11-08, four physical ExtremeXOS switches, X435-8P-4S and three X440G2-12p-10G4, all 33.7.1.6-patch1-11 (X435 booted the secondary image), read-only `user` account: the catalogue templates available on that date, except `ipv6_neighbor_address` (no IPv6 neighbour). `vlan_detail` and `lag_summary` were captured on 2026-11-09/10.
+- 2026-11-08, GNS3 lab: IOSv 15.9(3)M12 (router), IOSvL2 15.2(20200924:215240) (switch), cEOS 4.36.1F and EXOS-VM 33.6.1.14, catalogue reads with the read-only account; IOS `interfaces counters errors` was captured on 2026-11-09/10.
+- 2026-11-09, the same GNS3 lab: IOL XE 17.18.2 (router), Nexus 9300v with NX-OS 9.3(12) and vJunos-switch 26.2R1.7, catalogue reads with the read-only account; IOL XE `interfaces counters errors` was captured on 2026-11-09/10.
 - 2026-11-09, the FortiGate 80F above: the IP range syntax of the `sessions` and `flow` filters was accepted and cleared (no traffic test, no filter readback).
 - 2026-11-09 (22:44–22:49 UTC), read-only accounts, one interactive SSH session per device: `get system interface` on a FortiGate 80F with FortiOS 8.0.2 build0251 (stored as the `ip_interface` fixture), and `show ip interface brief`, `show ipconfig` and `show interfaces terse` on IOSv 15.9(3)M12, IOSvL2, IOL XE 17.18.2, Nexus 9300v 9.3(12), cEOS 4.36.1F, vJunos-switch 26.2R1.7, EXOS-VM 33.6.1.14 and the four physical EXOS switches 33.7.1.6; the `ip_interface` parsers recognized every line of all of them. Only the FortiGate output is new; the others repeat, with small state differences, the stored outputs of the same devices and versions.
 
@@ -40,8 +40,7 @@ second switch MAC as `own_interface_of_target`. Both switches returned MAC,
 LLDP, interface, error and configured port-VLAN tables without unparsed rows.
 The new FortiGate-local tables were added after that acceptance: independent
 RO CLI reads on the same 80F/build establish the physical/VLAN/LLDP layouts,
-replayed through the real engine with a fake transport. The local bridge FDB
-read was accepted but empty. No device configuration was changed for those reads.
+replayed through the real engine with a fake transport. Live MCP on 2026-11-11 also verified 11 physical interfaces, eight VLAN interfaces and two LLDP neighbors against independent CLI reads. The local bridge FDB read was accepted but empty. No device configuration was changed for those reads.
 
 ## Helper coverage by OS (NetOps 1.0.7)
 
@@ -53,9 +52,9 @@ Normalized tables (`switch_read`) and endpoint location:
 
 | OS (profile) | Verified live on | Interfaces | VLAN | Port VLAN | MAC | ARP | LLDP | Routes | OSPF | BGP | LAG | STP | Errors / flaps | IP interfaces | `locate_endpoint` |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| ExtremeXOS (`extreme_exos`) | X435-8P-4S and three X440G2-12p-10G4 with 33.7.1.6; EXOS-VM 33.6.1.14 | ✓ | ✓ | ✓⁸ | ✓ | ✓ | ✓ | ✓ | – | – | ✓ `aggregate`, `lag`⁴⁶ | – | ✓ CRC/TX | ✓ | live located: 13 end hosts on physical X440G2/X440 (24/24) and an end host on EXOS-VM port 2, VLAN 10, 2026-11-11⁵ |
-| Cisco IOS (`cisco_ios`) | IOSv 15.9(3)M12 (router), IOSvL2 15.2(20200924) (switch) | ✓ | ✓ | ✓⁸ | ✓ | ✓ | ✓ | ✓ | ✓ | docs | ✓⁶ | ✓ | replay: show interfaces | ✓ | live located: end host on IOSvL2 Gi0/3, VLAN 10 untagged, 2026-11-11⁵ |
-| Cisco IOS XE (`cisco_xe`) | IOL XE 17.18.2 (router image) | ✓⁹ router | docs | docs⁸ | docs | ✓ | ✓ | ✓ | ✓ | ✓¹ | docs⁶ | docs | replay: show interfaces | ✓ | ARP in completed live search, 2026-11-10⁵ |
+| ExtremeXOS (`extreme_exos`) | X435-8P-4S and three X440G2-12p-10G4 with 33.7.1.6-patch1-11; EXOS-VM 33.6.1.14 | ✓ | ✓ | ✓⁸ | ✓ | ✓ | ✓ | ✓ | – | – | ✓ `aggregate`, `lag`⁴⁶ | – | ✓ CRC/TX | ✓ | live located: 13 physical end hosts on X440G2/X440 by MAC; 11 also by IP (24/24 executed searches matched CLI; two IP searches not run because no ARP mapping was available) and an end host on EXOS-VM port 2, VLAN 10, 2026-11-11⁵ |
+| Cisco IOS (`cisco_ios`) | IOSv 15.9(3)M12 (router), IOSvL2 15.2(20200924) (switch) | ✓ | ✓ | ✓⁸ | ✓ | ✓ | ✓ | ✓ | ✓ | docs | ✓⁶ | ✓ | live MCP fallback: show interfaces (2026-11-11) | ✓ | live located: end host on IOSvL2 Gi0/3, VLAN 10 untagged, 2026-11-11⁵ |
+| Cisco IOS XE (`cisco_xe`) | IOL XE 17.18.2 (router image) | ✓⁹ router | docs | docs⁸ | docs | ✓ | ✓ | ✓ | ✓ | ✓¹ | docs⁶ | docs | live MCP fallback: show interfaces (2026-11-11) | ✓ | ARP in completed live search, 2026-11-10⁵ |
 | Cisco NX-OS (`cisco_nxos`) | Nexus 9300v, NX-OS 9.3(12) | ✓ | ✓ | ✓⁸ | ✓ | ✓ | ✓² | ✓ | ✓ | ✓¹ | ✓⁶ | ✓ | prior canonical replay; new capture refused | ✓ | live located, 2026-11-10⁵ |
 | Arista EOS (`arista_eos`) | cEOS 4.36.1F | ✓ | ✓ | ✓⁸ | ✓ | ✓ | ✓ | ✓ | ✓ | docs | ✓⁶ | ✓ | ✓ errors; discards prior replay | ✓ | live transit, 2026-11-10⁵ |
 | Junos ELS, EX/QFX (`juniper_junos_els`) | vJunos-switch 26.2R1.7 | ✓ | ✓ | ✓⁸ | ✓ | ✓ | ✓ | ✓ | ✓ | docs | docs⁶ | ✓⁶ | ✓ extensive | ✓ | live located: end host on ge-0/0/1, VLAN 20 untagged, 2026-11-11⁵ |
@@ -68,17 +67,16 @@ returned FortiSwitch MAC, LLDP, 29 port-state/error rows and 28 configured
 port-VLAN rows per switch. The AP was live `located` on port3, VLAN 100
 untagged, with link up and 1000 Mb/s, in eight reads (about 45 s); the second
 switch was transit over the ICL. VLAN membership is `source: configuration`,
-not forwarding evidence. FortiSwitch firmware was not captured. FortiGate-local
-reads added afterward were independently executed with `netops-test-ro` on the
-same 80F/build: 11 physical interfaces, eight VLAN interfaces with ID/parent/IP,
-and two local LLDP neighbors via `diagnose lldp rx neighbor summary`. Those new
-normalized tables are tested through the engine with a fake transport, not a
-new live MCP run. The enrolled local `internal` bridge read succeeded but was
-empty; populated local FDB layouts remain unparsed. Without an enabled and
-enrolled bridge, local `mac_entry` is `not_applicable` (clients: ARP/FortiSwitch).
-Local LLDP has no management IP/capabilities; CRC and flap counters stay null.
+not forwarding evidence. FortiSwitch firmware was not captured.
+The local interface, VLAN and LLDP tables were verified through live MCP on
+2026-11-11: 11 physical interfaces, eight VLAN interfaces and two LLDP neighbors,
+compared with independent CLI reads on the same 80F/build. The enrolled local
+`internal` bridge read succeeded but was empty; populated local FDB layouts
+remain unparsed. Without an enabled and enrolled bridge, local `mac_entry` is
+`not_applicable` (clients: ARP/FortiSwitch). Local LLDP has no management
+IP/capabilities; CRC and flap counters stay null.
 
-⁸ `port_vlan` is tested by offline replay of read-only captures: IOSvL2 15.2(20200924), Nexus 9300v 9.3(12), cEOS 4.36.1F, vJunos-switch 26.2R1.7, EXOS-VM 33.6.1.14, X435 31.7.3.37 and X440G2 33.7.1.6. The 2026-11-09 PTY captures add EXOS `show vlan detail`; transport echo, prompt and pager artefacts were removed before anonymization. NX-OS and Junos success uses the existing captures of the exact catalogue commands (`show interface trunk`, `show ethernet-switching interface | no-more`); the new plural-command refusals are negative fixtures. IOL XE 17.18.2 is a router image that refuses the switching commands, so positive IOS XE membership remains a shared-parser synthetic test, not live evidence. Membership describes allowed VLANs, independently of forwarding or link state.
+⁸ `port_vlan` is tested by offline replay of read-only captures: IOSvL2 15.2(20200924), Nexus 9300v 9.3(12), cEOS 4.36.1F, vJunos-switch 26.2R1.7, EXOS-VM 33.6.1.14, X435-8P-4S 33.7.1.6 (booted secondary image) and X440G2 33.7.1.6. The 2026-11-09 PTY captures add EXOS `show vlan detail`; transport echo, prompt and pager artefacts were removed before anonymization. NX-OS and Junos success uses the existing captures of the exact catalogue commands (`show interface trunk`, `show ethernet-switching interface | no-more`); the new plural-command refusals are negative fixtures. IOL XE 17.18.2 is a router image that refuses the switching commands, so positive IOS XE membership remains a shared-parser synthetic test, not live evidence. Membership describes allowed VLANs, independently of forwarding or link state.
 
 
 `interface_errors` evidence added on 2026-11-09: live captures replayed in
@@ -92,8 +90,8 @@ new read-only `show interfaces` captures from IOSv 15.9(3)M12 (7 interfaces),
 IOSvL2 15.2(20200924) (7) and IOL XE 17.18.2 (19) verify offline replay of the
 authorized whole-port fallback, including RX/CRC/TX and queue/total output
 drops. Refused or empty counter-table sources remain negative fixtures; the
-corrected fallback was not measured through live MCP. Nonzero IOS/XE counters
-remain synthetic coverage. The NX-OS 9.3(12) supplied capture refused the plural
+authorized fallback was also verified through live MCP on IOSv, IOSvL2 and
+IOL XE on 2026-11-11. Nonzero IOS/XE counters remain synthetic coverage. The NX-OS 9.3(12) supplied capture refused the plural
 command; the catalogue uses singular `show interface counters errors`.
 The new cEOS 4.36.1F LLDP capture verifies all nine neighbors, including seven
 with day-old discovery/change ages, with complete parser coverage. EXOS direct
@@ -106,7 +104,7 @@ other firmware or hardware; device configuration was unchanged.
 
 ⁴ EXOS provides `table="aggregate"` using `show lacp` (`name`, `member_count`) and `table="lag"` using the explicitly enrolled `lag_summary` query (`show sharing`; `name`, `protocol`, `status`, `members`). The EXOS-VM sharing capture is empty. A populated physical X440G2 33.7.1.6 sharing group with members was captured on 2026-11-10 and is replayed by the engine tests; it is distinct from the empty VM capture. Populated LACP aggregates were also captured on physical EXOS switches on 2026-11-08.
 
-⁵ Live acceptance on 2026-11-11 located GNS3 end hosts behind IOSvL2 Gi0/3 (VLAN 10), NX-OS Ethernet1/2 (VLAN 20), EXOS-VM port 2 (VLAN 10) and vJunos ge-0/0/1 (VLAN 20), each by IP and MAC in two rounds across all seven enrolled targets, and 13 end hosts on physical ExtremeXOS X440G2/X440 switches (24/24 searches matching the CLI forwarding table); cEOS and the router images were searched live as transit. Endpoint parsers are also tested on real captures. The physical NAS case was live located behind X440G2; the enrolled inter-switch link is transit. FortiLink acceptance on candidate source `51840b1` located the AP on port3, VLAN 100 untagged (`edge_behind_ap`, eight reads), and the second switch MAC as `own_interface_of_target` (three reads). An enrolled device's own address is not an access-host result. Phones and populated IPv6 ND remain unverified. Common Junos was not separately enrolled; IOS XE switch layouts remain documentation-only.
+⁵ Live acceptance on 2026-11-11 located GNS3 end hosts behind IOSvL2 Gi0/3 (VLAN 10), NX-OS Ethernet1/2 (VLAN 20), EXOS-VM port 2 (VLAN 10) and vJunos ge-0/0/1 (VLAN 20), each by IP and MAC in two rounds across all seven enrolled targets, and 13 physical end hosts on ExtremeXOS X440G2/X440 switches by MAC; 11 also by IP. All 24 executed searches matched the CLI forwarding table; two IP searches were not run because no ARP mapping was available. cEOS was observed as transit in a completed live search; IOSv and IOL XE were included as router ARP readers. No access-host result on these router images is claimed. Endpoint parsers are also tested on real captures. The physical NAS case was live located behind X440G2; the enrolled inter-switch link is transit. FortiLink acceptance on candidate source `51840b1` located the AP on port3, VLAN 100 untagged (`edge_behind_ap`, eight reads), and the second switch MAC as `own_interface_of_target` (three reads). An enrolled device's own address is not an access-host result. Phones and populated IPv6 ND remain unverified. Common Junos was not separately enrolled; IOS XE switch layouts remain documentation-only.
 
 ⁶ Earlier IOS/EOS/NX-OS LAG captures remain dated evidence. In the later MCP run, LAG was empty on IOSvL2, NX-OS and cEOS, refused (`permission_denied`) on IOSv and IOL XE, and LACP was not running on vJunos; EXOS-VM `aggregate` was empty. No populated LAG/aggregate table was verified on any of the seven OS in that 2026-11-09 run; this does not negate the later physical EXOS sharing capture. The 2026-11-10 acceptance also exercised OSPF/LAG; exact per-OS populated row counts are unavailable, so no additional per-OS positive LAG claim is made here. vJunos RSTP port output was captured earlier on 2026-11-09 with temporary configuration; in the later run STP was disabled (`Spanning-tree is not enabled at global level.`, `not_applicable`).
 
@@ -116,10 +114,10 @@ other firmware or hardware; device configuration was unchanged.
 
 Catalogue, triage, Wi-Fi, Auditor and Admin:
 
-| Platform | `ssh_read` templates 1.0.6 → 1.0.7 | Run live for 1.0.7⁴ | Triage and Wi-Fi | Auditor | Admin |
+| Platform | `ssh_read` templates 1.0.6 → 1.0.7 | Run live for 1.0.7¹⁰ | Triage and Wi-Fi | Auditor | Admin |
 |---|---|---|---|---|---|
-| FortiOS (FortiGate) | 108 → 119 | the 7 new Wi-Fi reads, `system_interfaces`, local physical/VLAN/LLDP and empty bridge reads (2026-11-10), the 3 FortiSwitch port/VLAN reads and the `triage_routing` and `triage_flow` reads, FortiGate 80F 8.0.2 | new: `triage_flow` (FortiGate 80F 8.0.2, VDOMs disabled), `wifi_triage`, `wifi_clients`, `wifi_aps_live`, `wifi_rogue` (FortiGate 80F 8.0.2 with two FortiAP); `triage_routing`, `triage_health`, `triage_vpn` | 37 rules | address, address group, DHCP reservation, firewall policy (unchanged) |
-| FortiADC | 33 → 33 | – | `triage_slb` (FortiADC-KVM 7.6.7) | 8 rules on an exported configuration | pool member, command line only (unchanged) |
+| FortiOS (FortiGate) | 108 → 119 | the 7 new Wi-Fi reads, `system_interfaces`, local physical/VLAN/LLDP and empty bridge reads (live MCP, 2026-11-11), the 3 FortiSwitch port/VLAN reads and the `triage_routing` and `triage_flow` reads, FortiGate 80F 8.0.2 | new: `triage_flow` (FortiGate 80F 8.0.2, VDOMs disabled), `wifi_triage`, `wifi_clients`, `wifi_aps_live`, `wifi_rogue` (FortiGate 80F 8.0.2 with two FortiAP); `triage_routing`, `triage_health`, `triage_vpn` | 37 rules | address, address group, DHCP reservation, firewall policy (unchanged) |
+| FortiADC | 33 → 33 | Selected catalogue reads, nine diagnostic recipes and `triage_slb` exercised live on FortiADC-KVM 7.6.7, 2026-11-11; not a full 33-template qualification | `triage_slb` (FortiADC-KVM 7.6.7) | 8 rules on an exported configuration | pool member, command line only (unchanged) |
 | FortiSwitch (FortiLink) | existing FortiOS catalogue reads | MAC/LLDP, port-stats and configured VLANs; live AP located, 2026-11-10, through FortiGate 80F 8.0.2 build0251 | `switch_read` with `managed_switch` | – | – |
 | ExtremeXOS | 48 → 65 | 63 earlier catalogue reads plus VLAN detail on EXOS-VM; VLAN detail also on physical X435/X440G2; `lag_summary` replays empty VM and populated physical X440G2 sharing captures (2026-11-10) | – | 9 rules | VLAN, port display string, port VLAN membership (unchanged) |
 | Cisco IOS | 27 → 49 | 43, docs-only 6 (error counters, environment, optics, PoE, stack) | – | – | – |
@@ -128,11 +126,11 @@ Catalogue, triage, Wi-Fi, Auditor and Admin:
 | Arista EOS | 33 → 54 | 53, docs-only 1 (PoE) | – | – | – |
 | Junos ELS (EX/QFX) | 29 → 55 | 51, docs-only 4 (Virtual Chassis, PoE) | – | – | – |
 | Junos (common) | 25 → 41 | 41, on the vJunos-switch | – | – | – |
-| Linux | 16 → 16 | – | – | – | – |
+| Linux | 16 → 16 | `kernel` (`uname -a`), CLI/MCP comparison, 2026-11-11; not a full 16-template qualification | – | – | – |
 | Ruckus Unleashed | 4 → 4 | – | – | – | – |
 | **Total** | **380 → 547** | | | | |
 
-⁴ The template was sent to the device with the read-only account. This includes empty and "not configured" answers and the reads that the built-in read-only role refuses: `show logging` and `stp_inconsistent` on IOS and IOS XE privilege 1, `stp_summary` on the IOSv router, and the two Junos log reads, which need more than the built-in `read-only` class. The per-template results are in the [Cisco](../components/netops-helper/docs/vendor-cli-references/cisco.md#lab-measurements-gns3-lab-2026-11-08), [Arista](../components/netops-helper/docs/vendor-cli-references/arista-eos.md#lab-measurements-gns3-lab-2026-11-08), [Junos](../components/netops-helper/docs/vendor-cli-references/juniper-junos.md#lab-measurements-gns3-lab-2026-11-0809) and [ExtremeXOS](../components/netops-helper/docs/vendor-cli-references/extreme-switch-engine.md#exos-vm-336114-compatibility) notes; device roles in [Accounts and least privilege](../components/netops-helper/docs/read-only-accounts.md).
+¹⁰ The template was sent to the device with the read-only account. This includes empty and "not configured" answers and the reads that the built-in read-only role refuses: `show logging` and `stp_inconsistent` on IOS and IOS XE privilege 1, `stp_summary` on the IOSv router, and the two Junos log reads, which need more than the built-in `read-only` class. The per-template results are in the [Cisco](../components/netops-helper/docs/vendor-cli-references/cisco.md#lab-measurements-gns3-lab-2026-11-08), [Arista](../components/netops-helper/docs/vendor-cli-references/arista-eos.md#lab-measurements-gns3-lab-2026-11-08), [Junos](../components/netops-helper/docs/vendor-cli-references/juniper-junos.md#lab-measurements-gns3-lab-2026-11-0809) and [ExtremeXOS](../components/netops-helper/docs/vendor-cli-references/extreme-switch-engine.md#exos-vm-336114-compatibility) notes; device roles in [Accounts and least privilege](../components/netops-helper/docs/read-only-accounts.md).
 
 What stays documentation-only or limited, per OS (the generated per-template tables in the vendor notes are authoritative):
 
@@ -142,8 +140,8 @@ What stays documentation-only or limited, per OS (the generated per-template tab
 - **Arista EOS:** PoE is docs; BGP was not configured; MLAG was measured only in the inactive state.
 - **Junos:** Virtual Chassis and PoE are docs; STP had an earlier temporary RSTP fixture but was disabled in the later MCP run. LACP (earlier empty, later subsystem not running) and BGP (`BGP is not running`) are docs, BFD answered without sessions; the two log reads need more than the built-in `read-only` class and answer `permission_denied` with it. The common `juniper_junos` profile was run only on the vJunos-switch; MX, SRX and PTX are not measured.
 - **ExtremeXOS:** `ipv6_neighbor_address` ran only on the EXOS-VM (no IPv6 neighbour on the physical switches); `aggregate` uses `show lacp`, while `lag` uses opt-in `lag_summary` (`show sharing`, empty VM capture and synthetic populated coverage); OSPF, BGP and STP have no normalized table on EXOS.
-- **FortiOS and FortiSwitch:** `switch_read` reads FortiGate ARP/ND, its IP interfaces (`ip_interface` from `get system interface`, without link state) and managed FortiSwitch MAC/LLDP via the required enrolled `managed_switch` serial, using the same catalogue and inventory checks as `locate_endpoint`. MAC rows and populated LLDP summaries were captured with a read-only account on physical FortiGate 80F, FortiOS 8.0.2 build0251, on 2026-11-09; the anonymised transcripts are in `tests/fixtures/real/fortinet/fortigate80f_8.0.2_build0251` of Helper. MAC was captured with the all-switch command; the serial-specific MAC command was replayed using one unchanged switch block. LLDP used the serial-specific catalogue command. FortiSwitch firmware was not captured. The proxy→worker tests replay those layouts offline; this is no live MCP or endpoint-location qualification. LLDP has no management IP. Read-only captures added on 2026-11-10 support normalized port state and speed through `managed_switch_port_stats`, and port VLAN membership through managed-switch configuration plus VLAN interface IDs (`source: configuration`). CRC and flap counters remain null. FortiAP classification and these edge details are verified by offline replay, without a new live MCP measurement. Earlier documented layouts remain tested.
-- **Linux and Ruckus Unleashed:** no catalogue change in 1.0.7 and not part of the 1.0.7 runs; Ruckus Unleashed has no read-only device account (`admin-bounded`).
+- **FortiOS and FortiSwitch:** `switch_read` reads FortiGate ARP/ND, IPv4 routes, IP interfaces (`ip_interface` from `get system interface`, without link state), physical interfaces, VLAN interfaces, local LLDP and bridge MAC, and managed FortiSwitch MAC/LLDP via the required enrolled `managed_switch` serial, using the same catalogue and inventory checks as `locate_endpoint`. MAC rows and populated LLDP summaries were captured with a read-only account on physical FortiGate 80F, FortiOS 8.0.2 build0251, on 2026-11-09; the anonymised transcripts are in `tests/fixtures/real/fortinet/fortigate80f_8.0.2_build0251` of Helper. MAC was captured with the all-switch command; the serial-specific MAC command was replayed using one unchanged switch block. LLDP used the serial-specific catalogue command. FortiSwitch firmware was not captured. The proxy→worker tests replay those layouts offline; this is no live MCP or endpoint-location qualification. LLDP has no management IP. Read-only captures added on 2026-11-10 support normalized port state and speed through `managed_switch_port_stats`, and port VLAN membership through managed-switch configuration plus VLAN interface IDs (`source: configuration`). CRC and flap counters remain null. FortiAP classification and these edge details are verified by offline replay, without a new live MCP measurement. Earlier documented layouts remain tested.
+- **Linux and Ruckus Unleashed:** no catalogue change in 1.0.7. Linux `kernel` (`uname -a`) was compared through CLI and MCP on 2026-11-11; this does not qualify all 16 templates. Ruckus Unleashed was not part of the 1.0.7 runs and has no read-only device account (`admin-bounded`).
 
 Read-only roles used for the live captures: IOS and IOS XE privilege 1, NX-OS and EOS `network-operator`, Junos class `read-only`, EXOS `user`, and on FortiOS a dedicated read-only access profile ([Accounts and least privilege](../components/netops-helper/docs/read-only-accounts.md)).
 
