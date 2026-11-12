@@ -1,0 +1,72 @@
+
+
+
+Syslog logging: enabled (0 messages dropped, 3 messages rate-limited, 0 flushes, 0 overruns, xml disabled, filtering disabled)
+
+No Active Message Discriminator.
+
+
+
+No Inactive Message Discriminator.
+
+
+    Console logging: level debugging, 39 messages logged, xml disabled,
+                     filtering disabled
+    Monitor logging: level debugging, 0 messages logged, xml disabled,
+                     filtering disabled
+    Buffer logging:  level debugging, 39 messages logged, xml disabled,
+                    filtering disabled
+    Exception Logging: size (8192 bytes)
+    Count and timestamp logging messages: disabled
+    Persistent logging: disabled
+
+No active filter modules.
+
+    Trap logging: level informational, 43 message lines logged
+        Logging Source-Interface:       VRF Name:
+
+Log Buffer (8192 bytes):
+
+*Mar  1 00:00:01.678: %ATA-6-DEV_FOUND: device 0x1F0
+*Mar  1 00:00:16.219: %NVRAM-5-CONFIG_NVRAM_READ_OK: NVRAM configuration 'flash:/nvram' was read from disk.
+*Nov  8 22:12:05.008: %C3600-3-NOMAC: Can't allocate MAC address for interface 0/0
+*Nov  8 22:12:05.212: %C3600-3-NOMAC: Can't allocate MAC address for interface 0/0
+*Nov  8 22:12:07.920: %C3600-3-NOMAC: Can't allocate MAC address for interface 0/0
+*Nov  8 22:12:17.460: %PA-3-PA_INIT_FAILED: Performance Agent failed to initialize (Missing Data License)
+*Nov  8 22:12:23.419: %PNP-6-PNP_DISCOVERY_STARTED: PnP Discovery started
+*Nov  8 22:12:23.549: %LINK-3-UPDOWN: Interface GigabitEthernet0/0, changed state to up
+*Nov  8 22:12:23.552: %LINK-3-UPDOWN: Interface GigabitEthernet0/1, changed state to up
+*Nov  8 22:12:23.555: %LINK-3-UPDOWN: Interface GigabitEthernet0/2, changed state to down
+*Nov  8 22:12:23.557: %LINK-3-UPDOWN: Interface GigabitEthernet0/3, changed state to down
+*Nov  8 22:12:25.249: %LINEPROTO-5-UPDOWN: Line protocol on Interface GigabitEthernet0/0, changed state to up
+*Nov  8 22:12:25.250: %LINEPROTO-5-UPDOWN: Line protocol on Interface GigabitEthernet0/1, changed state to up
+*Nov  8 22:12:25.251: %LINEPROTO-5-UPDOWN: Line protocol on Interface GigabitEthernet0/2, changed state to down
+*Nov  8 22:12:25.252: %LINEPROTO-5-UPDOWN: Line protocol on Interface GigabitEthernet0/3, changed state to down
+*Nov  8 22:12:25.922: %SYS-5-CONFIG_I: Configured from memory by console
+*Nov  8 22:12:26.469: %LINEPROTO-5-UPDOWN: Line protocol on Interface Loopback0, changed state to up
+*Nov  8 22:12:27.056: %SYS-5-RESTART: System restarted --
+Cisco IOS Software, IOSv Software (VIOS-ADVENTERPRISEK9-M), Version 15.9(3)M12, RELEASE SOFTWARE (fc1)
+Technical Support: http://www.cisco.com/techsupport
+Copyright (c) 1986-2025 by Cisco Systems, Inc.
+Compiled Fri 19-Sep-25 07:49 by mcpre
+*Nov  8 22:12:27.064: %CVAC-4-FILE_IGNORED: Configuration file flash0:/ios_config.txt is ignored : empty file
+*Nov  8 22:12:27.204: %SSH-5-ENABLED: SSH 2.0 has been enabled
+*Nov  8 22:12:27.292: %CRYPTO-6-ISAKMP_ON_OFF: ISAKMP is OFF
+*Nov  8 22:12:27.292: %CRYPTO-6-GDOI_ON_OFF: GDOI is OFF
+*Nov  8 22:12:27.982: %LINK-5-CHANGED: Interface GigabitEthernet0/2, changed state to administratively down
+*Nov  8 22:12:27.983: %LINK-5-CHANGED: Interface GigabitEthernet0/3, changed state to administratively down
+*Nov  8 22:12:32.831: %PNP-6-PNP_BEST_UDI_UPDATE: Best UDI [PID:IOSv,VID:1.0,SN:0SSSSSSSSS0SS0SSS2SSS] SSSSSSSSSS SSS (SSSSSS-SSSS)
+*Nov  8 22:12:32.831: %PNP-6-PNP_CDP_UPDATE: Device UDI [PID:IOSv,VID:1.0,SN:0SSSSSSSSS0SS0SSS3SSS] SSSSSSSSSS SSS SSS
+*Nov  8 22:12:32.836: %PNP-6-PNP_DISCOVERY_STOPPED: PnP Discovery stopped (Startup Config Present)
+*Nov  8 22:12:39.870: %SYS-3-CPUHOG: Task is running for (1997)msecs, more than (2000)msecs (0/0),process = Crypto CA.
+*Nov  8 22:12:41.870: %SYS-3-CPUHOG: Task is running for (3997)msecs, more than (2000)msecs (0/0),process = Crypto CA.
+*Nov  8 22:12:42.793: %OSPF-5-ADJCHG: Process 29, Nbr 203.0.113.135 on GigabitEthernet0/1.10 from LOADING to FULL, Loading Done
+*Nov  8 22:12:46.072: %OSPF-5-ADJCHG: Process 29, Nbr 203.0.113.131 on GigabitEthernet0/1.10 from LOADING to FULL, Loading Done
+*Nov  8 22:13:38.288: %PLATFORM-5-SIGNATURE_VERIFIED: Image 'flash0:/vios-adventerprisek9-m' passed code signing verification
+*Nov  8 22:36:52.243: %SSH-3-NO_MATCH: No matching kex algorithm found: client sntrup761x25519-sha512,sntrup761x25519-sha512@openssh.com,curve25519-sha256,curve25519-sha256@libssh.org,ecdh-sha2-nistp256,ecdh-sha2-nistp384,ecdh-sha2-nistp521,diffie-hellman-group-exchange-sha256,diffie-hellman-group16-sha512,diffie-hellman-group18-sha512,diffie-hellman-group14-sha256 server diffie-hellman-group-exchange-sha1,diffie-hellman-group14-sha1
+*Nov  8 22:36:52.264: %SSH-3-NO_MATCH: No matching kex algorithm found: client sntrup761x25519-sha512,sntrup761x25519-sha512@openssh.com,curve25519-sha256,curve25519-sha256@libssh.org,ecdh-sha2-nistp256,ecdh-sha2-nistp384,ecdh-sha2-nistp521,diffie-hellman-group-exchange-sha256,diffie-hellman-group16-sha512,diffie-hellman-group18-sha512,diffie-hellman-group14-sha256 server diffie-hellman-group-exchange-sha1,diffie-hellman-group14-sha1
+*Nov  8 22:36:52.281: %SSH-3-NO_MATCH: No matching kex algorithm found: client sntrup761x25519-sha512,sntrup761x25519-sha512@openssh.com,curve25519-sha256,curve25519-sha256@libssh.org,ecdh-sha2-nistp256,ecdh-sha2-nistp384,ecdh-sha2-nistp521,diffie-hellman-group-exchange-sha256,diffie-hellman-group16-sha512,diffie-hellman-group18-sha512,diffie-hellman-group14-sha256 server diffie-hellman-group-exchange-sha1,diffie-hellman-group14-sha1
+*Nov  8 22:36:52.301: %SSH-3-NO_MATCH: No matching kex algorithm found: client sntrup761x25519-sha512,sntrup761x25519-sha512@openssh.com,curve25519-sha256,curve25519-sha256@libssh.org,ecdh-sha2-nistp256,ecdh-sha2-nistp384,ecdh-sha2-nistp521,diffie-hellman-group-exchange-sha256,diffie-hellman-group16-sha512,diffie-hellman-group18-sha512,diffie-hellman-group14-sha256 server diffie-hellman-group-exchange-sha1,diffie-hellman-group14-sha1
+*Nov  8 22:36:52.319: %SSH-3-NO_MATCH: No matching kex algorithm found: client sntrup761x25519-sha512,sntrup761x25519-sha512@openssh.com,curve25519-sha256,curve25519-sha256@libssh.org,ecdh-sha2-nistp256,ecdh-sha2-nistp384,ecdh-sha2-nistp521,diffie-hellman-group-exchange-sha256,diffie-hellman-group16-sha512,diffie-hellman-group18-sha512,diffie-hellman-group14-sha256 server diffie-hellman-group-exchange-sha1,diffie-hellman-group14-sha1
+*Nov  8 22:58:42.273: %OSPF-5-ADJCHG: Process 29, Nbr 203.0.113.133 on GigabitEthernet0/1.10 from 2WAY to DOWN, Neighbor Down: Dead timer expired
+*Nov  8 23:02:53.219: %SYS-5-CONFIG_I: Configured from console by netops-admin on vty0 (198.51.100.36)

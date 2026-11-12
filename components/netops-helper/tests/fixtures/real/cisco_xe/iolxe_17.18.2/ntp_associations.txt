@@ -1,0 +1,7 @@
+
+
+
+
+  address         ref clock       st   when   poll reach  delay  offset   disp
+ ~198.51.100.123  .TIME.          16      -     64     0  0.000   0.000 15937.
+ * sys.peer, # selected, + candidate, - outlyer, x falseticker, ~ configured

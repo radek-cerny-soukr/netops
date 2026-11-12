@@ -1,0 +1,10 @@
+{
+  "vlan_detail": {
+    "command": "show vlan detail",
+    "rc": 0,
+    "captured_at": "2026-11-09T22:47:06Z",
+    "lines": 162,
+    "transport": "PTY; echo, prompt, pager and ANSI removed; no data lines omitted",
+    "outcome": "OK"
+  }
+}

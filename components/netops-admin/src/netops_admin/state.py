@@ -35,7 +35,7 @@ OPERATION_STATUSES = ("running", "finished")
 OPERATION_TEXTS = ("result", "reason", "notification", "audit_delivery", "hostname", "kind", "accounts",
                    "created_at", "request_sha256")
 OPERATION_NUMBERS = ("created_at_epoch", "finished_at_epoch", "budget_at_epoch")
-OPERATION_LISTS = ("differences", "postcheck_differences", "final_check_differences")
+OPERATION_LISTS = ("differences", "postcheck_differences", "final_check_differences", "reason_details")
 SAFE_TEXT = re.compile(r"^[\x20-\x7e]{0,200}$")
 MAX_STATE_BYTES = 16 * 1024 * 1024
 LOCK_FLAGS = os.O_WRONLY | os.O_CREAT | os.O_NONBLOCK | os.O_NOFOLLOW | os.O_CLOEXEC
@@ -64,6 +64,7 @@ def _operation_valid(document, name: str) -> bool:
         and _optional(document, OPERATION_NUMBERS, _number)
         and ("budget_changes" not in document or type(document["budget_changes"]) is int and 1 <= document["budget_changes"] <= 32)
         and _optional(document, OPERATION_LISTS, lambda value: isinstance(value, list))
+        and _optional(document, ("reason_codes",), lambda value: isinstance(value, list) and all(_text(code) for code in value))
         and _optional(document, ("plan", "audit_policy"), lambda value: isinstance(value, dict))
         and isinstance(steps, list) and all(isinstance(step, dict) and _text(step.get("step")) for step in steps)
         and isinstance(safeguard, dict) and ("safeguard" not in document or _text(safeguard.get("fire_at")))
@@ -163,10 +164,11 @@ def _lock_descriptor(path: Path) -> int:
     try:
         descriptor = os.open(path, LOCK_FLAGS, FILE_MODE)
     except OSError as exc:
-        raise Rejected(["the lock file %s cannot be used: %s" % (path.name, exc.strerror)]) from None
+        raise Rejected(["the lock file %s cannot be used: %s" % (path.name, exc.strerror)],
+                       reason_codes=["state_unreadable"]) from None
     if not stat.S_ISREG(os.fstat(descriptor).st_mode):
         os.close(descriptor)
-        raise Rejected(["the lock file %s is not a regular file" % path.name])
+        raise Rejected(["the lock file %s is not a regular file" % path.name], reason_codes=["state_unreadable"])
     return descriptor
 
 
@@ -225,7 +227,8 @@ class Store:
             write_atomic(probe, {"probe": True})
             probe.unlink()
         except OSError as exc:
-            raise Rejected(["the journal cannot be written durably: %s" % exc.strerror]) from None
+            raise Rejected(["the journal cannot be written durably: %s" % exc.strerror],
+                           reason_codes=["state_unreadable"]) from None
 
     def lock(self, device: str):
         if not isinstance(device, str) or DEVICE_NAME.fullmatch(device) is None:
@@ -319,7 +322,7 @@ class Store:
             readable = False
         if not readable:
             raise Rejected(["the count of refused requests (%s) cannot be read; a person must check it"
-                            % REJECTIONS_FILE])
+                            % REJECTIONS_FILE], reason_codes=["state_unreadable"])
         return moments or []
 
     def rejections_since(self, since: float) -> int:

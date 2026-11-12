@@ -29,8 +29,9 @@ class RedactionCandidateContract(unittest.TestCase):
         self.assertEqual(redaction.redact(source),
                          (expected,[["$json","inner","$json","token"],["$json","inner"],[]]))
     def test_text_patterns_and_unterminated_pem_keep_their_semantics(self):
-        for text in ("token=a","ſecret=x","set password x"):
+        for text in ("token=a","ſecret=x"):
             self.assertEqual(redaction.redact(text),("[REDACTED]",[[]]))
+        self.assertEqual(redaction.redact("set password x"), ("set password [REDACTED]", [[]]))
         text="-----BEGIN PRIVATE KEY-----unfinished"
         self.assertEqual(redaction.redact(text),(text,[]))
         text="a-----BEGIN PRIVATE KEY-----x-----END PRIVATE KEY-----z"

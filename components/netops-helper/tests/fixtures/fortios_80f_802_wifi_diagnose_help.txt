@@ -1,0 +1,61 @@
+alertconsole              alertconsole
+antivirus                 antivirus
+automation                Diagnose commands for automation stitches.
+autoupdate                Automatic updates.
+bluetooth                 Diagnose command for bluetooth
+casb                      CASB diagnose commands.
+central-mgmt              Central management.
+cid                       Device Identification diagnostics.
+clearpass                 ClearPass service SPT (System Posture Token) information.
+debug                     debug
+emailfilter               emailfilter
+endpoint                  Endpoint compliance diagnostics.
+ethernet-oam              Connectivity fault management.
+extender                  Diagnostics command of extender
+fdsm                      FortiCloud/FortiManager Service.
+ffdb-fqdn                 Internet service FQDN database.
+firewall                  Firewall
+forticare                 FortiCare Service.
+fortiguard-resources      FortiGuard resources.
+fortinet-secure-module    Fortinet Secure Module
+fortitoken                FortiToken
+fortitoken-cloud          FortiToken Cloud Service.
+geoip                     Diagnose geography IP database and service.
+hardware                  hardware
+http_authd                HTTP authentication daemon.
+internet-service          Internet Service Database.
+internet-service-name     Internet Service Name diagnose commands.
+internet-service6         Internet Service Database.
+ip                        ip
+ips                       ips
+ipv6                      ipv6
+l2vpn                     l2vpn
+lldp                      Link Layer Description Protocol (LLDP) diagnostics.
+log                       log
+netlink                   netlink
+nodejs                    Node.JS web server diagnostics.
+npu                       Network Processing Unit
+oci                       Oracle Cloud Infrastructure platform diagnose commands.
+on-demand-sniffer         On-demand sniffer command.
+report-runner             Report Runner service.
+report-runner-v2          Report Runner v2 service.
+rsso                      RSSO diagnostic commands.
+saas                      SaaS diagnose commands.
+settings                  settings
+sfp-dsl                   Diagnose command for SFP DSL
+sfp-dsl                   Diagnose command for SFP DSL
+sladb                     Service Level Agreement Database.
+sniffer                   Sniffer command.
+switch-controller         Fortiswitch controller.
+sys                       system
+test                      test
+user                      User
+user-device-store         User device store diagnostics.
+vendor-mac                Vendor MAC Database.
+vpn                       vpn
+wad                       WAD diagnostics.
+waf                       WAF diagnostics.
+web-svc                   Web service.
+web-ui                    Web user interface.
+webfilter                 webfilter
+ 

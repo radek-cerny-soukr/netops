@@ -1,0 +1,11 @@
+WLAN: ssid-17
+    name             : ssid-17
+    vdom             : root
+    ssid             : ssid-17
+    downup_oper      : up
+    mesh backhaul    : no
+    local bridging   : no
+    local switching  : yes
+    ip               : 192.0.2.14
+    mac              : 00:00:5e:00:53:0d
+    station info     : 2/0

@@ -1,0 +1,13 @@
+Hostname: lab-mx480
+Model: mx480
+Family: junos
+Junos: 24.4R1.9
+JUNOS OS Kernel 64-bit  [20241104.1ed86e6_builder_bsd15_244]
+JUNOS modules [20241219.060016_builder_junos_244_r1]
+JUNOS OS vmguest [20241104.1ed86e6_builder_bsd15_244]
+JUNOS OS libs [20241104.1ed86e6_builder_bsd15_244]
+JUNOS OS libs compat32 [20241104.1ed86e6_builder_bsd15_244]
+JUNOS OS 32-bit compatibility [20241104.1ed86e6_builder_bsd15_244]
+JUNOS OS runtime [20241104.1ed86e6_builder_bsd15_244]
+JUNOS OS boot-ve files [20241104.1ed86e6_builder_bsd15_244]
+JUNOS OS time zone information [20241104.1ed86e6_builder_bsd15_244]

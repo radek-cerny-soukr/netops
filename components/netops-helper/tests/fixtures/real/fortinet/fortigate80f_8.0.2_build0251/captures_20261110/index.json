@@ -1,0 +1,58 @@
+{
+  "port_stats_1": {
+    "command": "diagnose switch-controller switch-info port-stats S000SSSS00000001",
+    "rc": 0,
+    "lines": 352,
+    "captured_at": "2026-11-10T02:11:34.079459Z",
+    "account_role": "read-only",
+    "projection": "transport prompt removed"
+  },
+  "port_stats_2_port3": {
+    "command": "diagnose switch-controller switch-info port-stats S000SSSS00000002 port3",
+    "rc": 0,
+    "lines": 16,
+    "captured_at": "2026-11-10T02:11:37.317954Z",
+    "account_role": "read-only",
+    "projection": "transport prompt removed"
+  },
+  "route_lookup": {
+    "command": "get router info routing-table details 192.0.2.8",
+    "rc": 0,
+    "lines": 10,
+    "captured_at": "2026-11-10T02:11:42.987452Z",
+    "account_role": "read-only",
+    "projection": "transport prompt removed"
+  },
+  "routing_table": {
+    "command": "get router info routing-table all",
+    "rc": 0,
+    "lines": 37,
+    "captured_at": "2026-11-10T02:11:45.792194Z",
+    "account_role": "read-only",
+    "projection": "transport prompt removed"
+  },
+  "managed_ports_config": {
+    "command": "show switch-controller managed-switch S000SSSS00000001",
+    "rc": 0,
+    "lines": 146,
+    "captured_at": "2026-11-10T02:38:57.000599Z",
+    "account_role": "read-only",
+    "projection": "transport prompt removed; local VLAN-field projection using fortiswitch_ports.configuration_view"
+  },
+  "vlan_config": {
+    "command": "show system interface",
+    "rc": 0,
+    "lines": 26,
+    "captured_at": "2026-11-10T02:39:00.721986Z",
+    "account_role": "read-only",
+    "projection": "transport prompt removed; local VLAN-field projection using fortiswitch_ports.configuration_view"
+  },
+  "arp_table": {
+    "command": "get system arp",
+    "rc": 0,
+    "lines": 16,
+    "captured_at": "2026-11-10T09:20:24.769Z",
+    "account_role": "read-only",
+    "projection": "transport prompt removed"
+  }
+}

@@ -1,0 +1,10 @@
+
+LACP Up                             : Yes
+LACP Enabled                        : Yes
+System MAC                          : 00:00:5e:00:53:0c
+LACP PDUs dropped on non-LACP ports : 0   
+
+Lag        Actor    Actor   Partner            Partner  Partner  Agg   
+           Sys-Pri  Key     MAC                Sys-Pri  Key      Count 
+--------------------------------------------------------------------------------
+

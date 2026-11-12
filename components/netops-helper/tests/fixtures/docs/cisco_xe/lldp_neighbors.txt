@@ -1,0 +1,71 @@
+------------------------------------------------
+Local Intf: Gi1/0/1
+Chassis id: 0000.5e00.5382
+Port id: Gi0/1
+Port Description: uplink to access
+System Name: core-sw
+
+System Description: 
+Cisco IOS Software, C2960X Software (C2960X-UNIVERSALK9-M), Version 15.2(7)E3, RELEASE SOFTWARE (fc2)
+Technical Support: http://www.cisco.com/techsupport
+Copyright (c) 1986-2020 by Cisco Systems, Inc.
+Compiled Tue 01-Dec-20 13:07 by prod_rel_team
+
+Time remaining: 108 seconds
+System Capabilities: B,R
+Enabled Capabilities: B,R
+Management Addresses:
+    IP: 198.51.100.2
+Auto Negotiation - supported, enabled
+Physical media capabilities:
+    1000baseT(FD)
+    100base-TX(FD)
+    10base-T(FD)
+Media Attachment Unit type: 30
+Vlan ID: - not advertised
+
+------------------------------------------------
+Local Intf: Gi1/0/3
+Chassis id: 0000.5e00.53b0
+Port id: 0000.5e00.53b0:P1
+Port Description: SW PORT
+System Name: SEP00005E0053B0.example.net
+
+System Description: 
+Cisco IP Phone 8841, V1, sip88xx.12-8-1-0001-455
+
+Time remaining: 140 seconds
+System Capabilities: B,T
+Enabled Capabilities: B,T
+Management Addresses:
+    IP: 192.0.2.30
+Auto Negotiation - supported, enabled
+Physical media capabilities:
+    1000baseT(FD)
+    100base-TX(FD)
+Media Attachment Unit type: 30
+Vlan ID: - not advertised
+
+MED Information:
+
+    MED Codepoint Capabilities:
+        Capabilities, Network Policy, Extended Power via MDI - PD, Inventory
+    MED Capability Device type: Endpoint Class III
+    MED Network policy
+        Unknown Policy: VLAN 20, tagged, Layer-2 priority: 5, DSCP: 46
+    PD device
+        Power Type: PD
+        Power Source: Unknown
+        Power Priority: Unknown
+        Wattage: 6.3
+    Location - not advertised
+    Inventory
+        Hardware Revision: 1
+        Firmware Revision: 
+        Software Revision: sip88xx.12-8-1-0001-455
+        Serial Number: FCH0000A001
+        Manufacturer: Cisco Systems, Inc.
+        Model: CP-8841
+        Asset ID: 
+
+Total entries displayed: 2

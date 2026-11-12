@@ -16,7 +16,7 @@ LEVELS = {"high": "error", "medium": "warning", "low": "note", "info": "note"}
 SECURITY_SEVERITY = {"high": "8.0", "medium": "5.0", "low": "3.0"}
 DEVICE_KEYS = (
     "tenant", "device", "platform", "snapshot_sha256", "rules_version", "rule_coverage", "evaluation",
-    "evaluation_complete", "rule_status",
+    "evaluation_complete", "rule_status", "coverage",
 )
 
 

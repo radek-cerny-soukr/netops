@@ -16,6 +16,7 @@ import os
 import resource
 import signal
 import sqlite3
+from contextlib import closing
 import subprocess
 import sys
 import tempfile
@@ -615,12 +616,12 @@ def store_shapes(tmp_path, database):
         "header-only": data[:100],
     }.items()}
     foreign = tmp_path / "foreign.sqlite"
-    with sqlite3.connect(str(foreign)) as connection:
+    with closing(sqlite3.connect(str(foreign))) as connection, connection:
         connection.execute("CREATE TABLE runs (x)")
     shapes["foreign-schema"] = str(foreign)
     future = tmp_path / "future.sqlite"
     future.write_bytes(data)
-    with sqlite3.connect(str(future)) as connection:
+    with closing(sqlite3.connect(str(future))) as connection, connection:
         connection.execute("PRAGMA user_version = 99")
     shapes["future-version"] = str(future)
     for name, path in path_shapes(tmp_path, data).items():

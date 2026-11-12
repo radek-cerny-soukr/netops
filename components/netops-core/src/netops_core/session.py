@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import os
-import pty
 import select
 import signal
+import subprocess
+import sys
 import tempfile
 import time
 
@@ -14,13 +15,14 @@ POLL_SECONDS = 0.2
 KILL_AFTER_SECONDS = 2.0
 REAP_STEP_SECONDS = 0.05
 READ_BYTES = 4096
-EXEC_FAILURE_CODE = 127
 
 
 class SessionError(Exception):
-    def __init__(self, message, transcript_bytes=0):
+    def __init__(self, message, transcript_bytes=0, final=""):
         super().__init__(message)
         self.transcript_bytes = transcript_bytes
+        # The ended client's closing message (ssh.final_said); kept local for classification.
+        self.final = final
 
 
 def argv(host, port, login, known_hosts, *, identity=None, legacy=None) -> list:
@@ -40,26 +42,93 @@ def argv(host, port, login, known_hosts, *, identity=None, legacy=None) -> list:
     return line
 
 
+LAUNCHER_VARIABLE = b"NETOPS_SPAWN_LAUNCHER"
+LAUNCHER = "\n".join((
+    "import fcntl, os, sys, termios",
+    "env = dict(os.environb)",
+    "report, kept, ctype = env.pop(%r).partition(b'=')" % LAUNCHER_VARIABLE,
+    "if kept:",
+    "    env[b'LC_CTYPE'] = ctype",
+    "else:",
+    "    env.pop(b'LC_CTYPE', None)",
+    "report = int(report)",
+    "os.set_inheritable(report, False)",
+    "try:",
+    "    fcntl.ioctl(0, termios.TIOCSCTTY, 0)",
+    "    os.execvpe(sys.argv[1], sys.argv[1:], env)",
+    "except OSError as error:",
+    "    os.write(report, b'%d=%s' % (error.errno, os.fsencode(error.filename or '')))",
+    "os._exit(127)",
+))
+
+
+class _Client(subprocess.Popen):
+    """The started client. The session waits for it by its process id, so it is not reaped here."""
+
+    def __del__(self):
+        pass
+
+
+def _launch_error(report) -> OSError:
+    number, _, name = report.partition(b"=")
+    number = int(number)
+    if name:
+        return OSError(number, os.strerror(number), os.fsdecode(name))
+    return OSError(number, os.strerror(number))
+
+
 def _spawn(call, env) -> tuple:
-    program = os.fspath(call[0])
-    if os.path.dirname(program):
-        candidates = (program,)
-    else:
-        program = os.fsencode(program)
-        candidates = tuple(
-            os.path.join(os.fsencode(directory), program) for directory in os.get_exec_path(env)
-        )
-    pid, fd = pty.fork()
-    if pid == 0:
+    """Start call on a new pty as the leader of a new session, without forking in Python.
+
+    subprocess starts a fixed launcher with setsid() and the pty terminal as stdin, stdout and
+    stderr, and closes every other descriptor in the child (close_fds=True), so nothing this
+    process opens meanwhile reaches the client. The launcher makes the terminal its controlling
+    terminal and executes call with exactly env; the program is searched only on the PATH of env.
+    LAUNCHER_VARIABLE carries the descriptor on which the launcher reports a failed exec, raised
+    here as the same OSError, and the LC_CTYPE of env, which the launcher's interpreter may
+    coerce. Both pty ends are close-on-exec in this process.
+    """
+    if not call:
+        raise ValueError("the client needs a program to start")
+    encoded = {os.fsencode(name): os.fsencode(value) for name, value in env.items()}
+    ctype = encoded.get(b"LC_CTYPE")
+    fd, terminal = os.openpty()
+    pid = None
+    try:
+        report, written = os.pipe()
         try:
-            for program in candidates:
-                try:
-                    os.execve(program, call, env)
-                except OSError:
-                    continue
-                break
+            try:
+                client = _Client(
+                    [sys.executable, "-I", "-S", "-B", "-c", LAUNCHER, *call],
+                    stdin=terminal,
+                    stdout=terminal,
+                    stderr=terminal,
+                    env={
+                        **encoded,
+                        LAUNCHER_VARIABLE: b"%d" % written + (b"" if ctype is None else b"=" + ctype),
+                    },
+                    close_fds=True,
+                    pass_fds=(written,),
+                    start_new_session=True,
+                )
+            finally:
+                os.close(written)
+            failure = b""
+            while True:
+                chunk = os.read(report, READ_BYTES)
+                if not chunk:
+                    break
+                failure += chunk
         finally:
-            os._exit(EXEC_FAILURE_CODE)
+            os.close(report)
+        if failure:
+            client.wait()
+            raise _launch_error(failure)
+        pid = client.pid
+    finally:
+        os.close(terminal)
+        if pid is None:
+            os.close(fd)
     return pid, fd
 
 
@@ -256,6 +325,7 @@ class Session:
                     "the session to %s ended before any of the %d awaited pattern(s) matched,"
                     " %d byte(s) seen" % (self.host, len(awaited), size),
                     size,
+                    ssh_module.final_said(buffer),
                 )
             buffer += chunk
             if len(buffer) > self.max_transcript_bytes:

@@ -120,11 +120,11 @@ def test_a_diagnostic_session_that_the_device_ends_is_a_closed_failure(wire, aud
     _schema_registry(tmp_path, monkeypatch)
     _device_output(wire, "Permission denied, please try again.\n", code=255)
     target = _diagnostic_target()
-    with pytest.raises(ValueError) as refused:
-        engine.fortios_diagnostics(target, "ping", "192.0.2.183", "port2", 1, 1, 1000)
-    assert str(refused.value) == "bounded FortiOS diagnostic failed; the session was closed"
-    assert refused.value.__cause__ is None and refused.value.__suppress_context__
-    _assert_audit(audit_log, "fortios_diagnostics", ["started", "failed"], "ValueError")
+    # The client's own last line names the refused password; only its class and advice are answered.
+    assert engine.fortios_diagnostics(target, "ping", "192.0.2.183", "port2", 1, 1, 1000) == {
+        "ok": False, "target": target.alias, "recipe": "ping",
+        "error_code": "auth", "error": engine._TRANSPORT_ADVICE["auth"]}
+    _assert_audit(audit_log, "fortios_diagnostics", ["started", "failed"], "auth")
     calls = _calls(wire)
     assert len(calls) == 2 and calls[-1]["stdin_isatty"] is True
 
@@ -187,21 +187,17 @@ sys.exit(0)
 """
 
 
-@pytest.mark.parametrize(("failing", "message"), [
-    ("get system status", "SSH schema identity read failed"),
-    ("show full-configuration", "SSH schema snapshot read failed"),
-])
-def test_a_schema_read_whose_device_connection_fails_names_only_the_stage(
-    wire, audit_log, tmp_path, monkeypatch, failing, message,
+@pytest.mark.parametrize("failing", ["get system status", "show full-configuration"])
+def test_a_schema_read_whose_device_connection_fails_names_only_the_class(
+    wire, audit_log, tmp_path, monkeypatch, failing,
 ) -> None:
     _schema_registry(tmp_path, monkeypatch)
     _write_client(wire["binaries"], "ssh", SCHEMA_DEVICE.format(log=str(wire["log"]), failing=failing))
     target = replace(_target("fortinet", "system_status"), read_inventory={"schema_paths": ("firewall address",)})
-    with pytest.raises(ValueError) as refused:
-        engine.schema_read(target, "firewall address", "get", None, None, 0, 1000)
-    assert str(refused.value) == message
-    assert refused.value.__cause__ is None and refused.value.__suppress_context__
-    _assert_audit(audit_log, "schema_read", ["started", "failed"], "ValueError")
+    assert engine.schema_read(target, "firewall address", "get", None, None, 0, 1000) == {
+        "ok": False, "target": target.alias, "platform": "fortinet", "query": "schema_read",
+        "error_code": "disconnected", "error": engine._TRANSPORT_ADVICE["disconnected"]}
+    _assert_audit(audit_log, "schema_read", ["started", "failed"], "disconnected")
     sent = [call["argv"][-1] for call in _calls(wire) if "-t" not in call["argv"]]
     assert sent[-1] == failing
     assert "show full-configuration" not in sent[:-1]
@@ -322,10 +318,12 @@ def test_a_passive_port_outside_the_allowlist_is_refused_when_closing_the_client
 
 
 def test_a_triage_read_whose_device_connection_fails_is_a_reasoned_answer(wire, audit_log) -> None:
+    # Text on standard output is the device's, not the client's: exit 255 without a client message is unclassified.
     _device_output(wire, "Permission denied, please try again.\n", code=255)
     answer = engine.triage_vpn_read(_target("fortinet", "system_status"), "fortinet", "system_status")
-    assert answer == {"ok": False, "platform": "fortinet", "query": "system_status", "reason": "device_cli_error"}
-    _assert_audit(audit_log, "triage_vpn_read", ["started", "failed"])
+    assert answer == {"ok": False, "platform": "fortinet", "query": "system_status", "reason": "transport_error",
+                      "error_code": "transport_failure", "error": engine._TRANSPORT_ADVICE["transport_failure"]}
+    _assert_audit(audit_log, "triage_vpn_read", ["started", "failed"], "transport_failure")
     assert _calls(wire)
 
 

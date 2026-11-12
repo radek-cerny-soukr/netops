@@ -1,0 +1,27 @@
+{
+  "iosv": {
+    "at": "2026-11-10T19:38:08.322733+00:00",
+    "command": "show ip ospf neighbor",
+    "stdout": "\r\n\r\n\r\n\r\nNeighbor ID     Pri   State           Dead Time   Address         Interface\r\n203.0.113.3       1   2WAY/DROTHER    00:00:33    192.0.2.3      GigabitEthernet0/1.10\r\n203.0.113.5       1   FULL/BDR        00:00:32    192.0.2.5      GigabitEthernet0/1.10\r\n203.0.113.6     128   FULL/DR         00:00:32    192.0.2.6      GigabitEthernet0/1.10\r\n203.0.113.7       1   2WAY/DROTHER    00:00:36    192.0.2.7      GigabitEthernet0/1.10"
+  },
+  "nxos": {
+    "at": "2026-11-10T19:40:58.784035+00:00",
+    "command": "show ip ospf neighbors",
+    "stdout": " OSPF Process ID 29 VRF default\n Total number of neighbors: 4\n Neighbor ID     Pri State            Up Time  Address         Interface\n 203.0.113.1       1 FULL/DROTHER     1d04h    192.0.2.1      Vlan10 \n 203.0.113.3       1 FULL/DROTHER     1d04h    192.0.2.3      Vlan10 \n 203.0.113.6     128 FULL/DR          1d05h    192.0.2.6      Vlan10 \n 203.0.113.7       1 FULL/DROTHER     1d04h    192.0.2.7      Vlan10 \n"
+  },
+  "vjunos": {
+    "at": "2026-11-10T19:45:10.026024+00:00",
+    "command": "show ospf neighbor | no-more",
+    "stdout": "Address          Interface              State           ID               Pri  Dead\n192.0.2.7       irb.10                 Full            203.0.113.7        1    36\n192.0.2.1       irb.10                 Full            203.0.113.1        1    35\n192.0.2.3       irb.10                 Full            203.0.113.3        1    38\n192.0.2.5       irb.10                 Full            203.0.113.5        1    35\n"
+  },
+  "iolxe": {
+    "at": "2026-11-10T19:48:16.198467+00:00",
+    "command": "show ip ospf neighbor",
+    "stdout": "\r\n\r\n\r\n\r\nNeighbor ID     Pri   State           Dead Time   Address         Interface\r\n203.0.113.1       1   2WAY/DROTHER    00:00:35    192.0.2.1      Ethernet0/1.10\r\n203.0.113.3       1   2WAY/DROTHER    00:00:35    192.0.2.3      Ethernet0/1.10\r\n203.0.113.5       1   FULL/BDR        00:00:33    192.0.2.5      Ethernet0/1.10\r\n203.0.113.6     128   FULL/DR         00:00:35    192.0.2.6      Ethernet0/1.10"
+  },
+  "ceos": {
+    "at": "2026-11-10T19:53:53.442443+00:00",
+    "command": "show ip ospf neighbor",
+    "stdout": "Neighbor ID     Instance VRF      Pri State                  Dead Time   Address         Interface\n203.0.113.7     29       default  1   2 WAYS/DROTHER         00:00:30    192.0.2.7      Vlan10\n203.0.113.6     29       default  128 FULL/DR                00:00:30    192.0.2.6      Vlan10\n203.0.113.5     29       default  1   FULL/BDR               00:00:35    192.0.2.5      Vlan10\n203.0.113.1     29       default  1   2 WAYS/DROTHER         00:00:35    192.0.2.1      Vlan10\n"
+  }
+}

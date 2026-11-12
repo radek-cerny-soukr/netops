@@ -1,0 +1,15 @@
+LLDP Neighbor Information:
+Local Information:
+Index: 11 Time to live: 20 Time mark: Fri Feb  4 11:15:46 2022 Age: 3 secs
+Local Interface    : ge-0/0/2
+Parent Interface   : -
+Local Port ID      : 521
+Ageout Count       : 1
+
+Neighbour Information:
+Chassis type       : Mac address
+Chassis ID         : 00:00:5e:00:53:01
+Port type          : Interface name
+Port ID            : ge-0/0/2
+Port description   : port-desc-01
+System name        : host01

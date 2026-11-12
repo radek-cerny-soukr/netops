@@ -1,0 +1,16 @@
+Chassis id: 0000.5e00.5382
+Port id: Ethernet1/1
+Local Port id: Eth1/49
+Port Description: not advertised
+System Name: leaf2
+System Description: Cisco Nexus Operating System (NX-OS) Software 10.3(3)
+TAC support: http://www.cisco.com/tac
+Copyright (c) 2002-2023, Cisco Systems, Inc. All rights reserved.
+Time remaining: 108 seconds
+System Capabilities: B, R
+Enabled Capabilities: B, R
+Management Address: 203.0.113.194
+Management Address IPV6: not advertised
+Vlan ID: not advertised
+
+Total entries displayed: 1

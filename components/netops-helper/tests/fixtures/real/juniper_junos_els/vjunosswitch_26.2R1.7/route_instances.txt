@@ -1,0 +1,18 @@
+Instance             Type
+         Primary RIB                                     Active/holddown/hidden
+master               forwarding     
+         inet.0                                          13/0/0
+         inet6.0                                         2/0/0
+
+__juniper_private1__ forwarding     
+         __juniper_private1__.inet.0                     5/0/0
+         __juniper_private1__.inet6.0                    3/0/0
+
+__juniper_private2__ forwarding     
+         __juniper_private2__.inet.0                     0/0/1
+
+__juniper_private4__ forwarding     
+
+__master.anon__      forwarding     
+
+mgmt_junos           forwarding     

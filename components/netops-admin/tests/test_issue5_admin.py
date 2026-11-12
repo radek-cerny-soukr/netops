@@ -489,7 +489,7 @@ def test_the_command_line_refuses_both_forms_the_same_way(tmp_path, capsys, name
     answer = json.loads(capsys.readouterr().out)
     why = REQUIRED if named == "unnamed" else "the export status covers another audit file"
     assert code == cli.EXIT_REJECTED
-    assert answer == {"result": "rejected", "reasons": ["audit export is blocked: " + why]}
+    assert answer == {"result": "rejected", "reasons": ["audit export is blocked: " + why], "reason_codes": ["unspecified_refusal"], "reason_details": []}
 
 
 @pytest.mark.parametrize("require", [False, True])

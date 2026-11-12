@@ -52,11 +52,19 @@ def pages(catalog, size=2, total=None, sha="a" * 64):
     return out
 
 
+ADC_STATUS = {"device": "upgrade-adc", "run_id": 2, "findings_total": 0, "age_hours": 1.0,
+              "coverage": {"complete": False,
+                           "inherent_gaps": [{"rule_id": "fortiadc.tls.factory-certificate", "reason": "factory-provenance-unproven"}],
+                           "actionable_gaps": [{"rule_id": "fortiadc.lb.pool-no-health-check", "reason": "visibility:networking"}]}}
+
+
 def mcp(tools=None, catalog=None, scope=None, status_error=False, extra="", status=None, **page_args):
     catalog = CATALOG if catalog is None else catalog
     first = pages(catalog, 25, **page_args)[0]["reply"]
     return {"probes": {"no_token": 401, "token": 200, "wrong_token": 401},
             "calls": {"tools/list": {"http": 200, "reply": {"result": {"tools": copy.deepcopy(tools or BASE_TOOLS)}}},
+                      "audit_status": {"http": 200, "reply": reply({"tenant": "default", "devices": [copy.deepcopy(ADC_STATUS), {"device": "upgrade-fw", "run_id": 1, "findings_total": 1, "age_hours": 1.0}]})},
+                      "admin_status": {"http": 200, "reply": reply({"request_id": "upgrade-check-request", "change_id": "a" * 32, "status": "finished", "result": "confirmed"})},
                       "helper_status": {"http": 200, "reply": reply(dict({"ok": True, "version": "<v>", "note": extra}, **(status or {})), status_error)},
                       "target_scope": {"http": 200, "reply": reply(scope or {"target": "linux-a", "egress": "direct", "queries": ["kernel"]})},
                       "read_query_catalog": {"http": 200, "reply": first},
@@ -117,10 +125,28 @@ class ApiChanges(unittest.TestCase):
         (tools, d1), (resp, d2) = self.results(mcp(), mcp())
         self.assertEqual((tools, resp), ("OK", "OK"), d1 + d2)
 
-    def test_report_keeps_seventeen_checks(self):
+    def test_report_includes_nonempty_role_data_check(self):
         checks, doc, _ = self.run_report(mcp(), mcp())
-        self.assertEqual(len(doc["checks"]), 17)
-        self.assertEqual(len(checks), 17)
+        self.assertEqual(len(doc["checks"]), 19)
+        self.assertIn("nonempty-auditor-admin", {c["check"] for c in doc["checks"]})
+        self.assertEqual(len(checks), 19)
+
+    def test_the_seeded_inherent_and_actionable_coverage_gaps_must_survive_the_upgrade(self):
+        checks = self.run_report(mcp(), mcp())[0]
+        self.assertEqual(checks["auditor-coverage-gaps-after-upgrade"][0], "OK")
+        lost = mcp()
+        lost["calls"]["audit_status"]["reply"]["result"]["structuredContent"]["devices"][0]["coverage"]["inherent_gaps"] = []
+        self.assertEqual(self.run_report(mcp(), lost)[0]["auditor-coverage-gaps-after-upgrade"][0], "FAIL")
+
+    def test_the_admin_seed_uses_a_result_the_admin_role_can_produce(self):
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("populate_roles", VERIFY.parent / "populate_roles.py")
+        populate = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(populate)
+        import inspect
+        source = inspect.getsource(populate.seed_admin)
+        self.assertIn('"result": "confirmed"', source)
+        self.assertNotIn('"applied"', source)
 
     def test_undeclared_added_tool_fails(self):
         (tools, detail), _ = self.results(mcp(), mcp(BASE_TOOLS + [tool("triage_slb")]))

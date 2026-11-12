@@ -147,9 +147,11 @@ the client.
 - **Authenticates with a key or with a password.** A record of kind `ssh-key` is written into a file
   with mode 0600 in a private temporary directory and passed as `-i <path>`; a record of kind
   `password` is written into a file of the same mode that an askpass script reads, and the client is
-  called with `BatchMode=no`, `PreferredAuthentications=password`,
-  `KbdInteractiveAuthentication=no`, `NumberOfPasswordPrompts=1` and `PubkeyAuthentication=no`, so a wrong
-  password is one failure instead of a prompt loop or a silent fallback to a key. Either way the credential never reaches `argv`, where `ps`
+  called with `BatchMode=no`, `PreferredAuthentications=password,keyboard-interactive`,
+  `KbdInteractiveAuthentication=yes`, `NumberOfPasswordPrompts=1` and `PubkeyAuthentication=no`; the askpass script
+  answers only a `Password:` prompt, once per connection, and refuses OTP and other questions, so there is no prompt
+  loop or fallback to a key. Known limitation: a device offering both password and keyboard-interactive may count two
+  failed attempts for one wrong password. Either way the credential never reaches `argv`, where `ps`
   would show it to every user on the machine, and never reaches a value in the environment: only the
   path of the file that holds it does. The directory is removed when the call ends, on every path.
 - Default timeout 120 s per command, about fifteen times the slowest dump measured (7.7 s). A

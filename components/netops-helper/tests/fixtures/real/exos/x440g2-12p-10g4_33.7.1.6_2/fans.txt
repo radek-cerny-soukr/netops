@@ -1,0 +1,6 @@
+
+Slot-1 FanTray information:
+ State:                  Operational
+ NumFan:                 2
+ Fan-1:                  Operational at 0 RPM
+ Fan-2:                  Operational at 0 RPM

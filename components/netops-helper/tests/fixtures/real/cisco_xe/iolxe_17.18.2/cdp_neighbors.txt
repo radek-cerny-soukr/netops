@@ -1,0 +1,62 @@
+
+
+
+-------------------------
+Device ID: host04
+Entry address(es): 
+  IP address: 203.0.113.179
+Platform: Cisco ,  Capabilities: Router Source-Route-Bridge 
+Interface: Ethernet0/0,  Port ID (outgoing port): GigabitEthernet0/0
+Holdtime : 175 sec
+
+Version :
+Cisco IOS Software, IOSv Software (VIOS-ADVENTERPRISEK9-M), Version 15.9(3)M12, RELEASE SOFTWARE (fc1)
+Technical Support: http://www.cisco.com/techsupport
+Copyright (c) 1986-2025 by Cisco Systems, Inc.
+Compiled Fri 19-Sep-25 07:49 by mcpre
+
+advertisement version: 2
+Peer Source MAC: 0000.5e00.5317
+Management address(es): 
+  IP address: 203.0.113.179
+
+-------------------------
+Device ID: host01(93M7JA0RG21)
+Entry address(es): 
+  IP address: 203.0.113.183
+Platform: N9K-C9300v,  Capabilities: Router Switch CVTA phone port 
+Interface: Ethernet0/0,  Port ID (outgoing port): mgmt0
+Holdtime : 151 sec
+
+Version :
+Cisco Nexus Operating System (NX-OS) Software, Version 9.3(12)
+
+advertisement version: 2
+Peer Source MAC: 0000.5e00.530a
+Duplex: full
+Management address(es): 
+  IP address: 203.0.113.183
+
+-------------------------
+Device ID: host03
+Entry address(es): 
+  IP address: 203.0.113.180
+Platform: Cisco ,  Capabilities: Router Switch IGMP 
+Interface: Ethernet0/0,  Port ID (outgoing port): GigabitEthernet0/0
+Holdtime : 155 sec
+
+Version :
+Cisco IOS Software, vios_l2 Software (vios_l2-ADVENTERPRISEK9-M), Experimental Version 15.2(20200924:215240) [sweickge-sep24-2020-l2iol-release 135]
+Copyright (c) 1986-2020 by Cisco Systems, Inc.
+Compiled Tue 29-Sep-20 11:53 by sweickge
+
+advertisement version: 2
+Peer Source MAC: 0000.5e00.530b
+VTP Management Domain: ''
+Native VLAN: 99
+Duplex: full
+Management address(es): 
+  IP address: 203.0.113.180
+
+
+Total cdp entries displayed : 3

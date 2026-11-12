@@ -17,7 +17,8 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ALLOWED_HOSTS = {"ghcr.io", "github.com"}
 ASSET_NAME = re.compile(r"(?:compose\.yaml|env\.example|acceptance-[a-z0-9]+(?:-[a-z0-9]+)*\.json|netops-\d+\.\d+\.\d+-(?:SHA256SUMS(?:\.sigstore\.json)?|manifest\.json|acceptance-manifest\.json|vulnerability-assessments\.json|linux-(?:amd64|arm64)(?:\.cdx\.json|-grype\.json|-gate\.json)))")
 ALLOWED_NETWORKS = tuple(ipaddress.ip_network(n) for n in ("127.0.0.0/8", "::1/128"))
-VENDOR_SCHEMA = json.load(open(os.path.join(HERE, "vendor-schema.json"), encoding="utf-8"))
+with open(os.path.join(HERE, "vendor-schema.json"), encoding="utf-8") as _schema:
+    VENDOR_SCHEMA = json.load(_schema)
 LAB_WORDS = re.compile(r"(?i)\b(?:esxi|vmware|vsphere|proxmox|kvm|qemu|(?<!/)lima|virtualbox|hyper-v|parallels|utm|vm|vms|vmid|virtual machine|hypervisor|home\s?lab|tunnel(?:ed|s)?|ssh relay|port forward(?:ing)?|clean snapshot|vm snapshot|guest)\b")
 PATHS = re.compile(r"(?:/home/|/srv/|/Users/|/mnt/|/volume\d|/root/|(?i:[a-z]:\\{1,2}users\\))")
 DOTTED = re.compile(r"(?<![\w.-])(?:[A-Za-z0-9_](?:[A-Za-z0-9_-]{0,61}[A-Za-z0-9_])?\.)+[A-Za-z][A-Za-z0-9-]{1,62}(?![\w-])")

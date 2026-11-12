@@ -1,0 +1,27 @@
+Port Configuration
+Port     Virtual    Port  Link   AutoNeg     Speed      Duplex   Flow  Load   Media
+         router     State State Cfg Actual Cfg Actual Cfg Actual Cntrl Master Pri Red
+=====================================================================================
+port-des>VR-Default E       A   ON  ON    AUTO 100    AUTO FULL   NONE        UTP          
+port-des>VR-Default E       A   ON  ON    AUTO 1000   AUTO FULL   NONE        UTP          
+port-des>VR-Default E       A   ON  ON    AUTO 1000   AUTO FULL   NONE        UTP          
+4        VR-Default E       R   ON  ON    AUTO        AUTO                    UTP          
+port-des>VR-Default E       A   ON  ON    AUTO 100    AUTO FULL SY/ASY        UTP          
+port-des>VR-Default E       A   ON  ON    AUTO 100    AUTO FULL SY/ASY        UTP          
+port-des>VR-Default E       A   ON  ON    AUTO 100    AUTO FULL SY/ASY        UTP          
+port-des>VR-Default E       A   ON  ON    AUTO 100    AUTO FULL   NONE        UTP          
+port-des>VR-Default E       A   ON  ON    AUTO 100    AUTO FULL SY/ASY        UTP          
+10       VR-Default E       R   ON  ON    AUTO        AUTO                    UTP          
+port-des>VR-Default E       A   ON  ON    AUTO 1000   AUTO FULL    SYM        UTP          
+12       VR-Default D       R   ON  ON    AUTO        AUTO                    UTP          
+port-des>VR-Default E       A   ON  ON    AUTO 1000   AUTO FULL    SYM    13  LX           
+14       VR-Default E       R   ON        AUTO        AUTO                13  NONE         
+15       VR-Default E       A   ON  ON    AUTO 1000   AUTO FULL    SYM    13  1000T        
+16       VR-Default E       R   ON        AUTO        AUTO                13  NONE         
+=====================================================================================
+> indicates Port Display Name truncated past 8 characters
+Link State: A-Active, R-Ready, NP-Port Not Present, L-Loopback
+Port State: D-Disabled, E-Enabled, L-License Disabled
+Media: !-Unsupported, $-Unlicensed, #-LRM/MACsec Adapter, ?-Mismatches Partition
+Media Red: * - use "show port info detail" for redundant media type
+Flow Cntrl: Shows link partner's abilities. NONE if Auto Neg is OFF

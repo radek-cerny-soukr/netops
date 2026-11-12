@@ -5,7 +5,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from netops_auditor import cli, query
+from netops_auditor import cli, query, state
 from netops_auditor.store import Store
 
 
@@ -105,3 +105,50 @@ def test_cli_status_of_a_future_timestamp_exits_stale(tmp_path, capsys):
     assert report["state"] == cli.STATUS_STALE and report["age_hours"] < 0
     with Store(path) as store:
         assert mcp_status(store, datetime.now(timezone.utc))["state"] == report["state"]
+
+
+FACTORY = "fortiadc.tls.factory-certificate"
+PLAIN = "fortiadc.mgmt.plaintext-admin-access"
+
+
+def gap(rule, status="not-evaluated", reason=""):
+    return {rule: {"status": status, "reason": reason, "required": True}}
+
+
+@pytest.mark.parametrize("statuses, inherent, actionable", (
+    (gap(FACTORY, reason="factory-provenance-unproven"), [FACTORY], []),
+    (gap(PLAIN, reason="visibility:networking"), [], [PLAIN]),
+    ({**gap(FACTORY, reason="factory-provenance-unproven"), **gap(PLAIN, reason="visibility:networking")}, [FACTORY], [PLAIN]),
+    (gap(FACTORY, status="unsupported", reason="unsupported-version"), [], [FACTORY]),
+))
+def test_mcp_status_carries_the_coverage_of_the_last_run(tmp_path, statuses, inherent, actionable):
+    with Store(tmp_path / "audit.db") as store:
+        record(store, stamp(NOW - timedelta(hours=1)), statuses=statuses)
+        device = mcp_status(store, NOW)
+    assert device["state"] == query.STATUS_INCOMPLETE
+    assert device["coverage"]["complete"] is False
+    assert [item["rule_id"] for item in device["coverage"]["inherent_gaps"]] == inherent
+    assert [item["rule_id"] for item in device["coverage"]["actionable_gaps"]] == actionable
+
+
+def test_mcp_status_of_a_device_without_a_run_has_no_coverage(tmp_path):
+    with Store(tmp_path / "audit.db") as store:
+        answer = query.audit_status(store, "tenant", device="device", now=NOW, stale_after_hours=24)
+    assert answer["devices"][0]["coverage"] is None
+
+
+def test_state_coverage_classifies_a_run_stored_before_the_classification_existed(tmp_path):
+    statuses = {**gap(FACTORY, reason="factory-provenance-unproven: ssl-profile=csp1"), **gap(PLAIN, reason="visibility:networking"), **EVALUATED}
+    with Store(tmp_path / "audit.db") as store:
+        run = record(store, stamp(NOW - timedelta(hours=1)), statuses=statuses)
+        found = state.coverage(store.findings_for_run("tenant", run), state.stored_statuses(store, "tenant", run))
+    assert found["complete"] is False
+    assert [item["rule_id"] for item in found["inherent_gaps"]] == [FACTORY]
+    assert [item["rule_id"] for item in found["actionable_gaps"]] == [PLAIN]
+
+
+def test_state_coverage_of_a_run_stored_without_rule_status_has_no_gaps(tmp_path):
+    with Store(tmp_path / "audit.db") as store:
+        run = record(store, stamp(NOW - timedelta(hours=1)))
+        found = state.coverage(store.findings_for_run("tenant", run), state.stored_statuses(store, "tenant", run))
+    assert found == {"complete": True, "inherent_gaps": [], "actionable_gaps": []}

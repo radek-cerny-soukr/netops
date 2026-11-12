@@ -1,0 +1,4 @@
+IPv6 Address                              Age Link-layer Addr State Interface
+2001:DB8:10::20                             4 0000.5e00.53a0  STALE Vl10
+FE80::20                                    4 0000.5e00.53a0  STALE Vl10
+FE80::1                                     0 0000.5e00.5381  REACH Gi1/0/1

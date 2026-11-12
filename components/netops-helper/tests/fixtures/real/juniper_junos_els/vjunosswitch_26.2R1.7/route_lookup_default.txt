@@ -1,0 +1,18 @@
+
+inet.0: 13 destinations, 13 routes (13 active, 0 holddown, 0 hidden)
+Limit/Threshold: 1048576/1048576 destinations
+0.0.0.0/0 (1 entry, 1 announced)
+        *Static Preference: 5
+                Next hop type: Router, Next hop index: 352
+                Address: 0x9503310
+                Next-hop reference count: 3, Next-hop session id: 0
+                Kernel Table Id: 0
+                Next hop: 203.0.113.129 via fxp0.0, selected
+                Session Id: 0
+                State: <Active Int Ext>
+                Age: 1:38:36 
+                Validation State: unverified 
+                Task: RT
+                Announcement bits (1): 0-KRT 
+                AS path: I 
+                Thread: junos-main 

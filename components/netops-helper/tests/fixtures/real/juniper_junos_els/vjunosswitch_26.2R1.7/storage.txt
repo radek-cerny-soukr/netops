@@ -1,0 +1,4 @@
+Filesystem              Size       Used      Avail  Capacity   Mounted on
+/dev/gpt/junos           20G       1.8G        17G       10%  /.mount
+tmpfs                   3.0G        12K       3.0G        0%  /.mount/tmp
+tmpfs                   305M       876K       304M        0%  /.mount/mfs

@@ -106,7 +106,9 @@ def main():
         init = compose("run", "--rm", "-T", "netops", "init", "--audit", "syslog", "--syslog-host", "syslog-rx", "--syslog-port", "6514")
         if init.returncode != 0:
             raise RuntimeError("init rc %d: %s" % (init.returncode, init.stderr[-300:]))
-        trust = json.dumps({"host": "syslog-rx", "port": 6514, "ca_pem": open(os.path.join(work, "pki", "rxca.pem")).read()})
+        with open(os.path.join(work, "pki", "rxca.pem")) as stream:
+            ca_pem = stream.read()
+        trust = json.dumps({"host": "syslog-rx", "port": 6514, "ca_pem": ca_pem})
         configured = compose("run", "-T", "--rm", "netops", "configure", "syslog", stdin=trust)
         if configured.returncode != 0:
             raise RuntimeError("configure syslog rc %d: %s" % (configured.returncode, configured.stderr[-300:]))

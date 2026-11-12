@@ -1,0 +1,643 @@
+{
+  "http_method": "GET",
+  "results": [
+    {
+      "name": "name-1",
+      "is_local": false,
+      "vdom": "root",
+      "eos": false,
+      "serial": "name-1",
+      "ap_profile": "ap-profile-2",
+      "ble_profile": "",
+      "lw_profile": "",
+      "state": "authorized",
+      "connecting_from": "192.0.2.1",
+      "connecting_interface": "ap-mgmt",
+      "status": "connected",
+      "wtp_id": "name-1",
+      "region_code": "E ",
+      "mgmt_vlanid": 0,
+      "mesh_uplink": "ethernet",
+      "mesh_hop_count": 0,
+      "mesh_uplink_intf": "ap-mgmt",
+      "mesh_uplink_intf_speed": 2000.0,
+      "clients": 2,
+      "os_version": "os-version-3",
+      "local_addr": "192.0.2.1",
+      "board_mac": "00:00:5e:00:53:81",
+      "join_time": "11/08/26 19:00",
+      "join_time_raw": 1794160845,
+      "last_reboot_time": "11/08/26 18:57",
+      "last_reboot_time_raw": 1794160644,
+      "reboot_last_day": true,
+      "connection_state": "Connected",
+      "image_download_progress": 0,
+      "last_failure": "N/A",
+      "last_failure_code": 0,
+      "override_profile": false,
+      "ssid": [
+        {
+          "radio": 1,
+          "list": [
+            "ssid-4"
+          ]
+        },
+        {
+          "radio": 2,
+          "list": [
+            "ssid-4"
+          ]
+        }
+      ],
+      "data_chan_sec": "clear-text",
+      "dedicated_scan_enabled": false,
+      "indoor_outdoor": 2,
+      "subtype": 0,
+      "sensors_temperatures": [
+        49
+      ],
+      "radio": [
+        {
+          "radio_id": 1,
+          "mode": "AP",
+          "supported_bands": [
+            "b",
+            "g"
+          ],
+          "radio_type": "802.11be-2G",
+          "detected_rogue_aps": 10,
+          "detected_rogue_infra_aps": 1,
+          "country_name": "country-name-5",
+          "country_code": 276,
+          "client_count": 1,
+          "base_bssid": "00:00:5e:00:53:82",
+          "max_vaps": 8,
+          "oper_chan": 1,
+          "chan_ai": 0,
+          "oper_txpower": 20,
+          "channel_utilization_timestamp": 1794172248,
+          "channel_utilization_percent": 3,
+          "radio_max_rate_standard_mbps": 0,
+          "radio_max_rate_mbps": 0,
+          "noise_floor": -95,
+          "bandwidth_rx": 6899,
+          "bandwidth_tx": 10624,
+          "bytes_rx": 277676586,
+          "bytes_tx": 268781393,
+          "mgmt_frames_rx": 511,
+          "mgmt_frames_tx": 4875,
+          "beacon_frames_tx": 110860,
+          "interfering_aps": 3,
+          "tx_retries_percent": 0,
+          "mac_errors_rx": 0,
+          "mac_errors_tx": 0,
+          "background_scan_enabled": true,
+          "wids_profile": "",
+          "detect_interfering": false,
+          "sta_locate": false,
+          "channel_utilization": true,
+          "override_band": false,
+          "override_txpower": false,
+          "auto_txpower": false,
+          "txpower": 100,
+          "override_sa": false,
+          "override_vaps": false,
+          "ssid": {},
+          "all_ssids": true,
+          "ssid_mode": "ssid-mode-6",
+          "override_channel": false,
+          "channels": [],
+          "channel_bonding": "20MHz",
+          "tx_discard_percentage": 0,
+          "health": {
+            "channel_utilization": {
+              "value": 3,
+              "severity": "good"
+            },
+            "client_count": {
+              "value": 1,
+              "severity": "good"
+            },
+            "interfering_ssids": {
+              "value": 3,
+              "severity": "fair"
+            },
+            "infra_interfering_ssids": {
+              "value": 0,
+              "severity": "good"
+            },
+            "overall": {
+              "value": 0,
+              "severity": "fair"
+            }
+          }
+        },
+        {
+          "radio_id": 2,
+          "mode": "AP",
+          "supported_bands": [
+            "a",
+            "n-5G"
+          ],
+          "radio_type": "802.11be-5G",
+          "detected_rogue_aps": 10,
+          "detected_rogue_infra_aps": 1,
+          "country_name": "country-name-5",
+          "country_code": 276,
+          "client_count": 1,
+          "base_bssid": "00:00:5e:00:53:83",
+          "max_vaps": 8,
+          "oper_chan": 124,
+          "chan_ai": 0,
+          "oper_txpower": 26,
+          "channel_utilization_timestamp": 1794172248,
+          "channel_utilization_percent": 0,
+          "radio_max_rate_standard_mbps": 0,
+          "radio_max_rate_mbps": 0,
+          "noise_floor": -95,
+          "bandwidth_rx": 37,
+          "bandwidth_tx": 233,
+          "bytes_rx": 40663140,
+          "bytes_tx": 75976645,
+          "mgmt_frames_rx": 188,
+          "mgmt_frames_tx": 355,
+          "beacon_frames_tx": 102583,
+          "interfering_aps": 0,
+          "tx_retries_percent": 0,
+          "mac_errors_rx": 0,
+          "mac_errors_tx": 0,
+          "background_scan_enabled": true,
+          "wids_profile": "",
+          "detect_interfering": false,
+          "sta_locate": false,
+          "channel_utilization": true,
+          "override_band": false,
+          "override_txpower": false,
+          "auto_txpower": false,
+          "txpower": 100,
+          "override_sa": false,
+          "override_vaps": false,
+          "ssid": {},
+          "all_ssids": true,
+          "ssid_mode": "ssid-mode-6",
+          "override_channel": false,
+          "channels": [],
+          "channel_bonding": "40MHz",
+          "tx_discard_percentage": 0,
+          "health": {
+            "channel_utilization": {
+              "value": 0,
+              "severity": "good"
+            },
+            "client_count": {
+              "value": 1,
+              "severity": "good"
+            },
+            "interfering_ssids": {
+              "value": 0,
+              "severity": "good"
+            },
+            "infra_interfering_ssids": {
+              "value": 0,
+              "severity": "good"
+            },
+            "overall": {
+              "value": 0,
+              "severity": "good"
+            }
+          }
+        }
+      ],
+      "wanlan_mode": "wan-only",
+      "health": {
+        "general": {
+          "country_code": {
+            "value": 2,
+            "severity": "poor"
+          },
+          "uplink_status": [
+            {
+              "value": 1000,
+              "severity": "good"
+            }
+          ],
+          "overall": {
+            "value": 0,
+            "severity": "poor"
+          }
+        }
+      },
+      "wired": [
+        {
+          "interface": "lan1",
+          "bytes_rx": 86368090,
+          "bytes_tx": 53311509,
+          "packets_rx": 124791,
+          "packets_tx": 132575,
+          "errors_rx": 0,
+          "errors_tx": 0,
+          "dropped_rx": 386,
+          "dropped_tx": 0,
+          "collisions": 0,
+          "link_speed_mbps": 1000,
+          "is_carrier_link": true,
+          "is_full_duplex": true,
+          "max_link_speed": 1000,
+          "peak_bandwidth_bytes_rx": 435,
+          "peak_bandwidth_bytes_tx": 3967,
+          "peak_bandwidth_packets_rx": 4,
+          "peak_bandwidth_packets_tx": 13
+        }
+      ],
+      "wired-state-extension": [
+        {
+          "interface": "lan1",
+          "peak_bandwidth_bytes_rx": 435,
+          "peak_bandwidth_bytes_tx": 3967,
+          "peak_bandwidth_packets_rx": 4,
+          "peak_bandwidth_packets_tx": 13
+        }
+      ],
+      "wan_status": [
+        {
+          "interface": "lan1",
+          "link_speed_mbps": 1000,
+          "is_carrier_link": true,
+          "is_full_duplex": true
+        }
+      ],
+      "poe_mode": "full(auto)",
+      "poe_mode_oper": "full",
+      "country_code_conflict": 2,
+      "configured_country_name": "configured-c-7",
+      "configured_country_code": 841,
+      "cli_enabled": false,
+      "region": "",
+      "location": "",
+      "comment": "",
+      "wtp_mode": "wtp-mode-8",
+      "wan_port_auth": "none",
+      "wan_802_1x_method": "all",
+      "wan_802_1x_macsec": false,
+      "auto_cert_proto": "none",
+      "lldp_enable": true,
+      "lldp": [
+        {
+          "local_port": "lan1",
+          "chassis_id": "mac 00:00:5e:00:53:84",
+          "system_name": "system-name-9",
+          "system_description": "FortiSwitch-224E-POE v8.0.1,build0069,260728 (GA)",
+          "capability": "Bridge Router ",
+          "port_id": "port3",
+          "port_description": "port3",
+          "mau_operating_mode": "1000BaseTFD - Four-pair Category 5 UTP, full duplex mode",
+          "ip": "192.0.2.2",
+          "ip6": "",
+          "vlan": -1
+        }
+      ],
+      "led_blink": false,
+      "cpu_usage": 7,
+      "mem_free": 1610260,
+      "mem_total": 1937524,
+      "is_wpa3_supported": true,
+      "forticare_registration_status": "registered"
+    },
+    {
+      "name": "name-10",
+      "is_local": false,
+      "vdom": "root",
+      "eos": false,
+      "serial": "name-10",
+      "ap_profile": "ap-profile-11",
+      "ble_profile": "",
+      "lw_profile": "",
+      "state": "authorized",
+      "connecting_from": "192.0.2.3",
+      "connecting_interface": "ap-mgmt",
+      "status": "connected",
+      "wtp_id": "name-10",
+      "region_code": "E ",
+      "mgmt_vlanid": 0,
+      "mesh_uplink": "ethernet",
+      "mesh_hop_count": 0,
+      "mesh_uplink_intf": "ap-mgmt",
+      "mesh_uplink_intf_speed": 2000.0,
+      "clients": 0,
+      "os_version": "os-version-12",
+      "local_addr": "192.0.2.3",
+      "board_mac": "00:00:5e:00:53:85",
+      "join_time": "11/08/26 19:01",
+      "join_time_raw": 1794160912,
+      "last_reboot_time": "11/08/26 18:58",
+      "last_reboot_time_raw": 1794160690,
+      "reboot_last_day": true,
+      "connection_state": "Connected",
+      "image_download_progress": 0,
+      "last_failure": "N/A",
+      "last_failure_code": 0,
+      "override_profile": false,
+      "ssid": [
+        {
+          "radio": 1,
+          "list": [
+            "ssid-4"
+          ]
+        },
+        {
+          "radio": 2,
+          "list": [
+            "ssid-4"
+          ]
+        }
+      ],
+      "data_chan_sec": "clear-text",
+      "dedicated_scan_enabled": false,
+      "indoor_outdoor": 2,
+      "subtype": 0,
+      "sensors_temperatures": [
+        67
+      ],
+      "radio": [
+        {
+          "radio_id": 1,
+          "mode": "AP",
+          "supported_bands": [
+            "b",
+            "g"
+          ],
+          "radio_type": "802.11be-2G",
+          "detected_rogue_aps": 11,
+          "detected_rogue_infra_aps": 1,
+          "country_name": "country-name-5",
+          "country_code": 276,
+          "client_count": 0,
+          "base_bssid": "00:00:5e:00:53:86",
+          "max_vaps": 8,
+          "oper_chan": 6,
+          "chan_ai": 0,
+          "oper_txpower": 17,
+          "channel_utilization_timestamp": 1794172249,
+          "channel_utilization_percent": 5,
+          "radio_max_rate_standard_mbps": 0,
+          "radio_max_rate_mbps": 0,
+          "noise_floor": -95,
+          "bandwidth_rx": 0,
+          "bandwidth_tx": 0,
+          "bytes_rx": 1651308,
+          "bytes_tx": 3888370,
+          "mgmt_frames_rx": 795,
+          "mgmt_frames_tx": 3289,
+          "beacon_frames_tx": 110234,
+          "interfering_aps": 7,
+          "tx_retries_percent": 0,
+          "mac_errors_rx": 0,
+          "mac_errors_tx": 0,
+          "background_scan_enabled": true,
+          "wids_profile": "",
+          "detect_interfering": false,
+          "sta_locate": false,
+          "channel_utilization": true,
+          "override_band": false,
+          "override_txpower": false,
+          "auto_txpower": false,
+          "txpower": 100,
+          "override_sa": false,
+          "override_vaps": false,
+          "ssid": {},
+          "all_ssids": true,
+          "ssid_mode": "ssid-mode-6",
+          "override_channel": false,
+          "channels": [],
+          "channel_bonding": "20MHz",
+          "tx_discard_percentage": 0,
+          "health": {
+            "channel_utilization": {
+              "value": 5,
+              "severity": "good"
+            },
+            "client_count": {
+              "value": 0,
+              "severity": "good"
+            },
+            "interfering_ssids": {
+              "value": 7,
+              "severity": "fair"
+            },
+            "infra_interfering_ssids": {
+              "value": 0,
+              "severity": "good"
+            },
+            "overall": {
+              "value": 0,
+              "severity": "fair"
+            }
+          }
+        },
+        {
+          "radio_id": 2,
+          "mode": "AP",
+          "supported_bands": [
+            "a",
+            "n-5G"
+          ],
+          "radio_type": "802.11be-5G",
+          "detected_rogue_aps": 13,
+          "detected_rogue_infra_aps": 1,
+          "country_name": "country-name-5",
+          "country_code": 276,
+          "client_count": 0,
+          "base_bssid": "00:00:5e:00:53:87",
+          "max_vaps": 8,
+          "oper_chan": 116,
+          "chan_ai": 0,
+          "oper_txpower": 24,
+          "channel_utilization_timestamp": 1794172249,
+          "channel_utilization_percent": 1,
+          "radio_max_rate_standard_mbps": 0,
+          "radio_max_rate_mbps": 0,
+          "noise_floor": -95,
+          "bandwidth_rx": 0,
+          "bandwidth_tx": 0,
+          "bytes_rx": 55742104,
+          "bytes_tx": 160728522,
+          "mgmt_frames_rx": 160,
+          "mgmt_frames_tx": 366,
+          "beacon_frames_tx": 98628,
+          "interfering_aps": 0,
+          "tx_retries_percent": 0,
+          "mac_errors_rx": 0,
+          "mac_errors_tx": 0,
+          "background_scan_enabled": true,
+          "wids_profile": "",
+          "detect_interfering": false,
+          "sta_locate": false,
+          "channel_utilization": true,
+          "override_band": false,
+          "override_txpower": false,
+          "auto_txpower": false,
+          "txpower": 100,
+          "override_sa": false,
+          "override_vaps": false,
+          "ssid": {},
+          "all_ssids": true,
+          "ssid_mode": "ssid-mode-6",
+          "override_channel": false,
+          "channels": [],
+          "channel_bonding": "40MHz",
+          "tx_discard_percentage": 0,
+          "health": {
+            "channel_utilization": {
+              "value": 1,
+              "severity": "good"
+            },
+            "client_count": {
+              "value": 0,
+              "severity": "good"
+            },
+            "interfering_ssids": {
+              "value": 0,
+              "severity": "good"
+            },
+            "infra_interfering_ssids": {
+              "value": 0,
+              "severity": "good"
+            },
+            "overall": {
+              "value": 0,
+              "severity": "good"
+            }
+          }
+        }
+      ],
+      "wanlan_mode": "wan-only",
+      "health": {
+        "general": {
+          "country_code": {
+            "value": 2,
+            "severity": "poor"
+          },
+          "uplink_status": [
+            {
+              "value": 1000,
+              "severity": "good"
+            }
+          ],
+          "overall": {
+            "value": 0,
+            "severity": "poor"
+          }
+        }
+      },
+      "wired": [
+        {
+          "interface": "wan",
+          "bytes_rx": 177718487,
+          "bytes_tx": 70854714,
+          "packets_rx": 196035,
+          "packets_tx": 149724,
+          "errors_rx": 0,
+          "errors_tx": 0,
+          "dropped_rx": 382,
+          "dropped_tx": 0,
+          "collisions": 0,
+          "link_speed_mbps": 1000,
+          "is_carrier_link": true,
+          "is_full_duplex": true,
+          "max_link_speed": 10000,
+          "peak_bandwidth_bytes_rx": 624,
+          "peak_bandwidth_bytes_tx": 3242,
+          "peak_bandwidth_packets_rx": 6,
+          "peak_bandwidth_packets_tx": 9
+        },
+        {
+          "interface": "lan1",
+          "bytes_rx": 0,
+          "bytes_tx": 0,
+          "packets_rx": 0,
+          "packets_tx": 0,
+          "errors_rx": 0,
+          "errors_tx": 0,
+          "dropped_rx": 0,
+          "dropped_tx": 0,
+          "collisions": 0,
+          "link_speed_mbps": 0,
+          "is_carrier_link": false,
+          "is_full_duplex": false,
+          "max_link_speed": 1000,
+          "peak_bandwidth_bytes_rx": 0,
+          "peak_bandwidth_bytes_tx": 0,
+          "peak_bandwidth_packets_rx": 0,
+          "peak_bandwidth_packets_tx": 0
+        }
+      ],
+      "wired-state-extension": [
+        {
+          "interface": "wan",
+          "peak_bandwidth_bytes_rx": 624,
+          "peak_bandwidth_bytes_tx": 3242,
+          "peak_bandwidth_packets_rx": 6,
+          "peak_bandwidth_packets_tx": 9
+        },
+        {
+          "interface": "lan1",
+          "peak_bandwidth_bytes_rx": 0,
+          "peak_bandwidth_bytes_tx": 0,
+          "peak_bandwidth_packets_rx": 0,
+          "peak_bandwidth_packets_tx": 0
+        }
+      ],
+      "wan_status": [
+        {
+          "interface": "wan",
+          "link_speed_mbps": 1000,
+          "is_carrier_link": true,
+          "is_full_duplex": true
+        }
+      ],
+      "poe_mode": "high(auto)",
+      "poe_mode_oper": "high",
+      "country_code_conflict": 2,
+      "configured_country_name": "configured-c-7",
+      "configured_country_code": 841,
+      "cli_enabled": false,
+      "region": "",
+      "location": "",
+      "comment": "",
+      "wtp_mode": "wtp-mode-8",
+      "wan_port_auth": "none",
+      "wan_802_1x_method": "all",
+      "wan_802_1x_macsec": false,
+      "auto_cert_proto": "none",
+      "lldp_enable": true,
+      "lldp": [
+        {
+          "local_port": "wan",
+          "chassis_id": "mac 00:00:5e:00:53:88",
+          "system_name": "system-name-13",
+          "system_description": "FortiSwitch-224E-POE v8.0.1,build0069,260728 (GA)",
+          "capability": "Bridge Router ",
+          "port_id": "port3",
+          "port_description": "port3",
+          "mau_operating_mode": "1000BaseTFD - Four-pair Category 5 UTP, full duplex mode",
+          "ip": "192.0.2.4",
+          "ip6": "",
+          "vlan": -1
+        }
+      ],
+      "led_blink": false,
+      "cpu_usage": 2,
+      "mem_free": 1495744,
+      "mem_total": 1917976,
+      "is_wpa3_supported": true,
+      "forticare_registration_status": "registered"
+    }
+  ],
+  "vdom": "root",
+  "path": "wifi",
+  "name": "name-14",
+  "status": "success",
+  "serial": "serial-15",
+  "version": "v8.0.2",
+  "build": 251
+}

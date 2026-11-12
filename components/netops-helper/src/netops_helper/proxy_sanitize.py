@@ -6,8 +6,9 @@ from collections.abc import Iterable
 import json
 import re
 from typing import Any
+from netops.redaction_spans import Marked, edits, sub, replace, loads, dumps
 
-from .sanitize import _wtp_128_length_password_capability
+from .sanitize import _wtp_128_length_password_capability, redact_snmp_credentials, _replace_credential, _SNMP_PREFIX
 
 
 FORTI_ENC = re.compile(r"\bENC\s+[^\s\\]+")
@@ -51,23 +52,23 @@ def _normalize_secrets(secrets: Iterable[object]) -> tuple[str, ...]:
     values = {str(value) for value in secrets if len(str(value).encode("utf-8")) >= 3}
     forms = {
         form for value in values for form in (
-            value, json.dumps(value)[1:-1], json.dumps(value, ensure_ascii=False)[1:-1],
+            value, dumps(value)[1:-1], dumps(value, ensure_ascii=False)[1:-1],
         )
     }
     return tuple(sorted(forms, key=len, reverse=True))
 
 
-def sanitize_text(value: str, secrets: Iterable[object] = ()) -> str:
+def _sanitize_text(value: str, secrets: Iterable[object] = ()) -> str:
     for secret in _normalize_secrets(secrets):
-        value = value.replace(secret, "<REDACTED>")
-    value = PRIVATE_PEM.sub("<PRIVATE-KEY-REDACTED>", value)
-    value = FORTI_ENC.sub("ENC <REDACTED>", value)
-    value = SHADOW_HASH.sub(lambda match: match.group(1) + "<REDACTED>", value)
-    value = CISCO_SECRET.sub(lambda match: match.group(1) + "<REDACTED>", value)
-    value = LABELED_COMMUNITY.sub(
-        lambda match: match.group(1) + "<REDACTED>", value,
+        value = replace(value, secret, "<REDACTED>")
+    value = sub(PRIVATE_PEM, "<PRIVATE-KEY-REDACTED>", value)
+    value = sub(FORTI_ENC, "ENC <REDACTED>", value)
+    value = sub(SHADOW_HASH, lambda match: match.group(1) + "<REDACTED>", value)
+    value = sub(CISCO_SECRET, lambda match: match.group(1) + "<REDACTED>", value)
+    value = sub(LABELED_COMMUNITY,
+        _replace_credential, value,
     )
-    return SENSITIVE_TEXT_FIELD.sub(
+    return sub(SENSITIVE_TEXT_FIELD,
         lambda match: match.group(0) if _wtp_128_length_password_capability(match)
         else match.group(1) + '"<REDACTED>"', value,
     )
@@ -80,7 +81,7 @@ def _unique_pairs(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
     return document
 
 
-def sanitize_object(value: Any, secrets: Iterable[object] = ()) -> Any:
+def _sanitize_object(value: Any, secrets: Iterable[object] = (), *, snmp=False) -> Any:
     normalized = _normalize_secrets(secrets)
 
     def sensitive_key(key: object) -> bool:
@@ -95,7 +96,7 @@ def sanitize_object(value: Any, secrets: Iterable[object] = ()) -> Any:
         if isinstance(item, str):
             return walk_text(item)
         if isinstance(item, (int, float)) and not isinstance(item, bool):
-            number = json.dumps(item)
+            number = dumps(item)
             return "<REDACTED>" if any(secret in number for secret in normalized) else item
         if isinstance(item, list):
             return [walk(child) for child in item]
@@ -109,14 +110,53 @@ def sanitize_object(value: Any, secrets: Iterable[object] = ()) -> Any:
     def walk_text(text: str) -> str:
         if text.lstrip()[:1] in ("{", "["):
             try:
-                decoded = json.loads(text, object_pairs_hook=_unique_pairs)
+                decoded = loads(text, object_pairs_hook=_unique_pairs)
             except (ValueError, RecursionError):
                 decoded = None
             if isinstance(decoded, (dict, list)):
                 cleaned = walk(decoded)
                 if cleaned == decoded:
                     return text
-                return json.dumps(cleaned, separators=(",", ":"), ensure_ascii=False)
-        return sanitize_text(text, normalized)
+                return dumps(cleaned, separators=(",", ":"), ensure_ascii=False)
+        cleaned = _sanitize_text(text, normalized)
+        return redact_snmp_credentials(cleaned) if snmp else cleaned
 
     return walk(value)
+
+
+_SNMP_CANDIDATE = re.compile(
+    r"^" + _SNMP_PREFIX + r"(?:config[ \t]+(?:system[ \t]+snmp[ \t]+(?:community|user)"
+    r"|switch-controller[ \t]+snmp-community|wireless-controller[ \t]+snmp|snmp-community)\b"
+    r"|set[ \t]+community[ \t]+|configure[ \t]+snmp(?:v3)?[ \t]+(?:add|delete)[ \t]+community\b)", re.I | re.M)
+
+
+def _contains_snmp(value):
+    if isinstance(value, str):
+        if _SNMP_CANDIDATE.search(value.replace("\r", "\n")):
+            return True
+        if value.lstrip()[:1] in ("{", "["):
+            try:
+                decoded = loads(value, object_pairs_hook=_unique_pairs)
+            except (ValueError, RecursionError):
+                return False
+            if isinstance(decoded, (dict, list)):
+                return _contains_snmp(decoded)
+        return False
+    if isinstance(value, dict):
+        return any(_contains_snmp(key) or _contains_snmp(child) for key, child in value.items())
+    if isinstance(value, list):
+        return any(_contains_snmp(child) for child in value)
+    return False
+
+
+def sanitize_object(value: Any, secrets: Iterable[object] = ()) -> Any:
+    if _contains_snmp(value):
+        from .sanitize import _snmp_response
+        return _snmp_response(value, tuple(secrets))
+    return _sanitize_object(value, secrets)
+
+
+def sanitize_text(value: str, secrets: Iterable[object] = ()) -> str:
+    if _contains_snmp(value):
+        return sanitize_object(value, secrets)
+    return _sanitize_text(value, secrets)

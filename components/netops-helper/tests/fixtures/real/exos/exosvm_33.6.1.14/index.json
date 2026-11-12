@@ -1,0 +1,380 @@
+{
+ "vlan_details": {
+  "command": "show vlan Default",
+  "rc": 250,
+  "lines": 42,
+  "account": "netops-ro"
+ },
+ "dhcp_snooping_entries": {
+  "command": "show ip-security dhcp-snooping entries vlan Default",
+  "rc": 0,
+  "lines": 9,
+  "account": "netops-ro"
+ },
+ "switch": {
+  "command": "show switch",
+  "rc": 0,
+  "lines": 34,
+  "account": "netops-ro"
+ },
+ "version": {
+  "command": "show version",
+  "rc": 0,
+  "lines": 15,
+  "account": "netops-ro"
+ },
+ "memory": {
+  "command": "show memory",
+  "rc": 0,
+  "lines": 98,
+  "account": "netops-ro"
+ },
+ "cpu_monitoring": {
+  "command": "show cpu-monitoring",
+  "rc": 0,
+  "lines": 96,
+  "account": "netops-ro"
+ },
+ "processes": {
+  "command": "show process",
+  "rc": 0,
+  "lines": 87,
+  "account": "netops-ro"
+ },
+ "diagnostics": {
+  "command": "show diagnostics",
+  "rc": 0,
+  "lines": 1,
+  "account": "netops-ro"
+ },
+ "temperature": {
+  "command": "show temperature",
+  "rc": 0,
+  "lines": 3,
+  "account": "netops-ro"
+ },
+ "fans": {
+  "command": "show fans",
+  "rc": 0,
+  "lines": 3,
+  "account": "netops-ro"
+ },
+ "power": {
+  "command": "show power",
+  "rc": 0,
+  "lines": 26,
+  "account": "netops-ro"
+ },
+ "ports": {
+  "command": "show ports no-refresh",
+  "rc": 0,
+  "lines": 23,
+  "account": "netops-ro"
+ },
+ "ports_configuration": {
+  "command": "show ports configuration no-refresh",
+  "rc": 0,
+  "lines": 23,
+  "account": "netops-ro"
+ },
+ "interface_details": {
+  "command": "show port 1 information detail",
+  "rc": 250,
+  "lines": 71,
+  "account": "netops-ro"
+ },
+ "interface_statistics": {
+  "command": "show ports 1 statistics no-refresh",
+  "rc": 0,
+  "lines": 8,
+  "account": "netops-ro"
+ },
+ "interface_rx_errors": {
+  "command": "show ports 1 rxerrors no-refresh",
+  "rc": 0,
+  "lines": 7,
+  "account": "netops-ro"
+ },
+ "interface_tx_errors": {
+  "command": "show ports 1 txerrors no-refresh",
+  "rc": 0,
+  "lines": 8,
+  "account": "netops-ro"
+ },
+ "interface_transceiver": {
+  "command": "show ports 1 transceiver information detail",
+  "rc": 0,
+  "lines": 7,
+  "account": "netops-ro"
+ },
+ "route_summary": {
+  "command": "show iproute summary",
+  "rc": 0,
+  "lines": 10,
+  "account": "netops-ro"
+ },
+ "ipv6_route_summary": {
+  "command": "show iproute ipv6 summary",
+  "rc": 250,
+  "lines": 10,
+  "account": "netops-ro"
+ },
+ "arp_table": {
+  "command": "show iparp",
+  "rc": 0,
+  "lines": 17,
+  "account": "netops-ro"
+ },
+ "arp_address": {
+  "command": "show iparp 192.0.2.1",
+  "rc": 0,
+  "lines": 17,
+  "account": "netops-ro"
+ },
+ "arp_interface": {
+  "command": "show iparp port 1",
+  "rc": 0,
+  "lines": 17,
+  "account": "netops-ro"
+ },
+ "ipv6_neighbors": {
+  "command": "show neighbor-discovery cache ipv6",
+  "rc": 0,
+  "lines": 15,
+  "account": "netops-ro"
+ },
+ "ipv6_neighbor_address": {
+  "command": "show neighbor-discovery cache ipv6 2001:db8:1::1",
+  "rc": 250,
+  "lines": 16,
+  "account": "netops-ro"
+ },
+ "mac_table": {
+  "command": "show fdb",
+  "rc": 0,
+  "lines": 19,
+  "account": "netops-ro"
+ },
+ "mac_interface": {
+  "command": "show fdb ports 1",
+  "rc": 0,
+  "lines": 18,
+  "account": "netops-ro"
+ },
+ "lldp_neighbors": {
+  "command": "show lldp neighbors",
+  "rc": 0,
+  "lines": 12,
+  "account": "netops-ro"
+ },
+ "lldp_interface": {
+  "command": "show lldp port 1 neighbors",
+  "rc": 0,
+  "lines": 8,
+  "account": "netops-ro"
+ },
+ "lldp_interface_details": {
+  "command": "show lldp port 1 neighbors detailed",
+  "rc": 0,
+  "lines": 27,
+  "account": "netops-ro"
+ },
+ "vlan_summary": {
+  "command": "show vlan",
+  "rc": 0,
+  "lines": 26,
+  "account": "netops-ro"
+ },
+ "lacp": {
+  "command": "show lacp",
+  "rc": 0,
+  "lines": 10,
+  "account": "netops-ro"
+ },
+ "stp_summary": {
+  "command": "show stpd",
+  "rc": 0,
+  "lines": 17,
+  "account": "netops-ro"
+ },
+ "stp_detail": {
+  "command": "show stpd detail",
+  "rc": 0,
+  "lines": 40,
+  "account": "netops-ro"
+ },
+ "stacking": {
+  "command": "show stacking",
+  "rc": 250,
+  "lines": 2,
+  "account": "netops-ro"
+ },
+ "stacking_support": {
+  "command": "show stacking-support",
+  "rc": 254,
+  "lines": 2,
+  "account": "netops-ro"
+ },
+ "inline_power": {
+  "command": "show inline-power",
+  "rc": 0,
+  "lines": 9,
+  "account": "netops-ro"
+ },
+ "inline_power_port": {
+  "command": "show inline-power info ports 1",
+  "rc": 0,
+  "lines": 4,
+  "account": "netops-ro"
+ },
+ "access_list_counters": {
+  "command": "show access-list counter",
+  "rc": 0,
+  "lines": 1,
+  "account": "netops-ro"
+ },
+ "qos_profiles": {
+  "command": "show qosprofile",
+  "rc": 254,
+  "lines": 1,
+  "account": "netops-ro"
+ },
+ "licenses": {
+  "command": "show licenses",
+  "rc": 0,
+  "lines": 4,
+  "account": "netops-ro"
+ },
+ "ntp": {
+  "command": "show ntp",
+  "rc": 0,
+  "lines": 4,
+  "account": "netops-ro"
+ },
+ "sntp_client": {
+  "command": "show sntp-client",
+  "rc": 0,
+  "lines": 23,
+  "account": "netops-ro"
+ },
+ "sessions": {
+  "command": "show session",
+  "rc": 0,
+  "lines": 4,
+  "account": "netops-ro"
+ },
+ "elrp": {
+  "command": "show elrp",
+  "rc": 0,
+  "lines": 15,
+  "account": "netops-ro"
+ },
+ "mcast_cache_summary": {
+  "command": "show mcast cache summary",
+  "rc": 0,
+  "lines": 10,
+  "account": "netops-ro"
+ },
+ "mirror": {
+  "command": "show mirror",
+  "rc": 0,
+  "lines": 13,
+  "account": "netops-ro"
+ },
+ "ports_description": {
+  "command": "show ports description",
+  "rc": 0,
+  "lines": 15,
+  "account": "netops-ro"
+ },
+ "ports_rx_errors": {
+  "command": "show ports rxerrors no-refresh",
+  "rc": 0,
+  "lines": 18,
+  "account": "netops-ro"
+ },
+ "ports_tx_errors": {
+  "command": "show ports txerrors no-refresh",
+  "rc": 0,
+  "lines": 19,
+  "account": "netops-ro"
+ },
+ "ipconfig": {
+  "command": "show ipconfig",
+  "rc": 0,
+  "lines": 27,
+  "account": "netops-ro"
+ },
+ "route_table": {
+  "command": "show iproute",
+  "rc": 0,
+  "lines": 35,
+  "account": "netops-ro"
+ },
+ "ipv6_route_table": {
+  "command": "show iproute ipv6",
+  "rc": 0,
+  "lines": 31,
+  "account": "netops-ro"
+ },
+ "lldp_neighbors_detail": {
+  "command": "show lldp neighbors detailed",
+  "rc": 0,
+  "lines": 125,
+  "account": "netops-ro"
+ },
+ "stp_ports": {
+  "command": "show stpd s0 ports",
+  "rc": 0,
+  "lines": 28,
+  "account": "netops-ro"
+ },
+ "mlag_peer": {
+  "command": "show mlag peer",
+  "rc": 0,
+  "lines": 1,
+  "account": "netops-ro"
+ },
+ "mlag_ports": {
+  "command": "show mlag ports",
+  "rc": 0,
+  "lines": 18,
+  "account": "netops-ro"
+ },
+ "inline_power_stats": {
+  "command": "show inline-power stats",
+  "rc": 0,
+  "lines": 4,
+  "account": "netops-ro"
+ },
+ "ntp_association": {
+  "command": "show ntp association",
+  "rc": 0,
+  "lines": 6,
+  "account": "netops-ro"
+ },
+ "log_messages": {
+  "command": "show log messages memory-buffer",
+  "rc": 0,
+  "lines": 743,
+  "account": "netops-ro"
+ },
+ "log_warnings": {
+  "command": "show log messages memory-buffer severity warning",
+  "rc": 0,
+  "lines": 120,
+  "account": "netops-ro"
+ },
+ "log_configuration": {
+  "command": "show log configuration",
+  "rc": 0,
+  "lines": 61,
+  "account": "netops-ro"
+ },
+ "edp_neighbors": {
+  "command": "show edp",
+  "rc": 0,
+  "lines": 5,
+  "account": "netops-ro"
+ }
+}

@@ -1,0 +1,3 @@
+IPv6 Address                              Linklayer Address  State       Exp Rtr Secure Interface
+2001:db8:10::20                           00:00:5e:00:53:a0  stale       549 no  no     irb.10
+fe80::21                                  00:00:5e:00:53:a1  reachable   12  no  no     ae0.0

@@ -1,0 +1,41 @@
+
+
+
+Ethernet0/0            [up/up]
+    unassigned
+Ethernet0/1            [up/up]
+    unassigned
+Ethernet0/1.10         [up/up]
+    unassigned
+Ethernet0/1.20         [up/up]
+    unassigned
+Ethernet0/2            [administratively down/down]
+    unassigned
+Ethernet0/3            [administratively down/down]
+    unassigned
+Ethernet1/0            [administratively down/down]
+    unassigned
+Ethernet1/1            [administratively down/down]
+    unassigned
+Ethernet1/2            [administratively down/down]
+    unassigned
+Ethernet1/3            [administratively down/down]
+    unassigned
+Serial2/0              [administratively down/down]
+    unassigned
+Serial2/1              [administratively down/down]
+    unassigned
+Serial2/2              [administratively down/down]
+    unassigned
+Serial2/3              [administratively down/down]
+    unassigned
+Serial3/0              [administratively down/down]
+    unassigned
+Serial3/1              [administratively down/down]
+    unassigned
+Serial3/2              [administratively down/down]
+    unassigned
+Serial3/3              [administratively down/down]
+    unassigned
+Loopback0              [up/up]
+    unassigned

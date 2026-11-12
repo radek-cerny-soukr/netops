@@ -5,6 +5,7 @@ The negative-test driver explicitly runs all five deliberately failing fixture c
 from __future__ import annotations
 
 import importlib.util
+from contextlib import closing
 import os
 from pathlib import Path
 import shutil
@@ -68,7 +69,7 @@ def test_writes_inside_tmp_path_pass(tmp_path):
     descriptor = os.open(tmp_path / "raw", os.O_WRONLY | os.O_CREAT, 0o600)
     os.fchmod(descriptor, 0o600)
     os.close(descriptor)
-    with sqlite3.connect(tmp_path / "store.sqlite3") as database:
+    with closing(sqlite3.connect(tmp_path / "store.sqlite3")) as database, database:
         database.execute("create table t (v)")
     os.unlink(tmp_path / "raw")
     assert target.read_text(encoding="utf-8") == "{}"

@@ -1,0 +1,41 @@
+VR            Destination      Mac                Age  Static  VLAN          VID   Port
+VR-Default    192.0.2.1        00:00:5e:00:53:01   20      NO  V10           10    13
+VR-Default    192.0.2.3        00:00:5e:00:53:13   18      NO  V10           10    13
+VR-Default    192.0.2.5        00:00:5e:00:53:14   19      NO  V10           10    3
+VR-Default    192.0.2.7        00:00:5e:00:53:1e   19      NO  V10           10    11
+VR-Default    192.0.2.11       00:00:5e:00:53:03    6      NO  V10           10    11
+VR-Default    192.0.2.14       00:00:5e:00:53:04   20      NO  V10           10    3
+VR-Default    192.0.2.20       00:00:5e:00:53:0c   18      NO  V10           10    13
+VR-Default    192.0.2.25       00:00:5e:00:53:05   20      NO  V10           10    11
+VR-Default    192.0.2.33       00:00:5e:00:53:12    4      NO  V10           10    13
+VR-Default    192.0.2.34       00:00:5e:00:53:15   19      NO  V10           10    13
+VR-Default    192.0.2.35       00:00:5e:00:53:11   19      NO  V10           10    6
+VR-Default    192.0.2.36       00:00:5e:00:53:06   20      NO  V10           10    13
+VR-Default    192.0.2.37       00:00:5e:00:53:16   19      NO  V10           10    13
+VR-Default    192.0.2.44       00:00:5e:00:53:1f   18      NO  V10           10    13
+VR-Default    192.0.2.50       00:00:5e:00:53:20   20      NO  V10           10    3
+VR-Default    192.0.2.60       00:00:5e:00:53:07   20      NO  V10           10    3
+VR-Default    192.0.2.67       00:00:5e:00:53:08   18      NO  V10           10    13
+VR-Default    192.0.2.88       00:00:5e:00:53:10   19      NO  V10           10    2
+VR-Default    192.0.2.99       00:00:5e:00:53:21   19      NO  V10           10    2
+VR-Default    192.0.2.110      00:00:5e:00:53:0b   20      NO  V10           10    13
+VR-Default    192.0.2.111      00:00:5e:00:53:09   20      NO  V10           10    13
+VR-Default    192.0.2.204      00:00:5e:00:53:0a    5      NO  V10           10    2
+VR-Default    192.0.2.205      00:00:5e:00:53:22   20      NO  V10           10    2
+VR-Default    192.0.2.206      00:00:5e:00:53:0a   19      NO  V10           10    2
+
+Dynamic Entries  :          24             Static Entries            :          0
+Pending Entries  :           0
+
+ARP address check:    Enabled              ARP refresh               :    Enabled
+Timeout          :          20 minutes     ARP Sender-Mac Learning   :   Disabled
+Locktime         :        1000 milliseconds
+Retransmit Time  :        1000 milliseconds
+Reachable Time   :      900000 milliseconds (Auto)
+Fast Convergence :         Off 
+
+ARP Global Settings
+Max Entries         :    12288 
+Max Pending Entries :      256 
+Max Proxy Entries   :      256 
+

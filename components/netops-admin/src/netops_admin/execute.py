@@ -81,11 +81,15 @@ def export_state(config) -> tuple:
                               require_audit_file=config.export_status_require_audit_file)
 
 
-def _finish(runtime, record, result, reason=None, differences=None):
+def _finish(runtime, record, result, reason=None, differences=None, reason_code=None):
     record["status"] = "finished"
     record["finished_at_epoch"] = time.time()
     record["result"] = result
     record["reason"] = reason
+    if result == "rejected":
+        # a refusal recorded here carries the same machine fields as a refusal raised before the operation
+        record["reason_codes"] = [reason_code or "unspecified_refusal"]
+        record["reason_details"] = []
     record["differences"] = differences or []
     state, _why = export_state(runtime.config)
     record["audit_delivery"] = "pending" if state in ("acknowledged", "pending") else state
@@ -286,18 +290,18 @@ def _budgets(runtime, device, changes=1) -> None:
         raise Rejected(["the transaction change count must be in 1..32"])
     limits, now = runtime.config.limits, runtime.store.budget_now()
     if runtime.store.rejections_since(now - HOUR) >= limits["rejections_per_hour"]:
-        raise BudgetExhausted(["the budget of rejected requests for this hour is exhausted"])
+        raise BudgetExhausted(["the budget of rejected requests for this hour is exhausted"], reason_details=[{"code": "budget_exhausted", "budget": "rejected_hour"}])
     records = runtime.store.records()
     if len(records) >= limits["journal_records"]:
-        raise BudgetExhausted(["the journal holds its maximum number of operations; archive it before new changes"])
+        raise BudgetExhausted(["the journal holds its maximum number of operations; archive it before new changes"], reason_details=[{"code": "budget_exhausted", "budget": "journal_records"}])
     counted = [record for record in records if "safeguard" in record or record.get("status") == "running"]
     started = [(record.get("budget_at_epoch", record.get("created_at_epoch")) or 0, record.get("budget_changes", 1)) for record in counted]
     mine = [(record.get("budget_at_epoch", record.get("created_at_epoch")) or 0, record.get("budget_changes", 1)) for record in counted
             if record.get("device") == device.name]
     if sum(weight for moment, weight in mine if moment >= now - HOUR) + changes > limits["changes_per_device_per_hour"]:
-        raise BudgetExhausted(["the budget of changes on this device for this hour is exhausted"])
+        raise BudgetExhausted(["the budget of changes on this device for this hour is exhausted"], reason_details=[{"code": "budget_exhausted", "budget": "device_hour"}])
     if sum(weight for moment, weight in started if moment >= now - DAY) + changes > limits["changes_per_day"]:
-        raise BudgetExhausted(["the budget of changes for this day is exhausted"])
+        raise BudgetExhausted(["the budget of changes for this day is exhausted"], reason_details=[{"code": "budget_exhausted", "budget": "global_day"}])
 
 
 def _count_rejection(runtime) -> None:
@@ -351,7 +355,7 @@ def _known(runtime, device, request):
     if known is None:
         return _journaled(runtime, device, request)
     if known["request_sha256"] != request.fingerprint() or known["device"] != device.name:
-        raise Rejected([REUSED_REQUEST])
+        raise Rejected([REUSED_REQUEST], reason_codes=["request_id_reused"])
     record = runtime.store.operation(known["change_id"])
     if record is None:
         raise runtime.store.unreadable(runtime.store.operations / ("%s.json" % known["change_id"]))
@@ -362,7 +366,7 @@ def _journaled(runtime, device, request):
     found = [record for record in runtime.store.records() if record.get("request_id") == request.request_id]
     if any(record.get("request_sha256") != request.fingerprint() or record.get("device") != device.name
            for record in found):
-        raise Rejected([REUSED_REQUEST])
+        raise Rejected([REUSED_REQUEST], reason_codes=["request_id_reused"])
     return found[0] if found else None
 
 
@@ -392,12 +396,14 @@ def _preview(runtime, device_name: str, request):
                         "reasons": ["request_id already started an operation; apply returns it without running again"]}, False
             prepared = _prepared(runtime, device, adapter, request, ANY_STATE, False, missing)
         except Rejected as exc:
-            return ({"result": "rejected", "device": device.name, "reasons": list(exc.reasons)},
+            return ({"result": "rejected", "device": device.name, "reasons": list(exc.reasons), "reason_codes": list(exc.reason_codes), "reason_details": list(exc.reason_details)},
                     not isinstance(exc, BudgetExhausted))
     plan, audit_before, coverage = prepared[4], prepared[5], prepared[7]
     return {
         "result": "rejected" if missing else "ready",
-        "reasons": missing,
+        "reasons": [reason for exc in missing for reason in exc.reasons],
+        "reason_codes": [code for exc in missing for code in exc.reason_codes],
+        "reason_details": [detail for exc in missing for detail in exc.reason_details],
         "device": device.name,
         "platform": plan["platform"],
         "firmware": plan["firmware"],
@@ -424,13 +430,13 @@ def _prepared(runtime, device, adapter, request, expected_before, enrolling, mis
     blocked = runtime.store.blocked(device.name)
     if blocked is not None:
         raise Rejected(["the device is blocked (%s, operation %s); a person must investigate and unblock it"
-                        % (blocked.get("reason"), blocked.get("change_id") or "none")])
+                        % (blocked.get("reason"), blocked.get("change_id") or "none")], reason_codes=["device_blocked"])
     undelivered = _undelivered(runtime, device.name)
     if undelivered:
         raise Rejected(["the notification of operation %s was not delivered; run notify-retry, or a person"
-                        " unblocks the device after checking the notification channel" % undelivered[0]])
+                        " unblocks the device after checking the notification channel" % undelivered[0]], reason_codes=["notification_pending"])
     if runtime.store.running(device.name):
-        raise Rejected(["an unfinished operation exists on this device; run recover first"])
+        raise Rejected(["an unfinished operation exists on this device; run recover first"], reason_codes=["operation_unfinished"])
     runtime.store.check_writable()
     runtime.audit.check_writable()
     export, why = export_state(config)
@@ -480,7 +486,7 @@ def _prepared(runtime, device, adapter, request, expected_before, enrolling, mis
         try:
             enrollment.require(runtime, device, accounts, plan["firmware"])
         except Rejected as exc:
-            missing.extend(exc.reasons)
+            missing.append(exc)
     elif not enrolling:
         enrollment.require(runtime, device, accounts, plan["firmware"])
     elif runtime.notifier is None or (export not in ("acknowledged", "pending")
@@ -515,7 +521,7 @@ def _prepared(runtime, device, adapter, request, expected_before, enrolling, mis
         seen = engine.observed_state(plan, adapter.observe(access, plan))
     except Rejected as exc:
         raise Rejected(["the check account answer about the object before the change was refused: %s"
-                        % "; ".join(exc.reasons)]) from None
+                        % "; ".join(exc.reasons)], reason_codes=exc.reason_codes, reason_details=exc.reason_details) from None
     except Exception as exc:
         raise Rejected(["the check account could not read the object before the change (%s)"
                         % type(exc).__name__]) from None
@@ -578,7 +584,8 @@ def _apply(runtime, device_name: str, request, expected_before, enrolling=False,
             except Exception:
                 delivered = "failed"
             if delivered != "sent":
-                return _finish(runtime, record, "rejected", "enrollment notification unavailable")
+                return _finish(runtime, record, "rejected", "enrollment notification unavailable",
+                               reason_code="notification_unavailable")
             _step(runtime, record, "enrollment_notification_verified")
             runtime.store.clear_enrollment(device.name)
         result = _execute(runtime, adapter, access, record, plan, device)
@@ -591,7 +598,7 @@ def _execute(runtime, adapter, access, record, plan, device) -> dict:
         fire_at = adapter.clock(access) + datetime.timedelta(seconds=device.safeguard_seconds)
     except Exception as exc:
         _step(runtime, record, "clock_unreadable", type(exc).__name__)
-        return _finish(runtime, record, "rejected", "device clock")
+        return _finish(runtime, record, "rejected", "device clock", reason_code="device_clock_unreadable")
     record["safeguard"] = {"fire_at": fire_at.strftime(FIRE_AT_FORMAT), "name": adapter.safeguard_label(change_id)}
     _step(runtime, record, "safeguard_install")
     try:
@@ -785,7 +792,7 @@ def undo(runtime, change_id: str, reason: str) -> dict:
         return _apply_counted(runtime, original["device"], request, expected_before=expected, undo=True)
     except Rejected as exc:
         if exc.reasons == [REUSED_REQUEST]:
-            raise Rejected([UNDO_DONE]) from None
+            raise Rejected([UNDO_DONE], reason_codes=["undo_already_done"]) from None
         raise
 
 
@@ -798,7 +805,8 @@ def recover(runtime, device_name: str) -> list:
         for record in runtime.store.running(device.name):
             if "safeguard" not in record:
                 _step(runtime, record, "recovery_start")
-                settled.append(_finish(runtime, record, "rejected", "interrupted before any mutation"))
+                settled.append(_finish(runtime, record, "rejected", "interrupted before any mutation",
+                                       reason_code="interrupted_before_mutation"))
                 continue
             plan = _stored_plan(runtime, record)
             adapter = _adapter(plan["platform"], schema_runtime.is_plan(plan))

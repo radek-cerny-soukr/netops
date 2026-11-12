@@ -1,0 +1,2 @@
+client-info vfid intf sta_ip
+Command fail. Return code -61

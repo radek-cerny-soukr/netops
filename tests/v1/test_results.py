@@ -27,6 +27,10 @@ class ToolFailures(unittest.TestCase):
         self.assertTrue(tool_failed("admin", "admin_status", self.result(result="unknown-operation")))
         self.assertFalse(tool_failed("admin", "admin_status", self.result(result="rejected", status="finished")))
 
+    def test_local_doctor_uses_local_readiness(self):
+        self.assertTrue(tool_failed("admin", "admin_doctor", self.result(scope="local", local_ready=False, ready=False)))
+        self.assertFalse(tool_failed("admin", "admin_doctor", self.result(scope="local", local_ready=True, ready=False)))
+
     def test_auditor_findings_are_successful_queries(self):
         self.assertFalse(tool_failed("auditor", "list_findings", self.result(status="fail", findings=[{"status":"failed"}])))
         self.assertTrue(tool_failed("auditor", "list_findings", {"isError": True}))
@@ -105,6 +109,15 @@ class AdminUnifiedAuditPaths(unittest.TestCase):
             self.assertEqual(operator.role_cli("admin", ["doctor", "--device", "example-device"]), 0)
         main.assert_called_once_with(["doctor", "--config", "/var/lib/netops/admin/config.json",
                                       "--device", "example-device"], require_export=False)
+
+    def test_operator_forwards_local_doctor_to_admin_cli(self):
+        from netops import operator
+        with patch("netops.operator.os.geteuid", return_value=0), patch("netops.operator.acquire_state", return_value=99), \
+             patch("netops.operator.demote"), patch("netops.operator._admin_audit_preflight"), patch("netops.operator.role_environment"), patch("netops.operator.os.close"), \
+             patch("netops_admin.config.load_config"), patch("netops_admin.cli.build_runtime") as build, \
+             patch("netops_admin.readiness.doctor", return_value={"local_ready": True, "ready": False}) as doctor:
+            self.assertEqual(operator.role_cli("admin", ["doctor", "--device", "lab", "--local"]), 0)
+        doctor.assert_called_once_with(build.return_value, "lab", local=True)
 
     def test_operator_supplies_state_configuration_to_fortiadc_pool_member_commands(self):
         from netops import operator
@@ -306,7 +319,7 @@ class SafeConfigurationDiagnostics(unittest.TestCase):
                 (state / "gateway").mkdir(mode=0o700)
                 from netops.files import write_private
                 write_private(state / "gateway/config.json", json.dumps({
-                    "version": 1, "product_version": "1.0.6", "audit": {"mode": "local"}}).encode())
+                    "version": 1, "product_version": "1.0.7", "audit": {"mode": "local"}}).encode())
                 (state / role).mkdir(mode=0o700)
                 stream = io.TextIOWrapper(io.BytesIO(json.dumps(document).encode()))
                 errors = io.StringIO()

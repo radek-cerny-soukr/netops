@@ -1,0 +1,14 @@
+
+
+
+Protocol  Address          Age (min)  Hardware Addr   Type   Interface
+Internet  192.0.2.1              27   0000.5e00.5301  ARPA   Ethernet0/1.10
+Internet  192.0.2.2              26   0000.5e00.5302  ARPA   Ethernet0/1.10
+Internet  192.0.2.3             131   0000.5e00.530d  ARPA   Ethernet0/1.10
+Internet  192.0.2.5               5   0000.5e00.5303  ARPA   Ethernet0/1.10
+Internet  192.0.2.6               0   0000.5e00.5304  ARPA   Ethernet0/1.10
+Internet  192.0.2.7               -   0000.5e00.5305  ARPA   Ethernet0/1.10
+Internet  198.51.100.7            -   0000.5e00.5305  ARPA   Ethernet0/1.20
+Internet  203.0.113.1             5   0000.5e00.5306  ARPA   Ethernet0/0
+Internet  203.0.113.52           38   0000.5e00.530f  ARPA   Ethernet0/0
+Internet  203.0.113.57            -   0000.5e00.530a  ARPA   Ethernet0/0

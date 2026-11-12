@@ -33,7 +33,8 @@ def make_pki(d, constrained, leaf_days):
     cnf = os.path.join(d, "ca.cnf")
     with open(cnf, "w") as f:
         f.write("[req]\ndistinguished_name=dn\n[dn]\n")
-        f.write(open(ca_ext).read())
+        with open(ca_ext) as extensions:
+            f.write(extensions.read())
     openssl("req", "-x509", "-newkey", "ec", "-pkeyopt", "ec_paramgen_curve:P-256", "-nodes", "-keyout", "ca.key", "-out", "ca.pem",
             "-days", "3650", "-subj", "/CN=NetOps test CA", "-extensions", "v3", "-config", cnf, cwd=d)
     leaf_ext = os.path.join(d, "leaf.ext")
@@ -64,9 +65,11 @@ class Blackbox(unittest.TestCase):
                 proc = subprocess.run([sys.executable, TOOL, "--url", "https://localhost:%d/mcp" % port, "--ca", os.path.join(d, "ca.pem"),
                                        "--token-file", token_file, "--expect-name", "localhost", "--expect-tool", "helper_status",
                                        "--expect-tool", "audit_status", "--output", out], capture_output=True, text=True, timeout=120)
-                report = json.load(open(out))
+                with open(out) as stream:
+                    report = json.load(stream)
             finally:
                 server.shutdown()
+                server.server_close()
         return proc.returncode, {c["check"]: c["status"] for c in report["checks"]}, proc.stdout
 
     def test_correct_server_passes(self):
@@ -105,14 +108,17 @@ class Blackbox(unittest.TestCase):
             server = mock_server.serve(port, os.path.join(d, "leaf.pem"), os.path.join(d, "leaf.key"), TOKEN, False)
             try:
                 tf = os.path.join(d, "token")
-                open(tf, "w").write(TOKEN)
+                with open(tf, "w") as f:
+                    f.write(TOKEN)
                 out = os.path.join(d, "r.json")
                 subprocess.run([sys.executable, TOOL, "--url", "https://localhost:%d/mcp" % port, "--ca", os.path.join(d, "ca.pem"),
                                 "--token-file", tf, "--expect-name", "localhost", "--expect-tool", "admin_apply", "--output", out],
                                capture_output=True, text=True, timeout=120)
-                checks = {c["check"]: c for c in json.load(open(out))["checks"]}
+                with open(out) as stream:
+                    checks = {c["check"]: c for c in json.load(stream)["checks"]}
             finally:
                 server.shutdown()
+                server.server_close()
         self.assertEqual(checks["mcp-initialize-and-list"]["status"], "FAIL")
         self.assertIn("admin_apply", checks["mcp-initialize-and-list"]["detail"])
 

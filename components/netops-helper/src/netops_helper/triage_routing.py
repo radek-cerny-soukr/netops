@@ -3,11 +3,12 @@ from __future__ import annotations
 import ipaddress
 import re
 
-from .triage_health import (REASONS, SDWAN_NOT_RUNNING, Unparsed, UnsupportedPlatform, _lines, _utc,
+from .triage_health import (missing_read, SDWAN_NOT_RUNNING, Unparsed, UnsupportedPlatform, _lines, _utc,
                             sdwan_health)
 
 IDENTITIES = frozenset({
     ("FortiGate-60F", "7.6.8", "3744"),
+    ("FortiGate-80F", "8.0.2", "0251"),
 })
 STEPS = ("system_status", "route_lookup", "policy_routes_ipv4", "sdwan_health", "arp_table")
 PLANNED_READS = len(STEPS)
@@ -17,7 +18,13 @@ NOT_SIMULATED = (
     "firewall policy, NAT and session state",
     "recursive next-hop resolution",
 )
+_INTERFACE_NAME = re.compile(r"[A-Za-z0-9_][A-Za-z0-9_.-]{0,14}")
 _IPV4 = r"\d{1,3}(?:\.\d{1,3}){3}"
+
+
+def vdom_mode(text):
+    found = re.search(r"^Virtual domain configuration: *(\S+) *$", text, re.MULTILINE)
+    return found.group(1) if found else None
 
 
 def identity(text):
@@ -31,12 +38,11 @@ def identity(text):
     return {"product": found[0], "version": found[1], "build": found[2]}
 
 
-def route_lookup(text):
-    lines = [line for line in _lines(text) if line.strip()]
-    body = [line.strip() for line in lines if not re.fullmatch(r"Routing table for VRF=\d+", line.strip())]
-    if body == ["% Network not in table"]:
-        return None
-    if len(body) < 3 or not body[0].startswith("Routing entry for "):
+_VRF = r"(?:\d+|default\(\d+\))"
+
+
+def _route_entry(body):
+    if len(body) < 2:
         raise Unparsed()
     prefix = re.fullmatch(r"Routing entry for (" + _IPV4 + r"/\d{1,2})", body[0])
     known = re.fullmatch(r'Known via "([^"]+)", distance (\d+), metric (\d+)(, best)?(?:, .*)?', body[1])
@@ -48,12 +54,13 @@ def route_lookup(text):
     for line in body[2:]:
         if re.fullmatch(r"Last update \S+ ago", line):
             continue
-        hop = re.fullmatch(r"(\* )?(?:vrf \d+ )?(?:is )?directly connected, ([^\s,]+)(?:, .*)?", line)
+        hop = re.fullmatch(r"(\* )?(?:vrf " + _VRF + r" )?(?:is )?directly connected, ([^\s,]+)(?:, .*)?", line)
         if hop:
             route["next_hops"].append({"fib": bool(hop.group(1)), "gateway": None, "interface": hop.group(2),
                                        "recursive": []})
             continue
-        hop = re.fullmatch(r"(\* )?vrf \d+ (" + _IPV4 + r")(.*)", line) or re.fullmatch(r"(\* )(" + _IPV4 + r")(.*)", line)
+        hop = (re.fullmatch(r"(\* )?vrf " + _VRF + r" (" + _IPV4 + r")(.*)", line)
+               or re.fullmatch(r"(\* )(" + _IPV4 + r")(.*)", line))
         if hop:
             rest = hop.group(3)
             via = re.search(r"(?:^|,) ?via ([^\s,]+)", rest)
@@ -72,6 +79,28 @@ def route_lookup(text):
         if item["gateway"] is not None:
             ipaddress.IPv4Address(item["gateway"])
     return route
+
+
+def route_lookup(text):
+    lines = [line for line in _lines(text) if line.strip()]
+    body = [line.strip() for line in lines if not re.fullmatch(r"Routing table for VRF=" + _VRF, line.strip())]
+    if body == ["% Network not in table"]:
+        return None
+    if len(body) < 3 or not body[0].startswith("Routing entry for "):
+        raise Unparsed()
+    blocks = []
+    for line in body:
+        if line.startswith("Routing entry for "):
+            blocks.append([])
+        blocks[-1].append(line)
+    routes = [_route_entry(block) for block in blocks]
+    if len(routes) == 1:
+        return routes[0]
+    # FortiOS 8.0.2 lists every route of the matching prefix (e.g. a non-best BGP route beside the connected one)
+    best = [route for route in routes if route["best"]]
+    if len(best) != 1:
+        raise Unparsed()
+    return best[0]
 
 
 def _covers(value, address):
@@ -164,12 +193,25 @@ def arp_table(text):
     return rows
 
 
+def _member_interface(member):
+    # FortiOS names allow only letters, digits, space, "-" and "_" (Fortinet naming rules,
+    # https://community.fortinet.com/fortigate-3/technical-tip-naming-rules-and-character-restrictions-98552),
+    # so a "/" in a member name always separates "<interface>/<member name>" (8.0.2: LTE-1/MOD-1-LTE).
+    name = member["member"]
+    return name.split("/", 1)[0] if name else None
+
+
+def _fib_interfaces(route):
+    return {hop["interface"] for hop in (route or {}).get("next_hops", ())
+            if hop["fib"] and hop["interface"] is not None}
+
+
 def _source(query, answer, moment):
     return {"call": "triage_routing", "query": query, "content_sha256": answer["content_sha256"],
             "captured_at": _utc(moment)}
 
 
-def _evaluate(address, parsed, sources):
+def _evaluate(address, parsed, sources, alias):
     findings = []
     hypotheses = []
     next_steps = []
@@ -185,7 +227,7 @@ def _evaluate(address, parsed, sources):
         if hop["recursive"] or hop["interface"] is None:
             continue
         for member in members:
-            if member["member"] == hop["interface"] and member["state"] == "dead":
+            if _member_interface(member) == hop["interface"] and member["state"] == "dead":
                 findings.append({"id": "F-EGRESS-SDWAN-DEAD", "layer": "sdwan",
                                  "object": "sdwan:%s:%d" % (member["health_check"], member["seq"]),
                                  "fact": "next hop via %s; Seq(%d %s): state(dead)" % (
@@ -230,10 +272,20 @@ def _evaluate(address, parsed, sources):
             hypotheses.append({"id": "H-POLICY-UNEVALUATED", "basis": [sources["policy_routes_ipv4"]],
                                "text": "policy route ids %s use internet services, negation or no destination "
                                        "list and were not evaluated" % ", ".join(str(i) for i in proute["unevaluated"])})
+    interface = next((hop["interface"] for hop in hops if hop["interface"] is not None
+                      and _INTERFACE_NAME.fullmatch(hop["interface"])), None)
+    if interface is not None:
+        next_steps.extend(
+            {"tool": "fortios_diagnostics",
+             "arguments": {"target": alias, "recipe": recipe, "address": address, "interface": interface},
+             "why": "measure from the firewall through %s, the interface of the first forwarding next hop "
+                    "(the target must enroll the recipe, the address and this interface)" % interface}
+            for recipe in ("ping", "traceroute")
+        )
     return findings, hypotheses, next_steps
 
 
-def run(read, clock, address):
+def run(read, clock, address, alias):
     started = clock()
     target = str(ipaddress.IPv4Address(address))
     first = read("system_status", None)
@@ -248,8 +300,7 @@ def run(read, clock, address):
         moment = clock()
         answer = read(query, {"address": target} if query == "route_lookup" else None)
         if not answer.get("ok"):
-            reason = answer.get("reason")
-            missing.append({"step": query, "reason": reason if reason in REASONS else "device_cli_error"})
+            missing.append(missing_read(query, answer))
             continue
         text = answer["text"]
         if query == "sdwan_health" and (not text.strip() or text.strip() in SDWAN_NOT_RUNNING):
@@ -273,7 +324,7 @@ def run(read, clock, address):
             missing.append({"step": query, "reason": "unparsed"})
         else:
             checked.append(query)
-    findings, hypotheses, next_steps = _evaluate(target, parsed, sources)
+    findings, hypotheses, next_steps = _evaluate(target, parsed, sources, alias)
     gaps = [item for item in missing if item["reason"] != "not_applicable"]
     if gaps:
         verdict = "incomplete"
@@ -293,18 +344,19 @@ def run(read, clock, address):
                                  "absent" if not rows else
                                  "complete" if any(row["complete"] for row in rows) else "incomplete"})
     sdwan = parsed.get("sdwan_health")
+    fib_interfaces = _fib_interfaces(route)
     chain = {
         "route": route,
         "policy_routes": parsed.get("policy_routes_ipv4"),
         "sdwan": None if sdwan is None else {
-            "egress_members": [m for m in sdwan if route and m["member"] in
-                               {hop["interface"] for hop in route["next_hops"] if hop["fib"]}],
+            "egress_members": [m for m in sdwan if _member_interface(m) in fib_interfaces],
             "member_names_shown": all(m["member"] for m in sdwan)},
         "gateways": gateways if route and arp is not None else None,
     }
     return {
         "ok": True,
         "identity": ident,
+        "vdom_mode": vdom_mode(first["text"]),
         "address": target,
         "started_at": _utc(started),
         "finished_at": _utc(clock()),

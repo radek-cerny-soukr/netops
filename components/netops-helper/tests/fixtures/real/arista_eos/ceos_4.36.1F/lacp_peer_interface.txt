@@ -1,0 +1,1 @@
+Interface Ethernet1 is not a member of a port channel.

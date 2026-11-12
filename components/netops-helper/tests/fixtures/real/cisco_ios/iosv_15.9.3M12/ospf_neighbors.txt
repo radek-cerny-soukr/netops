@@ -1,0 +1,8 @@
+
+
+
+
+Neighbor ID     Pri   State           Dead Time   Address         Interface
+203.0.113.131     1   FULL/BDR        00:00:36    192.0.2.3       GigabitEthernet0/1.10
+203.0.113.133     1   2WAY/DROTHER    00:00:32    192.0.2.5       GigabitEthernet0/1.10
+203.0.113.135     1   FULL/DR         00:00:36    192.0.2.7       GigabitEthernet0/1.10

@@ -1,0 +1,125 @@
+
+-----------------------------------------------------------------------------
+LLDP Port 1 detected 1 neighbor
+  Neighbor: 00:00:5E:00:53:02/Ethernet2, age 16 seconds
+    - Chassis ID type: MAC address (4)
+      Chassis ID     : 00:00:5E:00:53:02
+    - Port ID type: ifName (5)
+      Port ID     : "Ethernet2"
+    - Time To Live: 120 seconds
+    - System Name: "host04"
+    - System Description: "Arista Networks EOS version 4.36.1F-48405728.4361\
+                           F (engineering build) running on an Arista cEOSLa\
+                           b"
+    - System Capabilities : "Bridge, Router"
+      Enabled Capabilities: "Bridge, Router"
+    - Management Address Subtype: IPv4 (1)
+      Management Address        : 203.0.113.131
+      Interface Number Subtype  : ifIndex (2)
+      Interface Number          : 5000000
+      Object ID String          : "null"
+    - IEEE802.1 Port VLAN Identifier: 1
+    - IEEE802.3 Link-aggregation
+      Capability/Status : Capable, Disabled (0x01)
+      Aggregated Port ID: 0 (0x00000000)
+    - IEEE802.3 Maximum Frame Size: 9236 bytes
+    - MED Serial Number: "S000S0000SS0SSS0SSS0S0S000S00S04"
+
+-----------------------------------------------------------------------------
+LLDP Port mgmt detected 4 neighbors
+  Neighbor: 00:00:5E:00:53:02/Management0, age 2 seconds
+    - Chassis ID type: MAC address (4)
+      Chassis ID     : 00:00:5E:00:53:02
+    - Port ID type: ifName (5)
+      Port ID     : "Management0"
+    - Time To Live: 120 seconds
+    - System Name: "host04"
+    - System Description: "Arista Networks EOS version 4.36.1F-48405728.4361\
+                           F (engineering build) running on an Arista cEOSLa\
+                           b"
+    - System Capabilities : "Bridge, Router"
+      Enabled Capabilities: "Bridge, Router"
+    - Management Address Subtype: IPv4 (1)
+      Management Address        : 203.0.113.131
+      Interface Number Subtype  : ifIndex (2)
+      Interface Number          : 5000000
+      Object ID String          : "null"
+    - IEEE802.1 Port VLAN Identifier: 0
+    - IEEE802.3 Link-aggregation
+      Capability/Status : Incapable, Disabled (0x00)
+      Aggregated Port ID: 0 (0x00000000)
+    - IEEE802.3 Maximum Frame Size: 9232 bytes
+    - MED Serial Number: "S000S0000SS0SSS0SSS0S0S000S00S04"
+    - MED Capabilities: "MED Capabilities"
+      MED Device Type : Network Connectivity (4)
+
+  Neighbor: 00:00:5E:00:53:07/Gi0/0, age 29 seconds
+    - Chassis ID type: MAC address (4)
+      Chassis ID     : 00:00:5E:00:53:07
+    - Port ID type: ifName (5)
+      Port ID     : "Gi0/0"
+    - Time To Live: 120 seconds
+    - System Name: "host02"
+    - System Description: "Cisco IOS Software, vios_l2 Software (vios_l2-ADV\
+                           ENTERPRISEK9-M), Experimental Version 15.2(202009\
+                           24:215240) [sweickge-sep24-2020-l2iol-release 135\
+                           ].Copyright (c) 1986-2020 by Cisco Systems, Inc..\
+                           Compiled Tue 29-Sep-20 11:53 by sweickge"
+    - Port Description: "GigabitEthernet0/0"
+    - System Capabilities : "Bridge, Router"
+      Enabled Capabilities: "Router"
+    - Management Address Subtype: IPv4 (1)
+      Management Address        : 192.0.2.2
+      Interface Number Subtype  : ifIndex (2)
+      Interface Number          : 6
+      Object ID String          : "null"
+    - MED Capabilities: "MED Capabilities, Inventory"
+      MED Device Type : Network Connectivity (4)
+    - MED Hardware Revision: "IOSv ():1.0"
+    - MED Software Revision: "15.2(20200924:215240)"
+    - MED Manufacturer Name: "Cisco Systems, Inc."
+    - MED Model Name: "IOSv"
+
+  Neighbor: 00:00:5E:00:53:06/Gi0/0, age 22 seconds
+    - Chassis ID type: MAC address (4)
+      Chassis ID     : 00:00:5E:00:53:06
+    - Port ID type: ifName (5)
+      Port ID     : "Gi0/0"
+    - Time To Live: 120 seconds
+    - System Name: "host07"
+    - System Description: "Cisco IOS Software, IOSv Software (VIOS-ADVENTERP\
+                           RISEK9-M), Version 15.9(3)M12, RELEASE SOFTWARE (\
+                           fc1).Technical Support: http://www.cisco.com/tech\
+                           support.Copyright (c) 1986-2025 by Cisco Systems,\
+                            Inc..Compiled Fri 19-Sep-25 07:49 by mcpre"
+    - Port Description: "GigabitEthernet0/0"
+    - System Capabilities : "Bridge, Router"
+      Enabled Capabilities: "Router"
+    - Management Address Subtype: IPv4 (1)
+      Management Address        : 203.0.113.51
+      Interface Number Subtype  : ifIndex (2)
+      Interface Number          : 1
+      Object ID String          : "null"
+
+  Neighbor: 00:00:5E:00:53:09/Et0/0, age 5 seconds
+    - Chassis ID type: MAC address (4)
+      Chassis ID     : 00:00:5E:00:53:09
+    - Port ID type: ifName (5)
+      Port ID     : "Et0/0"
+    - Time To Live: 120 seconds
+    - System Name: "host03"
+    - System Description: "Cisco IOS Software [IOSXE], Linux Software (X86_6\
+                           4BI_LINUX-ADVENTERPRISEK9-M), Version 17.18.2, RE\
+                           LEASE SOFTWARE (fc3).Technical Support: http://ww\
+                           w.cisco.com/techsupport.Copyright (c) 1986-2025 b\
+                           y Cisco Systems, Inc..Compiled Fri 19-Dec-25 03:2\
+                           8 by mcpre"
+    - Port Description: "Ethernet0/0"
+    - System Capabilities : "Bridge, Router"
+      Enabled Capabilities: "Router"
+    - Management Address Subtype: IPv4 (1)
+      Management Address        : 203.0.113.57
+      Interface Number Subtype  : System Port Number (3)
+      Interface Number          : 1
+      Object ID String          : "null"
+

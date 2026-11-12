@@ -1,0 +1,28 @@
+IP Route Table for VRF "default"
+'*' denotes best ucast next-hop
+'**' denotes best mcast next-hop
+'[x/y]' denotes [preference/metric]
+'%<string>' in via output denotes VRF <string>
+
+192.0.2.0/24, ubest/mbest: 1/0, attached
+    *via 192.0.2.5, Vlan10, [0/0], 02:06:14, direct
+192.0.2.5/32, ubest/mbest: 1/0, attached
+    *via 192.0.2.5, Vlan10, [0/0], 02:06:14, local
+198.51.100.0/24, ubest/mbest: 1/0, attached
+    *via 198.51.100.5, Vlan20, [0/0], 02:06:14, direct
+198.51.100.5/32, ubest/mbest: 1/0, attached
+    *via 198.51.100.5, Vlan20, [0/0], 02:06:14, local
+203.0.113.1/32, ubest/mbest: 1/0
+    *via 192.0.2.1, Vlan10, [110/41], 01:54:58, ospf-29, intra
+203.0.113.3/32, ubest/mbest: 1/0
+    *via 192.0.2.3, Vlan10, [110/50], 01:54:58, ospf-29, intra
+203.0.113.5/32, ubest/mbest: 2/0, attached
+    *via 203.0.113.5, Lo0, [0/0], 02:33:55, local
+    *via 203.0.113.5, Lo0, [0/0], 02:33:55, direct
+203.0.113.6/32, ubest/mbest: 1/0
+    *via 192.0.2.6, Vlan10, [110/40], 01:25:57, ospf-29, intra
+203.0.113.7/32, ubest/mbest: 1/0
+    *via 192.0.2.7, Vlan10, [110/41], 01:54:58, ospf-29, intra
+198.51.100.128/25, ubest/mbest: 1/0
+    *via 192.0.2.1, [1/0], 00:23:53, static
+

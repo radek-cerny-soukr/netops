@@ -1,0 +1,63 @@
+----------------------------------------
+Device ID:host03
+
+Interface address(es): 1
+    IPv4 Address: 203.0.113.180
+Platform: Cisco , Capabilities: Router Switch IGMP Filtering 
+Interface: mgmt0, Port ID (outgoing port): GigabitEthernet0/0
+Holdtime: 125 sec
+
+Version:
+Cisco IOS Software, vios_l2 Software (vios_l2-ADVENTERPRISEK9-M), Experimental Version 15.2(20200924:215240) [sweickge-sep24-2020-l2iol-release 135]
+Copyright (c) 1986-2020 by Cisco Systems, Inc.
+Compiled Tue 29-Sep-20 11:53 by sweickge
+
+Advertisement Version: 2
+
+Native VLAN: 99
+Duplex: full
+Mgmt address(es):
+    IPv4 Address: 203.0.113.180
+Local Interface MAC: 00:00:5e:00:53:0a
+Remote Interface MAC: 00:00:5e:00:53:09
+----------------------------------------
+Device ID:host04
+
+Interface address(es): 1
+    IPv4 Address: 203.0.113.179
+Platform: Cisco , Capabilities: Router Source-Route-Bridge 
+Interface: mgmt0, Port ID (outgoing port): GigabitEthernet0/0
+Holdtime: 136 sec
+
+Version:
+Cisco IOS Software, IOSv Software (VIOS-ADVENTERPRISEK9-M), Version 15.9(3)M12, RELEASE SOFTWARE (fc1)
+Technical Support: http://www.cisco.com/techsupport
+Copyright (c) 1986-2025 by Cisco Systems, Inc.
+Compiled Fri 19-Sep-25 07:49 by mcpre
+
+Advertisement Version: 2
+Mgmt address(es):
+    IPv4 Address: 203.0.113.179
+Local Interface MAC: 00:00:5e:00:53:0a
+Remote Interface MAC: 00:00:5e:00:53:09
+----------------------------------------
+Device ID:host02
+
+Interface address(es): 1
+    IPv4 Address: 203.0.113.185
+Platform: Linux Unix, Capabilities: Router 
+Interface: mgmt0, Port ID (outgoing port): Ethernet0/0
+Holdtime: 179 sec
+
+Version:
+Cisco IOS Software [IOSXE], Linux Software (X86_64BI_LINUX-ADVENTERPRISEK9-M), Version 17.18.2, RELEASE SOFTWARE (fc3)
+Technical Support: http://www.cisco.com/techsupport
+Copyright (c) 1986-2025 by Cisco Systems, Inc.
+Compiled Fri 19-Dec-25 03:28 by mcpre
+
+Advertisement Version: 2
+Duplex: full
+Mgmt address(es):
+    IPv4 Address: 203.0.113.185
+Local Interface MAC: 00:00:5e:00:53:0a
+Remote Interface MAC: 00:00:5e:00:53:09

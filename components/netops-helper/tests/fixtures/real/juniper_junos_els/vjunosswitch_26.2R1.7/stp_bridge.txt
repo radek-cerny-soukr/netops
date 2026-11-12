@@ -1,0 +1,16 @@
+STP bridge parameters 
+Routing instance name               : GLOBAL
+Context ID                          : 0
+Enabled protocol                    : RSTP
+  Root ID                           : 32768.00:00:5e:00:53:02
+  Root cost                         : 20000
+  Root port                         : ge-0/0/0
+  Hello time                        : 2 seconds
+  Maximum age                       : 20 seconds
+  Forward delay                     : 15 seconds
+  Message age                       : 1 
+  Number of topology changes        : 1
+  Time since last topology change   : 178 seconds
+  Local parameters 
+    Bridge ID                       : 32768.00:00:5e:00:53:14
+    Extended system ID              : 0

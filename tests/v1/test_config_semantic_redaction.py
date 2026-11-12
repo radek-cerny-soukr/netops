@@ -29,14 +29,16 @@ class SemanticRedaction(TestCase):
         output,hidden,count,summary=render(raw,p)
         for v in values:self.assertIn(v,output)
         self.assertEqual(count,0);self.assertFalse(hidden.data);self.assertEqual(summary['unverified_count'],0)
-    def test_snmp_name_and_bgp_community_and_routes_are_visible(self):
+    def test_snmp_credential_is_hidden_but_bgp_community_and_routes_are_visible(self):
         p=policy(public=[(('system snmp community',),'name'),(('router route-map','rule'),'set-community'),
                          (('router bgp','neighbor'),'route-map-in')],edits=[('system snmp community',),('router route-map',),('router route-map','rule'),('router bgp','neighbor')])
         raw=('config system snmp community\n edit 1\n set name "monitoring ro"\n next\nend\n'
              'config router route-map\n edit POLICY\n config rule\n edit 1\n set set-community 65000:10\n next\nend\n next\nend\n'
              'config router bgp\n config neighbor\n edit 192.0.2.9\n set route-map-in POLICY\n next\nend\nend\n')
         output,*_=render(raw,p)
-        for v in ('set name "monitoring ro"','set set-community 65000:10','set route-map-in POLICY'):self.assertIn(v,output)
+        self.assertNotIn('monitoring ro',output)
+        self.assertIn('set name <REDACTED:credential#1>',output)
+        for v in ('set set-community 65000:10','set route-map-in POLICY'):self.assertIn(v,output)
     def test_credential_semantics_override_even_a_bad_public_map(self):
         path=('system global',);fields=('password','auth-pwd','priv-pwd','private-key')
         p=policy(public=[(path,x) for x in fields]+[(('user group',),'password')],
@@ -91,7 +93,7 @@ class SemanticRedaction(TestCase):
             self.assertFalse(hidden.data)
         text,changed,identical=c.compare(enrolled(),*snapshots)
         self.assertTrue(identical);self.assertEqual(len(changed),0)
-    def test_engine_shows_explicit_community_and_keeps_unknown_summary_in_cache(self):
+    def test_engine_hides_explicit_community_and_keeps_unknown_summary_in_cache(self):
         auth=enrolled()
         selected=policy(public=[(('system snmp community',),'name')],edits=[('system snmp community',)])
         raw='config system snmp community\n edit 1\n set name monitoring\n set new-field fixture-unclassified\n next\nend\n'
@@ -100,7 +102,7 @@ class SemanticRedaction(TestCase):
             kwargs['stdout_consumer'](raw.encode());return 0,''
         with mock.patch.object(config_fortios,'policy_for',return_value=selected),mock.patch.object(engine,'read_from_device',side_effect=wire):
             result=engine.config_read(auth,'fortios','all',True,redaction='full')
-        self.assertIn('set name monitoring',result['untrusted_device_output']);self.assertEqual(result['unverified_count'],1)
+        self.assertNotIn('set name monitoring',result['untrusted_device_output']);self.assertEqual(result['unverified_count'],1)
         self.assertIn('schema-fields-unverified',result['visibility_limitations']);self.assertFalse(result['configuration_complete'])
         with mock.patch.object(config_fortios,'policy_for',return_value=selected),mock.patch.object(engine,'read_from_device',side_effect=AssertionError('no SSH')):
             cached=engine.config_read(auth,'fortios','all',True,redaction='full',snapshot_id=result['snapshot_id'])

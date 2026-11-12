@@ -1,0 +1,228 @@
+
+------------------------------------------------
+Local Intf: Gi0/0
+Chassis id: 0000.5e00.530c
+Port id: mgmt0
+Port Description: mgmt0
+System Name: host06
+
+System Description: 
+Cisco Nexus Operating System (NX-OS) Software 9.3(12)
+TAC support: http://www.cisco.com/tac
+Copyright (c) 2002-2023, Cisco Systems, Inc. All rights reserved.
+
+Time remaining: 119 seconds
+System Capabilities: B,R
+Enabled Capabilities: B,R
+Management Addresses:
+    IP: 203.0.113.55
+    Other: 0C FF FF FF 00 00 00
+Auto Negotiation - not supported
+Physical media capabilities - not advertised
+Media Attachment Unit type - not advertised
+Vlan ID: - not advertised
+
+MED Information:
+
+    MED Codes:
+          (NP) Network Policy, (LI) Location Identification
+          (PS) Power Source Entity, (PD) Power Device
+          (IN) Inventory
+
+    Inventory information - not advertised
+    Capabilities: NP
+    Device type: Network connectivity
+    Network Policy(Voice): VLAN dot1p, tagged, Layer-2 priority: 0, DSCP: 0
+    Power requirements - not advertised
+    Location - not advertised
+
+------------------------------------------------
+Local Intf: Gi0/0
+Chassis id: 0000.5e00.530a
+Port id: Et0/0
+Port Description: Ethernet0/0
+System Name: host04
+
+System Description: 
+Cisco IOS Software [IOSXE], Linux Software (X86_64BI_LINUX-ADVENTERPRISEK9-M), Version 17.18.2, RELEASE SOFTWARE (fc3)
+Technical Support: http://www.cisco.com/techsupport
+Copyright (c) 1986-2025 by Cisco Systems, Inc.
+Compiled Fri 19-Dec-25 03:28 by mcpre
+
+Time remaining: 92 seconds
+System Capabilities: B,R
+Enabled Capabilities: R
+Management Addresses:
+    IP: 203.0.113.57
+Auto Negotiation - not supported
+Physical media capabilities - not advertised
+Media Attachment Unit type - not advertised
+Vlan ID: - not advertised
+
+------------------------------------------------
+Local Intf: Gi0/1
+Chassis id: 0000.5e00.530b
+Port id: Gi0/1.10
+Port Description: GigabitEthernet0/1.10
+System Name: host05
+
+System Description: 
+Cisco IOS Software, IOSv Software (VIOS-ADVENTERPRISEK9-M), Version 15.9(3)M12, RELEASE SOFTWARE (fc1)
+Technical Support: http://www.cisco.com/techsupport
+Copyright (c) 1986-2025 by Cisco Systems, Inc.
+Compiled Fri 19-Sep-25 07:49 by mcpre
+
+Time remaining: 103 seconds
+System Capabilities: B,R
+Enabled Capabilities: R
+Management Addresses:
+    IP: 192.0.2.1
+Auto Negotiation - not supported
+Physical media capabilities - not advertised
+Media Attachment Unit type - not advertised
+Vlan ID: - not advertised
+
+------------------------------------------------
+Local Intf: Gi0/1
+Chassis id: 0000.5e00.530b
+Port id: Gi0/1.20
+Port Description: GigabitEthernet0/1.20
+System Name: host05
+
+System Description: 
+Cisco IOS Software, IOSv Software (VIOS-ADVENTERPRISEK9-M), Version 15.9(3)M12, RELEASE SOFTWARE (fc1)
+Technical Support: http://www.cisco.com/techsupport
+Copyright (c) 1986-2025 by Cisco Systems, Inc.
+Compiled Fri 19-Sep-25 07:49 by mcpre
+
+Time remaining: 101 seconds
+System Capabilities: B,R
+Enabled Capabilities: R
+Management Addresses:
+    IP: 198.51.100.1
+Auto Negotiation - not supported
+Physical media capabilities - not advertised
+Media Attachment Unit type - not advertised
+Vlan ID: - not advertised
+
+------------------------------------------------
+Local Intf: Gi0/0
+Chassis id: 0000.5e00.530d
+Port id: Management0
+Port Description - not advertised
+System Name: host07
+
+System Description: 
+Arista Networks EOS version 4.36.1F-48405728.4361F (engineering build) running on an Arista cEOSLab
+
+Time remaining: 110 seconds
+System Capabilities: B,R
+Enabled Capabilities: B,R
+Management Addresses:
+    IP: 203.0.113.254
+Auto Negotiation - not supported
+Physical media capabilities - not advertised
+Media Attachment Unit type - not advertised
+Vlan ID: - not advertised
+
+MED Information:
+
+    MED Codes:
+          (NP) Network Policy, (LI) Location Identification
+          (PS) Power Source Entity, (PD) Power Device
+          (IN) Inventory
+
+    Serial number: D787B1205ED1CFB5DFF5F1D303A12B32
+    Capabilities: 
+    Device type: Network connectivity
+    Network Policies - not advertised
+    Power requirements - not advertised
+    Location - not advertised
+
+------------------------------------------------
+Local Intf: Gi0/2
+Chassis id: 0000.5e00.530d
+Port id: Ethernet1
+Port Description - not advertised
+System Name: host07
+
+System Description: 
+Arista Networks EOS version 4.36.1F-48405728.4361F (engineering build) running on an Arista cEOSLab
+
+Time remaining: 103 seconds
+System Capabilities: B,R
+Enabled Capabilities: B,R
+Management Addresses:
+    IP: 203.0.113.254
+Auto Negotiation - not supported
+Physical media capabilities - not advertised
+Media Attachment Unit type - not advertised
+Vlan ID: 1
+
+------------------------------------------------
+Local Intf: Gi0/0
+Chassis id: 0000.5e00.5308
+Port id: mgmt
+Port Description - not advertised
+System Name: host02
+
+System Description: 
+ExtremeXOS (EXOS-VM) version 33.6.1.14 by release-manager on Tue Mar 24 02:04:32 PM UTC 2026
+
+Time remaining: 92 seconds
+System Capabilities - not advertised
+Enabled Capabilities - not advertised
+Management Addresses - not advertised
+Auto Negotiation - not supported
+Physical media capabilities - not advertised
+Media Attachment Unit type - not advertised
+Vlan ID: - not advertised
+
+------------------------------------------------
+Local Intf: Gi0/0
+Chassis id: 0000.5e00.530b
+Port id: Gi0/0
+Port Description: GigabitEthernet0/0
+System Name: host05
+
+System Description: 
+Cisco IOS Software, IOSv Software (VIOS-ADVENTERPRISEK9-M), Version 15.9(3)M12, RELEASE SOFTWARE (fc1)
+Technical Support: http://www.cisco.com/techsupport
+Copyright (c) 1986-2025 by Cisco Systems, Inc.
+Compiled Fri 19-Sep-25 07:49 by mcpre
+
+Time remaining: 119 seconds
+System Capabilities: B,R
+Enabled Capabilities: R
+Management Addresses:
+    IP: 203.0.113.51
+Auto Negotiation - not supported
+Physical media capabilities - not advertised
+Media Attachment Unit type - not advertised
+Vlan ID: - not advertised
+
+------------------------------------------------
+Local Intf: Gi0/1
+Chassis id: 0000.5e00.530b
+Port id: Gi0/1
+Port Description: GigabitEthernet0/1
+System Name: host05
+
+System Description: 
+Cisco IOS Software, IOSv Software (VIOS-ADVENTERPRISEK9-M), Version 15.9(3)M12, RELEASE SOFTWARE (fc1)
+Technical Support: http://www.cisco.com/techsupport
+Copyright (c) 1986-2025 by Cisco Systems, Inc.
+Compiled Fri 19-Sep-25 07:49 by mcpre
+
+Time remaining: 112 seconds
+System Capabilities: B,R
+Enabled Capabilities: R
+Management Addresses:
+    IP: 203.0.113.51
+Auto Negotiation - not supported
+Physical media capabilities - not advertised
+Media Attachment Unit type - not advertised
+Vlan ID: - not advertised
+
+
+Total entries displayed: 9

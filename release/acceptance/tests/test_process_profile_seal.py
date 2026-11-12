@@ -64,6 +64,38 @@ class AgeSealer(unittest.TestCase):
         kwargs["stdout"].flush()
         return subprocess.CompletedProcess(command, 0, None, b"")
 
+    def test_download_uses_retry_and_cleans_up(self):
+        def download(command, **kwargs):
+            if command[0] != "curl":
+                return self.child(command, **kwargs)
+            for option, value in (("--retry", "5"), ("--retry-delay", "10"),
+                                  ("--retry-max-time", "300"), ("--connect-timeout", "20"), ("--max-time", "120")):
+                self.assertEqual(command[command.index(option) + 1], value)
+            self.assertIn("--retry-all-errors", command)
+            self.assertEqual(kwargs["timeout"], 330)
+            Path(command[command.index("-o") + 1]).write_bytes(b"SYNTHETIC_ARCHIVE")
+            return subprocess.CompletedProcess(command, 0)
+        with mock.patch.object(sealer.subprocess, "run", side_effect=download):
+            sealer.install(self.root / "download-tool", self.arch)
+        self.assertEqual(set(p.name for p in (self.root / "download-tool").iterdir()), set(sealer.TOOL_FILES))
+
+    def test_missing_curl_is_reported(self):
+        with mock.patch.object(sealer.subprocess, "run", side_effect=FileNotFoundError), \
+             mock.patch.object(sealer, "archive_binary") as binary:
+            with self.assertRaisesRegex(sealer.Refused, "curl-missing"):
+                sealer.install(self.root / "missing-curl", self.arch)
+            binary.assert_not_called()
+
+    def test_download_failure_does_not_install(self):
+        for error in (subprocess.CalledProcessError(22, "curl"), subprocess.TimeoutExpired("curl", 330)):
+            directory = self.root / ("failure-" + type(error).__name__)
+            with mock.patch.object(sealer.subprocess, "run", side_effect=error), \
+                 mock.patch.object(sealer, "archive_binary") as binary:
+                with self.assertRaisesRegex(sealer.Refused, "archive-download"):
+                    sealer.install(directory, self.arch)
+                binary.assert_not_called()
+            self.assertEqual(list(directory.iterdir()), [])
+
     def test_native_install_exact_archive_binary_and_version(self):
         raw, _ = sealer.snapshot(self.tool, sealer.TOOL_FILES, ("age",))
         self.assertEqual(raw["archive.tar.gz"], b"SYNTHETIC_ARCHIVE")

@@ -1,0 +1,8 @@
+
+        Neighbor           Neighbor                           Neighbor
+Port    Chassis ID         Port ID            TTL     Age     System Name
+===============================================================================
+1       00:00:5E:00:53:13  3                  120     8       host04
+===============================================================================
+NOTE: The Chassis ID and/or Port ID might be truncated to fit the screen.
+

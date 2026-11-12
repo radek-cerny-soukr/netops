@@ -51,11 +51,13 @@ class CandidateManifest(unittest.TestCase):
         manifest = None
         path = os.path.join(self.release, "netops-%s-manifest.json" % version)
         if proc.returncode == 0:
-            manifest = json.load(open(path))
+            with open(path) as stream:
+                manifest = json.load(stream)
         return proc.returncode, manifest, proc.stderr
 
     def sums(self):
-        lines = open(os.path.join(self.release, "netops-1.0.0-SHA256SUMS")).read().splitlines()
+        with open(os.path.join(self.release, "netops-1.0.0-SHA256SUMS")) as stream:
+            lines = stream.read().splitlines()
         return {line.split("  ", 1)[1]: line.split("  ", 1)[0] for line in lines}
 
     def test_valid_candidate(self):
@@ -67,7 +69,8 @@ class CandidateManifest(unittest.TestCase):
 
     def test_env_example_is_pinned_to_the_index(self):
         self.run_tool()
-        env = open(os.path.join(self.release, "env.example")).read()
+        with open(os.path.join(self.release, "env.example")) as stream:
+            env = stream.read()
         self.assertIn("NETOPS_IMAGE=%s@%s\n" % (IMAGE, I), env)
         self.assertIn("NETOPS_PORT=8443", env)
 
@@ -78,7 +81,8 @@ class CandidateManifest(unittest.TestCase):
         self.assertEqual(sorted(sums), files)
         self.assertIn("netops-1.0.0-manifest.json", sums)
         for name, value in sums.items():
-            self.assertEqual(hashlib.sha256(open(os.path.join(self.release, name), "rb").read()).hexdigest(), value, name)
+            with open(os.path.join(self.release, name), "rb") as stream:
+                self.assertEqual(hashlib.sha256(stream.read()).hexdigest(), value, name)
         self.assertEqual(m["release_files"]["env.example"], sums["env.example"])
         self.assertEqual(m["release_files"]["compose.yaml"], sums["compose.yaml"])
 

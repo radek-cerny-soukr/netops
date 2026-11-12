@@ -26,7 +26,7 @@ from .engine import CATALOG_DIR, NOT_EVALUATED, CatalogError, CheckError, evalua
 from .findings import Finding, FingerprintError, checked_component
 from .inputs import InputError, read_regular
 from .state import STATE_GONE, STATE_NEW, STATE_OPEN_KNOWN, STATE_SUPPRESSED, classify
-from .state import STATE_NOT_EVALUATED, evaluation_complete, last_evaluated, stored_statuses
+from .state import STATE_NOT_EVALUATED, coverage, evaluation_complete, last_evaluated, stored_statuses
 from .state import AGE_FRESH, AGE_STALE, age_state, suppressions_for_device
 from .store import Store, StoreError
 from .store import migrate as migrate_store
@@ -430,6 +430,7 @@ def _report(tenant, device, platform, digest: str, rules_version: str, findings,
     complete = evaluation_complete(findings, rule_status)
     report["rule_status"] = rule_status
     report["evaluation_complete"] = complete
+    report["coverage"] = coverage(findings, rule_status)
     if not complete:
         report["evaluation"] = STATE_NOT_EVALUATED
     if not complete or result.not_evaluated:
@@ -441,7 +442,8 @@ def _report(tenant, device, platform, digest: str, rules_version: str, findings,
 
 
 def _exit_code(report) -> int:
-    return EXIT_OK if report["evaluation_complete"] else EXIT_INCOMPLETE
+    gaps = coverage(report["findings"], report.get("rule_status"))
+    return EXIT_INCOMPLETE if gaps["actionable_gaps"] else EXIT_OK
 
 
 def _scalar(value) -> str:
@@ -485,6 +487,17 @@ def _suppression_lines(section: str, item) -> list:
     ]
 
 
+def _text_coverage(value) -> list:
+    if value is None:
+        return ["coverage: unavailable"]
+    lines = ["coverage complete: %s" % str(value["complete"]).lower()]
+    for name in ("inherent_gaps", "actionable_gaps"):
+        gaps = value[name]
+        lines.append("coverage %s: %d" % (name, len(gaps)))
+        lines.extend("  %s: %s" % (gap["rule_id"], gap["reason"]) for gap in gaps)
+    return lines
+
+
 def _text_report(report: dict) -> str:
     summary = report["summary"]
     states = report["states"]
@@ -508,6 +521,7 @@ def _text_report(report: dict) -> str:
             % ", ".join("%s %d" % (name, len(waivers[name])) for name in SUPPRESSION_SECTIONS),
         ]
     )
+    lines.extend(_text_coverage(report["coverage"]))
     for name in PRESENT_STATES:
         group = [item for item in report["findings"] if item["state"] == name]
         lines.append("")
@@ -549,6 +563,7 @@ def _text_status(report: dict) -> str:
         "age-hours: %s" % ("unknown" if age is None else "%.2f" % age),
         "stale-after-hours: %.2f" % report["stale_after_hours"],
     ]
+    lines.extend(_text_coverage(report["coverage"]))
     return "\n".join(lines) + "\n"
 
 
@@ -651,7 +666,7 @@ def _moment(value) -> datetime:
         raise Failure("store holds an unreadable timestamp: %r" % (value,))
 
 
-def _status_report(args, last, now: datetime) -> dict:
+def _status_report(args, last, now: datetime, coverage_report=None) -> dict:
     report = {
         "tool": "netops-auditor",
         "tenant": args.tenant,
@@ -660,6 +675,7 @@ def _status_report(args, last, now: datetime) -> dict:
         "last_audit": None,
         "age_hours": None,
         "state": STATUS_NEVER,
+        "coverage": coverage_report,
     }
     if last is None:
         return report
@@ -677,15 +693,15 @@ def _command_status(args) -> int:
     try:
         with Store(path) as store:
             last = store.last_run(args.tenant, args.device)
-            evaluated = last is None or evaluation_complete(
+            gaps = None if last is None else coverage(
                 store.findings_for_run(args.tenant, last["id"]), stored_statuses(store, args.tenant, last["id"])
             )
     except StoreError as error:
         raise Failure("store: %s" % error)
     except sqlite3.Error as error:
         raise _database_failure(path, error)
-    report = _status_report(args, last, datetime.now(timezone.utc))
-    if not evaluated:
+    report = _status_report(args, last, datetime.now(timezone.utc), gaps)
+    if gaps is not None and not gaps["complete"]:
         report["state"] = "incomplete"
     sys.stdout.write(_render(report, args.as_json, _text_status))
     return EXIT_OK if report["state"] == STATUS_FRESH else EXIT_STALE
@@ -711,10 +727,12 @@ def _catalog_platform(record) -> str:
             % (record.name, record.platform)
         )
     if record.platform in RUN_ONLY_PLATFORMS:
-        raise Failure(
+        error = Failure(
             "device %s runs platform %s, collect does not read it; audit an exported"
             " snapshot with run --platform %s" % (record.name, record.platform, record.platform)
         )
+        error.diagnostic = ("inventory.devices[].platform", "auditor-run-only")
+        raise error
     return record.platform
 
 

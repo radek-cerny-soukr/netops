@@ -1,0 +1,8 @@
+
+
+
+Routing entry for 192.0.2.0/24
+  Known via "connected", distance 0, metric 0 (connected, via interface)
+  Routing Descriptor Blocks:
+  * directly connected, via Ethernet0/1.10
+      Route metric is 0, traffic share count is 1

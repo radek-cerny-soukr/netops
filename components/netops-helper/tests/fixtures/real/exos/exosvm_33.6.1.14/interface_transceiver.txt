@@ -1,0 +1,7 @@
+
+Port :  1        
+    DDMI is not supported on this port 
+=================================================================================
+      N/A  - parameter not applicable to transceiver connected to the port
+      -inf - negative infinity, parameter not defined
+

@@ -19,13 +19,13 @@ $RequiredRows = New-Object System.Collections.ArrayList
 foreach ($arch in $Arches) { foreach ($suite in $Suites) { [void]$RequiredRows.Add("actions-$arch-$suite") } }
 foreach ($arch in $Arches) { foreach ($role in @("core", "helper", "auditor", "admin")) { [void]$RequiredRows.Add("actions-$arch-engine-$role") } }
 $RequiredChecks = New-Object System.Collections.Hashtable ([StringComparer]::Ordinal)
-$MinimumVersion = [version]"1.0.6"
+$MinimumVersion = [version]"1.0.7"
 $BlindInstallChecks = @("cosign-verify-blob", "sha256sum-check", "container-healthy", "health-ready", "version-is-candidate", "unauthenticated-401", "mcp-tools-list", "audit-without-token")
 $BlindUpgradeChecks = @("upgrade-steps-from-docs", "health-ready", "version-is-candidate", "data-preserved", "token-preserved", "ca-preserved")
 $BlindRows = @("blind-install-fedora-amd64", "blind-install-debian-amd64", "blind-upgrade-amd64")
 $UpgradeRow = "blind-upgrade-amd64"
-$UpgradeFromVersion = "1.0.5"
-$UpgradeFromImage = "ghcr.io/radek-cerny-soukr/netops@sha256:93983da233a1eaa1437e138f8333897b294bff28bf00eb0b7de934ab7c88cfae"
+$UpgradeFromVersion = "1.0.6"
+$UpgradeFromImage = "ghcr.io/radek-cerny-soukr/netops@sha256:20085d06a43ea4f0a57053f2dd35ce69709b43bfefd9d2a3cd8b1783c1e435fe"
 foreach ($row in $BlindRows) {
     [void]$RequiredRows.Add($row)
     if ($row -clike "blind-install-*") { $RequiredChecks[$row] = $BlindInstallChecks } else { $RequiredChecks[$row] = $BlindUpgradeChecks }

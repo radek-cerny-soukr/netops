@@ -1,0 +1,13 @@
+Logical Interface flags (DL - disable learning, AD - packet action drop,
+                         LH - MAC limit hit, DN - interface down,
+                         MMAS - Mac-move action shutdown,  AS - Autostate-exclude enabled,
+                         SCTL - shutdown by Storm-control, SL - Secure Learning,
+                         MI - MAC+IP limit hit, LP - Loop Protect Down,
+                         MLAS - Mac limit action shutdown, CISO - Shutdown due to core isolation,
+                         EMS - Shutdown due to evpn maintenance, MP - Mac pinning)
+
+Routing         Logical         Vlan                   TAG   MAC    MAC+IP STP         Logical          Tagging
+Instance        interface       members                      limit  limit  state       interface flags
+default-switch  ge-0/0/0.0                                   524287 8192                                tagged   
+default-switch                  D10                    10    65535  1024   Forwarding                   tagged   
+default-switch                  D20                    20    65535  1024   Forwarding                   tagged   

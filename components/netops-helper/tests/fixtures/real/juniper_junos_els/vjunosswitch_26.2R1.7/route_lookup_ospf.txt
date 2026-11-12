@@ -1,0 +1,19 @@
+
+inet.0: 13 destinations, 13 routes (13 active, 0 holddown, 0 hidden)
+Limit/Threshold: 1048576/1048576 destinations
+203.0.113.1/32 (1 entry, 1 announced)
+        *OSPF   Preference: 10
+                Next hop type: Router, Next hop index: 601
+                Address: 0x9504410
+                Next-hop reference count: 2, Next-hop session id: 320
+                Kernel Table Id: 0
+                Next hop: 192.0.2.1  via irb.10, selected
+                Session Id: 320
+                State: <Active Int>
+                Age: 1:38:08 	Metric: 2 
+                Validation State: unverified 
+                Area: 0.0.0.0
+                Task: OSPF
+                Announcement bits (1): 0-KRT 
+                AS path: I 
+                Thread: junos-main 

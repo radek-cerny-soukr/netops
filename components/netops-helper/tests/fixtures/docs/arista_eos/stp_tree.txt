@@ -1,0 +1,18 @@
+MST0
+  Spanning tree enabled protocol mstp
+  Root ID    Priority    4096
+             Address     0000.5e00.5381
+             Cost        2000
+             Port        1 (Ethernet1)
+             Hello Time  2.000 sec  Max Age 20 sec  Forward Delay 15 sec
+
+  Bridge ID  Priority    32768  (priority 32768 sys-id-ext 0)
+             Address     0000.5e00.5382
+             Hello Time  2.000 sec  Max Age 20 sec  Forward Delay 15 sec
+
+Interface Role        State        Cost Prio.Nbr Type        
+--------- ----------- ----------- ----- -------- ------------
+Et1       root        forwarding   2000 128.1    P2p         
+Et2       alternate   discarding   2000 128.2    P2p         
+Et3       designated  forwarding   2000 128.3    P2p Edge    
+Po10      backup      discarding   1999 128.100  P2p         

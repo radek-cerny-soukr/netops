@@ -1,0 +1,18 @@
+VR            Destination      Mac                Age  Static  VLAN          VID   Port
+VR-Default    192.0.2.1        00:00:5e:00:53:01   20      NO  V10           10    13
+
+Dynamic Entries  :          24             Static Entries            :          0
+Pending Entries  :           0
+
+ARP address check:    Enabled              ARP refresh               :    Enabled
+Timeout          :          20 minutes     ARP Sender-Mac Learning   :   Disabled
+Locktime         :        1000 milliseconds
+Retransmit Time  :        1000 milliseconds
+Reachable Time   :      900000 milliseconds (Auto)
+Fast Convergence :         Off 
+
+ARP Global Settings
+Max Entries         :    12288 
+Max Pending Entries :      256 
+Max Proxy Entries   :      256 
+

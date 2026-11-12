@@ -1,0 +1,11 @@
+
+Stack    Available Ports
+Port    Native  Alternate  Configured         Current
+-----   -----------------  ----------------   ----------------
+1       No      No         Native             N/A                
+2       No      No         Native             N/A                
+stacking-support:          Disabled           Disabled  
+auto-discovery:            Enabled            Enabled   
+
+Flags: * - Current stack port selection
+

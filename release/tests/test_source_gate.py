@@ -107,6 +107,36 @@ class Privacy(unittest.TestCase):
         private_source = source.replace(address, str(ipaddress.ip_address(0xC0A80A14)))
         self.assertTrue(self.rules._address_errors(relative, private_source, False))
 
+    def test_real_exos_exceptions_are_bound_to_their_files_and_layouts(self):
+        import ipaddress
+        version = str(ipaddress.ip_address(0x03000002))
+        row = "acl              " + version + "     0    Ready        Mon Oct 19 14:47:28 2026  Vital\n"
+        processes = "components/netops-helper/tests/fixtures/real/exos/x435-8p-4s_33.7.1.6/processes.txt"
+        self.assertEqual(self.rules._address_errors(processes, row, True), [])
+        for relative, text in ((processes.replace("processes", "arp_table"), row),
+                               ("components/netops-helper/tests/fixtures/docs/processes.txt", row),
+                               (processes, "gateway " + version + "\n")):
+            with self.subTest(relative=relative, text=text):
+                self.assertTrue(self.rules._address_errors(relative, text, True))
+        event = "11/08/2026 22:15:28.34 <Info:HAL.Card.Info> Switch is operational\n"
+        log = "components/netops-helper/tests/fixtures/real/exos/exosvm_33.6.1.14/log_messages.txt"
+        self.assertEqual(self.rules._address_errors(log, event, True), [])
+        self.assertTrue(self.rules._address_errors("docs/example.md", event, True))
+        self.assertTrue(self.rules._address_errors(log, "server HAL.Card.Info\n", True))
+
+    def test_bridge_identifiers_pass_only_with_a_documentation_mac(self):
+        documented = "BridgeID : 80:00:00:00:5e:00:53:0a\n"
+        self.assertEqual(self.rules._address_errors("fixture.txt", documented, True), [])
+        private = "BridgeID : 80:00:" + ":".join("%02x" % part for part in (0x3C, 0x2A, 0xF4, 0x11, 0x22, 0x33)) + "\n"
+        self.assertTrue(self.rules._address_errors("fixture.txt", private, True))
+
+    def test_only_the_listed_well_known_multicast_groups_are_accepted(self):
+        import ipaddress
+        for value, accepted in ((0xE0000005, True), (0xE0000012, True), (0xE0000001, False), (0xEF010203, False)):
+            text = "group " + str(ipaddress.ip_address(value)) + "\n"
+            with self.subTest(value=value):
+                self.assertEqual(not self.rules._address_errors("fixture.txt", text, True), accepted)
+
     def test_network_mac_path_and_credential_material_are_refused(self):
         import ipaddress
         values = (
@@ -440,24 +470,39 @@ class ReleaseSupportText(unittest.TestCase):
     def test_current_support_text_names_the_live_verification(self):
         self.assertEqual(gate.support_errors(self.readme, self.verified, self.version), [])
     def test_stale_or_incomplete_support_text_is_refused(self):
-        import re
+        # A synthetic section, so that the mutations do not depend on how many live lines and platforms
+        # the current README names; the current README itself is checked by the test above.
         v = self.version
-        build = next(word for word in self.line.split() if word.startswith("build"))
-        pairs = re.findall(r"\d+(?:\.\d+)+ build\d+", self.line)
-        first, last = pairs[0], pairs[-1]
-        mcp = self.readme.index("#### Tested MCP clients")
-        for label, readme, verified in (
-                ("no live line", self.readme.replace(self.line + "\n", "", 1), self.verified),
-                ("other release", self.readme.replace(self.line, self.line.replace(v, "0.9.9", 1), 1), self.verified),
-                ("build outside table", self.readme.replace(self.line, self.line.replace(build, "build99999", 1), 1), self.verified),
-                ("wrong version same build", self.readme.replace(self.line, self.line.replace(first, "9.9.9 " + build, 1), 1), self.verified),
-                ("build of another platform", self.readme.replace(self.line, self.line.replace(last, last.split()[0] + " " + build, 1), 1), self.verified),
-                ("build without version", self.readme.replace(self.line, self.line.replace(first, build, 1), 1), self.verified),
-                ("verified-support stale", self.readme, self.verified.replace("NetOps " + v, "NetOps 0.9.9")),
-                ("MCP clients stale", self.readme[:mcp] + self.readme[mcp:].replace("NetOps " + v, "NetOps 0.9.9"), self.verified)):
+        line = "Live verification of NetOps %s on 2026-01-02: FortiOS 8.0.2 build0251 and FortiADC 7.6.7 build0676." % v
+        readme = ("## Supported devices and firmware\n\n| Platform | Documented scope |\n|---|---|\n"
+                  "| FortiOS | 8.0.2 build0251 |\n| FortiADC | FortiADC-KVM 7.6.7 build0676 |\n\n" + line + "\n\n"
+                  "## Next\n\n#### Tested MCP clients\n\nFor NetOps %s, no client application was tested.\n" % v)
+        verified = "Live verification of NetOps %s." % v
+        self.assertEqual(gate.support_errors(readme, verified, v), [])
+        build, first, last = "build0251", "8.0.2 build0251", "7.6.7 build0676"
+        mcp = readme.index("#### Tested MCP clients")
+        for label, changed, verified_text in (
+                ("no live line", readme.replace(line + "\n", "", 1), verified),
+                ("other release", readme.replace(line, line.replace(v, "0.9.9", 1), 1), verified),
+                ("build outside table", readme.replace(line, line.replace(build, "build99999", 1), 1), verified),
+                ("wrong version same build", readme.replace(line, line.replace(first, "9.9.9 " + build, 1), 1), verified),
+                ("build of another platform", readme.replace(line, line.replace(last, last.split()[0] + " " + build, 1), 1), verified),
+                ("build without version", readme.replace(line, line.replace(first, build, 1), 1), verified),
+                ("verified-support stale", readme, verified.replace("NetOps " + v, "NetOps 0.9.9")),
+                ("MCP clients stale", readme[:mcp] + readme[mcp:].replace("NetOps " + v, "NetOps 0.9.9"), verified)):
             with self.subTest(label=label):
-                self.assertNotEqual(readme + verified, self.readme + self.verified)
-                self.assertTrue(gate.support_errors(readme, verified, v))
+                self.assertNotEqual(changed + verified_text, readme + verified)
+                self.assertTrue(gate.support_errors(changed, verified_text, v))
+    def test_every_live_line_of_the_current_release_is_checked(self):
+        import re
+        lines = [line for line in self.readme.splitlines() if line.startswith("Live verification of NetOps %s " % self.version)]
+        self.assertTrue(lines)
+        for line in lines:
+            with self.subTest(line=line[:60]):
+                stale = (self.readme.replace(line, re.sub(r"\bbuild(\d+)", r"build9\1", line, count=1), 1)
+                         if re.search(r"\bbuild\d+", line) else None)
+                if stale is not None:
+                    self.assertTrue(gate.support_errors(stale, self.verified, self.version))
     def test_support_text_is_checked_only_for_a_release(self):
         import inspect
         self.assertIn("release", inspect.signature(gate.check).parameters)

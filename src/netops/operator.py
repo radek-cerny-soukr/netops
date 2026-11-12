@@ -17,6 +17,7 @@ from .diagnostics import configuration_error as _configuration_error
 from .diagnostics import configuration_message as _configuration_message
 from .diagnostics import syslog_configuration_error as _syslog_configuration_error
 from .diagnostics import configuration_json_error as _configuration_json_error
+from .diagnostics import helper_inventory_error as _helper_inventory_error
 from .diagnostics import RoleConfigurationError, SyslogConfigurationError, operation_error
 
 
@@ -52,11 +53,20 @@ def _validate_helper_inventory(path, store):
             except inventory.InventoryError as error:
                 error.diagnostic_index = list(entries).index(entry)
                 raise
+            if section.fortios_rest_credential:
+                from netops_helper.wifi_rest import checked_token
+                try:
+                    checked_token(store.credential(section.fortios_rest_credential).use())
+                except ValueError:
+                    raise _configuration_message("helper-rest-token") from None
             warnings.extend(inventory.section_warnings(entry.name, section))
         return warnings
     except inventory.InventoryError as error:
         if getattr(error, "diagnostic", None):
             raise _configuration_error(error, field="inventory") from None
+        located = _helper_inventory_error(error)
+        if located is not None:
+            raise located from None
         raise _configuration_message("helper-inventory") from None
 
 def acquire_state():

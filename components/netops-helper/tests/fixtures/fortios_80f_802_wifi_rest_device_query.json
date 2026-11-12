@@ -1,0 +1,14 @@
+{
+  "http_method": "GET",
+  "vdom": "root",
+  "status": "success",
+  "results": [
+    {
+      "mac": "00:00:5e:00:53:81",
+      "hostname": "TabletExample",
+      "hardware_vendor": "Apple",
+      "hardware_type": "Tablet",
+      "os_name": "iPadOS"
+    }
+  ]
+}

@@ -1,0 +1,4 @@
+                   Root ID          Root    Hello  Max  Fwd
+Instance     Priority    MAC addr   Cost    Time   Age  Dly  Root Port
+----------   -------------------- --------- -----  ---  ---  ------------
+MST0         32768 0000.5e00.5302         0    2    20  15   None        

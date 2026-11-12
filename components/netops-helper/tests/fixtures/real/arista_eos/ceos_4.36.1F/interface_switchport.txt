@@ -1,0 +1,19 @@
+Name: Et1
+Switchport: Enabled
+Administrative Mode: trunk
+Operational Mode: trunk
+MAC Address Learning: enabled
+Dot1q ethertype/TPID: 0x8100 (active)
+Dot1q VLAN Tag: Allowed
+Egress priority tagging: disabled
+Access Mode VLAN: 1 (default)
+Trunking Native Mode VLAN: 1 (default)
+Administrative Native VLAN tagging: disabled
+Trunking VLANs Enabled: 10,20
+Static Trunk Groups: 
+Dynamic Trunk Groups: 
+Source interface filtering: enabled
+VLAN forwarding mode: allowedVlansOnly
+MAC-based VLAN assignment: disabled
+Port isolation: disabled
+

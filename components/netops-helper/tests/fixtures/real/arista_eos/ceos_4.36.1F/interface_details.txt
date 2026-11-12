@@ -1,0 +1,20 @@
+Ethernet1 is up, line protocol is up (connected)
+  Hardware is Ethernet, address is 0000.5e00.5314 (bia 0000.5e00.5314)
+  Ethernet MTU 9214 bytes, BW 1000000 kbit
+  Full-duplex, 1Gb/s, auto negotiation: off, uni-link: n/a
+  Up 52 minutes, 36 seconds
+  Loopback Mode : None
+  2 link status changes since last clear
+  Last clearing of "show interface" counters never
+  5 minutes input rate 861 bps (0.0% with framing overhead), 1 packets/sec
+  5 minutes output rate 308 bps (0.0% with framing overhead), 0 packets/sec
+     3794 packets input, 336939 bytes
+     Received 6 broadcasts, 3722 multicast
+     0 runts, 0 giants
+     0 input errors, 0 CRC, 0 alignment, 0 symbol, 0 input discards
+     0 PAUSE input
+     1077 packets output, 115606 bytes
+     Sent 13 broadcasts, 1008 multicast
+     0 output errors, 0 collisions
+     0 late collision, 0 deferred, 0 output discards
+     0 PAUSE output

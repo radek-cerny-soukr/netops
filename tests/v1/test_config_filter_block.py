@@ -39,6 +39,7 @@ class ConfigurationFilterBlock(TestCase):
                                       snapshot_id=first['snapshot_id'])
             text = ''.join(parts)
             self.assertEqual(text, ''.join(x for x in full['untrusted_device_output'].splitlines(True) if 'set' in x))
+            # `set password` now remains searchable after response redaction.
             self.assertEqual(first['matched_lines'], 3)
             self.assertEqual(first['total_lines'], 7)
             self.assertEqual(first['content_sha256'], hashlib.sha256(text.encode()).hexdigest())
@@ -76,7 +77,8 @@ class ConfigurationFilterBlock(TestCase):
         content = builder.finish()
         with mock.patch.object(configuration, '_budget', wraps=configuration._budget) as budget:
             selected, total, matched = configuration.filtered_content(content, 'a.b|c*$;', 1)
-        self.assertEqual(budget.call_count, 3)
+        # The selected lines, then the text the client receives after the response redaction.
+        self.assertEqual(budget.call_count, 4)
         self.assertEqual(total, 5)
         self.assertEqual(matched, 2)
         self.assertEqual(b''.join(selected.lines()).decode(), ''.join(lines))

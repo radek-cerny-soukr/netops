@@ -1,0 +1,13 @@
+
+> show system environment all
+% There seem to be no power supplies connected. at line 1
+System temperature status is: Unknown
+Action on overheat: unknown
+Recovery mode when power-cycle upon overheat: not applicable
+Restrict recovery when ambient temperature is at or above: not applicable
+
+
+System cooling status is: Unknown
+Number of cooling zones is: 1
+
+

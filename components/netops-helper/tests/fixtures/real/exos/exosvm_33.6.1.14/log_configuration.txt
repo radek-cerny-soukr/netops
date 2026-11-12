@@ -1,0 +1,61 @@
+Debug-Mode: Disabled
+Show Message Privilege: User (non-administrative)
+Enabled TLS Ciphers:  aes128-sha, aes128-sha256, aes256-sha256, dhe-rsa-aes128-sha256, dhe-rsa-aes256-sha256, ecdhe-rsa-aes128-sha256, ecdhe-rsa-aes256-sha384
+Disabled TLS Ciphers: None
+Syslog TLS TCP User Timeout: Default
+Syslog TLS OCSP: On
+Syslog TLS OCSP Attributes: 
+  Nonce               : Off
+  Signer ocsp-nocheck : Off
+  Override Server URL : None
+
+Log Target      : memory-buffer
+    Enabled     : yes
+    Filter Name : DefaultFilter
+    Match regex : Any
+    Severity    : Debug-Data (through Critical)
+    Format      : MM/DD/YYYY HH:MM:SS.hh <Severity:Component.SubComponent.Condition> 
+    Buffer size  : 1000 messages
+    Percent Full : 94%
+    Full Alert   : None
+
+Log Target      : nvram
+    Enabled     : yes
+    Filter Name : DefaultFilter
+    Match regex : Any
+    Severity    : Warning (through Critical)
+    Format      : MM/DD/YYYY HH:MM:SS.hh <Severity:Component.SubComponent.Condition> 
+
+Log Target      : console
+    Enabled     : no
+    Filter Name : DefaultFilter
+    Match regex : Any
+    Severity    : Info (through Critical)
+    Format      : MM/DD/YYYY HH:MM:SS.hh <Severity:Component.SubComponent.Condition> 
+
+
+Log Filter Name: DefaultFilter
+I/                                                 Severity
+E Component   SubComponent Condition               CEWNISVD
+- ----------- ------------ ----------------------- --------
+I All                                              ********
+
+Include/Exclude: I - Include,  E - Exclude
+Component Unreg: * - Component/SubComponent is not currently registered
+Severity Values: C - Critical,  E - Error,  W - Warning,  N - Notice,  I - Info
+                 * - Pre-assigned severities in effect for specified component
+Debug Severity : S - Debug-Summary,  V - Debug-Verbose,  D - Debug-Data
+                 + - Debug Severities, but log debug-mode not enabled
+If Match parameters present:
+Parameter Flags: S - Source,  D - Destination, (as applicable)
+                 I - Ingress,  E - Egress,  B - BGP
+Parameter Types: Port - Physical Port list,  Slot - Physical Slot #
+                 MAC  - MAC address,  IP - IP Address/netmask,  Mask - Netmask
+                 VID  - Virtual LAN ID (tag),  VLAN  - Virtual LAN name
+                 VR   - Virtual Router Name,  VRID  - VR Identifier
+                 VRF  - Virtual Routing and Forwarding Name
+                 L4   - Layer-4 Port #,  Num  - Number,  Str  - String
+                 Nbr  - Neighbor, Rtr  - Routerid, EAPS - EAPS Domain
+                 Proc - Process Name
+Strict Match   : Y - every match parameter entered must be present in the event
+                 N - match parameters need not be present in the event

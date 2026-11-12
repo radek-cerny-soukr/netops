@@ -88,6 +88,8 @@ def summary(record) -> dict[str, Any]:
         "status": record.get("status"),
         "result": record.get("result"),
         "reason": record.get("reason"),
+        **({"reason_codes": list(record.get("reason_codes") or ["unspecified_refusal"]),
+            "reason_details": list(record.get("reason_details") or [])} if record.get("result") == "rejected" else {}),
         "differences": differences[:MAX_DIFFERENCES],
         "differences_total": len(differences),
         "safeguard": record.get("safeguard"),
@@ -100,7 +102,7 @@ def summary(record) -> dict[str, Any]:
 
 
 def rejected(error) -> dict[str, Any]:
-    return {"status": "finished", "result": "rejected", "reasons": list(error.reasons),
+    return {"status": "finished", "result": "rejected", "reasons": list(error.reasons), "reason_codes": list(error.reason_codes), "reason_details": list(error.reason_details),
             "notification": "not-required"}
 
 
@@ -208,18 +210,19 @@ def admin_preview(
     name="admin_doctor",
     description=(
         "Report whether a configured device is ready for changes: credentials, host key, identities, "
-        "firmware and supported tables, enrollment, safeguards, audit and notification. Reads only."
+        "firmware and supported tables, enrollment, safeguards, audit and notification. "
+        "Set local=true for local checks only; remote readiness remains unverified. Reads only on the device."
     ),
 )
 @_tool_errors
-def admin_doctor(device: str) -> dict[str, Any]:
+def admin_doctor(device: str, local: bool = False) -> dict[str, Any]:
     from netops_admin import readiness
 
     if not _ACTIVE.acquire(blocking=False):
         return rejected(Rejected(["another operation of this server is running; ask admin_status later"]))
     try:
         try:
-            return readiness.doctor(configured_runtime(), device)
+            return readiness.doctor(configured_runtime(), device, local=local)
         except Rejected as error:
             return rejected(error)
     finally:

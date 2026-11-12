@@ -1,0 +1,10 @@
+
+PowerSupply 1 information:
+ State             : Powered On
+
+PowerSupply 2 information:
+ State             : Empty
+ Poll Interval     : 60 s
+ Change Threshold  : 10 W
+ Change Action     : trap
+

@@ -150,6 +150,7 @@ def verify_identity(status):
 
 
 OBJECT_SECTIONS = frozenset(('load-balance virtual-server', 'load-balance pool',
+                             'load-balance real-server',
                              'system health-check', 'security waf profile',
                              'system certificate local_cert_group',
                              'load-balance client-ssl-profile'))
@@ -240,7 +241,7 @@ def assess(content, account, section='all'):
     if section != 'all':
         return _object_scope(content, section)
     path, accounts, profiles, vdoms = [], 0, {}, 0
-    assigned, override, vdom_override = [], [], []
+    assigned, override, vdom_override, system_admin = [], [], [], []
     for raw in content.lines():
         try:
             words = shlex.split(raw.decode().rstrip('\n'), comments=False, posix=True)
@@ -273,6 +274,8 @@ def assess(content, account, section='all'):
                     override.append(values)
                 elif words[1] == 'vdom-override' and len(vdom_override) < 2:
                     vdom_override.append(values)
+                elif words[1] == 'is-system-admin' and len(system_admin) < 2:
+                    system_admin.append(values)
             elif top == 'system accprofile':
                 entry = profiles[path[1][1]]
                 if words[1] in RIGHTS:
@@ -286,7 +289,10 @@ def assess(content, account, section='all'):
     limitations, rights = set(), None
     if vdom_override not in ([], [('disable',)]):
         limitations.add('vdom-override-unverified')
-    if accounts == 1 and len(assigned) == 1 and override in ([], [('disable',)]):
+    if accounts == 1 and system_admin == [('yes',)] and not assigned and override in ([], [('disable',)]):
+        # A system administrator has no access profile of its own; FortiADC gives it every area.
+        rights = dict.fromkeys(RIGHTS, 'read-write')
+    elif accounts == 1 and len(assigned) == 1 and system_admin in ([], [('no',)]) and override in ([], [('disable',)]):
         values = assigned[0]
         entry = profiles.get(values[0]) if values and len(values) == 1 and not values[0].startswith(('<REDACTED', '<UNVERIFIED')) else None
         if (entry and entry['edits'] == 1 and not entry['unknown'] and set(entry['fields']) == RIGHTS and

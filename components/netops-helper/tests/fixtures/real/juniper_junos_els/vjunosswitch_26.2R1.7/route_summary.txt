@@ -1,0 +1,19 @@
+Router ID: 203.0.113.6
+
+Highwater Mark (All time / Time averaged watermark)
+    RIB unique destination routes: 24 at 2026-11-08 23:28:53 / 0
+    RIB routes                   : 25 at 2026-11-08 23:28:53 / 0
+    FIB routes                   : 7 at 2026-11-08 23:28:53 / 0
+    VRF type routing instances   : 0 at 2026-11-08 22:45:06
+
+inet.0: 13 destinations, 13 routes (13 active, 0 holddown, 0 hidden)
+Limit/Threshold: 1048576/1048576 destinations
+              Direct:      4 routes,      4 active
+               Local:      3 routes,      3 active
+                OSPF:      5 routes,      5 active
+              Static:      1 routes,      1 active
+
+inet6.0: 2 destinations, 2 routes (2 active, 0 holddown, 0 hidden)
+Limit/Threshold: 1048576/1048576 destinations
+               Local:      1 routes,      1 active
+               INET6:      1 routes,      1 active

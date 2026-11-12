@@ -1,0 +1,20 @@
+
+VRF: default
+Routing entry for 2001:db8:1::1
+Source Codes:
+       C - connected, S - static, K - kernel, O3 - OSPFv3,
+       O3 IA - OSPFv3 inter area, O3 E1 - OSPFv3 external type 1,
+       O3 E2 - OSPFv3 external type 2,
+       O3 N1 - OSPFv3 NSSA external type 1
+       O3 N2 - OSPFv3 NSSA external type2, B - Other BGP Routes,
+       A B - BGP Aggregate, R - RIP,
+       I L1 - IS-IS level 1, I L2 - IS-IS level 2, DH - DHCP,
+       NG - Nexthop Group Static Route, M - Martian,
+       DP - Dynamic Policy Route, L - VRF Leaked,
+       G  - gRIBI, RC - Route Cache Route,
+       CL - CBF Leaked Route
+
+
+
+> show ipv6 route 2001:db8:1::1
+! IPv6 routing not enabled at line 1

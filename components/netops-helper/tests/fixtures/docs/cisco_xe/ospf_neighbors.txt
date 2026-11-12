@@ -1,0 +1,6 @@
+
+Neighbor ID     Pri   State           Dead Time   Address         Interface
+203.0.113.1       1   FULL/DR         00:00:36    198.51.100.3    Vlan10
+203.0.113.4       1   FULL/BDR        00:00:31    198.51.100.4    Vlan10
+203.0.113.9       0   FULL/  -        00:00:33    203.0.113.201   TenGigabitEthernet1/1/1
+203.0.113.7       1   INIT/DROTHER    00:00:38    198.51.100.7    Vlan10

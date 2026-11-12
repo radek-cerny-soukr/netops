@@ -1,0 +1,8 @@
+Routing instance        VLAN name             Tag          Interfaces
+default-switch          default               1
+                                                           ge-0/0/4.0*
+default-switch          Users                 10
+                                                           ae0.0*
+                                                           ge-0/0/1.0*
+default-switch          Voice                 20
+                                                           ge-0/0/3.0*

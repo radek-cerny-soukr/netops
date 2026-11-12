@@ -3,7 +3,7 @@ name: Release candidate
 on:
   push:
     branches:
-      - release/1.0.6-candidate
+      - release/1.0.7-candidate
   workflow_dispatch:
 
 permissions:
@@ -15,7 +15,7 @@ concurrency:
 
 env:
   IMAGE: ghcr.io/radek-cerny-soukr/netops
-  VERSION: 1.0.6
+  VERSION: 1.0.7
   BUILDKIT_IMAGE: moby/buildkit:v0.34.0@sha256:b059f8d7226d0b326bc871af489a5dddf65e36af4d20d14251b072974d9ee87c
   SYFT_VERSION: 1.54.1
   GRYPE_VERSION: 0.120.1
@@ -108,7 +108,7 @@ jobs:
           mkdir -p "$tools"
           fetch() {
             archive="$RUNNER_TEMP/$1.tar.gz"
-            curl -fsSL --proto '=https' --tlsv1.2 -o "$archive" "https://github.com/anchore/$1/releases/download/v$2/$1_$2_linux_${ARCH}.tar.gz"
+            curl -fsSL --proto '=https' --tlsv1.2 --retry 5 --retry-all-errors --retry-delay 10 --retry-max-time 300 --connect-timeout 20 --max-time 120 -o "$archive" "https://github.com/anchore/$1/releases/download/v$2/$1_$2_linux_${ARCH}.tar.gz"
             echo "$3  $archive" | sha256sum -c -
             tar -xzf "$archive" -C "$tools" "$1"
           }

@@ -1,0 +1,4 @@
+Enabled License Level:
+	Core
+Enabled Feature Packs:
+	None

@@ -1,0 +1,6 @@
+IPv6 Routing Table for VRF "default"
+'*' denotes best ucast next-hop
+'**' denotes best mcast next-hop
+'[x/y]' denotes [preference/metric]
+
+Route not found

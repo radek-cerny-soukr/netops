@@ -769,9 +769,10 @@ def test_public_query_metadata_preserves_legacy_catalog_shape() -> None:
         },
     }
     assert metadata["cisco_ios"]["vlans"]["high_volume"] is True
-    for platform in metadata.values():
-        for query in platform.values():
-            assert set(query) == {
+    for platform, queries in metadata.items():
+        for name, query in queries.items():
+            extra = {"requires_device_permission", "read_only_account"} if READ_QUERIES[platform][name].read_only_account == "refused" else set()
+            assert set(query) == extra | {
                 "command_template",
                 "description",
                 "high_volume",
@@ -1187,6 +1188,7 @@ def test_phase1_server_and_engine_expose_no_generic_body_reads() -> None:
         )
     }
     assert registered_tools == {
+        "switch_read", "locate_endpoint",
         "helper_status",
         "read_query_catalog",
         "dns_probe",
@@ -1205,6 +1207,9 @@ def test_phase1_server_and_engine_expose_no_generic_body_reads() -> None:
         "triage_health",
         "triage_routing",
         "triage_vpn",
+        "wifi_triage",
+        "wifi_clients", "wifi_aps_live", "wifi_rogue",
+        "triage_flow",
     }
 
     server_engine_imports = {
@@ -1287,6 +1292,25 @@ def _project_identity(root: Path) -> tuple[str, str]:
     return engine["name"], project["version"]
 
 
+
+
+def test_every_tool_is_registered_before_the_main_guard() -> None:
+    """`python -m netops_helper.server` blocks in mcp.run(); a tool defined after it never exists."""
+    tree = ast.parse((Path(__file__).resolve().parents[1] / "src/netops_helper/server.py").read_text(encoding="utf-8"))
+    guard = next(
+        index for index, node in enumerate(tree.body)
+        if isinstance(node, ast.If) and isinstance(node.test, ast.Compare)
+        and isinstance(node.test.left, ast.Name) and node.test.left.id == "__name__"
+    )
+    assert guard == len(tree.body) - 1
+    tools = [
+        node.name for node in tree.body
+        if isinstance(node, ast.FunctionDef) and any(
+            isinstance(d, ast.Attribute) and isinstance(d.value, ast.Name) and d.value.id == "mcp" and d.attr == "tool"
+            for d in node.decorator_list)
+    ]
+    assert {"switch_read", "locate_endpoint"} <= set(tools)
+    assert not [node for node in tree.body[guard + 1:]]
 
 
 def test_initialize_reports_the_helper_distribution() -> None:

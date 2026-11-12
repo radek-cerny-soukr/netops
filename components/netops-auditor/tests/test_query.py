@@ -859,3 +859,181 @@ def test_reciprocal_gate_cannot_resolve_or_accept_baseline(tmp_path, rule_id):
         listing = query.list_findings(store, TENANT, DEVICE, now=NOW)
         assert not listing["gone"]
         assert any(f["state"] == "not-evaluated" for f in listing["findings"])
+
+
+def _metadata_lookups(store, call):
+    statements = []
+    store._connection.set_trace_callback(statements.append)
+    try:
+        result = call()
+    finally:
+        store._connection.set_trace_callback(None)
+    return result, [item for item in statements if "FROM runs" in item]
+
+
+def test_compare_reads_two_runs_by_id_not_the_whole_history(store):
+    ids = [
+        record(store, (make_finding(object_key="obj/%d" % number),), started_at="2026-09-%02dT06:00:00Z" % (number + 1))
+        for number in range(12)
+    ]
+    other = record(store, (), device=SECOND_DEVICE, started_at="2026-09-20T06:00:00Z")
+    result, lookups = _metadata_lookups(store, lambda: query.compare(store, TENANT, DEVICE, ids[7], ids[2]))
+    assert len(lookups) <= 2
+    assert all("ORDER BY" not in item and "id = " in item for item in lookups)
+    assert (result["first"]["run_id"], result["second"]["run_id"]) == (ids[7], ids[2])
+    assert result["counts"] == {"added": 1, "removed": 1, "kept": 0}
+    same, lookups = _metadata_lookups(store, lambda: query.compare(store, TENANT, DEVICE, ids[3], ids[3]))
+    assert same["counts"] == {"added": 0, "removed": 0, "kept": 1}
+    for run_id in (9999, other):
+        with pytest.raises(query.QueryError):
+            query.compare(store, TENANT, DEVICE, ids[0], run_id)
+    with pytest.raises(query.QueryError):
+        query.compare(store, OTHER_TENANT, DEVICE, ids[0], ids[1])
+
+
+def _skipped_history(store):
+    optional = "exos.port.optional"
+    skipped = {optional: {"status": "not-evaluated", "reason": "no-vlan-content", "required": False}}
+    evaluated = {optional: {"status": "evaluated", "reason": "", "required": False}}
+    carried = make_finding(rule_id=optional, object_key="port/1:1")
+    plain = make_finding(rule_id=RULE_DANGLING, object_key=OBJECT_POLICY, severity="high")
+    gone = make_finding(rule_id=RULE_WAN, object_key=OBJECT_WAN, severity="medium")
+    first = store.record_run(
+        TENANT, DEVICE, SNAPSHOT, CANARY_SOURCE, RULES_VERSION, [carried, plain, gone],
+        started_at="2026-09-09T06:00:00Z", rule_status=evaluated,
+    )
+    for moment, found in (("2026-09-10T06:00:00Z", [plain, gone]), ("2026-09-11T06:00:00Z", [plain])):
+        store.record_run(
+            TENANT, DEVICE, SNAPSHOT, CANARY_SOURCE, RULES_VERSION, found,
+            started_at=moment, rule_status=skipped,
+        )
+    return first, carried, plain, gone
+
+
+def test_history_is_looked_up_once_per_findings_request(store):
+    first, carried, plain, gone = _skipped_history(store)
+    calls = []
+    original = query.last_evaluated
+    query.last_evaluated = lambda *args: calls.append(args) or original(*args)
+    try:
+        listing = query.list_findings(store, TENANT, DEVICE, now=NOW)
+        assert len(calls) == 1
+        del calls[:]
+        detail = query.finding_detail(store, TENANT, DEVICE, carried.fingerprint(), now=NOW)
+        assert len(calls) == 1
+        del calls[:]
+        query.audit_status(store, TENANT, device=DEVICE, now=NOW)
+        assert len(calls) == 1
+    finally:
+        query.last_evaluated = original
+    states = {item["fingerprint"]: item["state"] for item in listing["findings"]}
+    states.update({item["fingerprint"]: item["state"] for item in listing["gone"]})
+    assert states == {
+        plain.fingerprint(): STATE_NEW,
+        carried.fingerprint(): "not-evaluated",
+        gone.fingerprint(): STATE_GONE,
+    }
+    assert (detail["state"], detail["run_id"], detail["started_at"]) == (
+        "not-evaluated", first, "2026-09-09T06:00:00Z"
+    )
+    # a later request sees an import finished in between
+    later = store.record_run(
+        TENANT, DEVICE, SNAPSHOT, CANARY_SOURCE, RULES_VERSION, [plain],
+        started_at="2026-09-12T06:00:00Z",
+    )
+    again = query.list_findings(store, TENANT, DEVICE, now=NOW)
+    assert again["run_id"] == later
+    assert carried.fingerprint() not in {item["fingerprint"] for item in again["findings"]}
+
+
+def _legacy_query():
+    import importlib.util
+    from pathlib import Path
+
+    path = Path(__file__).parent / "support" / "legacy_query_v106.py"
+    spec = importlib.util.spec_from_file_location("legacy_query_v106", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def _long_skipped_history(store):
+    optional = "exos.port.optional"
+    other_optional = "exos.port.other"
+    skipped = {
+        optional: {"status": "not-evaluated", "reason": "no-vlan-content", "required": False},
+        other_optional: {"status": "not-evaluated", "reason": "no-stack", "required": False},
+    }
+    evaluated = {
+        optional: {"status": "evaluated", "reason": "", "required": False},
+        other_optional: {"status": "evaluated", "reason": "", "required": False},
+    }
+    carried = make_finding(rule_id=optional, object_key="port/1:1")
+    carried_other = make_finding(rule_id=other_optional, object_key="port/2:1")
+    plain = make_finding(rule_id=RULE_DANGLING, object_key=OBJECT_POLICY, severity="high")
+    muted = make_finding(rule_id=RULE_UNUSED, object_key=OBJECT_CORP, severity="low")
+    gone = make_finding(rule_id=RULE_WAN, object_key=OBJECT_WAN, severity="medium")
+    runs = [
+        store.record_run(
+            TENANT, DEVICE, SNAPSHOT, CANARY_SOURCE, RULES_VERSION, found,
+            started_at=moment, rule_status=status,
+        )
+        for moment, found, status in (
+            ("2026-09-07T06:00:00Z", [carried, carried_other, plain, muted, gone], evaluated),
+            ("2026-09-08T06:00:00Z", [carried_other, plain, muted, gone], {**evaluated, optional: skipped[optional]}),
+            ("2026-09-09T06:00:00Z", [plain, muted, gone], skipped),
+            ("2026-09-10T06:00:00Z", [plain, muted, gone], skipped),
+            ("2026-09-11T06:00:00Z", [plain, muted], {optional: skipped[optional], other_optional: evaluated[other_optional]}),
+        )
+    ]
+    return runs, (carried, carried_other, plain, muted, gone)
+
+
+def _all_results(module, store, findings, suppressions):
+    fingerprints = [item.fingerprint() for item in findings] + ["f" * 64]
+    return {
+        "listing": module.list_findings(store, TENANT, DEVICE, suppressions=suppressions, now=NOW),
+        "detail": [
+            module.finding_detail(store, TENANT, DEVICE, value, suppressions=suppressions, now=NOW)
+            for value in fingerprints
+        ],
+        "status": module.audit_status(store, TENANT, now=NOW),
+        "device_status": module.audit_status(store, TENANT, device=DEVICE, now=NOW),
+    }
+
+
+def test_single_history_lookup_gives_the_same_results_as_the_v106_path(store):
+    legacy = _legacy_query()
+    runs, (carried, carried_other, plain, muted, gone) = _long_skipped_history(store)
+    record(store, (), device=SECOND_DEVICE, started_at="2026-09-11T07:00:00Z")
+    suppressions = (suppression(muted), suppression(plain, device=SECOND_DEVICE))
+    findings = (carried, carried_other, plain, muted, gone)
+    old = _all_results(legacy, store, findings, suppressions)
+    new = _all_results(query, store, findings, suppressions)
+    # O4 added coverage to each device; optional skipped rules are not gaps.
+    complete = {"complete": True, "inherent_gaps": [], "actionable_gaps": []}
+    for key in ("status", "device_status"):
+        for device in new[key]["devices"]:
+            assert device.pop("coverage") == complete
+    assert new == old
+    # the fixture really exercises the interesting states
+    states = {item["fingerprint"]: item["state"] for item in new["listing"]["findings"]}
+    states.update({item["fingerprint"]: item["state"] for item in new["listing"]["gone"]})
+    assert states[carried.fingerprint()] == "not-evaluated"
+    assert states[muted.fingerprint()] == STATE_SUPPRESSED
+    assert states[gone.fingerprint()] == STATE_GONE
+    assert new["detail"][0]["state"] == "not-evaluated"
+    assert new["detail"][0]["run_id"] == runs[0]
+    assert new["detail"][-1] is None
+    # carried across several runs: the other rule was evaluated again, so it is not carried
+    assert states.get(carried_other.fingerprint()) != "not-evaluated"
+    # the old path looked the history up twice per listing, the new one exactly once
+    for module, expected in ((legacy, 2), (query, 1)):
+        calls = []
+        original = module.last_evaluated
+        module.last_evaluated = lambda *args: calls.append(args) or original(*args)
+        try:
+            module.list_findings(store, TENANT, DEVICE, suppressions=suppressions, now=NOW)
+        finally:
+            module.last_evaluated = original
+        assert len(calls) == expected

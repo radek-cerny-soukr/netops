@@ -1,0 +1,8 @@
+Cisco Nexus Operating System (NX-OS) Software
+Software
+  NXOS: version 10.5(4)(M)
+Hardware
+  cisco Nexus9000 C9336C-FX2 Chassis
+  Processor Board ID LAB00000003
+  Device name: lab-nxos
+Kernel uptime is 5 day(s), 2 hour(s), 13 minute(s), 21 second(s)

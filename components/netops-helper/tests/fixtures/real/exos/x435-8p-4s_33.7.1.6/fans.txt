@@ -1,0 +1,5 @@
+
+FanTray information:
+ State:                  Unsupported
+ NumFan:                 0
+

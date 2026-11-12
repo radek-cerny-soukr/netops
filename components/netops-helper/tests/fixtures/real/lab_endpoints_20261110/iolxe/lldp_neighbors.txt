@@ -1,0 +1,144 @@
+
+
+
+------------------------------------------------
+Local Intf: Et0/0
+Local Intf service instance: -
+Chassis id: 0000.5e00.5307
+Port id: Gi0/0
+Port Description: GigabitEthernet0/0
+System Name: host01
+
+System Description: 
+Cisco IOS Software, vios_l2 Software (vios_l2-ADVENTERPRISEK9-M), Experimental Version 15.2(20200924:215240) [sweickge-sep24-2020-l2iol-release 135]
+Copyright (c) 1986-2020 by Cisco Systems, Inc.
+Compiled Tue 29-Sep-20 11:53 by sweickge
+
+Time remaining: 91 seconds
+System Capabilities: B,R
+Enabled Capabilities: R
+Management Addresses:
+    IP: 192.0.2.2
+Auto Negotiation - not supported
+Physical media capabilities - not advertised
+Media Attachment Unit type - not advertised
+Vlan ID: - not advertised
+Peer Source MAC: 0000.5e00.5307
+
+------------------------------------------------
+Local Intf: Et0/0
+Local Intf service instance: -
+Chassis id: 0000.5e00.530c
+Port id: mgmt0
+Port Description: mgmt0
+System Name: host06
+
+System Description: 
+Cisco Nexus Operating System (NX-OS) Software 9.3(12)
+TAC support: http://www.cisco.com/tac
+Copyright (c) 2002-2023, Cisco Systems, Inc. All rights reserved.
+
+Time remaining: 115 seconds
+System Capabilities: B,R
+Enabled Capabilities: B,R
+Management Addresses:
+    IP: 203.0.113.55
+    Other: 0C FF FF FF 00 00 00
+Auto Negotiation - not supported
+Physical media capabilities - not advertised
+Media Attachment Unit type - not advertised
+Vlan ID: - not advertised
+Peer Source MAC: 0000.5e00.530c
+
+------------------------------------------------
+Local Intf: Et0/0
+Local Intf service instance: -
+Chassis id: 0000.5e00.5308
+Port id: mgmt
+Port Description - not advertised
+System Name: host02
+
+System Description: 
+ExtremeXOS (EXOS-VM) version 33.6.1.14 by release-manager on Tue Mar 24 02:04:32 PM UTC 2026
+
+Time remaining: 117 seconds
+System Capabilities - not advertised
+Enabled Capabilities - not advertised
+Management Addresses - not advertised
+Auto Negotiation - not supported
+Physical media capabilities - not advertised
+Media Attachment Unit type - not advertised
+Vlan ID: - not advertised
+Peer Source MAC: 0000.5e00.5308
+
+------------------------------------------------
+Local Intf: Et0/0
+Local Intf service instance: -
+Chassis id: 0000.5e00.530d
+Port id: Management0
+Port Description - not advertised
+System Name: host07
+
+System Description: 
+Arista Networks EOS version 4.36.1F-48405728.4361F (engineering build) running on an Arista cEOSLab
+
+Time remaining: 106 seconds
+System Capabilities: B,R
+Enabled Capabilities: B,R
+Management Addresses:
+    IP: 203.0.113.254
+Auto Negotiation - not supported
+Physical media capabilities - not advertised
+Media Attachment Unit type - not advertised
+Vlan ID: - not advertised
+Peer Source MAC: 0000.5e00.5310
+
+------------------------------------------------
+Local Intf: Et0/0
+Local Intf service instance: -
+Chassis id: 0000.5e00.530b
+Port id: Gi0/0
+Port Description: GigabitEthernet0/0
+System Name: host05
+
+System Description: 
+Cisco IOS Software, IOSv Software (VIOS-ADVENTERPRISEK9-M), Version 15.9(3)M12, RELEASE SOFTWARE (fc1)
+Technical Support: http://www.cisco.com/techsupport
+Copyright (c) 1986-2025 by Cisco Systems, Inc.
+Compiled Fri 19-Sep-25 07:49 by mcpre
+
+Time remaining: 115 seconds
+System Capabilities: B,R
+Enabled Capabilities: R
+Management Addresses:
+    IP: 203.0.113.51
+Auto Negotiation - not supported
+Physical media capabilities - not advertised
+Media Attachment Unit type - not advertised
+Vlan ID: - not advertised
+Peer Source MAC: 0000.5e00.530b
+
+------------------------------------------------
+Local Intf: Et0/1
+Local Intf service instance: -
+Chassis id: 0000.5e00.530d
+Port id: Ethernet5
+Port Description - not advertised
+System Name: host07
+
+System Description: 
+Arista Networks EOS version 4.36.1F-48405728.4361F (engineering build) running on an Arista cEOSLab
+
+Time remaining: 106 seconds
+System Capabilities: B,R
+Enabled Capabilities: B,R
+Management Addresses:
+    IP: 203.0.113.254
+Auto Negotiation - not supported
+Physical media capabilities - not advertised
+Media Attachment Unit type - not advertised
+Vlan ID: 1
+Peer Source MAC: 0000.5e00.5311
+
+
+Total entries displayed: 6

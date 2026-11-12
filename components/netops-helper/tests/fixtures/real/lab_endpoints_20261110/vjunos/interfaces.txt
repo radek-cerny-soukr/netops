@@ -1,0 +1,68 @@
+Interface               Admin Link Proto    Local                 Remote
+ge-0/0/0                up    up
+ge-0/0/0.0              up    up   eth-switch
+lc-0/0/0                up    up
+lc-0/0/0.32769          up    up   vpls    
+pfe-0/0/0               up    up
+pfe-0/0/0.16383         up    up   inet    
+                                   inet6   
+pfh-0/0/0               up    up
+pfh-0/0/0.16383         up    up   inet    
+pfh-0/0/0.16384         up    up   inet    
+ge-0/0/1                up    down
+ge-0/0/1.16386          up    down
+ge-0/0/2                up    down
+ge-0/0/2.16386          up    down
+ge-0/0/3                up    down
+ge-0/0/3.16386          up    down
+ge-0/0/4                up    down
+ge-0/0/4.16386          up    down
+ge-0/0/5                up    down
+ge-0/0/5.16386          up    down
+ge-0/0/6                up    down
+ge-0/0/6.16386          up    down
+ge-0/0/7                up    down
+ge-0/0/7.16386          up    down
+ge-0/0/8                up    down
+ge-0/0/8.16386          up    down
+ge-0/0/9                up    down
+ge-0/0/9.16386          up    down
+cbp0                    up    up
+demux0                  up    up
+demux1                  up    up
+dsc                     up    up
+em1                     up    up
+em1.0                   up    up   inet     203.0.113.249/8      
+                                            203.0.113.248/2     
+                                            203.0.113.247/2     
+                                   inet6    fe80::10/64
+                                            2001:db8:1::10/64
+                                   tnp      0x4             
+esi                     up    up
+fti0                    up    up
+fxp0                    up    up
+fxp0.0                  up    up   inet     203.0.113.56/24
+                                   inet6    fe80::11/64
+gre                     up    up
+ipip                    up    up
+irb                     up    up
+irb.10                  up    up   inet     192.0.2.6/24   
+                                   multiservice
+irb.20                  up    up   inet     198.51.100.6/24   
+                                   multiservice
+jsrv                    up    up
+jsrv.1                  up    up   inet     203.0.113.246/2   
+lo0                     up    up
+lo0.0                   up    up   inet     203.0.113.245       --> 0/0
+lo0.16384               up    up   inet     127.0.0.1           --> 0/0
+lo0.16385               up    up   inet    
+lsi                     up    up
+mif                     up    up
+mtun                    up    up
+pimd                    up    up
+pime                    up    up
+pip0                    up    up
+pp0                     up    up
+rbeb                    up    up
+tap                     up    up
+vtep                    up    up

@@ -1,0 +1,6 @@
+VR Name               Remote                                     Reference ID    St Poll Reach Delay   Offset   Disp   
+===================== =========================================  =============== == ==== ===== ======= ======== =======
+
+St(ratum)   : Distance from the reference clock
+Disp(ersion): Maximum offset error of clock
+Flags       : (*) System Peer, (.) Candidate, (#) Short List, (!) Configured

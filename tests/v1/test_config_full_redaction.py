@@ -18,7 +18,8 @@ def policy(platform='fortios', fields=(), edits=(), opaque=(), headers=(), vdom=
 def auth(platform='fortinet'):
     return SimpleNamespace(alias='fixture', host='192.0.2.20', port=22, login='reader',
                            host_key_fingerprint='SHA256:fixture', credential_kind='password',
-                           secret='AUTH-SENTINEL', ssh_platform=platform, configuration_limits=ConfigurationLimits())
+                           secret='AUTH-SENTINEL', secrets=('AUTH-SENTINEL',), ssh_platform=platform,
+                           configuration_limits=ConfigurationLimits())
 
 
 def render(raw, selected, chunk=7, forbidden=()):
@@ -148,8 +149,8 @@ class FullConfigurationRedaction(TestCase):
             self.assertIn('set status enable', text(out))
             self.assertNotIn('ADC #', text(out))
             self.assertEqual((len(hidden), count), (0, 0))
-        with self.assertRaises(ValueError):
-            c.redact('config system global\n set bad_field value\nend\n', (), 'all')
+        minimal, _, _ = c.redact('config system global\n set bad_field value\nend\n', (), 'all')
+        self.assertIn('set bad_field <REDACTED>', text(minimal))
         with self.assertRaises(ValueError):
             policy(fields=[(('system global',), 'bad;field')])
 

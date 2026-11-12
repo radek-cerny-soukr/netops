@@ -1,0 +1,6 @@
+show interfaces counters errors
+
+                      ^
+% Invalid command at '^' marker.
+
+host01# 

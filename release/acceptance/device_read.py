@@ -57,7 +57,8 @@ class Fixture:
             pass
         run(privileged(["useradd", "-m", "-s", "/bin/sh", self.user]))
         self.created = True
-        public = open(self.key + ".pub", encoding="utf-8").read().strip()
+        with open(self.key + ".pub", encoding="utf-8") as stream:
+            public = stream.read().strip()
         home = pwd.getpwnam(self.user).pw_dir
         staged = os.path.join(self.directory, "authorized_keys")
         with open(staged, "w", encoding="utf-8") as stream:
@@ -138,7 +139,8 @@ def execute(args):
         port, pin, expected = 22, host_pin(), run(["uname", "-a"]).stdout.strip()
         fixture_context = Fixture(args.fixture_user)
     with fixture_context as fixture:
-        key = open(fixture.key, encoding="utf-8").read()
+        with open(fixture.key, encoding="utf-8") as stream:
+            key = stream.read()
         document = {"inventory": {"version": 2, "devices": [device(GOOD, address, port, pin, address), device(WRONG_PIN, address, port, wrong, address)]},
                     "vault": {"version": 2, "credentials": {"accept-key": {"kind": "ssh-key", "login": fixture.user, "value": key}}}}
         rc, last, up = configure_helper(args, document)

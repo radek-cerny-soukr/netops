@@ -1,0 +1,3 @@
+
+> show ip bgp summary
+% BGP inactive at line 1

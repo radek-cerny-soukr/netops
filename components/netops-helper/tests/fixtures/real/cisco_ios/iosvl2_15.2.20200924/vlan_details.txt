@@ -1,0 +1,16 @@
+
+
+VLAN Name                             Status    Ports
+---- -------------------------------- --------- -------------------------------
+10   D10                              active    Gi0/1, Gi0/2
+
+VLAN Type  SAID       MTU   Parent RingNo BridgeNo Stp  BrdgMode Trans1 Trans2
+---- ----- ---------- ----- ------ ------ -------- ---- -------- ------ ------
+10   enet  100010     1500  -      -      -        -    -        0      0   
+
+Remote SPAN VLAN
+----------------
+Disabled
+
+Primary Secondary Type              Ports
+------- --------- ----------------- ------------------------------------------

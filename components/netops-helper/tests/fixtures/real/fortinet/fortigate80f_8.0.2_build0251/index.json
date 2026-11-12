@@ -1,0 +1,23 @@
+{
+  "managed_switch_mac_all": {
+    "command": "diagnose switch-controller switch-info mac-table",
+    "rc": 0,
+    "lines": 99,
+    "captured_at": "2026-11-09T22:48:27Z",
+    "account_role": "read-only"
+  },
+  "managed_switch_lldp_1": {
+    "command": "diagnose switch-controller switch-info lldp neighbors-summary S000SSSS00000001",
+    "rc": 0,
+    "lines": 45,
+    "captured_at": "2026-11-09T22:49:05Z",
+    "account_role": "read-only"
+  },
+  "managed_switch_lldp_2": {
+    "command": "diagnose switch-controller switch-info lldp neighbors-summary S000SSSS00000002",
+    "rc": 0,
+    "lines": 45,
+    "captured_at": "2026-11-09T22:49:06Z",
+    "account_role": "read-only"
+  }
+}

@@ -1,0 +1,2 @@
+show interfaces counters errors
+host01>

@@ -1,0 +1,27 @@
+
+-----------------------------------------------------------------------------
+LLDP Port 1 detected 1 neighbor
+  Neighbor: 00:00:5E:00:53:02/Ethernet2, age 9 seconds
+    - Chassis ID type: MAC address (4)
+      Chassis ID     : 00:00:5E:00:53:02
+    - Port ID type: ifName (5)
+      Port ID     : "Ethernet2"
+    - Time To Live: 120 seconds
+    - System Name: "host04"
+    - System Description: "Arista Networks EOS version 4.36.1F-48405728.4361\
+                           F (engineering build) running on an Arista cEOSLa\
+                           b"
+    - System Capabilities : "Bridge, Router"
+      Enabled Capabilities: "Bridge, Router"
+    - Management Address Subtype: IPv4 (1)
+      Management Address        : 203.0.113.131
+      Interface Number Subtype  : ifIndex (2)
+      Interface Number          : 5000000
+      Object ID String          : "null"
+    - IEEE802.1 Port VLAN Identifier: 1
+    - IEEE802.3 Link-aggregation
+      Capability/Status : Capable, Disabled (0x01)
+      Aggregated Port ID: 0 (0x00000000)
+    - IEEE802.3 Maximum Frame Size: 9236 bytes
+    - MED Serial Number: "S000S0000SS0SSS0SSS0S0S000S00S04"
+

@@ -1,0 +1,7 @@
+Switch          : 800992-01-03 LAB00000014 Rev 03 BootROM: 2.2.1.3    IMG: 31.1.0.631
+Image   : ExtremeXOS version 31.1.0.631 by release-manager
+          on Tue Sep 1 13:58:24 EDT 2020
+BootROM : Default 2.2.1.3  Alternate 2.2.1.3
+Diagnostics :
+Certified Version : EXOS Linux 4.14.170, Extreme Networks FIPS Object Module 2.0.16a
+Build Tools Version : exos-arm64-sdk-3.0.3.1.0

@@ -31,7 +31,13 @@ ALLOWED_DOMAINS = (
     "extremenetworks.com",
     "fortinet.com",
     "github.com",
+    # public software and documentation sites printed by devices (SSH algorithm names such as
+    # chacha20-poly1305@openssh.com, the GPL notice of NX-OS) or cited as the source of a fixture
+    "gnu.org",
     "juniper.net",
+    "libssh.org",
+    "netapp.com",
+    "openssh.com",
     "opencontainers.org",
     "pypi.org",
     "python.org",
@@ -44,8 +50,22 @@ ALLOWED_LITERALS = frozenset(
         "33.6.1.14",
         "1.3.6.1",
         "aa:bb:cc:dd:ee:ff", "1.0.1.9", "2.0.0.6", "255.255.255.255", "31.7.3.37", "32.6.2.68",
-        "5.2.1.1", "169.254.0.0", "00:00:00:00:00:00",)
+        "5.2.1.1", "169.254.0.0", "00:00:00:00:00:00",
+        # EXOS BootROM and image versions of the identity fixtures
+        "1.0.1.8", "21.1.2.6", "2.2.1.3",
+        # IANA well-known multicast groups printed by real devices: OSPF AllSPFRouters, PIM, VRRP,
+        # Cisco-RP-Announce, Cisco-RP-Discovery and PTP (NX-OS control-plane ACLs, Junos route table)
+        "224.0.0.5", "224.0.0.13", "224.0.0.18", "224.0.1.39", "224.0.1.40", "224.0.1.129",)
 )
+# EXOS "show interfaces detail" prints the all-ones IPv6 flow key mask
+ALLOWED_IPV6_LITERALS = frozenset(("ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff",))
+# an STP bridge identifier is two priority octets plus a MAC; it is accepted when the MAC is a documentation MAC
+BRIDGE_ID_PATTERN = re.compile(r"[0-9A-Fa-f]{2}:[0-9A-Fa-f]{2}:((?:[0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2})")
+# real EXOS output: "show process" (the Version column holds process versions, not addresses) and
+# event names in log lines ("<Info:HAL.Sys.Info>" is a component path, not a domain)
+EXOS_REAL_FIXTURES = re.compile(r"components/netops-helper/tests/fixtures/real/exos/[^/]+/")
+EXOS_PROCESS_ROW = re.compile(r"[A-Za-z][\w.-]*[ \t]+(\d+(?:\.\d+){3})[ \t]+\d+[ \t]+[A-Z]")
+EXOS_EVENT_NAME = re.compile(r"<(?:Crit|Erro|Warn|Noti|Info|Summ|Verb|Data):[A-Za-z0-9_.]+>")
 DOCUMENTATION_MAC_PREFIX = "00:00:5e:00:53:"
 IPV4_PATTERN = re.compile(r"(?<![0-9A-Za-z.])([0-9]{1,3}(?:\.[0-9]{1,3}){3})(?![0-9A-Za-z]|\.[0-9])")
 IPV6_PATTERN = re.compile(r"(?<![0-9A-Za-z:.])([0-9A-Fa-f]{0,4}(?::[0-9A-Fa-f]{0,4}){2,7})(?![0-9A-Za-z:]|\.[0-9])")
@@ -198,9 +218,19 @@ def _negative_diagnostic_literals(relative: str, text: str) -> set[tuple[int, in
     return accepted
 
 
+def _exos_process_versions(relative: str, text: str) -> set[tuple[int, int, int]]:
+    """(line, start, end) of the Version column of EXOS "show process" rows in a real EXOS fixture."""
+    if EXOS_REAL_FIXTURES.match(relative) is None or not relative.endswith("/processes.txt"):
+        return set()
+    return {(number, match.start(1), match.end(1))
+            for number, line in enumerate(text.splitlines(), start=1)
+            for match in [EXOS_PROCESS_ROW.match(line)] if match is not None}
+
+
 def _address_errors(relative: str, text: str, domains: bool) -> list[str]:
     errors: list[str] = []
-    negative_literals = _negative_diagnostic_literals(relative, text)
+    negative_literals = _negative_diagnostic_literals(relative, text) | _exos_process_versions(relative, text)
+    exos_events = EXOS_REAL_FIXTURES.match(relative) is not None
     for number, line in enumerate(text.splitlines(), start=1):
         for match in IPV4_PATTERN.finditer(line):
             if (number, match.start(1), match.end(1)) in negative_literals:
@@ -213,6 +243,11 @@ def _address_errors(relative: str, text: str, domains: bool) -> list[str]:
                     f" documentation ranges: {match.group(1)}"
                 )
         for match in IPV6_PATTERN.finditer(line):
+            if match.group(1).lower() in ALLOWED_IPV6_LITERALS:
+                continue
+            bridge = BRIDGE_ID_PATTERN.fullmatch(match.group(1))
+            if bridge is not None and bridge.group(1).lower().startswith(DOCUMENTATION_MAC_PREFIX):
+                continue
             if _documented_ipv6(match.group(1)) is False:
                 errors.append(
                     f"{relative}:{number} holds an IPv6 address outside 2001:db8::/32:"
@@ -225,6 +260,8 @@ def _address_errors(relative: str, text: str, domains: bool) -> list[str]:
             errors.append(
                 f"{relative}:{number} holds a MAC address: {match.group(0)}"
             )
+        if exos_events:
+            line = EXOS_EVENT_NAME.sub(lambda event: " " * len(event.group(0)), line)
         for match in DOMAIN_PATTERN.finditer(line) if domains else ():
             if not _documented_domain(match.group(1)):
                 errors.append(

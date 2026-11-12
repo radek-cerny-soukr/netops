@@ -1,0 +1,1 @@
+Captured on 2026-11-10 from a physical X435 using the read-only `show sharing` command. The output contains no device identifiers, addresses or credentials; only line endings were normalized. The adjacent synthetic/VM fixture retains the shorter legend for compatibility testing.

@@ -1,0 +1,200 @@
+2026 Nov  8 22:18:42 switch %ETHPORT-5-IF_DUPLEX: Interface Ethernet1/3, operational duplex mode changed to Full
+2026 Nov  8 22:18:42 switch %ETHPORT-5-IF_RX_FLOW_CONTROL: Interface Ethernet1/3, operational Receive Flow Control state changed to off
+2026 Nov  8 22:18:42 switch %ETHPORT-5-IF_TX_FLOW_CONTROL: Interface Ethernet1/3, operational Transmit Flow Control state changed to off
+2026 Nov  8 22:18:42 switch %ETHPORT-5-IF_UP: Interface Ethernet1/3 is up in Layer3
+2026 Nov  8 22:18:43 switch %ETHPORT-5-IF_ADMIN_UP: Interface Ethernet1/4 is admin up .
+2026 Nov  8 22:18:43 switch %ETHPORT-5-SPEED: Interface Ethernet1/4, operational speed changed to 1 Gbps
+2026 Nov  8 22:18:43 switch %ETHPORT-5-IF_DUPLEX: Interface Ethernet1/4, operational duplex mode changed to Full
+2026 Nov  8 22:18:43 switch %ETHPORT-5-IF_RX_FLOW_CONTROL: Interface Ethernet1/4, operational Receive Flow Control state changed to off
+2026 Nov  8 22:18:43 switch %ETHPORT-5-IF_TX_FLOW_CONTROL: Interface Ethernet1/4, operational Transmit Flow Control state changed to off
+2026 Nov  8 22:18:43 switch %ETHPORT-5-IF_UP: Interface Ethernet1/4 is up in Layer3
+2026 Nov  8 22:18:43 switch %ETHPORT-5-IF_ADMIN_UP: Interface Ethernet1/5 is admin up .
+2026 Nov  8 22:18:43 switch %ETHPORT-5-SPEED: Interface Ethernet1/5, operational speed changed to 1 Gbps
+2026 Nov  8 22:18:43 switch %ETHPORT-5-IF_DUPLEX: Interface Ethernet1/5, operational duplex mode changed to Full
+2026 Nov  8 22:18:43 switch %ETHPORT-5-IF_RX_FLOW_CONTROL: Interface Ethernet1/5, operational Receive Flow Control state changed to off
+2026 Nov  8 22:18:43 switch %ETHPORT-5-IF_TX_FLOW_CONTROL: Interface Ethernet1/5, operational Transmit Flow Control state changed to off
+2026 Nov  8 22:18:43 switch %ETHPORT-5-IF_UP: Interface Ethernet1/5 is up in Layer3
+2026 Nov  8 22:18:43 switch %ETHPORT-5-IF_ADMIN_UP: Interface Ethernet1/6 is admin up .
+2026 Nov  8 22:18:43 switch %ETHPORT-5-SPEED: Interface Ethernet1/6, operational speed changed to 1 Gbps
+2026 Nov  8 22:18:43 switch %ETHPORT-5-IF_DUPLEX: Interface Ethernet1/6, operational duplex mode changed to Full
+2026 Nov  8 22:18:43 switch %ETHPORT-5-IF_RX_FLOW_CONTROL: Interface Ethernet1/6, operational Receive Flow Control state changed to off
+2026 Nov  8 22:18:43 switch %ETHPORT-5-IF_TX_FLOW_CONTROL: Interface Ethernet1/6, operational Transmit Flow Control state changed to off
+2026 Nov  8 22:18:43 switch %ETHPORT-5-IF_UP: Interface Ethernet1/6 is up in Layer3
+2026 Nov  8 22:18:43 switch %ETHPORT-5-IF_ADMIN_UP: Interface Ethernet1/7 is admin up .
+2026 Nov  8 22:18:43 switch %ETHPORT-5-SPEED: Interface Ethernet1/7, operational speed changed to 1 Gbps
+2026 Nov  8 22:18:43 switch %ETHPORT-5-IF_DUPLEX: Interface Ethernet1/7, operational duplex mode changed to Full
+2026 Nov  8 22:18:43 switch %ETHPORT-5-IF_RX_FLOW_CONTROL: Interface Ethernet1/7, operational Receive Flow Control state changed to off
+2026 Nov  8 22:18:43 switch %ETHPORT-5-IF_TX_FLOW_CONTROL: Interface Ethernet1/7, operational Transmit Flow Control state changed to off
+2026 Nov  8 22:18:43 switch %ETHPORT-5-IF_UP: Interface Ethernet1/7 is up in Layer3
+2026 Nov  8 22:18:43 switch %ETHPORT-5-IF_ADMIN_UP: Interface Ethernet1/8 is admin up .
+2026 Nov  8 22:18:43 switch %ETHPORT-5-SPEED: Interface Ethernet1/8, operational speed changed to 1 Gbps
+2026 Nov  8 22:18:43 switch %ETHPORT-5-IF_DUPLEX: Interface Ethernet1/8, operational duplex mode changed to Full
+2026 Nov  8 22:18:43 switch %ETHPORT-5-IF_RX_FLOW_CONTROL: Interface Ethernet1/8, operational Receive Flow Control state changed to off
+2026 Nov  8 22:18:43 switch %ETHPORT-5-IF_TX_FLOW_CONTROL: Interface Ethernet1/8, operational Transmit Flow Control state changed to off
+2026 Nov  8 22:18:43 switch %ETHPORT-5-IF_UP: Interface Ethernet1/8 is up in Layer3
+2026 Nov  8 22:18:43 switch %ETHPORT-5-IF_ADMIN_UP: Interface Ethernet1/9 is admin up .
+2026 Nov  8 22:18:43 switch %ETHPORT-5-SPEED: Interface Ethernet1/9, operational speed changed to 1 Gbps
+2026 Nov  8 22:18:43 switch %ETHPORT-5-IF_DUPLEX: Interface Ethernet1/9, operational duplex mode changed to Full
+2026 Nov  8 22:18:43 switch %ETHPORT-5-IF_RX_FLOW_CONTROL: Interface Ethernet1/9, operational Receive Flow Control state changed to off
+2026 Nov  8 22:18:43 switch %ETHPORT-5-IF_TX_FLOW_CONTROL: Interface Ethernet1/9, operational Transmit Flow Control state changed to off
+2026 Nov  8 22:18:43 switch %ETHPORT-5-IF_UP: Interface Ethernet1/9 is up in Layer3
+2026 Nov  8 22:18:43 switch %ETHPORT-5-IF_ADMIN_UP: Interface Ethernet1/10 is admin up .
+2026 Nov  8 22:18:44 switch %ETHPORT-5-IF_ADMIN_UP: Interface Ethernet1/11 is admin up .
+2026 Nov  8 22:18:44 switch %ETHPORT-5-IF_ADMIN_UP: Interface Ethernet1/12 is admin up .
+2026 Nov  8 22:18:44 switch %ETHPORT-5-IF_ADMIN_UP: Interface Ethernet1/13 is admin up .
+2026 Nov  8 22:18:44 switch %ETHPORT-5-IF_ADMIN_UP: Interface Ethernet1/14 is admin up .
+2026 Nov  8 22:18:44 switch %ETHPORT-5-IF_ADMIN_UP: Interface Ethernet1/15 is admin up .
+2026 Nov  8 22:18:44 switch %ETHPORT-5-IF_ADMIN_UP: Interface Ethernet1/16 is admin up .
+2026 Nov  8 22:18:44 switch %ETHPORT-5-IF_ADMIN_UP: Interface Ethernet1/17 is admin up .
+2026 Nov  8 22:18:44 switch %ETHPORT-5-IF_ADMIN_UP: Interface Ethernet1/18 is admin up .
+2026 Nov  8 22:18:45 switch %ETHPORT-5-IF_ADMIN_UP: Interface Ethernet1/19 is admin up .
+2026 Nov  8 22:18:45 switch %ETHPORT-5-IF_ADMIN_UP: Interface Ethernet1/20 is admin up .
+2026 Nov  8 22:18:45 switch %ETHPORT-5-IF_ADMIN_UP: Interface Ethernet1/21 is admin up .
+2026 Nov  8 22:18:45 switch %ETHPORT-5-IF_ADMIN_UP: Interface Ethernet1/22 is admin up .
+2026 Nov  8 22:18:45 switch %ETHPORT-5-IF_ADMIN_UP: Interface Ethernet1/23 is admin up .
+2026 Nov  8 22:18:45 switch %ETHPORT-5-IF_ADMIN_UP: Interface Ethernet1/24 is admin up .
+2026 Nov  8 22:18:45 switch %ETHPORT-5-IF_ADMIN_UP: Interface Ethernet1/25 is admin up .
+2026 Nov  8 22:18:45 switch %ETHPORT-5-IF_ADMIN_UP: Interface Ethernet1/26 is admin up .
+2026 Nov  8 22:18:59 switch %ETHPORT-5-IF_ADMIN_UP: Interface Ethernet1/27 is admin up .
+2026 Nov  8 22:18:59 switch %ETHPORT-5-IF_ADMIN_UP: Interface Ethernet1/28 is admin up .
+2026 Nov  8 22:18:59 switch %ETHPORT-5-IF_ADMIN_UP: Interface Ethernet1/29 is admin up .
+2026 Nov  8 22:18:59 switch %ETHPORT-5-IF_ADMIN_UP: Interface Ethernet1/30 is admin up .
+2026 Nov  8 22:18:59 switch %ETHPORT-5-IF_ADMIN_UP: Interface Ethernet1/31 is admin up .
+2026 Nov  8 22:18:59 switch %ETHPORT-5-IF_ADMIN_UP: Interface Ethernet1/32 is admin up .
+2026 Nov  8 22:18:59 switch %ETHPORT-5-IF_ADMIN_UP: Interface Ethernet1/33 is admin up .
+2026 Nov  8 22:18:59 switch %ETHPORT-5-IF_ADMIN_UP: Interface Ethernet1/34 is admin up .
+2026 Nov  8 22:19:00 switch %ETHPORT-5-IF_ADMIN_UP: Interface Ethernet1/35 is admin up .
+2026 Nov  8 22:19:00 switch %ETHPORT-5-IF_ADMIN_UP: Interface Ethernet1/36 is admin up .
+2026 Nov  8 22:19:00 switch %ETHPORT-5-IF_ADMIN_UP: Interface Ethernet1/37 is admin up .
+2026 Nov  8 22:19:00 switch %ETHPORT-5-IF_ADMIN_UP: Interface Ethernet1/38 is admin up .
+2026 Nov  8 22:19:00 switch %ETHPORT-5-IF_ADMIN_UP: Interface Ethernet1/39 is admin up .
+2026 Nov  8 22:19:00 switch %ETHPORT-5-IF_ADMIN_UP: Interface Ethernet1/40 is admin up .
+2026 Nov  8 22:19:00 switch %ETHPORT-5-IF_ADMIN_UP: Interface Ethernet1/41 is admin up .
+2026 Nov  8 22:19:00 switch %ETHPORT-5-IF_ADMIN_UP: Interface Ethernet1/42 is admin up .
+2026 Nov  8 22:19:14 switch %ETHPORT-5-IF_ADMIN_UP: Interface Ethernet1/43 is admin up .
+2026 Nov  8 22:19:14 switch %ETHPORT-5-IF_ADMIN_UP: Interface Ethernet1/44 is admin up .
+2026 Nov  8 22:19:14 switch %ETHPORT-5-IF_ADMIN_UP: Interface Ethernet1/45 is admin up .
+2026 Nov  8 22:19:14 switch %ETHPORT-5-IF_ADMIN_UP: Interface Ethernet1/46 is admin up .
+2026 Nov  8 22:19:14 switch %ETHPORT-5-IF_ADMIN_UP: Interface Ethernet1/47 is admin up .
+2026 Nov  8 22:19:14 switch %ETHPORT-5-IF_ADMIN_UP: Interface Ethernet1/48 is admin up .
+2026 Nov  8 22:19:14 switch %ETHPORT-5-IF_ADMIN_UP: Interface Ethernet1/49 is admin up .
+2026 Nov  8 22:19:14 switch %ETHPORT-5-IF_ADMIN_UP: Interface Ethernet1/50 is admin up .
+2026 Nov  8 22:19:15 switch %ETHPORT-5-IF_ADMIN_UP: Interface Ethernet1/51 is admin up .
+2026 Nov  8 22:19:15 switch %ETHPORT-5-IF_ADMIN_UP: Interface Ethernet1/52 is admin up .
+2026 Nov  8 22:19:15 switch %ETHPORT-5-IF_ADMIN_UP: Interface Ethernet1/53 is admin up .
+2026 Nov  8 22:19:15 switch %ETHPORT-5-IF_ADMIN_UP: Interface Ethernet1/54 is admin up .
+2026 Nov  8 22:19:15 switch %ETHPORT-5-IF_ADMIN_UP: Interface Ethernet1/55 is admin up .
+2026 Nov  8 22:19:15 switch %ETHPORT-5-IF_ADMIN_UP: Interface Ethernet1/56 is admin up .
+2026 Nov  8 22:19:15 switch %ETHPORT-5-IF_ADMIN_UP: Interface Ethernet1/57 is admin up .
+2026 Nov  8 22:19:15 switch %ETHPORT-5-IF_ADMIN_UP: Interface Ethernet1/58 is admin up .
+2026 Nov  8 22:19:28 switch %ETHPORT-5-IF_ADMIN_UP: Interface Ethernet1/59 is admin up .
+2026 Nov  8 22:19:28 switch %ETHPORT-5-IF_ADMIN_UP: Interface Ethernet1/60 is admin up .
+2026 Nov  8 22:19:28 switch %ETHPORT-5-IF_ADMIN_UP: Interface Ethernet1/61 is admin up .
+2026 Nov  8 22:19:28 switch %ETHPORT-5-IF_ADMIN_UP: Interface Ethernet1/62 is admin up .
+2026 Nov  8 22:19:28 switch %ETHPORT-5-IF_ADMIN_UP: Interface Ethernet1/63 is admin up .
+2026 Nov  8 22:19:28 switch %ETHPORT-5-IF_ADMIN_UP: Interface Ethernet1/64 is admin up .
+2026 Nov  8 22:19:28 switch poap: Rolling back, please wait... (This may take 5-15 minutes) 
+2026 Nov  8 22:19:32 switch %ETHPORT-5-IF_DOWN_CFG_CHANGE: Interface Ethernet1/1 is down(Config change)
+2026 Nov  8 22:19:32 switch %ETHPORT-5-SPEED: Interface Ethernet1/1, operational speed changed to 1 Gbps
+2026 Nov  8 22:19:32 switch %ETHPORT-5-IF_DUPLEX: Interface Ethernet1/1, operational duplex mode changed to Full
+2026 Nov  8 22:19:32 switch %ETHPORT-5-IF_RX_FLOW_CONTROL: Interface Ethernet1/1, operational Receive Flow Control state changed to off
+2026 Nov  8 22:19:32 switch %ETHPORT-5-IF_TX_FLOW_CONTROL: Interface Ethernet1/1, operational Transmit Flow Control state changed to off
+2026 Nov  8 22:19:32 switch %ETHPORT-5-IF_UP: Interface Ethernet1/1 is up in mode access
+2026 Nov  8 22:19:32 switch %ETHPORT-5-IF_DOWN_CFG_CHANGE: Interface Ethernet1/2 is down(Config change)
+2026 Nov  8 22:19:32 switch %ETHPORT-5-SPEED: Interface Ethernet1/2, operational speed changed to 1 Gbps
+2026 Nov  8 22:19:32 switch %ETHPORT-5-IF_DUPLEX: Interface Ethernet1/2, operational duplex mode changed to Full
+2026 Nov  8 22:19:32 switch %ETHPORT-5-IF_RX_FLOW_CONTROL: Interface Ethernet1/2, operational Receive Flow Control state changed to off
+2026 Nov  8 22:19:32 switch %ETHPORT-5-IF_TX_FLOW_CONTROL: Interface Ethernet1/2, operational Transmit Flow Control state changed to off
+2026 Nov  8 22:19:32 switch %ETHPORT-5-IF_UP: Interface Ethernet1/2 is up in mode access
+2026 Nov  8 22:19:33 switch %ETHPORT-5-IF_DOWN_CFG_CHANGE: Interface Ethernet1/3 is down(Config change)
+2026 Nov  8 22:19:33 switch %ETHPORT-5-SPEED: Interface Ethernet1/3, operational speed changed to 1 Gbps
+2026 Nov  8 22:19:33 switch %ETHPORT-5-IF_DUPLEX: Interface Ethernet1/3, operational duplex mode changed to Full
+2026 Nov  8 22:19:33 switch %ETHPORT-5-IF_RX_FLOW_CONTROL: Interface Ethernet1/3, operational Receive Flow Control state changed to off
+2026 Nov  8 22:19:33 switch %ETHPORT-5-IF_TX_FLOW_CONTROL: Interface Ethernet1/3, operational Transmit Flow Control state changed to off
+2026 Nov  8 22:19:33 switch %ETHPORT-5-IF_UP: Interface Ethernet1/3 is up in mode access
+2026 Nov  8 22:19:33 switch %ETHPORT-5-IF_DOWN_CFG_CHANGE: Interface Ethernet1/4 is down(Config change)
+2026 Nov  8 22:19:34 switch %ETHPORT-5-SPEED: Interface Ethernet1/4, operational speed changed to 1 Gbps
+2026 Nov  8 22:19:34 switch %ETHPORT-5-IF_DUPLEX: Interface Ethernet1/4, operational duplex mode changed to Full
+2026 Nov  8 22:19:34 switch %ETHPORT-5-IF_RX_FLOW_CONTROL: Interface Ethernet1/4, operational Receive Flow Control state changed to off
+2026 Nov  8 22:19:34 switch %ETHPORT-5-IF_TX_FLOW_CONTROL: Interface Ethernet1/4, operational Transmit Flow Control state changed to off
+2026 Nov  8 22:19:34 switch %ETHPORT-5-IF_UP: Interface Ethernet1/4 is up in mode access
+2026 Nov  8 22:19:34 switch %ETHPORT-5-IF_DOWN_CFG_CHANGE: Interface Ethernet1/5 is down(Config change)
+2026 Nov  8 22:19:34 switch %ETHPORT-5-SPEED: Interface Ethernet1/5, operational speed changed to 1 Gbps
+2026 Nov  8 22:19:34 switch %ETHPORT-5-IF_DUPLEX: Interface Ethernet1/5, operational duplex mode changed to Full
+2026 Nov  8 22:19:34 switch %ETHPORT-5-IF_RX_FLOW_CONTROL: Interface Ethernet1/5, operational Receive Flow Control state changed to off
+2026 Nov  8 22:19:34 switch %ETHPORT-5-IF_TX_FLOW_CONTROL: Interface Ethernet1/5, operational Transmit Flow Control state changed to off
+2026 Nov  8 22:19:34 switch %ETHPORT-5-IF_UP: Interface Ethernet1/5 is up in mode access
+2026 Nov  8 22:19:34 switch %ETHPORT-5-IF_DOWN_CFG_CHANGE: Interface Ethernet1/6 is down(Config change)
+2026 Nov  8 22:19:35 switch %ETHPORT-5-SPEED: Interface Ethernet1/6, operational speed changed to 1 Gbps
+2026 Nov  8 22:19:35 switch %ETHPORT-5-IF_DUPLEX: Interface Ethernet1/6, operational duplex mode changed to Full
+2026 Nov  8 22:19:35 switch %ETHPORT-5-IF_RX_FLOW_CONTROL: Interface Ethernet1/6, operational Receive Flow Control state changed to off
+2026 Nov  8 22:19:35 switch %ETHPORT-5-IF_TX_FLOW_CONTROL: Interface Ethernet1/6, operational Transmit Flow Control state changed to off
+2026 Nov  8 22:19:35 switch %ETHPORT-5-IF_UP: Interface Ethernet1/6 is up in mode access
+2026 Nov  8 22:19:35 switch %ETHPORT-5-IF_DOWN_CFG_CHANGE: Interface Ethernet1/7 is down(Config change)
+2026 Nov  8 22:19:35 switch %ETHPORT-5-SPEED: Interface Ethernet1/7, operational speed changed to 1 Gbps
+2026 Nov  8 22:19:35 switch %ETHPORT-5-IF_DUPLEX: Interface Ethernet1/7, operational duplex mode changed to Full
+2026 Nov  8 22:19:35 switch %ETHPORT-5-IF_RX_FLOW_CONTROL: Interface Ethernet1/7, operational Receive Flow Control state changed to off
+2026 Nov  8 22:19:35 switch %ETHPORT-5-IF_TX_FLOW_CONTROL: Interface Ethernet1/7, operational Transmit Flow Control state changed to off
+2026 Nov  8 22:19:35 switch %ETHPORT-5-IF_UP: Interface Ethernet1/7 is up in mode access
+2026 Nov  8 22:19:36 switch %ETHPORT-5-IF_DOWN_CFG_CHANGE: Interface Ethernet1/8 is down(Config change)
+2026 Nov  8 22:19:36 switch %ETHPORT-5-SPEED: Interface Ethernet1/8, operational speed changed to 1 Gbps
+2026 Nov  8 22:19:36 switch %ETHPORT-5-IF_DUPLEX: Interface Ethernet1/8, operational duplex mode changed to Full
+2026 Nov  8 22:19:36 switch %ETHPORT-5-IF_RX_FLOW_CONTROL: Interface Ethernet1/8, operational Receive Flow Control state changed to off
+2026 Nov  8 22:19:36 switch %ETHPORT-5-IF_TX_FLOW_CONTROL: Interface Ethernet1/8, operational Transmit Flow Control state changed to off
+2026 Nov  8 22:19:36 switch %ETHPORT-5-IF_UP: Interface Ethernet1/8 is up in mode access
+2026 Nov  8 22:19:36 switch %ETHPORT-5-IF_DOWN_CFG_CHANGE: Interface Ethernet1/9 is down(Config change)
+2026 Nov  8 22:19:37 switch %ETHPORT-5-SPEED: Interface Ethernet1/9, operational speed changed to 1 Gbps
+2026 Nov  8 22:19:37 switch %ETHPORT-5-IF_DUPLEX: Interface Ethernet1/9, operational duplex mode changed to Full
+2026 Nov  8 22:19:37 switch %ETHPORT-5-IF_RX_FLOW_CONTROL: Interface Ethernet1/9, operational Receive Flow Control state changed to off
+2026 Nov  8 22:19:37 switch %ETHPORT-5-IF_TX_FLOW_CONTROL: Interface Ethernet1/9, operational Transmit Flow Control state changed to off
+2026 Nov  8 22:19:37 switch %ETHPORT-5-IF_UP: Interface Ethernet1/9 is up in mode access
+2026 Nov  8 22:20:04 switch %VSHD-5-VSHD_SYSLOG_CONFIG_I: Configured from vty by root on console0
+2026 Nov  8 22:20:12 switch %VSHD-5-VSHD_SYSLOG_CONFIG_I: Configured from vty by root on console0 (message repeated 4 times)
+2026 Nov  8 22:20:12 switch %COPP-2-COPP_POLICY: Control-Plane is protected with policy copp-system-p-policy-strict.
+2026 Nov  8 22:20:12 switch %VSHD-5-VSHD_SYSLOG_CONFIG_I: Configured from vty by root on console0
+2026 Nov  8 22:20:37 switch %VDC_MGR-5-VDC_HOSTNAME_CHANGE: vdc 1 hostname changed to host01 
+2026 Nov  8 22:20:39 host01 %VSHD-5-VSHD_SYSLOG_CONFIG_I: Configured from vty by root on vsh.bin.5919
+2026 Nov  8 22:20:40 host01 %LICMGR-2-LOG_LIC_MISSING_WARNING: A feature that requires LAN_ENTERPRISE_SERVICES_PKG license is not installed. System supports honor based licensing so feature will continue to be fully functional. Use 'show license usage <package-name>' to find features using missing license.
+2026 Nov  8 22:20:49 host01 %ETHPORT-5-IF_DOWN_CFG_CHANGE: Interface Ethernet1/1 is down(Config change)
+2026 Nov  8 22:20:50 host01 %ETHPORT-5-SPEED: Interface Ethernet1/1, operational speed changed to 1 Gbps
+2026 Nov  8 22:20:50 host01 %ETHPORT-5-IF_DUPLEX: Interface Ethernet1/1, operational duplex mode changed to Full
+2026 Nov  8 22:20:50 host01 %ETHPORT-5-IF_RX_FLOW_CONTROL: Interface Ethernet1/1, operational Receive Flow Control state changed to off
+2026 Nov  8 22:20:50 host01 %ETHPORT-5-IF_TX_FLOW_CONTROL: Interface Ethernet1/1, operational Transmit Flow Control state changed to off
+2026 Nov  8 22:20:50 host01 %ETHPORT-5-IF_UP: Interface Ethernet1/1 is up in mode trunk
+2026 Nov  8 22:20:53 host01 %ETHPORT-5-IF_UP: Interface loopback0 is up 
+2026 Nov  8 22:20:53 host01 %ETHPORT-5-IF_DOWN_ADMIN_DOWN: Interface loopback0 is down (Administratively down)
+2026 Nov  8 22:20:53 host01 %ETHPORT-5-IF_UP: Interface loopback0 is up 
+2026 Nov  8 22:21:45 host01 %VSHD-5-VSHD_SYSLOG_CONFIG_I: Configured from vty by admin on console0
+2026 Nov  8 22:22:41 host01 %VSHD-5-VSHD_SYSLOG_CONFIG_I: Configured from vty by admin on console0 (message repeated 1 time)
+2026 Nov  8 22:24:28 host01 %VSHD-5-VSHD_SYSLOG_CONFIG_I: Configured from vty by admin on console0 (message repeated 2 times)
+2026 Nov  8 22:35:45 host01 %VSHD-5-VSHD_SYSLOG_CONFIG_I: Configured from vty by admin on console0 (message repeated 1 time)
+2026 Nov  8 22:48:28 host01 %ETHPORT-5-IF_DOWN_CFG_CHANGE: Interface Ethernet1/1 is down(Config change)
+2026 Nov  8 22:48:28 host01 %ETHPORT-5-IF_DOWN_ADMIN_DOWN: Interface Ethernet1/1 is down (Administratively down)
+2026 Nov  8 22:48:31 host01 %ETHPORT-5-IF_ADMIN_UP: Interface Ethernet1/1 is admin up .
+2026 Nov  8 22:48:31 host01 %ETHPORT-5-SPEED: Interface Ethernet1/1, operational speed changed to 1 Gbps
+2026 Nov  8 22:48:31 host01 %ETHPORT-5-IF_DUPLEX: Interface Ethernet1/1, operational duplex mode changed to Full
+2026 Nov  8 22:48:31 host01 %ETHPORT-5-IF_RX_FLOW_CONTROL: Interface Ethernet1/1, operational Receive Flow Control state changed to off
+2026 Nov  8 22:48:31 host01 %ETHPORT-5-IF_TX_FLOW_CONTROL: Interface Ethernet1/1, operational Transmit Flow Control state changed to off
+2026 Nov  8 22:48:31 host01 %ETHPORT-5-IF_UP: Interface Ethernet1/1 is up in mode trunk
+2026 Nov  8 22:48:31 host01 %VSHD-5-VSHD_SYSLOG_CONFIG_I: Configured from vty by admin on console0
+2026 Nov  8 22:48:32 host01 %OSPF-4-NEIGH_ERR:  ospf-29 [6025] (default) Neighbor 192.0.2.3  not found, packet dropped
+2026 Nov  8 22:48:42 host01 %OSPF-4-SYSLOG_SL_MSG_WARNING: OSPF-4-NEIGH_ERR: message repeated 1 times in last 2134 sec 
+2026 Nov  8 23:00:10 host01 %OSPF-4-DUPRID:  ospf-29 [6025] (default) Router 192.0.2.5  on interface Vlan10 is using our routerid, packet dropped
+2026 Nov  8 23:00:20 host01 %OSPF-4-SYSLOG_SL_MSG_WARNING: OSPF-4-DUPRID: message repeated 11 times in last 2835 sec 
+2026 Nov  9 00:07:58 host01 %DAEMON-3-SYSTEM_MSG: error: protocol identification string lack carriage return - dcos_sshd[23002]
+2026 Nov  9 00:07:58 host01 %DAEMON-3-SYSTEM_MSG: error: kex_exchange_identification: client sent invalid protocol identifier "" - dcos_sshd[23002]
+2026 Nov  9 00:30:18 host01 %BFD-5-BFD_ENABLED: BFD Enabled
+2026 Nov  9 00:30:24 host01 %STP-2-VPC_PEERSWITCH_CONFIG_DISABLED: vPC peer-switch configuration is disabled. Please make sure to change spanning tree "bridge" priority as per the recommended guidelines.
+2026 Nov  9 00:30:25 host01 %ETH_PORT_CHANNEL-5-CREATED: port-channel1 created
+2026 Nov  9 00:30:25 host01 %ETHPORT-5-IF_DOWN_CHANNEL_MEMBERSHIP_UPDATE_IN_PROGRESS: Interface Ethernet1/3 is down (Channel membership update in progress)
+2026 Nov  9 00:30:25 host01 %ETHPORT-5-SPEED: Interface Ethernet1/3, operational speed changed to 1 Gbps
+2026 Nov  9 00:30:25 host01 %ETHPORT-5-IF_DUPLEX: Interface Ethernet1/3, operational duplex mode changed to Full
+2026 Nov  9 00:30:25 host01 %ETHPORT-5-IF_RX_FLOW_CONTROL: Interface Ethernet1/3, operational Receive Flow Control state changed to off
+2026 Nov  9 00:30:25 host01 %ETHPORT-5-IF_TX_FLOW_CONTROL: Interface Ethernet1/3, operational Transmit Flow Control state changed to off
+2026 Nov  9 00:30:25 host01 %ETHPORT-5-SPEED: Interface port-channel1, operational speed changed to 1 Gbps
+2026 Nov  9 00:30:25 host01 %ETHPORT-5-IF_DUPLEX: Interface port-channel1, operational duplex mode changed to Full
+2026 Nov  9 00:30:25 host01 %ETHPORT-5-IF_RX_FLOW_CONTROL: Interface port-channel1, operational Receive Flow Control state changed to off
+2026 Nov  9 00:30:25 host01 %ETHPORT-5-IF_TX_FLOW_CONTROL: Interface port-channel1, operational Transmit Flow Control state changed to off
+2026 Nov  9 00:30:25 host01 %VSHD-5-VSHD_SYSLOG_CONFIG_I: Configured from vty by user01       on 198.51.100.56@ssh.27007
+2026 Nov  9 00:30:35 host01 %ETH_PORT_CHANNEL-5-PORT_SUSPENDED: Ethernet1/3: Ethernet1/3 is suspended
+2026 Nov  9 00:49:35 host01 %VSHD-5-VSHD_SYSLOG_CONFIG_I: Configured from vty by user01       on 198.51.100.56@ssh.31329

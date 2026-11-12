@@ -1,0 +1,9 @@
+
+
+
+Routing entry for 203.0.113.1/32
+  Known via "ospf 29", distance 110, metric 11, type intra area
+  Last update from 192.0.2.1  on Ethernet0/1.10, 02:38:09 ago
+  Routing Descriptor Blocks:
+  * 192.0.2.1, from 203.0.113.1, 02:38:09 ago, via Ethernet0/1.10
+      Route metric is 11, traffic share count is 1

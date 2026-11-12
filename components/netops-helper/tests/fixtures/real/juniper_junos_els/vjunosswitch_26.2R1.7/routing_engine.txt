@@ -1,0 +1,36 @@
+Routing Engine status:
+  Slot 0:
+    Current state                  Master
+    Election priority              Master (default)
+    DRAM                      1832 MB (2048 MB installed)
+    Memory utilization          29 percent
+    5 sec CPU utilization:
+      User                      19 percent
+      Background                 0 percent
+      Kernel                    48 percent
+      Interrupt                 33 percent
+      Idle                       0 percent
+    1 min CPU utilization:
+      User                      18 percent
+      Background                 0 percent
+      Kernel                    45 percent
+      Interrupt                 37 percent
+      Idle                       0 percent
+    5 min CPU utilization:
+      User                      15 percent
+      Background                 0 percent
+      Kernel                    54 percent
+      Interrupt                 31 percent
+      Idle                       0 percent
+    15 min CPU utilization:
+      User                      16 percent
+      Background                 0 percent
+      Kernel                    56 percent
+      Interrupt                 28 percent
+      Idle                       0 percent
+    Model                          RE-VMX
+    Start time                     2026-11-08 22:19:07 UTC
+    Uptime                         2 hours, 48 minutes, 50 seconds
+    Last reboot reason             Router rebooted after a normal shutdown.
+    Load averages:                 1 minute   5 minute  15 minute
+                                      11.07      11.32      11.29

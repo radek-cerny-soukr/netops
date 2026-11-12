@@ -1,0 +1,2 @@
+command parse error before 'wireless-controller'
+Command fail. Return code -61

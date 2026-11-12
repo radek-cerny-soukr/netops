@@ -1,0 +1,5 @@
+Routing entry for 0.0.0.0 0.0.0.0, supernet
+  Known via "static", distance 1, metric 0, candidate default path
+  Routing Descriptor Blocks:
+  * 198.51.100.254
+      Route metric is 0, traffic share count is 1

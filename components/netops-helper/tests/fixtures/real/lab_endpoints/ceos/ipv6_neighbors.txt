@@ -1,0 +1,4 @@
+Legend:
+ not learned: Associated MAC address is not present in the MAC address table
+ -: Static (configuration or programmed by feature)
+IPv6 Address                                  Age Hardware Addr   Interface

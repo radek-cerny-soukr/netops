@@ -1,0 +1,5 @@
+No authentication.
+No policy matched
+sec_default_action: deny
+firewall policy id: 0
+firewall proxy-policy id: 0

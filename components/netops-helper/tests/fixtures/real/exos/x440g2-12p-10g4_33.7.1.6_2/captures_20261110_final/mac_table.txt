@@ -1,0 +1,56 @@
+MAC                                      VLAN Name( Tag)  Age  Flags          Port / Virtual Port List
+------------------------------------------------------------------------------------------------------
+00:00:5e:00:53:01                              LAN(0010) 0023  d m            11
+00:00:5e:00:53:02                              LAN(0010) 0044  d m            2
+00:00:5e:00:53:03                              LAN(0010) 0012  d m            13
+00:00:5e:00:53:04                              LAN(0010) 0048  d m            1
+00:00:5e:00:53:05                              LAN(0010) 0053  d m            13
+00:00:5e:00:53:06                              LAN(0010) 0026  d m            13
+00:00:5e:00:53:07                              IoT(0020) 0082  d m            3
+00:00:5e:00:53:08                              IoT(0020) 0047  d m            3
+00:00:5e:00:53:09                              IoT(0020) 0044  d m            3
+00:00:5e:00:53:0a                              LAN(0010) 0052  d m            2
+00:00:5e:00:53:0b                              LAN(0010) 0019  d m            13
+00:00:5e:00:53:0c                           KAMERY(0040) 0012  d m            5
+00:00:5e:00:53:0d                           KAMERY(0040) 0017  d m            9
+00:00:5e:00:53:0e                           KAMERY(0040) 0013  d m            7
+00:00:5e:00:53:0f                              LAN(0010) 0023  d m            3
+00:00:5e:00:53:10                           KAMERY(0040) 0028  d m            8
+00:00:5e:00:53:11                              IoT(0020) 0044  d m            3
+00:00:5e:00:53:12                              LAN(0010) 0032  d m            3
+00:00:5e:00:53:13                              IoT(0020) 0030  d m            3
+00:00:5e:00:53:14                              IoT(0020) 0046  d m            3
+00:00:5e:00:53:15                              LAN(0010) 0001  d m            3
+00:00:5e:00:53:16                              LAN(0010) 0035  d m            13
+00:00:5e:00:53:17                              LAN(0010) 0026  d m            13
+00:00:5e:00:53:18                              IoT(0020) 0049  d m            3
+00:00:5e:00:53:19                              LAN(0010) 0014  d m            13
+00:00:5e:00:53:1a                              IoT(0020) 0045  d m            3
+00:00:5e:00:53:1b                              LAN(0010) 0028  d m            13
+00:00:5e:00:53:1b                              IoT(0020) 0029  d m            13
+00:00:5e:00:53:1b                           KAMERY(0040) 0028  d m            13
+00:00:5e:00:53:1c                              LAN(0010) 0019  d m            6
+00:00:5e:00:53:1d                              LAN(0010) 0069  d m            2
+00:00:5e:00:53:1e                              LAN(0010) 0023  d m            13
+00:00:5e:00:53:1f                              IoT(0020) 0026  d m            3
+00:00:5e:00:53:20                              LAN(0010) 0022  d m            3
+00:00:5e:00:53:21                              LAN(0010) 0020  d m            13
+00:00:5e:00:53:22                              LAN(0010) 0031  d m            11
+00:00:5e:00:53:23                              LAN(0010) 0115  d m            2
+00:00:5e:00:53:24                              LAN(0010) 0025  d m            13
+00:00:5e:00:53:25                              LAN(0010) 0019  d m            13
+00:00:5e:00:53:25                          VLAN100(0100) 0033  d m            13
+00:00:5e:00:53:26                              LAN(0010) 0076  d m            13
+00:00:5e:00:53:27                              LAN(0010) 0054  d m            2
+00:00:5e:00:53:28                              LAN(0010) 0165  d m            13
+00:00:5e:00:53:29                              LAN(0010) 0021  d m            3
+
+Flags : d - Dynamic, s - Static, p - Permanent, n - NetLogin, m - MAC, i - IP,
+        x - IPX, l - lockdown MAC, L - lockdown-timeout MAC, M- Mirror, B - Egress Blackhole,
+        b - Ingress Blackhole, v - MAC-Based VLAN, P - Private VLAN, T - VLAN translation,
+        D - drop packet, h - Hardware Aging (Age=0), o - IEEE 802.1ah Backbone MAC,
+        S - Software Controlled Deletion, r - MSRP,
+        X - VXLAN, E - EVPN
+
+Total: 44 Static: 0  Perm: 0  Dyn: 44  Dropped: 0  Locked: 0  Locked with Timeout: 0
+FDB Aging time: 300

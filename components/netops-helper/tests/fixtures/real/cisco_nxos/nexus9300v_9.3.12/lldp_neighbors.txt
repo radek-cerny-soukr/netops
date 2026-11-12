@@ -1,0 +1,22 @@
+Capability codes:
+  (R) Router, (B) Bridge, (T) Telephone, (C) DOCSIS Cable Device
+  (W) WLAN Access Point, (P) Repeater, (S) Station, (O) Other
+Device ID            Local Intf      Hold-time  Capability  Port ID  
+
+Chassis id: 0000.5e00.5309
+Port id: Et0/0
+Local Port id: mgmt0
+Port Description: Ethernet0/0
+System Name: host02
+System Description: Cisco IOS Software [IOSXE], Linux Software (X86_64BI_LINUX-ADVENTERPRISEK9-M), Version 17.18.2, RELEASE SOFTWARE (fc3)
+Technical Support: http://www.cisco.com/techsupport
+Copyright (c) 1986-2025 by Cisco Systems, Inc.
+Compiled Fri 19-Dec-25 03:28 by mcpre
+Time remaining: 99 seconds
+System Capabilities: B, R
+Enabled Capabilities: R
+Management Address: 203.0.113.185
+Management Address IPV6: not advertised
+Vlan ID: not advertised
+
+Total entries displayed: 1

@@ -38,8 +38,14 @@ SYSLOG_STALE_SECONDS = 300
 SYSLOG_MIN_RATE = 65536
 SMALL_AUDIT_MESSAGE = 65536
 
+QUEUE_NAME = re.compile(r"[0-9]+-[0-9a-f]{32}\.queue")
+
+def queue_names(directory):
+    return [path.name for path in Path(directory).glob("*.queue")
+            if QUEUE_NAME.fullmatch(path.name) and not (path.is_symlink() and not path.exists())]
+
 def oldest_queued_age(directory, now=None):
-    names = [path.name for path in Path(directory).glob("*.queue")]
+    names = queue_names(directory)
     if not names:
         return 0.0
     oldest = min(int(name.split("-", 1)[0]) for name in names)
@@ -87,15 +93,12 @@ def live_incomplete_tail(path):
 
 def queued_bytes(directory):
     total = 0
-    for path in Path(directory).glob("*.queue"):
+    for name in queue_names(directory):
         try:
-            total += path.stat().st_size
+            total += (Path(directory) / name).stat().st_size
         except FileNotFoundError:
-            try:
-                path.lstat()
-            except FileNotFoundError:
-                continue
-            raise
+            # A forwarder may remove a queued record after the listing.
+            continue
     return total
 
 def split_records(raw):
@@ -165,6 +168,9 @@ class Audit:
         self.budget, self.segment_size, self.retention_seconds = audit_limits(settings)
         self.directory.mkdir(mode=0o700, exist_ok=True)
         self.current = self.directory / "current.jsonl"
+        self.write_failed = False
+        self.syslog_delivery_errors = 0
+        self.syslog_failing = False
         self.stop = asyncio.Event()
         self.rejections_path = self.directory / "rejections.json"
         self.rejections_due = 0.0
@@ -283,7 +289,9 @@ class Audit:
             async with self.lock:
                 try:
                     await asyncio.to_thread(self._append, event)
+                    self.write_failed = False
                 except (OSError, ValueError, RecursionError, AuditUnavailable) as error:
+                    self.write_failed = True
                     raise AuditUnavailable("audit_unavailable") from error
             return invalid_json if decode == "request" else None
         async def commit():
@@ -384,12 +392,15 @@ class Audit:
                     if failing:
                         sys.stderr.write("netops: syslog delivery recovered\n")
                     failing = False
+                    self.syslog_failing = False
                     delay = 1.0
                     continue
             except (OSError, ValueError) as error:
+                self.syslog_delivery_errors += 1
                 if not failing:
                     sys.stderr.write("netops: syslog delivery failed (" + type(error).__name__ + "); " + str(len(batch)) + " records stay queued and are retried\n")
                 failing = True
+                self.syslog_failing = True
                 delay = min(delay * 2, 30.0)
             try:
                 await asyncio.wait_for(self.stop.wait(), timeout=delay if failing else 1)

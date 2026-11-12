@@ -1,0 +1,3 @@
+    QP1    Weight =   1     Max Buffer Percent = 100
+    QP8    Weight =   1     Max Buffer Percent = 100
+

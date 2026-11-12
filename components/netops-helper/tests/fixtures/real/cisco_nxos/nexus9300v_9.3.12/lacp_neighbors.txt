@@ -1,0 +1,13 @@
+Flags:  S - Device is sending Slow LACPDUs F - Device is sending Fast LACPDUs
+        A - Device is in Active mode       P - Device is in Passive mode
+port-channel1 neighbors
+Partner's information
+            Partner                Partner                     Partner
+Port        System ID              Port Number     Age         Flags
+Eth1/3      0,0-0-0-0-0-0          0x0             0           SP
+
+            LACP Partner           Partner                     Partner
+            Port Priority          Oper Key                    Port State
+            0                      0x0                         0x0
+
+

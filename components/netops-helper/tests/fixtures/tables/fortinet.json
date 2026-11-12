@@ -1,0 +1,5 @@
+{
+  "neighbor_l3": "Address Age(min) Hardware Addr Interface\n192.0.2.10 0 00:00:5e:00:53:81 vlan101\nifindex=12 ifname=vlan101 2001:db8::10 00:00:5e:00:53:81 state=00000002 use=62 confirm=887 update=77 ref=2\n",
+  "mac_entry": "Managed Switch : S108EPLAB00000001 0\nflag bit pattern: 0x00000000\nflag bit Mask: 0x00000000\nvlan map: 0-4094\nport-id map: 0-11\ntrunk-id map: 0-127\nMAC: 00:00:5e:00:53:81 VLAN: 101 Port: port5(port-id 4)\nFlags: 0x00000080 [ dynamic ]\n",
+  "lldp_neighbor": "Managed Switch : S108EPLAB00000001 0\nPort Chassis ID Port ID System Name Capabilities\nport5 00:00:5e:00:53:82 eth0 lab-host S\n"
+}

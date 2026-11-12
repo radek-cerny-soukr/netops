@@ -1,0 +1,41 @@
+
+inet.0: 13 destinations, 13 routes (13 active, 0 holddown, 0 hidden)
+Limit/Threshold: 1048576/1048576 destinations
++ = Active Route, - = Last Active, * = Both
+
+0.0.0.0/0          *[Static/5] 1d 09:25:51
+                    >  to 192.0.2.1     via fxp0.0
+198.51.100.0/24      *[Direct/0] 1d 09:25:47
+                    >  via irb.10
+198.51.100.6/32      *[Local/0] 1d 09:25:47
+                       Local via irb.10
+203.0.113.0/24      *[Direct/0] 1d 09:25:47
+                    >  via irb.20
+203.0.113.6/32      *[Local/0] 1d 09:25:47
+                       Local via irb.20
+203.0.113.254/32     *[OSPF/10] 17:25:38, metric 2
+                    >  to 198.51.100.1 via irb.10
+203.0.113.253/32     *[OSPF/10] 17:34:13, metric 11
+                    >  to 198.51.100.3 via irb.10
+203.0.113.252/32     *[OSPF/10] 17:34:05, metric 2
+                    >  to 198.51.100.5 via irb.10
+203.0.113.251/32     *[Direct/0] 1d 09:25:51
+                    >  via lo0.0
+203.0.113.250/32     *[OSPF/10] 17:15:27, metric 2
+                    >  to 198.51.100.7 via irb.10
+192.0.2.0/24   *[Direct/0] 1d 09:25:52
+                    >  via fxp0.0
+192.0.2.56/32  *[Local/0] 1d 09:25:52
+                       Local via fxp0.0
+224.0.0.5/32       *[OSPF/10] 1d 09:25:52, metric 1
+                       MultiRecv
+
+inet6.0: 2 destinations, 2 routes (2 active, 0 holddown, 0 hidden)
+Limit/Threshold: 1048576/1048576 destinations
++ = Active Route, - = Last Active, * = Both
+
+fe80::10/128
+                   *[Local/0] 1d 10:04:16
+                       Local via fxp0.0
+ff02::2/128        *[INET6/0] 1d 10:04:27
+                       MultiRecv

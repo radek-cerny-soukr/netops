@@ -53,7 +53,8 @@ def _authority(common_name: str):
     return key, certificate
 
 
-def _leaf(authority, *, address: str | None = LOOPBACK, dns: str | None = None, expired: bool = False):
+def _leaf(authority, *, address: str | None = LOOPBACK, dns: str | None = None, expired: bool = False,
+          san: bool = True):
     authority_key, authority_certificate = authority
     key = ec.generate_private_key(ec.SECP256R1())
     now = datetime.now(timezone.utc)
@@ -68,15 +69,15 @@ def _leaf(authority, *, address: str | None = LOOPBACK, dns: str | None = None, 
         .add_extension(x509.BasicConstraints(ca=False, path_length=None), critical=True)
         .add_extension(_usage(signer=False), critical=True)
         .add_extension(x509.ExtendedKeyUsage([ExtendedKeyUsageOID.SERVER_AUTH]), critical=False)
-        .add_extension(x509.SubjectAlternativeName(names), critical=False)
         .add_extension(x509.SubjectKeyIdentifier.from_public_key(key.public_key()), critical=False)
         .add_extension(
             x509.AuthorityKeyIdentifier.from_issuer_public_key(authority_key.public_key()),
             critical=False,
         )
-        .sign(authority_key, hashes.SHA256())
     )
-    return key, certificate
+    if san:
+        certificate = certificate.add_extension(x509.SubjectAlternativeName(names), critical=False)
+    return key, certificate.sign(authority_key, hashes.SHA256())
 
 
 def _pem(certificate) -> bytes:
@@ -335,3 +336,119 @@ def test_the_proxy_envelope_includes_the_enrolled_ca(trust, authority):
     assert data["tls_ca_certificate"] == str(ca)
     plain = helper_proxy.Proxy._auth_context(None, entry, helper_inventory.section(_device()), credential, None, "tls_probe")
     assert "tls_ca_certificate" not in json.loads(urlsafe_b64decode(plain + "=" * (-len(plain) % 4)))
+
+
+@pytest.mark.parametrize("pin_mode", ["correct", "wrong", "absent"])
+def test_untrusted_certificate_is_diagnostic_and_compared_to_enrolled_pin(tmp_path, trust, authority, monkeypatch, pin_mode):
+    import hashlib
+    leaf = _leaf(authority)
+    fingerprint = hashlib.sha256(leaf[1].public_bytes(serialization.Encoding.DER)).hexdigest()
+    server = _serve(tmp_path, leaf)
+    pin = fingerprint if pin_mode == "correct" else "0" * 64 if pin_mode == "wrong" else None
+    target = replace(_target(server.port, None), fortios_rest_certificate_sha256=pin, fortios_rest_port=server.port)
+    try:
+        answer = engine.tls_probe(target, server.port, None)
+    finally:
+        server.close()
+    assert answer["ok"] is False
+    assert answer["certificate_verified"] is False
+    # nothing unverified sits at the level of the verified fields
+    assert not {"certificate_sha256", "subject", "issuer", "san", "not_before", "not_after", "pin_match",
+                "certificate_source"} & set(answer)
+    details = answer["unverified_certificate"]
+    assert details["source"] == "unverified diagnostic handshake"
+    assert details["certificate_sha256"] == fingerprint
+    assert details["pin_match"] == (None if pin is None else pin_mode == "correct")
+    assert "fixture leaf" in details["subject"]
+    assert LOOPBACK in details["san"]
+    assert datetime.fromisoformat(details["not_before"]).utcoffset() is not None
+    assert datetime.fromisoformat(details["not_after"]).utcoffset() is not None
+
+
+def test_unverified_certificate_without_alternative_names_reports_an_empty_san(tmp_path, trust, authority):
+    server = _serve(tmp_path, _leaf(authority, san=False))
+    try:
+        answer = engine.tls_probe(_target(server.port, None), server.port, None)
+    finally:
+        server.close()
+    assert answer["ok"] is False
+    assert answer["unverified_certificate"]["san"] == []
+    assert "certificate_details_error" not in answer
+
+
+def test_failed_diagnostic_handshake_reports_details_unavailable(tmp_path, trust, authority, monkeypatch):
+    def unreadable(*args):
+        raise ValueError("certificate cannot be decoded")
+
+    monkeypatch.setattr(engine, "_certificate_details", unreadable)
+    server = _serve(tmp_path, _leaf(authority))
+    try:
+        answer = engine.tls_probe(_target(server.port, None), server.port, None)
+    finally:
+        server.close()
+    assert answer["ok"] is False and answer["certificate_verified"] is False
+    assert answer["certificate_details_error"] == "unverified_certificate_unavailable"
+    assert "unverified_certificate" not in answer
+
+
+@pytest.mark.parametrize("pin_mode", ["correct", "wrong"])
+def test_verified_certificate_reports_pin_match_on_the_pin_port(tmp_path, trust, authority, monkeypatch, pin_mode):
+    import hashlib
+    leaf = _leaf(authority)
+    fingerprint = hashlib.sha256(leaf[1].public_bytes(serialization.Encoding.DER)).hexdigest()
+    ca = _install(trust, authority)
+    server = _serve(tmp_path, leaf)
+    pin = fingerprint if pin_mode == "correct" else "0" * 64
+    try:
+        answer = engine.tls_probe(replace(_target(server.port, ca), fortios_rest_certificate_sha256=pin, fortios_rest_port=server.port), server.port, None)
+    finally:
+        server.close()
+    assert answer["ok"] is True and answer["certificate_verified"] is True
+    assert answer["certificate_sha256"] == fingerprint
+    assert answer["pin_match"] is (pin_mode == "correct")
+    assert "unverified_certificate" not in answer
+
+
+def test_pin_match_is_null_off_the_rest_port_in_both_branches(tmp_path, trust, authority):
+    leaf = _leaf(authority)
+    ca = _install(trust, authority)
+    server = _serve(tmp_path, leaf)  # random port, not 443: the REST pin does not apply
+    try:
+        verified = engine.tls_probe(replace(_target(server.port, ca), fortios_rest_certificate_sha256="0" * 64),
+                                    server.port, None)
+        unverified = engine.tls_probe(replace(_target(server.port, None), fortios_rest_certificate_sha256="0" * 64),
+                                      server.port, None)
+    finally:
+        server.close()
+    assert verified["ok"] is True and verified["pin_match"] is None
+    assert unverified["ok"] is False and unverified["unverified_certificate"]["pin_match"] is None
+
+
+def test_pin_match_is_null_for_a_non_default_server_name(tmp_path, trust, authority, monkeypatch):
+    server = _serve(tmp_path, _leaf(authority))
+    target = replace(_target(server.port, None), fortios_rest_certificate_sha256="0" * 64, fortios_rest_port=server.port,
+                     egress=EgressPolicy(addresses=(LOOPBACK,), tcp_ports=(server.port,),
+                                         tls_server_names=("other.example.invalid",)))
+    try:
+        answer = engine.tls_probe(target, server.port, "other.example.invalid")
+    finally:
+        server.close()
+    assert answer["ok"] is False
+    assert answer["unverified_certificate"]["pin_match"] is None
+
+
+@pytest.mark.parametrize("rest_port", [443, 8443])
+def test_tls_auth_context_includes_pin_without_rest_token(rest_port):
+    from base64 import urlsafe_b64decode
+    from types import SimpleNamespace
+    section = helper_inventory.section(_device())
+    section = replace(section, fortios_rest_certificate_sha256="a" * 64, fortios_rest_port=rest_port)
+    credential = SimpleNamespace(login="reader", kind="password", use=lambda: "synthetic-password")
+    entry = SimpleNamespace(name="device-a", address=LOOPBACK, port=22,
+                            host_key_fingerprint="SHA256:synthetic", legacy_ssh=None)
+    encoded = helper_proxy.Proxy._auth_context(None, entry, section, credential, None, "tls_probe")
+    import json
+    envelope = json.loads(urlsafe_b64decode(encoded + "=" * (-len(encoded) % 4)))
+    assert envelope["fortios_rest_port"] == rest_port
+    assert envelope["fortios_rest_certificate_sha256"] == "a" * 64
+    assert "fortios_rest_token" not in envelope

@@ -1,0 +1,5 @@
+Address          Interface              State           ID               Pri  Dead
+192.0.2.1        irb.10                 2Way            203.0.113.1        1    34
+192.0.2.3        irb.10                 Full            203.0.113.3        1    34
+192.0.2.5        irb.10                 2Way            203.0.113.5        1    35
+192.0.2.7        irb.10                 Full            203.0.113.7        1    35

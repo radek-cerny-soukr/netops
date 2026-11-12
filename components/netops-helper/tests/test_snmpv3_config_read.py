@@ -14,7 +14,7 @@ STATUS = ('Version: FortiGate-VM64-KVM v7.6.8,build3744,260101 (GA)\n'
           'Virtual domain configuration: disable\n')
 AUTH_KEY = 'fixture-auth-key-1'
 PRIV_KEY = 'fixture-priv-key-1'
-COMMUNITY = 'fixture-visible-community'
+COMMUNITY = 'fixture-secret-community'
 RAW = ('config system snmp community\n edit 1\n set name "' + COMMUNITY + '"\n next\nend\n'
        'config system global\n set alias "' + AUTH_KEY + '"\n set hostname "' + PRIV_KEY + '"\nend\n')
 
@@ -80,17 +80,19 @@ class SnmpV3ConfigRead(TestCase):
             parts.append(page['untrusted_device_output'])
         return ''.join(parts), first
 
-    def test_v3_keys_are_hidden_and_the_community_stays_visible(self):
+    def test_v3_keys_and_the_community_are_hidden(self):
         auth = self.auth_through_proxy()
         self.assertIsNotNone(auth.snmp_usm)
         text, first = self.pages(auth)
         shown = text + json.dumps(first)
         self.assertNotIn(AUTH_KEY, shown)
         self.assertNotIn(PRIV_KEY, shown)
-        self.assertIn(COMMUNITY, text)
+        self.assertNotIn(COMMUNITY, text)
+        self.assertIn('set name <REDACTED:credential#1>', text)
 
     def test_a_target_without_usm_still_reads_the_full_configuration(self):
         auth = self.auth_through_proxy(with_usm=False)
         self.assertIsNone(auth.snmp_usm)
         text, _ = self.pages(auth)
-        self.assertIn(COMMUNITY, text)
+        self.assertNotIn(COMMUNITY, text)
+        self.assertIn('set name <REDACTED:credential#1>', text)

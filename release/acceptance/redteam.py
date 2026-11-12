@@ -334,14 +334,14 @@ def check_role_isolation(ctx):
     breaches = []
     for role, uid in ROLE_UIDS.items():
         foreign = [path for owner, mode, path in files if int(owner) != uid and not path.endswith("ca.pem")]
-        script = "import sys\nok=[]\nfor p in sys.argv[1:]:\n    try:\n        open(p,'rb').read(1); ok.append(p)\n    except OSError:\n        pass\nprint('\\n'.join(ok))"
+        script = "import sys\nok=[]\nfor p in sys.argv[1:]:\n    try:\n        with open(p,'rb') as f: f.read(1)\n        ok.append(p)\n    except OSError:\n        pass\nprint('\\n'.join(ok))"
         proc = ctx.docker("exec", "--user", "%d:%d" % (uid, uid), cid, "python", "-c", script, *foreign)
         readable = [p for p in proc.stdout.splitlines() if p]
         breaches += ["%s reads %s" % (role, p) for p in readable]
         audit_dir = "/var/lib/netops/gateway/audit"
         if role != "gateway":
             wproc = ctx.docker("exec", "--user", "%d:%d" % (uid, uid), cid, "python", "-c",
-                               "import os,sys\ntry:\n    open(sys.argv[1]+'/injected.jsonl','a').write('x')\n    print('WROTE')\nexcept OSError as e:\n    print(type(e).__name__)", audit_dir)
+                               "import os,sys\ntry:\n    with open(sys.argv[1]+'/injected.jsonl','a') as f: f.write('x')\n    print('WROTE')\nexcept OSError as e:\n    print(type(e).__name__)", audit_dir)
             if "WROTE" in wproc.stdout:
                 breaches.append("%s writes into the audit directory" % role)
     ctx.add("role-isolation", "F16", "FAIL" if breaches else "PASS",

@@ -1,0 +1,4 @@
+NTP                 : Disabled
+Authentication      : Disabled
+Broadcast-Client    : Disabled
+VR                  : VR-Default

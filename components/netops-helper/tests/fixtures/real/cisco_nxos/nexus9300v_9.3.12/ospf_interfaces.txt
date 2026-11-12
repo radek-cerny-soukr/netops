@@ -1,0 +1,6 @@
+ OSPF Process ID 29 VRF default
+ Total number of interface: 2
+ Interface               ID     Area            Cost   State    Neighbors Status
+ Vlan10                  1      0.0.0.0         40     DROTHER  4         up  
+ Lo0                     2      0.0.0.0         1      LOOPBACK 0         up  
+

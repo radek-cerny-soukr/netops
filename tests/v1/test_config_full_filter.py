@@ -101,7 +101,9 @@ class FullConfigurationFilter(TestCase):
                 self.assertEqual(''.join(parts), text)
                 self.assertEqual((first['total_lines'], first['matched_lines']), (total, matched))
                 self.assertGreater(matched, 0)
-                self.assertIn('set password ', text)
+                # The engine hides the password value while retaining a searchable keyword.
+                self.assertIn('    set password [REDACTED]\n', source)
+                self.assertRegex(text, r'(?m)^ *set password \[REDACTED\]$')
                 self.assertEqual(first['content_sha256'], hashlib.sha256(text.encode()).hexdigest())
                 self.assertEqual(first['snapshot_sha256'], reference['snapshot_sha256'])
                 self.assertNotEqual(first['content_sha256'], first['snapshot_sha256'])
@@ -153,9 +155,10 @@ class FullConfigurationFilter(TestCase):
     def test_fortiadc_filter_hides_secrets_and_unverified_values(self):
         raw = live(config(profiles=profile_lines(rights=READ)) + UNVERIFIED_EXTRA + ADC_CERT)
         with mock.patch.object(engine, 'read_from_device', side_effect=wire(raw, ADC_STATUS)) as device:
-            first = self.fortiadc(contains='password', context=1, limit=24)
+            # `set password` keeps its keyword; its value reaches the client as `[REDACTED]`.
+            first = self.fortiadc(contains='[REDACTED]', context=1, limit=24)
             self.assertEqual(device.call_count, 2)
-            parts = self.collect(self.fortiadc, first, 24, contains='password', context=1)
+            parts = self.collect(self.fortiadc, first, 24, contains='[REDACTED]', context=1)
             reference = self.fortiadc(snapshot_id=first['snapshot_id'])
             marked = self.fortiadc(snapshot_id=first['snapshot_id'], contains='<UNVERIFIED', context=0)
             field = self.fortiadc(snapshot_id=first['snapshot_id'], contains='future-decode-mode', context=0)
@@ -166,10 +169,11 @@ class FullConfigurationFilter(TestCase):
         self.assertGreater(len(parts), 1)
         self.assertIsNone(reference['next_offset'])
         source = reference['untrusted_device_output']
-        text, total, matched = expected(source, 'password', 1)
+        text, total, matched = expected(source, '[REDACTED]', 1)
         self.assertEqual(''.join(parts), text)
         self.assertEqual((first['total_lines'], first['matched_lines']), (total, matched))
         self.assertGreaterEqual(matched, 2)
+        self.assertRegex(source, r'(?m)^ *set password \[REDACTED\]$')
         self.assertEqual(first['platform'], 'fortiadc')
         self.assertEqual(first['snapshot_sha256'], reference['snapshot_sha256'])
         self.assertEqual(first['content_sha256'], hashlib.sha256(text.encode()).hexdigest())

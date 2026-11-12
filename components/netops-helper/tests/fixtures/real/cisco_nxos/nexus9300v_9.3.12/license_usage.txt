@@ -1,0 +1,42 @@
+Feature                      Ins  Lic   Status Expiry Date Comments
+                                 Count
+--------------------------------------------------------------------------------
+ACI-STRG                      No    -   Unused             -
+ACI-AD-GF                     No    -   Unused             -
+ACI-AD-XF                     No    -   Unused             -
+ACI-ES-GF                     No    -   Unused             -
+ACI-ES-XF                     No    -   Unused             -
+ACI-AD-XF2                    No    -   Unused             -
+ACI-ES-XF2                    No    -   Unused             -
+ACI-SEC-GF                    No    -   Unused             -
+ACI-SEC-XF                    No    -   Unused             -
+ACI-SEC-XM                    No    0   Unused             -
+N9K_LIC_1G                    No    -   Unused             -
+VPN_FABRIC                    No    -   Unused             -
+ACI-STRG-GF                   No    -   Unused             -
+ACI-STRG-XF                   No    -   Unused             -
+NXOS_OE_PKG                   No    -   Unused             -
+FCOE_NPV_PKG                  No    -   Unused             -
+SECURITY_PKG                  No    0   Unused             -
+ACI-PREMIER-GF                No    -   Unused             -
+ACI-PREMIER-XF                No    -   Unused             -
+N9K_UPG_EX_10G                No    -   Unused             -
+ACI-PREMIER-XF2               No    -   Unused             -
+NXOS-PREMIER-M4               No    -   Unused             -
+TP_SERVICES_PKG               No    -   Unused             -
+NXOS-PREMIER-M816             No    -   Unused             -
+NXOS_ADVANTAGE_GF             No    -   Unused             -
+NXOS_ADVANTAGE_M4             No    -   Unused             -
+NXOS_ADVANTAGE_XF             No    -   Unused             -
+NXOS_ESSENTIALS_GF            No    -   Unused             -
+NXOS_ESSENTIALS_M4            No    -   Unused             -
+NXOS_ESSENTIALS_XF            No    -   Unused             -
+NXOS_ESSENTIALS_XM            No    -   Unused             -
+SAN_ENTERPRISE_PKG            No    -   Unused             -
+PORT_ACTIVATION_PKG           No    0   Unused             -
+NETWORK_SERVICES_PKG          No    -   Unused             -
+NXOS_ADVANTAGE_M8-16          No    -   Unused             -
+NXOS_ESSENTIALS_M8-16         No    -   Unused             -
+FC_PORT_ACTIVATION_PKG        No    0   Unused             -
+LAN_ENTERPRISE_SERVICES_PKG   No    -   In use             Honor Start 2H 33M
+--------------------------------------------------------------------------------

@@ -1,5 +1,6 @@
 import json
 import os
+import shutil
 import subprocess
 import tempfile
 import unittest
@@ -38,8 +39,8 @@ exit 2
 '''
 
 MKTEMP = r'''#!/bin/sh
-if [ "$FAKE_RESULTS_UNWRITABLE" = 1 ] && [ ! -e "$FAKE_STATE/results-made" ]; then : > "$FAKE_STATE/results-made"; exec /usr/bin/mktemp -d; fi
-exec /usr/bin/mktemp "$@"
+if [ "$FAKE_RESULTS_UNWRITABLE" = 1 ] && [ ! -e "$FAKE_STATE/results-made" ]; then : > "$FAKE_STATE/results-made"; exec "$FAKE_MKTEMP" -d; fi
+exec "$FAKE_MKTEMP" "$@"
 '''
 
 DOCKER = r'''#!/bin/sh
@@ -77,7 +78,10 @@ class NonrootOperator(unittest.TestCase):
                     stream.write(body)
                 os.chmod(path, 0o755)
             output = os.path.join(directory, "report.json")
-            env = dict(os.environ, PATH=shims + os.pathsep + os.environ["PATH"], FAKE_STATE=directory, TMPDIR=directory, **settings)
+            mktemp = shutil.which("mktemp", path=os.environ["PATH"])
+            self.assertIsNotNone(mktemp, "the mktemp shim needs a real mktemp on PATH")
+            env = dict(os.environ, PATH=shims + os.pathsep + os.environ["PATH"], FAKE_STATE=directory, TMPDIR=directory,
+                       FAKE_MKTEMP=mktemp, **settings)
             proc = subprocess.run(["bash", SCRIPT, bundle, "fixture-image", "a" * 40, "sha256:" + "1" * 64, output],
                                   env=env, capture_output=True, text=True, timeout=120)
             trace_path = os.path.join(directory, "trace")

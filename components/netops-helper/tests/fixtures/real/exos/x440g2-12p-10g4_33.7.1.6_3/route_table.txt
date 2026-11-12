@@ -1,0 +1,38 @@
+Ori  Destination        Gateway         Mtr  Flags         VLAN       Duration
+#s   Default Route      192.0.2.1       1    UG---S-um--f- V10        20d:13h:10m:22s
+#d   198.51.100.0/24    198.51.100.3    1    U------um--f- VLAN100    20d:13h:10m:25s
+#d   192.0.2.0/24    192.0.2.3       1    U------um--f- V10        20d:13h:10m:25s
+
+Origin(Ori): (ap) Auto-peering, (b) BlackHole, (be) EBGP, (bg) BGP, (bi) IBGP,
+             (bo) BOOTP, (ct) CBT, (d) Direct, (div) DirectInterVr,
+             (df) DownIF, (dv) DVMRP, (e1) ISISL1Ext, (e2) ISISL2Ext,
+             (evn) EVPN, (h) Hardcoded, (hm) Host-mobility, (i) ICMP,
+             (i1) ISISL1, (i2) ISISL2, (is) ISIS, (mb) MBGP, (mbe) MBGPExt,
+             (mbi) MBGPInter, (mp) MPLS Lsp,
+             (mo) MOSPF, (o) OSPF, (o1) OSPFExt1, (o2) OSPFExt2, (oa) OSPFIntra,
+             (oe) OSPFAsExt, (oiv) OSPFInterVr, (or) OSPFInter, (pd) PIM-DM,
+             (ps) PIM-SM, (r) RIP, (ra) RtAdvrt, (s) Static, (sv) SLB_VIP,
+             (un) Unknown,
+             (*) Preferred unicast route, (@) Preferred multicast route,
+             (#) Preferred unicast and multicast route.
+
+Flags: (b) BFD protection requested, (B) BlackHole, (c) Compressed, (D) Dynamic,
+       (f) Provided to FIB, (G) Gateway, (H) Host Route,
+       (I) ICMP ping protection requested, (l) Calculated LDP LSP,
+       (L) Matching LDP LSP, (m) Multicast, (p) BFD protection active,
+       (P) LPM-routing, (R) Modified, (s) Static LSP, (S) Static,
+       (t) Calculated RSVP-TE LSP, (T) Matching RSVP-TE LSP, (u) Unicast,
+       (U) Up, (3) L3VPN Route.
+
+MPLS Label: (S) Bottom of Label Stack 
+Mask distribution:
+     1 default routes                2 routes at length 24
+
+
+Route Origin distribution:
+     2 routes from Direct               1 routes from Static    
+
+
+Total number of routes = 3
+Total number of compressed routes = 0
+

@@ -1,0 +1,39 @@
+{
+ "firmware": {
+  "model": "FortiADC-KVM",
+  "version": "7.6.7",
+  "build": "0676"
+ },
+ "config_scope": "all",
+ "configuration_complete": false,
+ "visibility_limitations": [
+  "schema-fields-unverified"
+ ],
+ "credential_redactions": 5,
+ "unverified_count": 87,
+ "unsupported_format_count": 0,
+ "unverified_fields": [
+  "system interface / dedicate-to-mgmt",
+  "system interface / flow-sniffer",
+  "system interface / wccp",
+  "system interface / promisc",
+  "system interface / recv-seg-offload-override",
+  "system interface / send-seg-offload-override",
+  "system interface / lldp-reception",
+  "system interface / lldp-transmission",
+  "system interface / rxring",
+  "system interface / txring",
+  "system service / protocol-type",
+  "system service / protocol",
+  "system health-check-script / edit-name",
+  "system health-check / http-large-recv",
+  "system health-check / allow-ssl-versions",
+  "system health-check / ssl-ciphers",
+  "router setting / virtual-server-l2-cache-timeout"
+ ],
+ "unverified_truncated": false,
+ "redaction": "full",
+ "include_defaults": true,
+ "snapshot_sha256": "0084606ac0333a45eb49b1bec0814408c01093635815775c08a6e8a6abb82e75",
+ "content_sha256": "0084606ac0333a45eb49b1bec0814408c01093635815775c08a6e8a6abb82e75"
+}

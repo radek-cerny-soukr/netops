@@ -1,0 +1,3 @@
+Hostname: lab-junos
+Model: vSRX
+Junos: 22.1R1.10

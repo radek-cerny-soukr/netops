@@ -1,0 +1,18 @@
+
+VLAN Name                             Status    Ports
+---- -------------------------------- --------- -------------------------------
+10   D10                              active    Eth1/1
+
+VLAN Type         Vlan-mode
+---- -----        ----------
+10   enet         CE     
+
+Remote SPAN VLAN
+----------------
+Disabled 
+
+Primary  Secondary  Type             Ports
+-------  ---------  ---------------  -------------------------------------------
+
+
+

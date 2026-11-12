@@ -37,7 +37,7 @@ class StructuredConfigurationDiagnostics(unittest.TestCase):
             (state / "gateway").mkdir(mode=0o700)
             (state / role).mkdir(mode=0o700)
             write_private(state / "gateway/config.json", json.dumps({
-                "version": 1, "product_version": "1.0.6", "audit": {"mode": "local"}}).encode())
+                "version": 1, "product_version": "1.0.7", "audit": {"mode": "local"}}).encode())
             stream = io.TextIOWrapper(io.BytesIO(json.dumps(document).encode()))
             errors, output = io.StringIO(), io.StringIO()
             with patch.dict(UIDS, {"gateway": current_uid}), patch.object(operator, "STATE", state), patch.object(operator, "demote"), \
@@ -91,6 +91,16 @@ class StructuredConfigurationDiagnostics(unittest.TestCase):
             document["tenant"] = value
             message = self.invoke("auditor", document)
             self.assertIn("auditor.tenant: must be a string without U+001F", message)
+
+    def test_fortiadc_inventory_explains_exported_snapshot_workflow(self):
+        document = self.auditor()
+        document["catalog"] = "fortiadc"
+        document["inventory"]["devices"][0]["platform"] = "fortiadc"
+        message = self.invoke("auditor", document)
+        self.assertIn("inventory.devices[0].platform: FortiADC", message)
+        self.assertIn("not collected through collect", message)
+        self.assertIn("run --platform fortiadc", message)
+        self.assertNotIn("must be one of", message)
 
     def test_actual_auditor_failure_for_wrong_channel_credential_is_explained(self):
         document = self.auditor()

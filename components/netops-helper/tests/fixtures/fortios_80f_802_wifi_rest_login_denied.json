@@ -1,0 +1,20 @@
+{
+ "note": "REST session login with the read-only account on FortiGate 80F HA 8.0.2 build0251 (anonymized, no secrets)",
+ "login": {
+  "request": "POST /logincheck (username, secretkey, ajax=1)",
+  "http_status": 200,
+  "set_cookie": [],
+  "body": "HTML of the GUI single-page application (not a session)"
+ },
+ "get": {
+  "/api/v2/monitor/wifi/client": 401,
+  "/api/v2/monitor/wifi/managed_ap": 401,
+  "/api/v2/monitor/wifi/ap_status": 401,
+  "/api/v2/monitor/wifi/rogue_ap": 401,
+  "/api/v2/monitor/wifi/interfering_ap": 401,
+  "/api/v2/monitor/wifi/station-capability": 401,
+  "/api/v2/monitor/wifi/client?mac=00:00:5e:00:53:01": 401,
+  "/api/v2/log/memory/event/wireless?rows=20": 401,
+  "/api/v2/log/disk/event/wireless?rows=20": 401
+ }
+}

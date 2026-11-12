@@ -1,0 +1,6 @@
+
+Spanning tree interface parameters for instance 0
+
+Interface                  Port ID    Designated         Designated         Port    State  Role
+                                       port ID           bridge ID          Cost
+ge-0/0/0                     128:1        128:4  32768.00005e005302        20000    FWD    ROOT 

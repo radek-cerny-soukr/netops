@@ -1,0 +1,44 @@
+{
+ "interfaces": {
+  "command": "show interfaces terse | no-more",
+  "rc": 0,
+  "lines": 68,
+  "captured_at": "2026-11-10T08:54:08.541Z",
+  "account": "netops-ro"
+ },
+ "ethernet_switching_interfaces": {
+  "command": "show ethernet-switching interface | no-more",
+  "rc": 0,
+  "lines": 13,
+  "captured_at": "2026-11-10T08:54:12.498Z",
+  "account": "netops-ro"
+ },
+ "vlans": {
+  "command": "show vlans brief | no-more",
+  "rc": 0,
+  "lines": 8,
+  "captured_at": "2026-11-10T08:54:16.293Z",
+  "account": "netops-ro"
+ },
+ "mac_table": {
+  "command": "show ethernet-switching table | no-more",
+  "rc": 0,
+  "lines": 19,
+  "captured_at": "2026-11-10T08:54:18.097Z",
+  "account": "netops-ro"
+ },
+ "arp_table": {
+  "command": "show arp no-resolve | no-more",
+  "rc": 0,
+  "lines": 9,
+  "captured_at": "2026-11-10T08:54:23.549Z",
+  "account": "netops-ro"
+ },
+ "lldp_neighbors_detail": {
+  "command": "show lldp neighbors detail | no-more",
+  "rc": 0,
+  "lines": 59,
+  "captured_at": "2026-11-10T08:54:26.911Z",
+  "account": "netops-ro"
+ }
+}

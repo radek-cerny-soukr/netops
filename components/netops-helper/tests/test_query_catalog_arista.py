@@ -42,6 +42,27 @@ EXPECTED = {
     "ospf_neighbors": ("show ip ospf neighbor", {}, True),
     "ospf_neighbors_interface": ("show ip ospf neighbor {interface}", {"interface": ("interfaces", "eos_ospf_interface")}, False),
     "ospfv3_neighbors": ("show ipv6 ospf neighbor", {}, True),
+    "route_table": ("show ip route", {}, True),
+    "ospf_interfaces": ("show ip ospf interface brief", {}, True),
+    "stp_tree": ("show spanning-tree", {}, True),
+    "stp_blocked": ("show spanning-tree blockedports", {}, False),
+    "stp_vlan": ("show spanning-tree vlan {vlan_id}", {"vlan_id": (None, "vlan_id")}, False),
+    "interfaces_errdisabled": ("show interfaces status errdisabled", {}, True),
+    "interfaces_description": ("show interfaces description", {}, True),
+    "interfaces_trunk": ("show interfaces trunk", {}, True),
+    "interfaces_counters_errors": ("show interfaces counters errors", {}, True),
+    "interfaces_counters_discards": ("show interfaces counters discards", {}, True),
+    "interface_switchport": ("show interfaces {interface} switchport", {"interface": ("interfaces", "eos_switchport_interface")}, False),
+    "interface_poe": ("show poe interface {interface}", {"interface": ("interfaces", "eos_physical_interface")}, False),
+    "lldp_neighbors_detail": ("show lldp neighbors detail", {}, True),
+    "vlan_details": ("show vlan id {vlan_id}", {"vlan_id": (None, "vlan_id")}, False),
+    "mlag_detail": ("show mlag detail", {}, False),
+    "mlag_config_sanity": ("show mlag config-sanity", {}, False),
+    "ntp_status": ("show ntp status", {}, False),
+    "ntp_associations": ("show ntp associations", {}, False),
+    "cpu": ("show processes top once", {}, True),
+    "reload_cause": ("show reload cause", {}, False),
+    "log_messages": ("show logging 200", {}, True),
 }
 
 METACHARS = set(";&|`$><\\\"'*?[]()!#~")
@@ -93,6 +114,9 @@ def test_exact_commands_slots_and_volume() -> None:
 def test_commands_are_show_only_and_shell_safe() -> None:
     for name, query in QUERIES.items():
         command = query.command
+        if name == "log_messages":  # the one fixed, slotless buffer template; read_policy allows exactly this form
+            assert command == "show logging 200" and not query.slots
+            continue
         assert _is_safe_arista_command(command), (name, command)
         fields = {field for _, field, _, _ in Formatter().parse(command) if field}
         assert fields == set(query.slots), (name, command)
@@ -104,10 +128,11 @@ def test_safety_helper_rejects_abbreviations_secrets_and_shell_forms() -> None:
 
 
 def test_unproven_commands_stay_absent() -> None:
-    assert "processes" not in QUERIES
+    # Measured on cEOS 4.36.1F (2026-11): the summary LLDP query stays, the detail form is a separate template.
     assert QUERIES["lldp_neighbors"].command == "show lldp neighbors"
-    assert all("mlag" not in query.command.casefold() for query in QUERIES.values())
-    assert all("detail" not in query.command.casefold() for name, query in QUERIES.items() if name.startswith("lldp"))
+    assert QUERIES["lldp_neighbors_detail"].command == "show lldp neighbors detail"
+    assert not any(query.command.startswith(("show logging ", "show running", "show startup")) for name, query in QUERIES.items() if name != "log_messages")
+    assert QUERIES["log_messages"].command == "show logging 200" and not QUERIES["log_messages"].slots
 
 
 def main() -> int:

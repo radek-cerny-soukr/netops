@@ -1,0 +1,35 @@
+VR            Destination      Mac                Age  Static  VLAN          VID   Port
+VR-Default    192.0.2.1        00:00:5e:00:53:01   20      NO  Default       1     1
+VR-Default    192.0.2.2        00:00:5e:00:53:02   20      NO  Default       1     1
+VR-Default    192.0.2.3        00:00:5e:00:53:03   20      NO  Default       1     1
+VR-Default    192.0.2.5        00:00:5e:00:53:11    3      NO  Default       1     1
+VR-Default    192.0.2.11       00:00:5e:00:53:04    3      NO  Default       1     1
+VR-Default    192.0.2.14       00:00:5e:00:53:05    3      NO  Default       1     1
+VR-Default    192.0.2.20       00:00:5e:00:53:0e    4      NO  Default       1     11
+VR-Default    192.0.2.25       00:00:5e:00:53:06   20      NO  Default       1     1
+VR-Default    192.0.2.34       00:00:5e:00:53:12    3      NO  Default       1     1
+VR-Default    192.0.2.35       00:00:5e:00:53:13    3      NO  Default       1     1
+VR-Default    192.0.2.36       00:00:5e:00:53:07   20      NO  Default       1     1
+VR-Default    192.0.2.37       00:00:5e:00:53:14    3      NO  Default       1     3
+VR-Default    192.0.2.38       00:00:5e:00:53:08    0      NO  Default       1     1
+VR-Default    192.0.2.60       00:00:5e:00:53:09    7      NO  Default       1     1
+VR-Default    192.0.2.66       00:00:5e:00:53:15    3      NO  Default       1     9
+VR-Default    192.0.2.67       00:00:5e:00:53:0a    0      NO  Default       1     1
+VR-Default    192.0.2.88       00:00:5e:00:53:0b    5      NO  Default       1     1
+VR-Default    192.0.2.110      00:00:5e:00:53:0d   20      NO  Default       1     7
+
+Dynamic Entries  :          18             Static Entries            :          0
+Pending Entries  :           0
+
+ARP address check:    Enabled              ARP refresh               :    Enabled
+Timeout          :          20 minutes     ARP Sender-Mac Learning   :   Disabled
+Locktime         :        1000 milliseconds
+Retransmit Time  :        1000 milliseconds
+Reachable Time   :      900000 milliseconds (Auto)
+Fast Convergence :         Off 
+
+ARP Global Settings
+Max Entries         :    12288 
+Max Pending Entries :      256 
+Max Proxy Entries   :      256 
+

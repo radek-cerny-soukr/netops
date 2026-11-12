@@ -154,9 +154,9 @@ def _operate(args, *, require_export=True) -> int:
     runtime = build_runtime(config) if require_export else build_runtime(config, require_export=False)
     if args.command == "doctor":
         from netops_admin import readiness
-        report = readiness.doctor(runtime, args.device)
+        report = readiness.doctor(runtime, args.device, local=args.local)
         _emit(report)
-        return 0 if report["ready"] else EXIT_NOT_READY
+        return 0 if report["local_ready" if args.local else "ready"] else EXIT_NOT_READY
     if args.command == "preview":
         result = execute.preview(runtime, args.device, parse_request(_read(args.request)))
         _emit(result)
@@ -230,6 +230,7 @@ def main(argv=None, *, require_export=True) -> int:
     ready = commands.add_parser("doctor", help="report whether a configured device is ready for changes, without any change")
     ready.add_argument("--config", required=True, type=Path)
     ready.add_argument("--device", required=True)
+    ready.add_argument("--local", action="store_true", help="check only local readiness; exit 0 means local readiness only, remote readiness remains unverified")
     enroll = commands.add_parser("enroll", help="operator: test actual on-device rollback before enabling writes")
     enroll.add_argument("--config", required=True, type=Path)
     enroll.add_argument("--device", required=True)
@@ -302,5 +303,5 @@ def main(argv=None, *, require_export=True) -> int:
         _emit(result)
         return 0 if result["result"] == "match" else EXIT_MISMATCH
     except Rejected as exc:
-        _emit({"result": "rejected", "reasons": exc.reasons})
+        _emit({"result": "rejected", "reasons": exc.reasons, "reason_codes": exc.reason_codes, "reason_details": exc.reason_details})
         return EXIT_REJECTED

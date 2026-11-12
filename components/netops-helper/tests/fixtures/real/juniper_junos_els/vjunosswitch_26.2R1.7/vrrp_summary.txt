@@ -1,0 +1,3 @@
+Interface     State       Group   VR state       VR Mode    Type   Address 
+irb.10        up             10   master          Active    lcl    192.0.2.6          
+                                                            vip    192.0.2.66         

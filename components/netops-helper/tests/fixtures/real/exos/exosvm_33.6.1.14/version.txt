@@ -1,0 +1,15 @@
+Switch          : PN:1N2039    SIM9993-0000 Rev 01 BootROM: 1.2        IMG: 33.6.1.14       
+PSUCTRL-1       : PN:MEAD      SN:SS0      SSS 00 SSSSSSS: 0.7       
+PSUCTRL-2       : PN:MEAD      SN:SS0      SSS 00 SSSSSSS: 0.8       
+mouse-usb       : PN:MOUSE     SN:0000     SSS 00 SSSSSSS: 0.9       
+floppy-A        :
+PSU-1       : Internal PSU-2 PN:1N2039 SN:00010
+PSU-2       : Internal PSU-3 PN:1N2039 SN:00010
+
+Image   : ExtremeXOS version 33.6.1.14 by release-manager
+          on Tue Mar 24 02:04:32 PM UTC 2026
+BootROM : 1.2
+Diagnostics : 
+Certified Version : EXOS Linux 5.10.177, Extreme Networks FIPS Object Module 3.0.10
+
+Build Tools Version : exos-x86_64-sdk-4.0.11.1.0

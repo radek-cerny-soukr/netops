@@ -1,0 +1,5 @@
+MAC Address       Address         Interface                Flags
+00:00:5e:00:53:01 198.51.100.254  ge-0/0/1.0               none
+00:00:5e:00:53:a0 198.51.100.20   irb.10 [ge-0/0/2.0]      none
+00:00:5e:00:53:a1 198.51.100.21   ae0.0                    permanent
+Total entries: 3

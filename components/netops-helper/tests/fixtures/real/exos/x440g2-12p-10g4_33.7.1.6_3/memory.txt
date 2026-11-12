@@ -1,0 +1,98 @@
+
+System Memory Information
+-------------------------
+ Total DRAM (KB): 1048576
+ System     (KB): 67264
+ User       (KB): 234268
+ Free       (KB): 747044
+
+Memory Utilization Statistics
+-----------------------------
+
+ Process Name     Memory (KB)
+-----------------------------
+ aaa              4333            
+ acl              1856            
+ bfd              1204            
+ bgp              0               
+ brm              0               
+ cfgmgr           2995            
+ cli              25519           
+ devmgr           1419            
+ dirser           513             
+ dnsAnalytics     1458            
+ dosprotect       849             
+ dot1ag           1593            
+ eaps             1813            
+ edp              1900            
+ elrp             1803            
+ elsm             690             
+ ems              2788            
+ epm              2407            
+ erps             1536            
+ esrp             1277            
+ ethoam           664             
+ etmon            2199            
+ exacl            0               
+ exdhcpsnoop      0               
+ exdos            0               
+ exnasnoop        0               
+ exosq            0               
+ expolicy         0               
+ exprocfs         0               
+ exsflow          0               
+ exsnoop          0               
+ exsshd           1971            
+ exvlan           0               
+ fdb              2871            
+ gptp             0               
+ hal              76362           
+ hclag            697             
+ idMgr            3399            
+ ipSecurity       1578            
+ ipfix            732             
+ iqagent          887             
+ isis             0               
+ kcm              604             
+ lacp             1657            
+ licMgr           1360            
+ lldp             2273            
+ macsec           1209            
+ mcmgr            2399            
+ mrp              1318            
+ msdp             1152            
+ netDb            820             
+ netLogin         2275            
+ netTools         3844            
+ nettx            0               
+ nodealias        1741            
+ nodemgr          552             
+ ntp              919             
+ ospf             0               
+ ospfv3           0               
+ otm              967             
+ pim              0               
+ poe              1162            
+ polMgr           521             
+ policy           11018           
+ pwmib            0               
+ rip              1352            
+ ripng            800             
+ rtmgr            3200            
+ snmpMaster       2856            
+ stp              2145            
+ techSupport      874             
+ telemetry        717             
+ telnetd          702             
+ tftpd            363             
+ throw            7384            
+ thttpd           14566           
+ twamp            491             
+ upm              1910            
+ vlan             3328            
+ vmt              1608            
+ vpex             0               
+ vrrp             0               
+ vsm              1504            
+ xmlc             1163            
+ xmld             3772            

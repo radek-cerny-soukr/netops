@@ -1,0 +1,174 @@
+{
+  "http_method": "GET",
+  "results": [
+    {
+      "ip": "192.0.2.1",
+      "ip6": [
+        "::"
+      ],
+      "wtp_name": "name-1",
+      "wtp_id": "name-1",
+      "wtp_radio": 2,
+      "wtp_ip": "192.0.2.2",
+      "wtp_control_ip": "192.0.2.2",
+      "wtp_control_local_ip": "192.0.2.2",
+      "vap_name": "vap-name-2",
+      "ssid": "vap-name-2",
+      "mac": "00:00:5e:00:53:81",
+      "11k_capable": true,
+      "11v_capable": true,
+      "11r_capable": false,
+      "sta_maxrate": 573500,
+      "sta_rxrate": 573500,
+      "sta_rxrate_mcs": 11,
+      "sta_rxrate_score": 100,
+      "sta_txrate": 573500,
+      "sta_txrate_mcs": 11,
+      "sta_txrate_score": 100,
+      "authentication": "pass",
+      "uses_captive_portal": false,
+      "captive_portal_authenticated": 0,
+      "bytes_rx": 40655697,
+      "bytes_tx": 75518131,
+      "packets_rx": 89939,
+      "packets_tx": 103789,
+      "peak_bandwidth_bytes_rx": 33,
+      "peak_bandwidth_bytes_tx": 376,
+      "peak_bandwidth_packets_rx": 0,
+      "peak_bandwidth_packets_tx": 0,
+      "data_rate_bps": 1147000000,
+      "data_rxrate_bps": 573500000,
+      "data_txrate_bps": 573500000,
+      "snr": 55,
+      "idle_time": 23,
+      "association_time": 1794161678,
+      "bandwidth_tx": 0,
+      "bandwidth_rx": 0,
+      "lan_authenticated": false,
+      "channel": 124,
+      "signal": -40,
+      "vci": "",
+      "host": "",
+      "security": 19,
+      "security_str": "wpa3_sae",
+      "encrypt": 1,
+      "noise": -95,
+      "radio_type": "802.11ax-5G",
+      "mimo": "2x2",
+      "vlan_id": 0,
+      "tx_discard_percentage": 0,
+      "tx_retry_percentage": 0,
+      "health": {
+        "signal_strength": {
+          "value": -40,
+          "severity": "good"
+        },
+        "snr": {
+          "value": 55,
+          "severity": "good"
+        },
+        "band": {
+          "value": "5ghz",
+          "severity": "good"
+        },
+        "transmission_retry": {
+          "value": 0,
+          "severity": "good"
+        },
+        "transmission_discard": {
+          "value": 0,
+          "severity": "good"
+        }
+      }
+    },
+    {
+      "ip": "192.0.2.3",
+      "ip6": [
+        "2001:db8::4"
+      ],
+      "wtp_name": "name-1",
+      "wtp_id": "name-1",
+      "wtp_radio": 1,
+      "wtp_ip": "192.0.2.2",
+      "wtp_control_ip": "192.0.2.2",
+      "wtp_control_local_ip": "192.0.2.2",
+      "vap_name": "vap-name-2",
+      "ssid": "vap-name-2",
+      "mac": "00:00:5e:00:53:82",
+      "11k_capable": true,
+      "11v_capable": true,
+      "11r_capable": false,
+      "sta_maxrate": 286800,
+      "sta_rxrate": 286800,
+      "sta_rxrate_mcs": 11,
+      "sta_rxrate_score": 100,
+      "sta_txrate": 286800,
+      "sta_txrate_mcs": 11,
+      "sta_txrate_score": 100,
+      "os": "os-3",
+      "authentication": "pass",
+      "uses_captive_portal": false,
+      "captive_portal_authenticated": 0,
+      "manufacturer": "Cisco",
+      "bytes_rx": 297109,
+      "bytes_tx": 118254460,
+      "packets_rx": 2524,
+      "packets_tx": 94062,
+      "peak_bandwidth_bytes_rx": 49,
+      "peak_bandwidth_bytes_tx": 78,
+      "peak_bandwidth_packets_rx": 0,
+      "peak_bandwidth_packets_tx": 1,
+      "data_rate_bps": 573600000,
+      "data_rxrate_bps": 286800000,
+      "data_txrate_bps": 286800000,
+      "snr": 77,
+      "idle_time": 16,
+      "association_time": 1794161129,
+      "bandwidth_tx": 403,
+      "bandwidth_rx": 302,
+      "lan_authenticated": false,
+      "channel": 1,
+      "signal": -18,
+      "vci": "android-dhcp-17",
+      "host": "",
+      "security": 19,
+      "security_str": "wpa3_sae",
+      "encrypt": 1,
+      "noise": -95,
+      "radio_type": "802.11ax-2G",
+      "mimo": "2x2",
+      "vlan_id": 0,
+      "tx_discard_percentage": 0,
+      "tx_retry_percentage": 0,
+      "health": {
+        "signal_strength": {
+          "value": -18,
+          "severity": "good"
+        },
+        "snr": {
+          "value": 77,
+          "severity": "good"
+        },
+        "band": {
+          "value": "24ghz",
+          "severity": "fair"
+        },
+        "transmission_retry": {
+          "value": 0,
+          "severity": "good"
+        },
+        "transmission_discard": {
+          "value": 0,
+          "severity": "good"
+        }
+      }
+    }
+  ],
+  "vdom": "root",
+  "path": "wifi",
+  "name": "name-4",
+  "status": "success",
+  "serial": "serial-5",
+  "version": "v8.0.2",
+  "build": 251
+}

@@ -29,6 +29,7 @@ class _Report:
             value = action()
         except Rejected as exc:
             self.add(name, REFUSED, "; ".join(exc.reasons))
+            self.checks[-1]["reason_codes"] = list(exc.reason_codes)
             return False, None
         except Exception as exc:
             self.add(name, REFUSED, _described(exc))
@@ -41,6 +42,7 @@ class _Report:
             status, detail = decide()
         except Rejected as exc:
             self.add(name, UNVERIFIED, "; ".join(exc.reasons))
+            self.checks[-1]["reason_codes"] = list(exc.reason_codes)
         except Exception as exc:
             self.add(name, UNVERIFIED, "the rights cannot be read: %s" % _described(exc))
         else:
@@ -81,6 +83,7 @@ def _local(report, runtime, device):
         running = runtime.store.running(device.name)
     except Rejected as exc:
         report.add("device state", REFUSED, "; ".join(exc.reasons))
+        report.checks[-1]["reason_codes"] = list(exc.reason_codes)
     else:
         _device_state(report, blocked, undelivered, running)
     report.attempt("budgets", lambda: execute._budgets(runtime, device))
@@ -89,10 +92,13 @@ def _local(report, runtime, device):
 def _device_state(report, blocked, undelivered, running):
     if blocked is not None:
         report.add("device state", REFUSED, "blocked (%s); a person must investigate and unblock it" % blocked.get("reason"))
+        report.checks[-1]["reason_codes"] = ["device_blocked"]
     elif undelivered:
         report.add("device state", REFUSED, "the notification of operation %s was not delivered" % undelivered[0])
+        report.checks[-1]["reason_codes"] = ["notification_pending"]
     elif running:
         report.add("device state", REFUSED, "an unfinished operation exists; run recover first")
+        report.checks[-1]["reason_codes"] = ["operation_unfinished"]
     else:
         report.add("device state", OK)
 
@@ -111,21 +117,27 @@ def _operations(platform, firmware) -> dict:
     return tables
 
 
-def doctor(runtime, device_name: str) -> dict:
-    result = _doctor(runtime, device_name)
+def doctor(runtime, device_name: str, *, local=False) -> dict:
+    result = _doctor(runtime, device_name, local=local)
     result["configuration"] = configuration_summary(runtime.config)
     return result
 
 
-def _doctor(runtime, device_name: str) -> dict:
+def _doctor(runtime, device_name: str, *, local=False) -> dict:
     device = runtime.config.devices.get(device_name)
     if device is None:
         raise Rejected(["device %s is not configured" % shown(device_name)])
+    if local:
+        report = _Report()
+        _local(report, runtime, device)
+        result = _result(report, device, None)
+        result.update(scope="local", local_ready=result["ready"], remote_readiness="unverified", ready=False)
+        return result
     try:
         adapter = execute._adapter(device.platform)
     except Rejected as refusal:
         if device.platform == "fortiadc" and device.schema is None:
-            raise Rejected(refusal.reasons + _fortiadc_rights(runtime, device)) from None
+            raise Rejected(refusal.reasons + _fortiadc_rights(runtime, device), reason_codes=refusal.reason_codes) from None
         raise
     report = _Report()
     _local(report, runtime, device)
@@ -184,8 +196,10 @@ def _doctor(runtime, device_name: str) -> dict:
             enrollment.require(runtime, device, fingerprint, firmware)
         except StateUnreadable as exc:
             report.add("enrollment", REFUSED, "; ".join(exc.reasons))
+            report.checks[-1]["reason_codes"] = list(exc.reason_codes)
         except Rejected as exc:
             report.add("enrollment", MISSING, "; ".join(exc.reasons))
+            report.checks[-1]["reason_codes"] = list(exc.reason_codes)
         else:
             report.add("enrollment", OK)
     return _result(report, device, firmware)

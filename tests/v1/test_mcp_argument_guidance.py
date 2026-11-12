@@ -65,6 +65,60 @@ class ArgumentGuidance(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(error["data"]["category"], "invalid_params")
                 self.assertEqual(error["message"], "Tool arguments do not match tools/list inputSchema")
 
+    async def test_admin_doctor_local_schema_and_gateway_forwarding(self):
+        descriptor = await self.descriptor("admin", "admin_doctor")
+        local = descriptor["inputSchema"]["properties"]["local"]
+        self.assertEqual(local["type"], "boolean")
+        self.assertFalse(local["default"])
+        arguments = {"device": "lab", "local": True}
+        rpc = AsyncMock(return_value={"result": {"content": [{"type": "text", "text": "ok"}], "isError": False}})
+        with patch.object(gateway, "rpc", rpc):
+            result = await self.remote("admin", descriptor).run(arguments)
+        self.assertFalse(result.is_error)
+        rpc.assert_awaited_once_with("admin", {"action": "call", "name": "admin_doctor", "arguments": arguments})
+
+    async def test_ssh_switch_and_locate_descriptors_publish_their_limits(self):
+        # Live 1.0.7 check: max_bytes 300, an unknown table and nine targets were refused without field or hint.
+        ssh = (await self.descriptor("helper", "ssh_read"))["inputSchema"]["properties"]
+        self.assertEqual((ssh["max_bytes"]["minimum"], ssh["max_bytes"]["maximum"]), (1000, 48000))
+        self.assertEqual((ssh["offset"]["minimum"], ssh["offset"]["maximum"]), (0, 8000000))
+        for tool in ("switch_read", "wifi_clients", "wifi_aps_live", "wifi_rogue"):
+            props = (await self.descriptor("helper", tool))["inputSchema"]["properties"]
+            for field, bounds in (("limit", (1, 500)), ("offset", (0, 8000000)), ("max_bytes", (1000, 48000))):
+                self.assertEqual((props[field]["minimum"], props[field]["maximum"]), bounds)
+        table = (await self.descriptor("helper", "switch_read"))["inputSchema"]["properties"]["table"]
+        from netops_helper.tables import FIELDS
+        self.assertEqual(table["enum"], list(FIELDS))
+        targets = (await self.descriptor("helper", "locate_endpoint"))["inputSchema"]["properties"]["targets"]
+        self.assertEqual((targets["minItems"], targets["maxItems"], targets["uniqueItems"]), (1, 64, True))
+
+    async def test_a_value_outside_a_published_limit_names_the_field_and_the_limit_without_dispatch(self):
+        cases = [
+            ("ssh_read", {"target": "fixture-device", "platform": "fortios", "query": "system_status", "max_bytes": 300},
+             "max_bytes", "max_bytes is at least 1000, as shown by tools/list"),
+            ("ssh_read", {"target": "fixture-device", "platform": "fortios", "query": "system_status", "max_bytes": 48001},
+             "max_bytes", "max_bytes is at most 48000, as shown by tools/list"),
+            ("switch_read", {"target": "fixture-device", "table": "synthetic-table"}, "table",
+             "table is one of interface, vlan, mac_entry, neighbor_l3, lldp_neighbor, route, ospf_neighbor, bgp_peer, lag, stp_port, aggregate, port_vlan, ip_interface, interface_errors, as shown by tools/list"),
+            ("locate_endpoint", {"targets": ["t%d" % index for index in range(65)], "endpoint": "192.0.2.1"}, "targets",
+             "targets holds at most 64 items, as shown by tools/list"),
+            ("locate_endpoint", {"targets": ["t1", "t1"], "endpoint": "192.0.2.1"}, "targets",
+             "targets holds distinct items, as shown by tools/list"),
+            ("locate_endpoint", {"targets": [], "endpoint": "192.0.2.1"}, "targets",
+             "targets holds at least 1 items, as shown by tools/list"),
+        ]
+        for name, arguments, field, hint in cases:
+            remote = self.remote("helper", await self.descriptor("helper", name))
+            rpc = AsyncMock()
+            with self.subTest(name=name, field=field, hint=hint), patch.object(gateway, "rpc", rpc):
+                result = await remote.run(arguments)
+                rpc.assert_not_awaited()
+                self.assertTrue(result.is_error)
+                error = json.loads(result.content[0].text)
+                self.assertEqual((error["code"], error["data"]["field"], error["data"]["hint"]), (-32602, field, hint))
+                self.assertNotIn("synthetic-table", result.content[0].text)
+                self.assertNotIn("300", result.content[0].text)
+
     async def test_missing_required_fields_are_tool_errors_without_dispatch(self):
         for role, name, field in (("admin", "admin_doctor", "device"), ("auditor", "rule_detail", "rule_id")):
             remote = self.remote(role, await self.descriptor(role, name))

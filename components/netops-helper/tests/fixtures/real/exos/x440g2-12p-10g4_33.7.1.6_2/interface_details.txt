@@ -1,0 +1,69 @@
+Port:	1(port-desc-02):
+	Description String: "Default settings for the access port"
+	Virtual-router:	VR-Default
+	Type:		UTP 
+	Random Early drop:	Unsupported
+	Admin state:	Enabled with  auto-speed sensing  auto-duplex
+	Link State:	Active, 100Mbps, full-duplex
+	Link Ups:       11       Last: Fri Oct 23 00:05:57 2026
+	Link Downs:     10       Last: Fri Oct 23 00:05:55 2026
+
+	VLAN cfg: 
+		 Name: V10, Internal Tag = 10, MAC-limit = No-limit, Virtual router:   VR-Default
+	STP cfg:
+
+	Protocol: 
+		 Name: V10          Protocol: ANY      Match all protocols.
+	Trunking:	Load sharing is not enabled.
+
+	EDP:		Enabled
+
+	EEE:		Disabled
+	ELSM:		Disabled
+	Ethernet OAM:		Disabled
+	MACsec:		Disabled
+	Learning:	Enabled
+	Link-Flap Detection:	Disabled
+	Unicast Flooding:	Enabled
+	Multicast Flooding:	Enabled
+	Broadcast Flooding:	Enabled
+	Jumbo:		Disabled
+	Flow Control:	Rx-Pause: Enabled	Tx-Pause: Disabled
+	Priority Flow Control: Disabled
+	Reflective Relay:	Disabled
+	Link up/down SNMP trap filter setting:	Enabled
+	Egress Port Rate:	No-limit
+	Broadcast Rate:		5000 packets-per-second    Burst Tolerance: Default
+	Multicast Rate:		No-limit
+	Unknown Dest Mac Rate:	No-limit
+	QoS Profile:	None configured
+	Ingress Rate Shaping : 		Unsupported
+	Ingress IPTOS Examination: 	Disabled
+	Ingress 802.1p Examination: 	Enabled
+	Ingress 802.1p Inner Exam: 	Disabled
+	Ingress 802.1p Priority:        0
+	Egress IPTOS Replacement:	Disabled
+	Egress 802.1p Replacement:	Disabled
+	QOS Profile Settings:     QP1  MinBw =       0%  MaxBw =     100%  MaxBuf =   100%  Weight =    1     
+                                  QP8  MinBw =       0%  MaxBw =     100%  MaxBuf =   100%  Weight =    1     
+
+	NetLogin: 			Disabled
+	NetLogin port mode: 		Port based VLANs
+	Smart redundancy: 		Enabled
+	Software redundant port: 	Disabled
+	IPFIX:   Disabled		Metering:  Ingress, All Packets, All Traffic
+		IPv4 Flow Key Mask:	SIP: 255.255.255.255 		DIP: 255.255.255.255 
+		IPv6 Flow Key Mask:	SIP: ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff 
+					DIP: ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff 
+
+	auto-polarity: 			Enabled
+	Shared packet buffer:		default
+	VMAN CEP egress filtering:	Disabled
+	Isolation:			Off
+	PTP Configured:      		Disabled
+	Time-Stamping Mode:  		None
+
+	Dynamic VLAN Uplink:          	Disabled
+	VM Tracking Dynamic VLANs:    	Disabled
+	Static MAC-based VLANs:       	Disabled
+

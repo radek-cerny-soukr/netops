@@ -1,0 +1,4 @@
+Routing table for VRF=default(0)
+Routing entry for 192.0.2.0/24
+  Known via "connected", distance 0, metric 0, best
+  * is directly connected, LAN-test

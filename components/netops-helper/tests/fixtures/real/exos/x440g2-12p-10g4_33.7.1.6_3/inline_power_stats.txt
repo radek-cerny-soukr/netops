@@ -1,0 +1,9 @@
+
+Inline-Power Slot Statistics
+Firmware status               : Operational
+Firmware revision             : 2.0.2b9
+
+Total ports powered           : 0
+Total ports awaiting power    : 12
+Total ports faulted           : 0
+Total ports disabled          : 0

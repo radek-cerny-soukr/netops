@@ -1,0 +1,18 @@
+Last table change time   : 0:03:04 ago
+Number of table inserts  : 10
+Number of table deletes  : 1
+Number of table drops    : 0
+Number of table age-outs : 1
+
+Port Neighbor Device ID    Neighbor Port ID TTL
+---- --------------------- ---------------- ---
+Et1  host02                Gi0/2            120
+Et2  host05                1                120
+Et4  0000.5e00.5315        521              120
+Et5  host03                Et0/1            120
+Ma0  host03                Et0/0            120
+Ma0  host07                Gi0/0            120
+Ma0  host02                Gi0/0            120
+Ma0  host05                mgmt             120
+Ma0  host01                mgmt0            120
+

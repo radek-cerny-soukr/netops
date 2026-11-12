@@ -1,0 +1,10 @@
+Routing entry for 198.51.100.128/25
+  Known via "bgp 65000", distance 20, metric 0
+  Tag 65001, type external
+  Last update from 192.0.2.1 00:10:00 ago
+  Routing Descriptor Blocks:
+  * 192.0.2.1, from 192.0.2.1, 00:10:00 ago
+      Route metric is 0, traffic share count is 1
+      AS Hops 2
+      Route tag 65001
+      MPLS label: none

@@ -3,6 +3,7 @@ from __future__ import annotations
 import base64
 import hashlib
 import os
+import subprocess
 import tempfile
 import time
 
@@ -33,6 +34,7 @@ PROBE_OPTIONS = (
     "ControlPath=none",
 )
 KNOWN_HOSTS_NAME = "known_hosts"
+PROBE_TIMED_OUT = "probe connection timed out"
 KEYSCAN_CAPTURE_MAX_BYTES = 256 * 1024
 DIGEST_CHARS = frozenset(
     "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
@@ -253,6 +255,28 @@ def _probe(runner, host, port, fingerprint, seconds, name, profile) -> str:
         "no offered host key matches the pinned fingerprint %s, %d key(s) offered"
         % (fingerprint, offered)
     )
+
+
+def unavailable_said(host, port, timeout_seconds, *, run=None, legacy=None) -> str:
+    """The SSH client's closing message from one probe connection after a scan obtained no host key.
+
+    The probe offers no credential (every authentication method is off), so it can only learn why
+    no key arrived: a refused or timed-out connection, an unreachable network, or a host that
+    answered. The text stays local; callers map it to a fixed cause.
+    """
+    runner = run if run is not None else ssh_module._capped_runner(KEYSCAN_CAPTURE_MAX_BYTES)
+    try:
+        seconds = _checked_timeout(timeout_seconds)
+        profile = legacy_module.checked(legacy)
+        with tempfile.TemporaryDirectory(prefix="netops-core-hostkey-") as directory:
+            call = probe_argv(host, port, seconds, os.path.join(directory, KNOWN_HOSTS_NAME), profile)
+            result = runner(call, capture_output=True, timeout=seconds + 2, check=False, env=_env())
+    except subprocess.TimeoutExpired:
+        return PROBE_TIMED_OUT
+    except Exception:
+        # Never a host-key verdict: a probe that cannot run leaves the cause unknown.
+        return ""
+    return ssh_module.final_said(getattr(result, "stderr", None))
 
 
 def _scan_one(runner, argv, name, seconds):

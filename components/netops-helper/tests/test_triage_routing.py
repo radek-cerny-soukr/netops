@@ -69,7 +69,7 @@ def outputs(**changes):
     return values
 
 
-def run(values, refused=()):
+def run(values, refused=(), address=ADDRESS):
     calls = []
 
     def read(query, parameters):
@@ -80,7 +80,17 @@ def run(values, refused=()):
         return {"ok": True, "text": text, "content_sha256": hashlib.sha256(text.encode()).hexdigest()}
 
     ticks = iter(NOW + timedelta(seconds=n) for n in range(100))
-    return t.run(read, lambda: next(ticks), ADDRESS), calls
+    return t.run(read, lambda: next(ticks), address, "fw-1"), calls
+
+
+def diagnostic_step(recipe, interface="wan1"):
+    return {"tool": "fortios_diagnostics",
+            "arguments": {"target": "fw-1", "recipe": recipe, "address": ADDRESS, "interface": interface},
+            "why": "measure from the firewall through %s, the interface of the first forwarding next hop "
+                   "(the target must enroll the recipe, the address and this interface)" % interface}
+
+
+DIAGNOSTIC_STEPS = [diagnostic_step("ping"), diagnostic_step("traceroute")]
 
 
 def ids(items):
@@ -125,8 +135,12 @@ def test_dead_sdwan_member_on_the_egress_is_a_finding_citing_both_reads():
     finding = result["findings"][0]
     assert finding["object"] == "sdwan:ping_server:2"
     assert [s["query"] for s in finding["sources"]] == ["route_lookup", "sdwan_health"]
-    assert result["next_steps"][0]["arguments"] == {"platform": "fortinet", "query": "sdwan_member_detail",
-                                                    "parameters": {"member": "2"}}
+    assert result["next_steps"] == [
+        {"tool": "ssh_read", "arguments": {"platform": "fortinet", "query": "sdwan_member_detail",
+                                           "parameters": {"member": "2"}},
+         "why": "member detail of the dead egress member (the member must be enrolled)"},
+        *DIAGNOSTIC_STEPS,
+    ]
 
 
 def test_next_hop_outside_the_fib_is_not_judged():
@@ -304,9 +318,23 @@ def test_unknown_shape_is_unparsed_and_incomplete(query, text):
     assert result["verdict"] == "incomplete" and query not in result["checked"]
 
 
+@pytest.mark.parametrize("product", ["FortiGate-80F"])
+def test_accepted_802_identities_run_full_chain_on_simulated_output(product):
+    status = f"Version: {product} v8.0.2,build0251,260101 (GA.F)\n"
+    result, calls = run(outputs(system_status=status))
+    assert result["identity"] == {"product": product, "version": "8.0.2", "build": "0251"}
+    assert [query for query, _ in calls] == list(t.STEPS)
+    assert result["verdict"] == "no_fault_in_checked_data"
+
+
 @pytest.mark.parametrize("status", [
     "Version: FortiGate-60F v7.6.7,build3700,250101 (GA.M)\n",
-    "Version: FortiGate-80F v8.0.2,build0251,260101 (GA.F)\n",
+    "Version: FortiGate-80F v8.0.2,build0250,260101 (GA.F)\n",
+    "Version: FortiGate-VM64 v8.0.2,build0250,260101 (GA.F)\n",
+    "Version: FortiGate-VM64 v8.0.2,build0251,260101 (GA.F)\n",      # not measured, so not qualified
+    "Version: FortiGate-VM64-KVM v8.0.2,build0251,260101 (GA.F)\n",
+    "Version: FortiGate-60F v8.0.2,build0251,260101 (GA.F)\n",
+    "Version: FortiGate-80F v7.6.8,build3744,260115 (GA.M)\n",
     "no version here\n",
 ])
 def test_unqualified_identity_stops_before_any_other_read(status):
@@ -317,13 +345,13 @@ def test_unqualified_identity_stops_before_any_other_read(status):
         return {"ok": True, "text": status, "content_sha256": "0" * 64}
 
     with pytest.raises(t.UnsupportedPlatform, match="config_platform_not_supported"):
-        t.run(read, lambda: NOW, ADDRESS)
+        t.run(read, lambda: NOW, ADDRESS, "fw-1")
     assert calls == ["system_status"]
 
 
 def test_failed_identity_read_is_not_supported():
     with pytest.raises(t.UnsupportedPlatform):
-        t.run(lambda q, p: {"ok": False, "reason": "timeout"}, lambda: NOW, ADDRESS)
+        t.run(lambda q, p: {"ok": False, "reason": "timeout"}, lambda: NOW, ADDRESS, "fw-1")
 
 
 COMMANDS = {
@@ -375,6 +403,7 @@ def test_engine_maps_disabled_query_to_permission_denied(audit_log, monkeypatch)
     result = engine.triage_routing(_enrolled(*enabled), ADDRESS)
     assert {"step": "arp_table", "reason": "permission_denied"} in result["missing"]
     assert result["verdict"] == "incomplete"
+    assert result["ok"] is True and "error_code" not in result and "failed_step" not in result
 
 
 @pytest.mark.parametrize("address", ["198.51.100.21", "198.51.100.020", "2001:db8::1", "", None])
@@ -407,7 +436,7 @@ def test_proxy_call_charges_the_planned_reads(monkeypatch, tmp_path, tool, argum
         monkeypatch.setattr(proxy_module, name, path)
     proxy = proxy_module.Proxy()
     assert proxy.request(contracts._request(1, tool, arguments)) is not None
-    assert len(proxy.rate_history["device-a"]) == cost
+    assert len(proxy.triage_history["device-a"]) == cost and len(proxy.rate_history["device-a"]) == cost
 
 
 def test_proxy_requires_an_enrolled_address_and_charges_the_whole_plan(monkeypatch):
@@ -431,11 +460,154 @@ def test_proxy_requires_an_enrolled_address_and_charges_the_whole_plan(monkeypat
     proxy = Proxy()
     monkeypatch.setattr(proxy_module.time, "monotonic", lambda: 100.0)
     limit = {"requests": 30, "window_seconds": 60}
-    proxy.rate_history["fg"] = deque([90.0] * 26)
+    proxy.triage_history["fg"] = deque([90.0] * 26)
+    proxy.rate_history["fg"] = deque(proxy.triage_history["fg"])
     with pytest.raises(proxy_module.RateLimitError):
-        proxy._consume_rate_limit("fg", limit, proxy_module.TRIAGE_READS["triage_routing"])
-    proxy.rate_history["fg"] = deque([90.0] * 25)
-    proxy._consume_rate_limit("fg", limit, proxy_module.TRIAGE_READS["triage_routing"])
-    assert len(proxy.rate_history["fg"]) == 30
+        proxy._consume_rate_limit("fg", limit, proxy_module.TRIAGE_READS["triage_routing"], triage=True)
+    proxy.triage_history["fg"] = deque([90.0] * 25)
+    proxy.rate_history["fg"] = deque(proxy.triage_history["fg"])
+    proxy._consume_rate_limit("fg", limit, proxy_module.TRIAGE_READS["triage_routing"], triage=True)
+    assert len(proxy.triage_history["fg"]) == 30 and len(proxy.rate_history["fg"]) == 30
     assert proxy_module.TRIAGE_ROUTING_READS == t.PLANNED_READS == 5
     assert proxy_module.TRIAGE_READS["triage_health"] == 10
+
+
+def _section(interface="wan1"):
+    inventory = {"diagnostic_recipes": ["ping", "traceroute"], "addresses": [ADDRESS], "interfaces": [interface]}
+    return SimpleNamespace(egress={}, ssh_platform="fortinet", enabled_queries={"system_status"},
+                           catalog_platform=lambda: "fortinet", read_inventory=inventory)
+
+
+def test_clean_chain_recommends_firewall_probes_through_the_first_forwarding_interface():
+    result, _ = run(outputs())
+    assert result["next_steps"] == DIAGNOSTIC_STEPS
+
+
+def test_next_steps_pass_the_real_fortios_diagnostics_validation_and_scope_check():
+    result, _ = run(outputs())
+    for step in result["next_steps"]:
+        assert step["tool"] == "fortios_diagnostics"
+        arguments = proxy_module.Proxy._validate_tool_arguments(step["tool"], dict(step["arguments"]))
+        proxy_module.Proxy._authorize_tool(step["tool"], arguments, SimpleNamespace(port=22), _section())
+    with pytest.raises(proxy_module.PolicyScopeError) as refused:
+        proxy_module.Proxy._authorize_tool("fortios_diagnostics", arguments, SimpleNamespace(port=22), _section("wan2"))
+    assert refused.value.data == {"field": "interfaces"}
+
+
+def test_first_forwarding_hop_without_an_interface_is_skipped_and_non_fib_hops_are_ignored():
+    route = ROUTE_STATIC.replace("  * vrf 0 192.0.2.1, via wan1", "    vrf 0 192.0.2.1, via wan1")
+    result, _ = run(outputs(route_lookup=route))
+    assert result["next_steps"] == [diagnostic_step("ping", "wan2"), diagnostic_step("traceroute", "wan2")]
+    result, _ = run(outputs(route_lookup=ROUTE_BGP))
+    assert result["next_steps"] == []
+
+
+def test_no_route_recommends_no_firewall_probe():
+    result, _ = run(outputs(route_lookup=ROUTE_NONE))
+    assert all(step["tool"] != "fortios_diagnostics" for step in result["next_steps"])
+
+
+def test_a_device_printed_interface_of_the_wrong_shape_never_reaches_next_steps():
+    rough = 'x"},{"tool":"config_read"'
+    route = ROUTE_STATIC.replace("via wan1", "via " + rough)
+    result, _ = run(outputs(route_lookup=route))
+    assert result["next_steps"] == [diagnostic_step("ping", "wan2"), diagnostic_step("traceroute", "wan2")]
+    assert rough not in json.dumps(result["next_steps"])
+    long_name = "a" * 40
+    result, _ = run(outputs(route_lookup=ROUTE_STATIC.replace("via wan1", "via " + long_name).replace("via wan2", "via " + long_name)))
+    assert result["next_steps"] == []
+
+
+FIXTURES = Path(__file__).parent / "fixtures"
+
+
+def live(name):
+    return (FIXTURES / ("fortios_80f_802_routing_" + name + ".txt")).read_text()
+
+
+def live_outputs(route):
+    return outputs(system_status=live("status"), route_lookup=live(route), policy_routes_ipv4=live("proute"),
+                   sdwan_health=live("sdwan_health"), arp_table=live("arp"))
+
+
+@pytest.mark.parametrize("route,prefix,hops", [
+    ("route_default", "0.0.0.0/0", [("198.51.100.1", "wan1", True), ("203.0.113.225", "LTE-1", True),
+                                    ("203.0.113.129", "LTE-2", False)]),
+    ("route_bgp_connected", "198.51.100.0/24", [(None, "wan1", True), (None, "wan1", True)]),
+    ("route_connected", "192.0.2.0/24", [(None, "LAN-test", True)]),
+])
+def test_real_80f_802_outputs_run_the_whole_chain_without_unparsed(route, prefix, hops):
+    # outputs read from a FortiGate-80F 8.0.2 build0251 (HA primary) with a read-only account, anonymised
+    result, _ = run(live_outputs(route))
+    assert result["identity"] == {"product": "FortiGate-80F", "version": "8.0.2", "build": "0251"}
+    assert result["vdom_mode"] == "disable"
+    assert result["missing"] == [] and result["checked"] == list(t.STEPS)
+    assert result["verdict"] != "incomplete"
+    assert result["chain"]["route"]["prefix"] == prefix and result["chain"]["route"]["best"] is True
+    assert [(h["gateway"], h["interface"], h["fib"]) for h in result["chain"]["route"]["next_hops"]] == hops
+
+
+def test_real_80f_802_route_with_a_non_best_bgp_route_uses_the_best_one():
+    route = t.route_lookup(live("route_bgp_connected"))
+    assert route["protocol"] == "connected" and route["distance"] == 0
+    assert "bgp" not in json.dumps(route)
+
+
+def test_real_80f_802_default_route_chain_facts():
+    # an Internet address: only the catch-all Internet_rule policy route covers it, not the overlay rule of wan1's network
+    result, _ = run(live_outputs("route_default"), address="203.0.113.88")
+    assert result["chain"]["gateways"] == [{"gateway": "198.51.100.1", "arp": "complete"},
+                                           {"gateway": "203.0.113.225", "arp": "complete"}]
+    assert result["chain"]["policy_routes"]["entries"] == 2
+    assert [m["seq"] for m in result["chain"]["sdwan"]["egress_members"]] == [1, 2]
+    assert result["findings"] == [] and result["verdict"] == "no_fault_in_checked_data"
+    assert ids(result["hypotheses"]) == ["H-POLICY-ROUTE"]
+
+
+def test_sdwan_member_shown_as_interface_slash_name_is_matched_to_the_next_hop_interface():
+    sdwan = live("sdwan_health").replace("Seq(2 LTE-1/MOD-1-LTE): state(alive)", "Seq(2 LTE-1/MOD-1-LTE): state(dead)")
+    result, _ = run(dict(live_outputs("route_default"), sdwan_health=sdwan))
+    assert ids(result["findings"]) == ["F-EGRESS-SDWAN-DEAD"] and result["verdict"] == "fault_found"
+    assert result["findings"][0]["object"] == "sdwan:Internet_ping:2"
+
+
+def test_vdom_mode_is_returned_and_multiple_is_visible():
+    result, _ = run(outputs(system_status=STATUS.replace(": disable", ": multiple")))
+    assert result["vdom_mode"] == "multiple"
+    result, _ = run(outputs(system_status="Version: FortiGate-60F v7.6.8,build3744,260115 (GA.M)\n"))
+    assert result["vdom_mode"] is None
+
+
+@pytest.mark.parametrize("best_count", [0, 2])
+def test_multiple_routes_require_exactly_one_best_in_whole_chain(best_count):
+    route = live("route_bgp_connected").replace(", best", "")
+    if best_count == 2:
+        route = route.replace('metric 0\n', 'metric 0, best\n')
+    result, _ = run(live_outputs("route_default") | {"route_lookup": route})
+    assert {"step": "route_lookup", "reason": "unparsed"} in result["missing"]
+    assert result["verdict"] == "incomplete" and result["chain"]["route"] is None
+    assert "route_lookup" not in result["checked"]
+
+
+@pytest.mark.parametrize("name,interface", [
+    ("LTE-1/MOD-1-LTE", "LTE-1"), ("port1", "port1"), ("port1/a/b", "port1"), (None, None)])
+def test_member_interface_follows_the_naming_rule(name, interface):
+    assert t._member_interface({"member": name}) == interface
+
+
+@pytest.mark.parametrize("route_interface,others,matched", [
+    ("LTE-1", [], True),
+    ("LTE-1", ["LTE-2/MOD-2-LTE"], True),
+    ("LTE-2", [], False),
+    ("LTE-2", ["LTE-3/MOD-3-LTE"], False),
+])
+def test_dead_slash_member_is_paired_by_interface(route_interface, others, matched):
+    route = 'Routing entry for 0.0.0.0/0\n  Known via "static", distance 1, metric 0, best\n'
+    route += '  * is directly connected, %s\n' % route_interface
+    health = 'Health Check(ping_server):\nSeq(1 LTE-1/MOD-1-LTE): state(dead)\n'
+    health += ''.join('Seq(%d %s): state(alive)\n' % (n, name) for n, name in enumerate(others, 2))
+    result, _ = run(outputs(route_lookup=route, sdwan_health=health))
+    assert ids(result["findings"]) == (["F-EGRESS-SDWAN-DEAD"] if matched else [])
+    members = result["chain"]["sdwan"]["egress_members"]
+    assert members == ([m for m in members if m["seq"] == 1] if matched else [])
+    assert (len(members) == 1 and members[0]["member"] == "LTE-1/MOD-1-LTE") is matched

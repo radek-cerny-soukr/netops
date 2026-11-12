@@ -1,0 +1,30 @@
+Untagged ports auto-move: Inform
+-----------------------------------------------------------------------------------------------
+Name            VID  Protocol Addr       Flags                         Proto  Ports  Virtual   
+                                                                              Active router
+                                                                              /Total
+-----------------------------------------------------------------------------------------------
+Default         1    --------------------------------T--------------   ANY    0 /0   VR-Default 
+VL-30           30   -----------------------------------------------   ANY    3 /3   VR-Default 
+V20             20   -----------------------------------------------   ANY    3 /3   VR-Default 
+VLAN40          40   -----------------------------------------------   ANY    3 /3   VR-Default 
+V50             50   -----------------------------------------------   ANY    3 /3   VR-Default 
+V10             10   192.0.2.3      /24  ---------------------------   ANY    9 /13  VR-Default 
+Mgmt            4095 -----------------------------------------------   ANY    0 /1   VR-Mgmt    
+VLAN100         100  198.51.100.3   /24  ---------------------------   ANY    2 /2   VR-Default 
+-----------------------------------------------------------------------------------------------
+Flags : (B) BFD Enabled, (c) 802.1ad customer VLAN, (C) EAPS Control VLAN,
+        (d) Dynamically created VLAN, (D) VLAN Admin Disabled,
+        (E) ESRP Enabled, (f) IP Forwarding Enabled,
+        (F) Learning Disabled, (i) ISIS Enabled,
+        (I) Inter-Switch Connection VLAN for MLAG, (k) PTP Configured,
+        (l) MPLS Enabled, (L) Loopback Enabled, (m) IPmc Forwarding Enabled,
+        (M) Translation Member VLAN or Subscriber VLAN, (n) IP Multinetting Enabled,
+        (N) Network Login VLAN, (o) OSPF Enabled, (O) Virtual Network Overlay,
+        (p) PIM Enabled, (P) EAPS protected VLAN, (r) RIP Enabled,
+        (R) Sub-VLAN IP Range Configured, (s) Sub-VLAN, (S) Super-VLAN,
+        (t) Translation VLAN or Network VLAN, (T) Member of STP Domain,
+        (v) VRRP Enabled, (V) VPLS Enabled, (w) Layer 2 Forwarding Disabled,
+        (W) VPWS Enabled, (Y) Policy Enabled
+
+Total number of VLAN(s) : 8 

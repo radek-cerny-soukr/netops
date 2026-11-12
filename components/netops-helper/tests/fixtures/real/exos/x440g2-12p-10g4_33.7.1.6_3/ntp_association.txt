@@ -1,0 +1,7 @@
+VR Name               Remote                                     Reference ID    St Poll Reach Delay   Offset   Disp   
+===================== =========================================  =============== == ==== ===== ======= ======== =======
+VR-Default            *!192.0.2.1                                203.0.113.190   4  1024 377   0.00117 -0.02061 0.18658
+
+St(ratum)   : Distance from the reference clock
+Disp(ersion): Maximum offset error of clock
+Flags       : (*) System Peer, (.) Candidate, (#) Short List, (!) Configured

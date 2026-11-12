@@ -30,6 +30,21 @@ class FullConfigurationEngine(TestCase):
         return read
     def read(self, auth=None, **kwargs):
         return engine.config_read(auth or enrolled(), 'fortios','all',True,redaction='full',**kwargs)
+    def test_all_configuration_identity_reads_reject_embedded_cli_failure(self):
+        for platform, status, refusal in (
+                ('fortios', STATUS, 'Command fail. Return code -61'),
+                ('fortiadc', ADC_STATUS, 'Command fail. Return code is -284 (CLI parsing error.)')):
+            for redaction in (('minimal', 'full') if platform == 'fortios' else ('full',)):
+                for suffix in ('', 'Hostname: lab\n'):
+                    with self.subTest(platform=platform, redaction=redaction, suffix=suffix):
+                        output = status + refusal + '\n' + suffix
+                        with mock.patch.object(engine, 'read_from_device', return_value=(0, output)) as wire:
+                            with self.assertRaisesRegex(ValueError, 'refused'):
+                                engine.config_read(replace(enrolled(), ssh_platform='fortiadc' if platform == 'fortiadc' else 'fortinet'),
+                                                   platform, 'all', True, redaction=redaction)
+                        self.assertEqual([call.args[2] for call in wire.call_args_list], ['get system status'])
+                        self.assertFalse(c._SNAPSHOTS)
+
     def test_fortios_capture_cache_and_defaults(self):
         for defaults in (False, True):
             with mock.patch.object(engine,'read_from_device',side_effect=self.wire()) as wire:
@@ -362,9 +377,10 @@ class FullConfigurationEngine(TestCase):
                     c._SNAPSHOTS.clear(); c._DIFFS.clear()
                     status = STATUS.replace('7.6.8', version).replace('3744', build).replace('disable', marker)
                     device = header.replace('VERSION', version).replace('BUILD', build) + raw
-                    secrets = iter(range(1, 3))
-                    expected = [re.sub(r'^set passwd ENC .*', lambda m: 'set passwd <REDACTED:credential#%d>' % next(secrets),
-                                       line.strip()) for line in device.splitlines() if line.strip()]
+                    # Each `set passwd` keeps its keyword and hides only the value: the engine
+                    # applies the response redaction (as on the 1.0.6 wire) before it hashes and pages.
+                    expected = [re.sub(r'^set passwd ENC .*', 'set passwd [REDACTED]', line.strip())
+                                for line in device.splitlines() if line.strip()]
                     with mock.patch.object(engine, 'read_from_device', side_effect=self.wire(device, status)) as wire:
                         first = self.read(limit=64)
                         other = self.read(include_defaults=False, limit=64)
@@ -449,9 +465,11 @@ class FullConfigurationEngine(TestCase):
                 if phase=='capture' and command=='get system status':return 0,STATUS
                 raise TimeoutError('fixture-private-transport-value')
             with self.subTest(phase=phase),mock.patch.object(engine,'read_from_device',side_effect=fail):
-                with self.assertRaises(ValueError) as error:self.read()
-                self.assertIn('transport-failed',str(error.exception))
-                self.assertNotIn('fixture-private-',str(error.exception))
+                answer=self.read()
+                self.assertEqual((answer['ok'],answer['error_code'],answer['error']),
+                                 (False,'timeout',engine._TRANSPORT_ADVICE['timeout']))
+                self.assertNotIn('fixture-private-',str(answer))
+                self.assertEqual(len(c._SNAPSHOTS),0)
         def consumer_failure(auth,platform,command,**kwargs):
             if command == 'get system status':
                 return 0, STATUS

@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 from base64 import b64encode
+from contextlib import ExitStack
 import datetime
 import hashlib
 import importlib
@@ -106,38 +107,40 @@ class _FTPServer:
             self.data_listener.close()
 
     def _session(self, connection: socket.socket) -> None:
-        stream = connection.makefile("rwb", buffering=0)
-        stream.write(self.banner)
-        protected = False
-        while True:
-            line = stream.readline()
-            if not line:
-                return
-            command = line.decode("ascii").strip().split(" ")[0].upper()
-            if command == "AUTH" and self.control_context is not None:
-                stream.write(b"234 go\r\n")
-                connection = self.control_context.wrap_socket(connection, server_side=True)
-                stream = connection.makefile("rwb", buffering=0)
-            elif command == "USER":
-                stream.write(b"331 password\r\n")
-            elif command == "PASS":
-                stream.write(b"230 logged in\r\n")
-            elif command == "PROT":
-                protected = True
-                stream.write(b"200 ok\r\n")
-            elif command in ("PBSZ", "TYPE"):
-                stream.write(b"200 ok\r\n")
-            elif command == "PASV":
-                high, low = divmod(self.data_port, 256)
-                stream.write(b"227 Entering Passive Mode (127,0,0,1,%d,%d)\r\n" % (high, low))
-            elif command == "NLST":
-                stream.write(b"150 listing\r\n")
-                stream.write(self._listing(protected))
-            elif command == "QUIT":
-                stream.write(b"221 bye\r\n")
-                return
-            else:
-                stream.write(b"502 no\r\n")
+        with ExitStack() as resources:
+            stream = resources.enter_context(connection.makefile("rwb", buffering=0))
+            stream.write(self.banner)
+            protected = False
+            while True:
+                line = stream.readline()
+                if not line:
+                    return
+                command = line.decode("ascii").strip().split(" ")[0].upper()
+                if command == "AUTH" and self.control_context is not None:
+                    stream.write(b"234 go\r\n")
+                    stream.close()
+                    connection = resources.enter_context(self.control_context.wrap_socket(connection, server_side=True))
+                    stream = resources.enter_context(connection.makefile("rwb", buffering=0))
+                elif command == "USER":
+                    stream.write(b"331 password\r\n")
+                elif command == "PASS":
+                    stream.write(b"230 logged in\r\n")
+                elif command == "PROT":
+                    protected = True
+                    stream.write(b"200 ok\r\n")
+                elif command in ("PBSZ", "TYPE"):
+                    stream.write(b"200 ok\r\n")
+                elif command == "PASV":
+                    high, low = divmod(self.data_port, 256)
+                    stream.write(b"227 Entering Passive Mode (127,0,0,1,%d,%d)\r\n" % (high, low))
+                elif command == "NLST":
+                    stream.write(b"150 listing\r\n")
+                    stream.write(self._listing(protected))
+                elif command == "QUIT":
+                    stream.write(b"221 bye\r\n")
+                    return
+                else:
+                    stream.write(b"502 no\r\n")
 
     def _listing(self, protected: bool) -> bytes:
         data, _ = self.data_listener.accept()

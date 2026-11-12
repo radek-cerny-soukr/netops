@@ -89,6 +89,12 @@ def _refused(call, message, kind=ValueError):
     return caught.value
 
 
+def _lost(platform):
+    """A configuration read whose SSH client failed (exit 255, no message): its class, no device text."""
+    return {"ok": False, "target": "wire-test", "platform": platform, "section": "all",
+            "error_code": "transport_failure", "error": engine._TRANSPORT_ADVICE["transport_failure"]}
+
+
 def _sent(wire) -> list[str]:
     return [call["argv"][-1] for call in _calls(wire) if "env" not in call]
 
@@ -98,7 +104,7 @@ def _sent(wire) -> list[str]:
 
 def test_minimal_identity_read_that_the_transport_loses_withholds_everything(wire) -> None:
     _device(wire, {"get system status": [255, ""]})
-    _refused(lambda: _minimal(_fortios()), "configuration identity read failed" + WITHHELD)
+    assert _minimal(_fortios()) == _lost("fortios")
     assert _sent(wire) == ["get system status"]
     assert configuration._SNAPSHOTS == {}
 
@@ -132,7 +138,7 @@ def test_minimal_last_record_without_a_newline_is_still_held_to_the_memory_limit
 
 def test_minimal_stream_that_ends_inside_a_block_is_not_stored(wire) -> None:
     _device(wire, {"get system status": [0, STATUS], "show": [0, "config system global\n set alias x\n"]})
-    _refused(lambda: _minimal(_fortios()), "configuration read failed" + WITHHELD)
+    _refused(lambda: _minimal(_fortios()), "configuration redaction-unverifiable" + WITHHELD)
     assert configuration._SNAPSHOTS == {}
 
 
@@ -161,7 +167,7 @@ def test_minimal_page_with_a_stale_filter_keeps_the_existing_snapshot(wire) -> N
 
 def test_full_identity_read_that_the_transport_loses_names_the_stage(wire) -> None:
     _device(wire, {"get system status": [255, ""]})
-    _refused(lambda: _full(_fortios()), "configuration transport-failed during identity read" + WITHHELD)
+    assert _full(_fortios()) == _lost("fortios")
     assert _sent(wire) == ["get system status"]
 
 
@@ -194,7 +200,7 @@ def test_full_capture_with_an_unparseable_line_names_the_line(wire) -> None:
 
 def test_full_capture_that_the_transport_loses_names_the_stage(wire) -> None:
     _device(wire, {"get system status": [0, STATUS], "show": [255, ""]})
-    _refused(lambda: _full(_fortios()), "configuration transport-failed during capture" + WITHHELD)
+    assert _full(_fortios()) == _lost("fortios")
     assert configuration._SNAPSHOTS == {}
 
 

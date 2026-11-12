@@ -1,0 +1,31 @@
+Ori Destination                                   Mtr  Flags         Duration
+    Gateway                                       Interface
+
+Origin(Ori):(b) BlackHole, (be) EBGP, (bg) BGP, (bi) IBGP, (bo) BOOTP,
+            (ct) CBT, (d) Direct, (df) DownIF, (dv) DVMRP, (e1) ISISL1Ext,
+            (e2) ISISL2Ext, (h) Hardcoded, (i) ICMP, (i1) ISISL1 (i2) ISISL2,
+            (is) ISIS, (mb) MBGP, (mbe) MBGPExt, (mbi) MBGPInter, (ma) MPLSIntra,
+            (mr) MPLSInter, (mo) MOSPF (o) OSPFv3, (o1) OSPFv3Ext1, (o2) OSPFv3Ext2,
+            (oa) OSPFv3Intra, (oe) OSPFv3AsExt, (or) OSPFv3Inter, (pd) PIM-DM, (ps) PIM-SM,
+            (r) RIPng, (ra) RtAdvrt, (s) Static, (sv) SLB_VIP, (hm) Host-mobility, 
+            (au) Auto-peering, (un) UnKnown,
+            (*) Preferred unicast route (@) Preferred multicast route,
+            (#) Preferred unicast and multicast route.
+
+Flags:  (b) BFD protection requested, (B) BlackHole, (c) Compressed,
+        (D) Dynamic, (f) Provided to FIB, (G) Gateway, (H) Host Route,
+        (I) ICMP ping protection requested, (l) Calculated LDP LSP,
+        (L) Matching LDP LSP, (m) Multicast, (p) BFD protection active,
+        (P) LPM-routing, (R) Modified, (s) Static LSP, (S) Static,
+        (t) Calculated RSVP-TE LSP, (T) Matching RSVP-TE LSP, (u) Unicast,
+        (U) Up, (3) L3VPN Route.
+
+Mask distribution:
+
+
+Route Origin distribution:
+
+
+Total number of routes = 0
+Total number of compressed routes = 0
+

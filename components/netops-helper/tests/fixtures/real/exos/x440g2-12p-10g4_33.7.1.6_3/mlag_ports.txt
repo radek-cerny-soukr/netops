@@ -1,0 +1,18 @@
+
+                Local                                             Local   Remote 
+MLAG    Local   Link     Remote                           Peer    Fail    Fail   
+Id      Port    State    Link    Peer                     Status  Count   Count  
+================================================================================ 
+================================================================================ 
+Local Link State: A - Active, D - Disabled, R - Ready, NP - Port not present
+Remote Link     : Up - One or more links are active on the remote switch,
+                  Down - No links are active on the remote switch,
+                  N/A - The peer has not communicated link state for this MLAG port,
+                  Virtual - MLAG peer switch does not have physical port.
+
+Number of Multi-switch Link Aggregation Groups  : 0
+Convergence control                             : Conserve Access Lists
+Reload Delay (All ports)                        : 30 seconds
+Reload Interval (Per-Port)                      : None
+Reload Delay                                    : Disabled
+Link Up Isolation                               : Off

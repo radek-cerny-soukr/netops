@@ -1,0 +1,54 @@
+{
+  "http_method": "GET",
+  "results": {
+    "wtp_session_count": 2,
+    "wtp_active": 2,
+    "wtp_down": 0,
+    "wtp_rebooted": 2,
+    "client_count": 2,
+    "client_count_max": 0,
+    "client_peak_2g_1hour": [
+      1,
+      1
+    ],
+    "client_peak_5g_1hour": [
+      1,
+      1
+    ],
+    "client_peak_6g_1hour": [
+      0,
+      0
+    ],
+    "client_peak_2g_24hour": [
+      1,
+      1
+    ],
+    "client_peak_5g_24hour": [
+      1,
+      1
+    ],
+    "client_peak_6g_24hour": [
+      0,
+      0
+    ],
+    "client_peak_2g_30day": [
+      2,
+      0
+    ],
+    "client_peak_5g_30day": [
+      2,
+      0
+    ],
+    "client_peak_6g_30day": [
+      0,
+      0
+    ]
+  },
+  "vdom": "root",
+  "path": "wifi",
+  "name": "name-1",
+  "status": "success",
+  "serial": "serial-2",
+  "version": "v8.0.2",
+  "build": 251
+}

@@ -1,0 +1,23 @@
+
+
+
+Interface                      Status         Protocol Description
+Et0/0                          up             up       
+Et0/1                          up             up       
+Et0/1.10                       up             up       
+Et0/1.20                       up             up       
+Et0/2                          admin down     down     
+Et0/3                          admin down     down     
+Et1/0                          admin down     down     
+Et1/1                          admin down     down     
+Et1/2                          admin down     down     
+Et1/3                          admin down     down     
+Se2/0                          admin down     down     
+Se2/1                          admin down     down     
+Se2/2                          admin down     down     
+Se2/3                          admin down     down     
+Se3/0                          admin down     down     
+Se3/1                          admin down     down     
+Se3/2                          admin down     down     
+Se3/3                          admin down     down     
+Lo0                            up             up       

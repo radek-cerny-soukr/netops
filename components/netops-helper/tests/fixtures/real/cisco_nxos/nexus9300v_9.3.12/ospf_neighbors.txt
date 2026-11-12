@@ -1,0 +1,7 @@
+ OSPF Process ID 29 VRF default
+ Total number of neighbors: 4
+ Neighbor ID     Pri State            Up Time  Address         Interface
+ 203.0.113.1       1 TWOWAY/DROTHER   01:54:47 192.0.2.1       Vlan10 
+ 203.0.113.3       1 FULL/BDR         01:54:50 192.0.2.3       Vlan10 
+ 203.0.113.6     128 TWOWAY/DROTHER   01:26:04 192.0.2.6       Vlan10 
+ 203.0.113.7       1 FULL/DR          01:54:50 192.0.2.7       Vlan10 

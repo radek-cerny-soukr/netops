@@ -1,0 +1,90 @@
+
+--------------------------------------------------------------------------------
+Port          Name               Status    Vlan      Duplex  Speed   Type
+--------------------------------------------------------------------------------
+mgmt0         --                 connected routed    full    1000    --         
+
+--------------------------------------------------------------------------------
+Port          Name               Status    Vlan      Duplex  Speed   Type
+--------------------------------------------------------------------------------
+Eth1/1        --                 connected trunk     full    1000    10g        
+Eth1/2        --                 connected 1         full    1000    10g        
+Eth1/3        --                 suspended 1         auto    auto    10g        
+Eth1/4        --                 connected 1         full    1000    10g        
+Eth1/5        --                 connected 1         full    1000    10g        
+Eth1/6        --                 connected 1         full    1000    10g        
+Eth1/7        --                 connected 1         full    1000    10g        
+Eth1/8        --                 connected 1         full    1000    10g        
+Eth1/9        --                 connected 1         full    1000    10g        
+Eth1/10       --                 notconnec 1         auto    auto    10g        
+Eth1/11       --                 notconnec 1         auto    auto    10g        
+Eth1/12       --                 notconnec 1         auto    auto    10g        
+Eth1/13       --                 notconnec 1         auto    auto    10g        
+Eth1/14       --                 notconnec 1         auto    auto    10g        
+Eth1/15       --                 notconnec 1         auto    auto    10g        
+Eth1/16       --                 notconnec 1         auto    auto    10g        
+Eth1/17       --                 notconnec 1         auto    auto    10g        
+Eth1/18       --                 notconnec 1         auto    auto    10g        
+Eth1/19       --                 notconnec 1         auto    auto    10g        
+Eth1/20       --                 notconnec 1         auto    auto    10g        
+Eth1/21       --                 notconnec 1         auto    auto    10g        
+Eth1/22       --                 notconnec 1         auto    auto    10g        
+Eth1/23       --                 notconnec 1         auto    auto    10g        
+Eth1/24       --                 notconnec 1         auto    auto    10g        
+Eth1/25       --                 notconnec 1         auto    auto    10g        
+Eth1/26       --                 notconnec 1         auto    auto    10g        
+Eth1/27       --                 notconnec 1         auto    auto    10g        
+Eth1/28       --                 notconnec 1         auto    auto    10g        
+Eth1/29       --                 notconnec 1         auto    auto    10g        
+Eth1/30       --                 notconnec 1         auto    auto    10g        
+Eth1/31       --                 notconnec 1         auto    auto    10g        
+Eth1/32       --                 notconnec 1         auto    auto    10g        
+Eth1/33       --                 notconnec 1         auto    auto    10g        
+Eth1/34       --                 notconnec 1         auto    auto    10g        
+Eth1/35       --                 notconnec 1         auto    auto    10g        
+Eth1/36       --                 notconnec 1         auto    auto    10g        
+Eth1/37       --                 notconnec 1         auto    auto    10g        
+Eth1/38       --                 notconnec 1         auto    auto    10g        
+Eth1/39       --                 notconnec 1         auto    auto    10g        
+Eth1/40       --                 notconnec 1         auto    auto    10g        
+Eth1/41       --                 notconnec 1         auto    auto    10g        
+Eth1/42       --                 notconnec 1         auto    auto    10g        
+Eth1/43       --                 notconnec 1         auto    auto    10g        
+Eth1/44       --                 notconnec 1         auto    auto    10g        
+Eth1/45       --                 notconnec 1         auto    auto    10g        
+Eth1/46       --                 notconnec 1         auto    auto    10g        
+Eth1/47       --                 notconnec 1         auto    auto    10g        
+Eth1/48       --                 notconnec 1         auto    auto    10g        
+Eth1/49       --                 notconnec 1         auto    auto    10g        
+Eth1/50       --                 notconnec 1         auto    auto    10g        
+Eth1/51       --                 notconnec 1         auto    auto    10g        
+Eth1/52       --                 notconnec 1         auto    auto    10g        
+Eth1/53       --                 notconnec 1         auto    auto    10g        
+Eth1/54       --                 notconnec 1         auto    auto    10g        
+Eth1/55       --                 notconnec 1         auto    auto    10g        
+Eth1/56       --                 notconnec 1         auto    auto    10g        
+Eth1/57       --                 notconnec 1         auto    auto    10g        
+Eth1/58       --                 notconnec 1         auto    auto    10g        
+Eth1/59       --                 notconnec 1         auto    auto    10g        
+Eth1/60       --                 notconnec 1         auto    auto    10g        
+Eth1/61       --                 notconnec 1         auto    auto    10g        
+Eth1/62       --                 notconnec 1         auto    auto    10g        
+Eth1/63       --                 notconnec 1         auto    auto    10g        
+Eth1/64       --                 notconnec 1         auto    auto    10g        
+
+--------------------------------------------------------------------------------
+Port          Name               Status    Vlan      Duplex  Speed   Type
+--------------------------------------------------------------------------------
+Po1           --                 noOperMem 1         auto    auto    --         
+
+--------------------------------------------------------------------------------
+Port          Name               Status    Vlan      Duplex  Speed   Type
+--------------------------------------------------------------------------------
+Lo0           --                 connected routed    auto    auto    --         
+
+--------------------------------------------------------------------------------
+Port          Name               Status    Vlan      Duplex  Speed   Type
+--------------------------------------------------------------------------------
+Vlan1         --                 down      routed    auto    auto    --
+Vlan10        --                 connected routed    auto    auto    --
+Vlan20        --                 connected routed    auto    auto    --

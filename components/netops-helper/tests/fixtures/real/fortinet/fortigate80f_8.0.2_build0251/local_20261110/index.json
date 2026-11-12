@@ -1,0 +1,34 @@
+{
+  "physical": {
+    "command": "get system interface physical",
+    "rc": 0,
+    "captured_at": "2026-11-10T21:10:10Z",
+    "account_role": "read-only",
+    "lines": 91,
+    "projection": "transport prompt removed; anonymized"
+  },
+  "lldp": {
+    "command": "diagnose lldp rx neighbor summary",
+    "rc": 0,
+    "captured_at": "2026-11-10T21:10:10Z",
+    "account_role": "read-only",
+    "lines": 2,
+    "projection": "transport prompt removed; anonymized"
+  },
+  "bridge_empty": {
+    "command": "diagnose netlink brctl name host internal",
+    "rc": 0,
+    "captured_at": "2026-11-10T21:10:10Z",
+    "account_role": "read-only",
+    "lines": 3,
+    "projection": "transport prompt removed; anonymized"
+  },
+  "vlans": {
+    "command": "show system interface",
+    "rc": 0,
+    "captured_at": "2026-11-10T21:10:30Z",
+    "account_role": "read-only",
+    "lines": 38,
+    "projection": "VLAN fields only; anonymized"
+  }
+}

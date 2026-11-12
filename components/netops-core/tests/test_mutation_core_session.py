@@ -499,7 +499,7 @@ def test_close_asks_the_client_to_terminate_before_killing_it(tmp_path, monkeypa
         (
             "import os, signal, time",
             "signal.signal(signal.SIGHUP, signal.SIG_IGN)",
-            "signal.signal(signal.SIGTERM, lambda *_: (open(%r, 'w').write('TERM'), os._exit(0)))" % str(marker),
+            "signal.signal(signal.SIGTERM, lambda *_: (__import__('pathlib').Path(%r).write_text('TERM'), os._exit(0)))" % str(marker),
             "time.sleep(30)",
         )
     )
@@ -538,7 +538,7 @@ def test_close_sweeps_a_grandchild_the_client_left_behind(tmp_path, monkeypatch)
         (
             "import os, signal, time",
             "signal.signal(signal.SIGHUP, signal.SIG_IGN)",
-            "open(%r, 'w').write(str(os.getpid()))" % str(marker),
+            "__import__('pathlib').Path(%r).write_text(str(os.getpid()))" % str(marker),
             "time.sleep(30)",
         )
     )

@@ -13,6 +13,7 @@ from conftest import (
     _write_client,
 )
 import netops_helper.engine as engine
+from netops_helper import inventory
 
 
 @pytest.mark.parametrize("platform,output,code", [
@@ -44,7 +45,7 @@ def test_cli_refusal_is_failed_without_caching_and_valid_next_read_works(wire, m
     assert PASSWORD not in json.dumps(answer)
     assert events[-1]["status"] == "failed"
     assert not engine._SSH_PAGE_CACHE
-    _write_client(wire["binaries"], "ssh", EXEC_CLIENT.format(log=str(wire["log"]), output="Version: valid\n", code=0))
+    _write_client(wire["binaries"], "ssh", EXEC_CLIENT.format(log=str(wire["log"]), output="valid query result\n", code=0))
     answer = engine.ssh_read(target, platform, query, {}, 0, 1000)
     assert answer["ok"] is True
     assert events[-1]["status"] == "ok"
@@ -118,7 +119,9 @@ def test_device_specific_classifier_preserves_valid_status_and_data(wire, platfo
     answer = engine.ssh_read(_target(platform, query), platform, query, {}, 0, 1000)
     assert answer["ok"] is True
     assert answer["rc"] == code
-    assert answer["untrusted_device_output"] == payload
+    # FortiOS and the normalized switch/router profiles unify CRLF to LF; other platforms keep it.
+    expected = payload.replace("\r\n", "\n") if platform in engine._LINE_END_PLATFORMS else payload
+    assert answer["untrusted_device_output"] == expected
 
 
 @pytest.mark.parametrize("query,slot,peer,refusal", [
@@ -197,3 +200,69 @@ def test_policy_lookup_route_error_is_failed_without_caching(wire, monkeypatch):
     answer = engine.ssh_read(target, "fortinet", query, parameters, 0, 1000)
     assert answer["ok"] is True
     assert events[-1]["status"] == "ok"
+
+
+WIFI_QUERIES = sorted(n for n, q in READ_QUERIES["fortinet"].items() if q.read_only_account == "refused")
+
+
+REFUSAL_LF = "command parse error before 'wireless-controller'\nCommand fail. Return code -61\n"
+REFUSAL_CRLF = (
+    "diagnose wireless-controller wlac -c sta\r\n"
+    "command parse error before 'wireless-controller'\r\n"
+    "Command fail. Return code -61\r\n"
+    "fw-lab # "
+)
+
+
+def _wifi_answer(monkeypatch, query, output):
+    target = _target("fortinet", query)
+    params = {}
+    if query == "wifi_client_detail":
+        target = replace(target, read_inventory={"wireless_clients": ("00:00:5e:00:53:01",)})
+        params = {"mac": "00:00:5e:00:53:01"}
+    monkeypatch.setattr(
+        engine, "read_from_device",
+        lambda auth, platform, command: (0, FORTIOS_STATUS if command == engine._IDENTITY_COMMAND else output),
+    )
+    return engine.ssh_read(target, "fortinet", query, params, 0, 1000)
+
+
+def test_wifi_queries_match_catalog_metadata():
+    assert WIFI_QUERIES == sorted(
+        ["wifi_clients", "wifi_client_detail", "wifi_access_points", "wifi_ap_detail", "wifi_ssid_mapping"]
+    )
+    assert tuple(WIFI_QUERIES) == tuple(sorted(inventory.FORTIOS_READ_ONLY_REFUSED_QUERIES))
+    for name in WIFI_QUERIES:
+        assert READ_QUERIES["fortinet"][name].requires_device_permission == "wifi read-write"
+
+
+@pytest.mark.parametrize("output", [REFUSAL_LF, REFUSAL_CRLF], ids=["lf", "crlf-prompt"])
+@pytest.mark.parametrize("query", WIFI_QUERIES)
+def test_wifi_permission_refusal(wire, monkeypatch, query, output):
+    answer = _wifi_answer(monkeypatch, query, output)
+    assert answer["ok"] is False
+    assert answer["error_code"] == "permission_denied"
+    assert "wifi read-write" in answer["error"]
+    assert "admin-bounded" in answer["error"]
+    assert "enabled_queries" in answer["error"]
+    assert "Return code -61" in answer["untrusted_device_output"]
+
+
+@pytest.mark.parametrize("output", [
+    "Unknown action 0\n",
+    "command parse error before 'wireless-controller'\n",
+    "Command fail. Return code -61\n",
+    "command parse error before 'other'\nCommand fail. Return code -61\n",
+], ids=["unknown-action", "parse-only", "fail-only", "other-token"])
+def test_wifi_other_refusals_stay_device_cli_error(wire, monkeypatch, output):
+    answer = _wifi_answer(monkeypatch, "wifi_clients", output)
+    assert answer["ok"] is False
+    assert answer["error_code"] == "device_cli_error"
+    assert "untrusted_device_output" in answer
+
+
+def test_wifi_signature_on_other_query_is_generic(wire, monkeypatch):
+    output = "command parse error before 'wireless-controller'\nCommand fail. Return code -61\n"
+    monkeypatch.setattr(engine, "read_from_device", lambda auth, platform, command: (0, FORTIOS_STATUS if command == engine._IDENTITY_COMMAND else output))
+    answer = engine.ssh_read(_target("fortinet", "conserve_state"), "fortinet", "conserve_state", {}, 0, 1000)
+    assert answer["error_code"] == "device_cli_error"

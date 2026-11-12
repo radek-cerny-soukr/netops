@@ -1,0 +1,22 @@
+Mod Ports             Module-Type                      Model           Status
+--- ----- ------------------------------------- --------------------- ---------
+1    64   Nexus 9000v 64 port Ethernet Module   N9K-X9364v            ok        
+27   0    Virtual Supervisor Module             N9K-vSUP              active *  
+
+Mod  Sw                       Hw    Slot
+---  ----------------------- ------ ----
+1    9.3(12)                  0.0    LC1 
+27   NA                       0.0    SUP1
+
+
+Mod  MAC-Address(es)                         Serial-Num
+---  --------------------------------------  ----------
+1    00-00-5e-00-53-01 to 00-00-5e-00-53-0c  00SS03SSSSS
+27   00-00-5e-00-53-0a to 00-00-5e-00-53-0d  0SSSSS0001S
+
+Mod  Online Diag Status
+---  ------------------
+1    Pass
+27   Pass
+
+* this terminal session 

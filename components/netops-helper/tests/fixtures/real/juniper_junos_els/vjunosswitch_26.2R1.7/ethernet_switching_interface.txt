@@ -1,0 +1,41 @@
+
+Information for interface family:
+Name: ge-0/0/0.0
+  Routing Instance: default-switch   
+  Type: IFF                             Handle: 0x8777090                
+  Index: 343                            Generation: 161             
+                                        Flags: UP
+  IFD index: 143                        Routing/Vlan index: 5         
+  IFL index: 343                        Address family: 63
+  Sequence number: 0                    MAC sequence number: 0      
+  MAC limit: 524287                     MACs learned: 9             
+  Static MACs learned: 0                Non configured static MACs learned: 0
+  MAC+IP limit: 8192                    MAC+IPs learned: 0             
+Name: ge-0/0/0.0
+  Routing Instance: default-switch   
+  Type: IFBD (static)                   Handle: 0x7c30090                
+  Index:                                Generation: 129             
+  Trunk id: 0                           Flags: UP,
+  IFD index:                            Routing/Vlan index: 3         
+  IFL index:                            Address family:  
+  VLAN id: 10                           VLAN name: D10        
+  Sequence number: 0                    MAC sequence number: 0      
+  MAC limit: 65535                      MACs learned: 6             
+  Static MACs learned: 0                Non configured static MACs learned: 0
+  MAC+IP limit: 1024                    MAC+IPs learned: 0             
+  VSTP index: 2                         STP State: Forwarding  
+  Tagging: tagged                       Rewrite op:   
+Name: ge-0/0/0.0
+  Routing Instance: default-switch   
+  Type: IFBD (static)                   Handle: 0x7c30a90                
+  Index:                                Generation: 130             
+  Trunk id: 0                           Flags: UP,
+  IFD index:                            Routing/Vlan index: 4         
+  IFL index:                            Address family:  
+  VLAN id: 20                           VLAN name: D20        
+  Sequence number: 0                    MAC sequence number: 0      
+  MAC limit: 65535                      MACs learned: 3             
+  Static MACs learned: 0                Non configured static MACs learned: 0
+  MAC+IP limit: 1024                    MAC+IPs learned: 0             
+  VSTP index: 2                         STP State: Forwarding  
+  Tagging: tagged                       Rewrite op:   

@@ -1,0 +1,4 @@
+
+
+
+%NTP is not enabled.

@@ -1,0 +1,3 @@
+Instance         Role       State      Cost      Prio.Nbr Type
+---------------- ---------- ---------- --------- -------- --------------------
+MST0             designated forwarding 20000     128.1    P2p Edge                      

@@ -27,7 +27,7 @@ FLOOD_BYTES = 200_000
 FLOOD = "\n".join(
     (
         "import os, sys",
-        "open(sys.argv[1], 'w').write(str(os.getpid()))",
+        "__import__('pathlib').Path(sys.argv[1]).write_text(str(os.getpid()))",
         "sys.stdout.buffer.write(b'x' * %d)" % FLOOD_BYTES,
         "sys.stdout.flush()",
     )
@@ -35,7 +35,7 @@ FLOOD = "\n".join(
 ENDLESS = "\n".join(
     (
         "import os, sys",
-        "open(sys.argv[1], 'w').write(str(os.getpid()))",
+        "__import__('pathlib').Path(sys.argv[1]).write_text(str(os.getpid()))",
         "while True:",
         "    sys.stdout.buffer.write(b'y' * 65536)",
         "    sys.stdout.flush()",
@@ -44,7 +44,7 @@ ENDLESS = "\n".join(
 QUIET_BUT_SLOW = "\n".join(
     (
         "import os, sys, time",
-        "open(sys.argv[1], 'w').write(str(os.getpid()))",
+        "__import__('pathlib').Path(sys.argv[1]).write_text(str(os.getpid()))",
         "time.sleep(30)",
     )
 )
@@ -293,7 +293,7 @@ def test_the_transports_agree_on_one_written_down_budget():
 DEAF_BUT_ALIVE = "\n".join(
     (
         "import os, sys, time",
-        "open(sys.argv[1], 'w').write(str(os.getpid()))",
+        "__import__('pathlib').Path(sys.argv[1]).write_text(str(os.getpid()))",
         "os.close(1)",
         "os.close(2)",
         "time.sleep(5)",
@@ -302,7 +302,7 @@ DEAF_BUT_ALIVE = "\n".join(
 LEAVES_A_CHILD = "\n".join(
     (
         "import os, subprocess, sys, time",
-        "open(sys.argv[1], 'w').write(str(os.getpid()))",
+        "__import__('pathlib').Path(sys.argv[1]).write_text(str(os.getpid()))",
         "subprocess.Popen([sys.executable, sys.argv[2], sys.argv[3]])",
         "deadline = time.monotonic() + 10",
         "while not os.path.exists(sys.argv[3]) and time.monotonic() < deadline:",
@@ -313,7 +313,7 @@ LEAVES_A_CHILD = "\n".join(
 OUTLIVES_ITS_PARENT = "\n".join(
     (
         "import os, sys, time",
-        "open(sys.argv[1], 'w').write(str(os.getpid()))",
+        "__import__('pathlib').Path(sys.argv[1]).write_text(str(os.getpid()))",
         "time.sleep(30)",
     )
 )
@@ -474,7 +474,7 @@ def test_a_slow_client_with_open_streams_still_stops_at_the_deadline(tmp_path):
 LEAVES_A_QUIET_CHILD = "\n".join(
     (
         "import os, subprocess, sys, time",
-        "open(sys.argv[1], 'w').write(str(os.getpid()))",
+        "__import__('pathlib').Path(sys.argv[1]).write_text(str(os.getpid()))",
         "subprocess.Popen([sys.executable, sys.argv[2], sys.argv[3]])",
         "deadline = time.monotonic() + 10",
         "while not os.path.exists(sys.argv[3]) and time.monotonic() < deadline:",
@@ -485,7 +485,7 @@ LEAVES_A_QUIET_CHILD = "\n".join(
 QUIET_GRANDCHILD = "\n".join(
     (
         "import os, sys, time",
-        "open(sys.argv[1], 'w').write(str(os.getpid()))",
+        "__import__('pathlib').Path(sys.argv[1]).write_text(str(os.getpid()))",
         "os.close(1)",
         "os.close(2)",
         "time.sleep(30)",

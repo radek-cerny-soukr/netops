@@ -1,0 +1,34 @@
+
+Stpd: s0		Stp: DISABLED		Number of Ports: 0
+Rapid Root Failover: Disabled
+Operational Mode: MSTP			Default Binding Mode: 802.1D
+MSTI Instance: 	CIST
+802.1Q Tag: (none)
+Ports: (none)
+Participating Vlans: (none)
+Auto-bind Vlans: Default
+Bridge Priority            : 32768		Bridge Priority Mode: 802.1t
+Operational Bridge Priority: 32768		Extended System Identifier: 0
+BridgeID 		   : 80:00:00:00:5e:00:53:13
+Designated root 	   : 00:00:00:00:00:00:00:00
+CIST Root 		   : 00:00:00:00:00:00:00:00
+CIST Regional Root 	   : 00:00:00:00:00:00:00:00
+External RootPathCost      : 0 	Internal RootPathCost: 0 
+Root Port   : ----      
+MaxAge      : 0s	HelloTime     : 0s	ForwardDelay     : 15s
+CfgBrMaxAge : 20s 	CfgBrHelloTime: 2s	CfgBrForwardDelay: 15s
+RemainHopCount: 20	CfgMaxHopCount: 20
+Topology Change Time           : 35s		Hold time        : 1s
+Topology Change Detected       : FALSE		Topology Change  : FALSE
+Number of Topology Changes     : 0
+Time Since Last Topology Change: 0s
+Topology Change initiated locally on Port none
+Topology Change last received on Port none from none
+Backup Root               : Off   	Backup Root Activated  : FALSE
+Loop Protect Event Window : 180s    	Loop Protect Threshold : 3
+New Root Trap             : On     	Topology Change Trap   : Off
+Tx Hold Count             : 6
+Participating VLANs:
+VLAN                                     Tag    Number of Ports
+          Ports  
+-------------------------------------------------------------------------------

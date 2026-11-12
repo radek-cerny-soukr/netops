@@ -1,0 +1,15 @@
+fpc0:
+--------------------------------------------------------------------------
+Hostname: lab-vc
+Model: ex4300-48p
+Junos: 21.4R3-S5.4
+JUNOS EX  Software Suite [21.4R3-S5.4]
+JUNOS Kernel Software Suite [21.4R3-S5.4]
+
+fpc1:
+--------------------------------------------------------------------------
+Hostname: lab-vc
+Model: ex4300-48t
+Junos: 21.4R3-S5.4
+JUNOS EX  Software Suite [21.4R3-S5.4]
+JUNOS Kernel Software Suite [21.4R3-S5.4]

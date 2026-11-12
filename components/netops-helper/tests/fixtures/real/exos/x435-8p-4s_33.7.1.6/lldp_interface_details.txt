@@ -1,0 +1,14 @@
+
+-----------------------------------------------------------------------------
+LLDP Port 1 detected 1 neighbor
+  Neighbor: 00:00:5E:00:53:09/7, age 24 seconds
+    - Chassis ID type: MAC address (4)
+      Chassis ID     : 00:00:5E:00:53:09
+    - Port ID type: ifName (5)
+      Port ID     : "7"
+    - Time To Live: 120 seconds
+    - System Name: "host01"
+    - System Description: "ExtremeXOS (X440G2-12p-10G4) version 33.7.1.6 33.\
+                           7.1.6-patch1-11 by release-manager on Tue Jul 28 \
+                           12:53:09 PM EDT 2026"
+

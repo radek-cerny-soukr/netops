@@ -1,0 +1,16 @@
+No power info, as no System Controller Module(29,30) is online.
+Fan:
+---------------------------------------------------------------------------
+Fan             Model                Hw     Direction       Status
+---------------------------------------------------------------------------
+Fan Zone Speed: Zone 1: 0x0
+Fan Air Filter : NotSupported
+
+
+
+
+Temperature:
+--------------------------------------------------------------------
+Module   Sensor        MajorThresh   MinorThres   CurTemp     Status
+                       (Celsius)     (Celsius)    (Celsius)         
+--------------------------------------------------------------------

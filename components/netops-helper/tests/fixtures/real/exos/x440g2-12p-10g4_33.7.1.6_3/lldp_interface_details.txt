@@ -1,0 +1,29 @@
+
+-----------------------------------------------------------------------------
+LLDP Port 1 detected 1 neighbor
+  Neighbor: 00:00:5E:00:53:2A/LAN1, age 4 seconds
+    - Chassis ID type: MAC address (4)
+      Chassis ID     : 00:00:5E:00:53:2A
+    - Port ID type: ifAlias (1)
+      Port ID     : "LAN1"
+    - Time To Live: 120 seconds
+    - Port Description: "V10 192.0.2.0/24"
+    - System Name: "host09"
+    - System Description: "host09        v8.0.2,build0251,260928 (GA.F)"
+    - System Capabilities : "Bridge, Router"
+      Enabled Capabilities: "Router"
+    - Management Address Subtype: IPv4 (1)
+      Management Address        : 192.0.2.1
+      Interface Number Subtype  : ifIndex (2)
+      Interface Number          : 3
+      Object ID String          : "null"
+    - MED Capabilities: "MED Capabilities, Network Policy, Inventory"
+      MED Device Type : Network Connectivity (4)
+    - MED Software Revision: "host09        v8.0.2,build0251,2"
+    - MED Manufacturer Name: "Fortinet"
+    - MED Model Name: "FGT_80F"
+    - IEEE802.1 VLAN Name: "VL-30", VLAN ID: 30
+    - IEEE802.1 VLAN Name: "V20", VLAN ID: 20
+    - IEEE802.1 VLAN Name: "VLAN40", VLAN ID: 40
+    - IEEE802.1 VLAN Name: "V50", VLAN ID: 50
+

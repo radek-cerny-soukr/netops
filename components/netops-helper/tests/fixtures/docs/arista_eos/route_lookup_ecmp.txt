@@ -1,0 +1,11 @@
+VRF: default
+Codes: C - connected, S - static, K - kernel, 
+       O - OSPF, IA - OSPF inter area, E1 - OSPF external type 1,
+       B - Other BGP Routes, B I - iBGP, B E - eBGP
+
+Gateway of last resort:
+ S        0.0.0.0/0 [1/0] via 198.51.100.254, Vlan10
+
+ O E2     192.0.2.128/25 [110/20] via 198.51.100.2, Vlan10
+                                 via 198.51.100.3, Vlan10
+ C        198.51.100.0/24 is directly connected, Vlan10

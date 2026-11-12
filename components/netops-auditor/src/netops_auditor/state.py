@@ -43,12 +43,25 @@ def suppressions_for_device(suppressions, device) -> tuple:
     return tuple(item for item in suppressions if getattr(item, "device", device) == device)
 
 
-def evaluation_complete(findings, statuses=None) -> bool:
+def coverage(findings, statuses=None) -> dict:
+    # Classification is derived from persisted rule IDs and reasons, so old runs
+    # and every caller use the same interpretation without changing stored data.
+    from .checks_fortiadc import inherent_gap
+    inherent, actionable = [], []
     for item in findings:
-        rule_id = item["rule_id"] if hasattr(item, "keys") else getattr(item, "rule_id", None)
-        if rule_id in UNEVALUATED_RULES:
-            return False
-    return not any(item["required"] and item["status"] != EVALUATED for item in (statuses or {}).values())
+        rule = item["rule_id"] if hasattr(item, "keys") else getattr(item, "rule_id", None)
+        if rule in UNEVALUATED_RULES:
+            actionable.append({"rule_id": rule, "reason": "snapshot-incomplete"})
+    for rule, item in sorted((statuses or {}).items()):
+        if item["required"] and item["status"] != EVALUATED:
+            reason = item.get("reason", "")
+            gap = {"rule_id": rule, "reason": reason}
+            (inherent if inherent_gap(rule, reason) and item["status"] == "not-evaluated" else actionable).append(gap)
+    return {"complete": not inherent and not actionable, "inherent_gaps": inherent, "actionable_gaps": actionable}
+
+
+def evaluation_complete(findings, statuses=None) -> bool:
+    return coverage(findings, statuses)["complete"]
 
 
 def unevaluated_rules(statuses) -> frozenset:

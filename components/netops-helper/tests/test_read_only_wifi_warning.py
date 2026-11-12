@@ -39,17 +39,28 @@ def _section(role="read-only", platform="fortios", queries=("system_status", "wi
 
 def test_read_only_fortios_with_a_wifi_query_warns_with_the_query_name():
     warnings = inventory.section_warnings(ENTRY.name, _section(queries=("system_status", "wifi_clients")))
-    assert warnings == [
-        "device gate: query wifi_clients is enabled for a read-only FortiOS account, which the device refuses"
-        " with 'Return code -61'; enroll an admin-bounded account (access profile 'wifi read-write'"
-        " and 'cli-diagnose enable') or remove the query"
-    ]
+    warning, = warnings
+    for fact in ("device gate: query wifi_clients", "read-only FortiOS", "Return code -61",
+                 "wifi read-write", "cli-diagnose enable", "remove the SSH query",
+                 "REST tool wifi_clients", "helper.fortios_rest_credential", "docs/fortios-wifi-rest.md"):
+        assert fact in warning
 
 
 @pytest.mark.parametrize("name", WIFI)
 def test_every_refused_wifi_query_is_named(name):
     warnings = inventory.section_warnings("gate", _section(queries=("system_status", name)))
     assert len(warnings) == 1 and "query %s " % name in warnings[0]
+
+
+@pytest.mark.parametrize("name,tool", [
+    ("wifi_clients", "wifi_clients"), ("wifi_client_detail", "wifi_clients"),
+    ("wifi_access_points", "wifi_aps_live"), ("wifi_ap_detail", "wifi_aps_live"), ("wifi_ssid_mapping", "wifi_aps_live"),
+])
+def test_warning_names_the_rest_tool_that_matches_the_query(name, tool):
+    warning, = inventory.section_warnings("gate", _section(queries=("system_status", name)))
+    assert "REST tool %s " % tool in warning
+    other = "wifi_aps_live" if tool == "wifi_clients" else "wifi_clients"
+    assert "REST tool %s " % other not in warning
 
 
 def test_each_enabled_wifi_query_has_its_own_warning():

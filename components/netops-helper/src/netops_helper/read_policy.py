@@ -8,7 +8,8 @@ from string import Formatter
 from typing import Mapping
 
 from .query_catalog import READ_QUERIES
-from .query_catalog.model import Query, Slot
+from .query_catalog.model import DEVICE_TYPES, LITERAL, Query, SequenceQuery, Slot
+from .normalization import normalize_mac
 
 
 PLATFORM_MAP = {
@@ -344,6 +345,8 @@ _TOKEN_PATTERNS: Mapping[str, re.Pattern[str]] = {
     "certificate_name": re.compile(r"[A-Za-z][A-Za-z0-9_.-]{0,78}"),
     "fortios_address_object": re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,78}"),
     "fortios_station_mac": re.compile(r"[0-9A-Fa-f]{2}(?::[0-9A-Fa-f]{2}){5}"),
+    "fortios_wtp_id": re.compile(r"[A-Za-z0-9][A-Za-z0-9_-]{0,34}"),
+    "wifi_mac_literal": re.compile(r"[0-9a-f]{2}(?::[0-9a-f]{2}){5}"),
     "flow_port": re.compile(r"(?:0|[1-9][0-9]{0,4})"),
     "ip_protocol": re.compile(r"(?:0|[1-9][0-9]{0,2})"),
     "fortios_policy_type": re.compile(r"(?:policy|proxy)"),
@@ -362,6 +365,7 @@ _TOKEN_PATTERNS: Mapping[str, re.Pattern[str]] = {
     "eos_lldp_interface": re.compile(_EOS_PHYSICAL),
     "eos_lacp_interface": re.compile(_EOS_ETHERNET),
     "eos_stp_interface": re.compile(_EOS_PHYSICAL_OR_PC),
+    "eos_switchport_interface": re.compile(_EOS_PHYSICAL_OR_PC),
     "eos_ospf_interface": re.compile(_EOS_INTERFACE),
     "junos_interface": re.compile(_JUNOS_INTERFACE),
     "junos_physical_interface": re.compile(_JUNOS_LINE),
@@ -370,6 +374,8 @@ _TOKEN_PATTERNS: Mapping[str, re.Pattern[str]] = {
 }
 
 _KIND_INVENTORY = {
+    "vlan_id": None, "mac_literal": None, "ip_literal": None,
+    "vrf": "vrfs", "vr": "virtual_routers", "routing_instance": "routing_instances",
     "interface": "interfaces",
     "service": "services",
     "switch": "switches",
@@ -380,6 +386,9 @@ _KIND_INVENTORY = {
     "certificate_name": "certificates",
     "fortios_address_object": "firewall_addresses",
     "fortios_station_mac": "wireless_clients",
+    "fortios_wtp_id": "wtp_ids",
+    "wifi_log_lines": LITERAL,
+    "wifi_mac_literal": LITERAL,
     "flow_port": "flow_ports",
     "ip_protocol": "ip_protocols",
     "fortios_policy_type": "policy_types",
@@ -393,6 +402,9 @@ _KIND_INVENTORY = {
     "address": "addresses",
     "ipv4_address": "addresses",
     "ipv6_address": "addresses",
+    "ipv4_lookup": "addresses",
+    "ipv6_lookup": "addresses",
+    "lookup_prefix": "lookup_prefixes",
     **{
         kind: "interfaces"
         for kind in _TOKEN_PATTERNS
@@ -401,9 +413,11 @@ _KIND_INVENTORY = {
     **{kind: "interfaces" for kind in _VENDOR_INTERFACE_CANONICALIZERS},
 }
 _INVENTORY_KINDS = {
+    "vrfs": "vrf", "virtual_routers": "vr", "routing_instances": "routing_instance",
     "interfaces": "interface",
     "services": "service",
     "addresses": "address",
+    "lookup_prefixes": "lookup_prefix",
     "switches": "switch",
     "vlans": "vlan_name",
     "managed_switches": "managed_switch_serial",
@@ -412,6 +426,7 @@ _INVENTORY_KINDS = {
     "certificates": "certificate_name",
     "firewall_addresses": "fortios_address_object",
     "wireless_clients": "fortios_station_mac",
+    "wtp_ids": "fortios_wtp_id",
     "flow_ports": "flow_port",
     "ip_protocols": "ip_protocol",
     "policy_types": "fortios_policy_type",
@@ -464,6 +479,18 @@ _LINUX_COMMANDS = frozenset({
     "bridge fdb show",
 })
 _FORTINET_COMMANDS = frozenset({
+    'diagnose switch-controller switch-info port-stats {managed_switch} {port}',
+    'diagnose switch-controller switch-info port-stats {managed_switch}',
+    'show switch-controller managed-switch {managed_switch}',
+    'show system interface',
+    "get wireless-controller wtp-status",
+    "get wireless-controller wtp-status {wtp_id}",
+    "get wireless-controller vap-status",
+    "get wireless-controller scan",
+    "get wireless-controller status",
+    "get wireless-controller statistics",
+    "get wireless-controller rf-analysis",
+    "get wireless-controller rf-analysis {wtp_id}",
     "execute ping-options view-settings",
     "execute traceroute-options view-settings",
     "diagnose debug info",
@@ -500,6 +527,7 @@ _FORTINET_COMMANDS = frozenset({
     "diagnose hardware sysinfo memory",
     "diagnose hardware deviceinfo disk",
     "get system interface physical",
+    "get system interface",
     "diagnose netlink aggregate name {aggregate} show",
     "diagnose netlink interface list {interface}",
     "diagnose hardware deviceinfo nic {interface}",
@@ -611,6 +639,36 @@ _FORTIADC_COMMANDS = frozenset({
     "get system traffic-group-status brief",
     "diagnose llb policy list",
 })
+# The only `execute` sequences a catalogue query may run, in one SSH session and in this order.
+# A sequence query is a separate template type (SequenceQuery); nothing else may contain `execute log`.
+_FORTINET_SEQUENCES = frozenset({
+    (
+        "execute log filter category event",
+        "execute log filter field subtype wireless",
+        "execute log filter view-lines {lines}",
+        "execute log display",
+    ),
+})
+_FORTINET_SEQUENCE_RENDERED = (
+    re.compile(r"execute log filter category event"),
+    re.compile(r"execute log filter field subtype wireless"),
+    re.compile(r"execute log filter view-lines (?:[1-9][0-9]?|1[0-9]{2}|200)"),
+    re.compile(r"execute log display"),
+)
+
+
+def require_fortinet_sequence(commands: object) -> tuple[str, ...]:
+    """Last check before a FortiOS sequence is sent: exactly the four reviewed `execute log` shapes, in order."""
+    if (
+        not isinstance(commands, tuple)
+        or len(commands) != len(_FORTINET_SEQUENCE_RENDERED)
+        or not all(isinstance(command, str) for command in commands)
+        or not all(pattern.fullmatch(command) for pattern, command in zip(_FORTINET_SEQUENCE_RENDERED, commands))
+    ):
+        raise ValueError("FortiOS command sequence is outside the reviewed shapes")
+    return commands
+
+
 _FORTINET_TOP_PREFIX = "diagnose sys top"
 _FORTINET_TOP_SNAPSHOT = "diagnose sys top 1 5 1"
 _FORBIDDEN_SHOW_SECOND = re.compile(
@@ -619,6 +677,27 @@ _FORBIDDEN_SHOW_SECOND = re.compile(
     r"log(?:ging|s)?|debug(?:ging)?|support|capture|bash|shell)",
     re.IGNORECASE,
 )
+# Logs are a forbidden show family everywhere except these fixed Switch Engine
+# templates: no slot, no filter and no time window reach the device; the
+# in-memory buffer is bounded by the switch and paged by the caller.
+_EXOS_LOG_COMMANDS = frozenset({
+    "show log messages memory-buffer",
+    "show log messages memory-buffer severity warning",
+    "show log configuration",
+})
+# IOS/IOS XE print the whole in-memory buffer (its size is a device setting); EOS, NX-OS and Junos take
+# the line count as part of the fixed template. None accepts a slot, filter or time window.
+_NETWORK_LOG_COMMANDS = {
+    "cisco_ios": frozenset({"show logging"}),
+    "cisco_xe": frozenset({"show logging"}),
+    "cisco_nxos": frozenset({"show logging last 200"}),
+    "arista_eos": frozenset({"show logging 200"}),
+}
+# Junos has no line-count argument: the fixed `last 200` pipe is part of the template, in front of the paging suffix.
+_JUNOS_LOG_COMMANDS = frozenset({
+    "show log messages | last 200",
+    "show log interactive-commands | last 200",
+})
 _JUNOS_PLATFORMS = frozenset({"juniper_junos", "juniper_junos_els"})
 _JUNOS_SUFFIX = " | no-more"
 _QUERY_NAME = re.compile(r"[a-z][a-z0-9_]{0,63}")
@@ -676,8 +755,70 @@ def _canonical_address(value: str, kind: str) -> str:
     return canonical
 
 
-def _validate_slot(value: str, kind: str) -> str:
+LOOKUP_KINDS = {"ipv4_lookup": 4, "ipv6_lookup": 6}
+
+
+def canonical_prefix(value: object, version: int | None = None):
+    """Return the network of a canonical CIDR prefix: no host bits, no mask notation, not /0."""
+    if not isinstance(value, str) or value.count("/") != 1 or "%" in value:
+        raise ValueError("invalid typed lookup prefix")
+    try:
+        network = ipaddress.ip_network(value, strict=True)
+    except ValueError as exc:
+        raise ValueError("invalid typed lookup prefix") from exc
+    if str(network) != value or network.prefixlen == 0 or (version is not None and network.version != version):
+        raise ValueError("invalid typed lookup prefix")
+    return network
+
+
+def enrolled_lookup(value: object, version: int, inventory: Mapping[str, tuple[str, ...]]):
+    """Return the network of an enrolled address (as /32 or /128) or of a prefix inside an enrolled lookup prefix."""
     if not isinstance(value, str):
+        raise ValueError("invalid typed lookup value")
+    if "/" not in value:
+        kind = "ipv4_address" if version == 4 else "ipv6_address"
+        address = _canonical_address(value, kind)
+        if value not in inventory.get("addresses", ()):
+            raise ValueError("lookup value is not enrolled in target inventory")
+        return ipaddress.ip_network(address)
+    network = canonical_prefix(value, version)
+    for enrolled in inventory.get("lookup_prefixes", ()):
+        try:
+            outer = canonical_prefix(enrolled, version)
+        except ValueError:
+            continue
+        if network.subnet_of(outer):
+            return network
+    raise ValueError("lookup value is not enrolled in target inventory")
+
+
+def _validate_slot(value: str, kind: str, *, lookup_only: bool = False) -> str:
+    if not isinstance(value, str):
+        raise ValueError(f"invalid typed {kind} value")
+    if kind == "lookup_prefix":
+        canonical_prefix(value)
+        return value
+    if kind in LOOKUP_KINDS:
+        if "/" in value:
+            canonical_prefix(value, LOOKUP_KINDS[kind])
+            return value
+        return _canonical_address(value, "ipv4_address" if kind == "ipv4_lookup" else "ipv6_address")
+    if kind in {"vlan_id", "mac_literal", "ip_literal", "vrf", "vr", "routing_instance"}:
+        if not value or len(value) > 128 or not value.isascii() or re.search(r"[\s|;\"'`$&<>\\]", value):
+            raise ValueError(f"invalid typed {kind} value")
+        if kind == "vlan_id":
+            if _canonical_decimal(value, 1, 4094) is not None:
+                return value
+        elif kind == "mac_literal":
+            return normalize_mac(value)
+        elif kind == "ip_literal":
+            if "%" not in value and ("/" not in value or lookup_only and re.search(r"/[0-9]{1,3}$", value)):
+                try:
+                    return str(ipaddress.ip_network(value, strict=False) if "/" in value else ipaddress.ip_address(value))
+                except ValueError:
+                    pass
+        elif re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.:-]{0,63}", value):
+            return value
         raise ValueError(f"invalid typed {kind} value")
     if kind in {"fortios_sdwan_health_check", "fortios_link_monitor"}:
         if (
@@ -689,6 +830,10 @@ def _validate_slot(value: str, kind: str) -> str:
     if kind in {"fortios_sdwan_member", "fortios_sdwan_rule"}:
         maximum = 512 if kind == "fortios_sdwan_member" else 4000
         if len(value) <= len(str(maximum)) and _canonical_decimal(value, 1, maximum) is not None:
+            return value
+        raise ValueError(f"invalid typed {kind} value")
+    if kind == "wifi_log_lines":
+        if len(value) <= 3 and _canonical_decimal(value, 1, 200) is not None:
             return value
         raise ValueError(f"invalid typed {kind} value")
     if kind in {"flow_port", "ip_protocol"}:
@@ -828,6 +973,8 @@ def _validate_query_command(platform: str, command: object) -> None:
         if command.count(_JUNOS_SUFFIX) != 1 or not command.endswith(_JUNOS_SUFFIX):
             raise RuntimeError("Junos query must have one fixed paging suffix")
         inspected = command.removesuffix(_JUNOS_SUFFIX)
+        if inspected in _JUNOS_LOG_COMMANDS:
+            return
         if "|" in inspected:
             raise RuntimeError("Junos query contains an extra pipe")
     if _SHELL_METACHARACTERS.intersection(inspected):
@@ -854,11 +1001,22 @@ def _validate_query_command(platform: str, command: object) -> None:
     words = inspected.split(" ")
     if len(words) < 2 or words[0] != "show":
         raise RuntimeError("network query must use the exact show prefix")
+    if platform == "extreme_exos" and inspected in _EXOS_LOG_COMMANDS:
+        return
+    if inspected in _NETWORK_LOG_COMMANDS.get(platform, ()):
+        return
     if _FORBIDDEN_SHOW_SECOND.fullmatch(words[1]) or (
         len(words) >= 3
         and [word.casefold() for word in words[1:3]] == ["key", "chain"]
     ):
         raise RuntimeError("network query uses a forbidden show family")
+
+
+def _validate_query_sequence(query: SequenceQuery) -> None:
+    if tuple(query.commands) not in _FORTINET_SEQUENCES:
+        raise RuntimeError("Fortinet command sequence is outside the reviewed shapes")
+    if query.command != "; ".join(query.commands):
+        raise RuntimeError("sequence display form must be the joined commands")
 
 
 def _validate_query_catalogs(
@@ -886,22 +1044,42 @@ def _validate_query_catalogs(
                 raise RuntimeError("query pty is reserved for FortiADC and FortiOS")
             if type(query.empty_allowed) is not bool:
                 raise RuntimeError("query empty_allowed must be a boolean")
+            if query.group is not None and query.group not in DEVICE_TYPES:
+                raise RuntimeError("query group must be a device type or absent")
             if len(query.slots) > 16:
                 raise RuntimeError("query declares too many parameters")
+            if not isinstance(query.optional_slots, frozenset) or not query.optional_slots <= set(query.slots):
+                raise RuntimeError("query optional parameters must be declared parameters")
+            sequence = isinstance(query, SequenceQuery)
+            if sequence and (platform != "fortinet" or query.pty):
+                raise RuntimeError("command sequences are reserved for FortiOS exec queries")
             for slot_name, slot in query.slots.items():
                 if (
                     not isinstance(slot_name, str)
                     or not _SLOT_NAME.fullmatch(slot_name)
                     or not isinstance(slot, Slot)
-                    or _KIND_INVENTORY.get(slot.kind) != slot.inventory
+                    or slot.kind not in _KIND_INVENTORY
+                    or _KIND_INVENTORY[slot.kind] != slot.inventory
+                    or type(slot.lookup_only) is not bool
+                    or (slot.lookup_only and (slot.kind != "ip_literal" or not query.command.startswith("show ")))
                 ):
                     raise RuntimeError("query declares an invalid typed parameter")
 
-            _validate_query_command(platform, query.command)
+            if sequence:
+                _validate_query_sequence(query)
+            else:
+                _validate_query_command(platform, query.command)
+                if query.optional_slots:
+                    for slot_name in query.optional_slots:
+                        tail = " {" + slot_name + "}"
+                        if not query.command.endswith(tail) or query.command.count("{" + slot_name + "}") != 1:
+                            raise RuntimeError("optional parameter must be the trailing template field")
+                        _validate_query_command(platform, query.command.removesuffix(tail))
             fields: list[str] = []
+            templates = query.commands if sequence else (query.command,)
             try:
-                for _, field, format_spec, conversion in Formatter().parse(
-                    query.command
+                for _, field, format_spec, conversion in (
+                    part for template in templates for part in Formatter().parse(template)
                 ):
                     if field is None:
                         continue
@@ -914,8 +1092,15 @@ def _validate_query_catalogs(
                     fields.append(field)
             except ValueError as exc:
                 raise RuntimeError("query template is invalid") from exc
-            if len(fields) != len(set(fields)) or set(fields) != set(query.slots):
+            filter_only = query.filter_slots if sequence else frozenset()
+            if (
+                len(fields) != len(set(fields))
+                or set(fields) | filter_only != set(query.slots)
+                or set(fields) & filter_only
+            ):
                 raise RuntimeError("query template and slot declaration differ")
+            if sequence and not filter_only <= query.optional_slots:
+                raise RuntimeError("output filter parameters must be optional")
 
 
 if set(READ_QUERIES) != _EXPECTED_PLATFORMS:
@@ -945,24 +1130,76 @@ def render_read_query(
         query = READ_QUERIES[normalized][query_name]
     except KeyError as exc:
         raise ValueError(f"unknown read query for platform: {normalized}") from exc
+    if isinstance(query, SequenceQuery):
+        raise ValueError("query is a command sequence; use render_read_sequence")
+    rendered = _render_slots(query, parameters, inventory)
+    command = query.command
+    for name in query.optional_slots:
+        if name not in rendered:
+            command = command.removesuffix(" {" + name + "}")
+    return normalized, command.format_map(rendered)
+
+
+def _render_slots(
+    query: Query,
+    parameters: Mapping[str, str] | None,
+    inventory: Mapping[str, tuple[str, ...]],
+) -> dict[str, str]:
     supplied = dict(parameters or {})
-    if set(supplied) != set(query.slots):
-        raise ValueError(f"query parameters must be exactly: {sorted(query.slots)}")
+    required = set(query.slots) - query.optional_slots
+    if not required <= set(supplied) <= set(query.slots):
+        raise ValueError(f"query parameters must be exactly: {sorted(required)}"
+                         + (f" plus optionally {sorted(query.optional_slots)}" if query.optional_slots else ""))
     rendered: dict[str, str] = {}
-    for name, slot in query.slots.items():
-        supplied_value = supplied[name]
-        value = _validate_slot(supplied_value, slot.kind)
-        allowed = inventory.get(slot.inventory, ())
-        if supplied_value not in allowed:
+    for name, supplied_value in supplied.items():
+        slot = query.slots[name]
+        value = _validate_slot(supplied_value, slot.kind, lookup_only=slot.lookup_only)
+        if slot.kind in LOOKUP_KINDS:
+            try:
+                network = enrolled_lookup(value, LOOKUP_KINDS[slot.kind], inventory)
+            except ValueError:
+                raise ValueError(f"{name} is not enrolled in target inventory") from None
+            rendered[name] = str(network.network_address)
+            continue
+        if slot.inventory not in (None, LITERAL) and supplied_value not in inventory.get(slot.inventory, ()):
             raise ValueError(f"{name} is not enrolled in target inventory")
         rendered[name] = value
-    return normalized, query.command.format_map(rendered)
+    return rendered
+
+
+def render_read_sequence(
+    platform: str,
+    query_name: str,
+    parameters: Mapping[str, str] | None,
+    inventory: Mapping[str, tuple[str, ...]],
+) -> tuple[str, tuple[str, ...], dict[str, str]]:
+    """Render a SequenceQuery into its exact commands and the filters the Helper applies to the output."""
+    normalized = normalize_platform(platform)
+    if not isinstance(query_name, str):
+        raise ValueError("query name must be a string")
+    if parameters is not None and (
+        not isinstance(parameters, dict)
+        or len(parameters) > 16
+        or any(not isinstance(name, str) or not isinstance(value, str) for name, value in parameters.items())
+    ):
+        raise ValueError("query parameters must be a bounded string mapping")
+    query = READ_QUERIES[normalized].get(query_name)
+    if not isinstance(query, SequenceQuery):
+        raise ValueError(f"unknown read sequence for platform: {normalized}")
+    rendered = _render_slots(query, parameters, inventory)
+    commands = tuple(command.format_map(rendered) for command in query.commands)
+    require_fortinet_sequence(commands)
+    return normalized, commands, {name: rendered[name] for name in query.filter_slots if name in rendered}
+
+
+def is_read_sequence(platform: str, query_name: str) -> bool:
+    return isinstance(READ_QUERIES.get(normalize_platform(platform), {}).get(query_name), SequenceQuery)
 
 
 def public_query_catalog() -> dict[str, dict[str, list[str]]]:
     return {
         platform: {
-            name: sorted(slot.inventory for slot in query.slots.values())
+            name: sorted(slot.inventory for slot in query.slots.values() if slot.inventory is not None)
             for name, query in sorted(queries.items())
         }
         for platform, queries in sorted(READ_QUERIES.items())
@@ -976,10 +1213,14 @@ def public_query_metadata() -> dict[str, dict[str, dict[str, object]]]:
                 "command_template": query.command,
                 "description": query.description,
                 "high_volume": query.high_volume,
+                **({"requires_device_permission": query.requires_device_permission,
+                    "read_only_account": query.read_only_account} if query.requires_device_permission else {}),
                 "parameters": {
                     slot_name: {
                         "inventory": slot.inventory,
                         "kind": slot.kind,
+                        **({"optional": True} if slot_name in query.optional_slots else {}),
+                        **({"lookup_only": True} if slot.lookup_only else {}),
                     }
                     for slot_name, slot in sorted(query.slots.items())
                 },

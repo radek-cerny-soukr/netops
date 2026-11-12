@@ -1,0 +1,16 @@
+
+vPC keep-alive status             : Suspended (Destination IP not reachable)
+--Send status                   : Success 
+--Last send at                  : 2026.11.09 00:54:05 734 ms
+--Sent on interface             : mgmt0
+--Receive status                : Failed
+--Last update from peer         : (1420) seconds, (912) msec
+
+vPC Keep-alive parameters
+--Destination                   : 203.0.113.227
+--Keepalive interval            : 1000 msec
+--Keepalive timeout             : 5 seconds
+--Keepalive hold timeout        : 3 seconds
+--Keepalive vrf                 : management
+--Keepalive udp port            : 3200
+--Keepalive tos                 : 192

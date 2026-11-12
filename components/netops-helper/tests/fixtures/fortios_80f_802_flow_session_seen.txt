@@ -1,0 +1,40 @@
+session info: proto=17 proto_state=01 duration=84 expire=95 timeout=0 refresh_dir=both flags=00000000 socktype=0 sockport=0 av_idx=0 use=3
+origin-shaper=
+reply-shaper=
+per_ip_shaper=
+class_id=0 ha_id=0 policy_dir=0 tunnel=/ helper=dns-udp vlan_cos=0/255
+state=may_dirty 
+statistic(bytes/packets/allow_err): org=64/1/1 reply=192/1/1 tuples=2
+tx speed(Bps/kbps): 0/0 rx speed(Bps/kbps): 0/0
+orgin->sink: org pre->post, reply pre->post dev=32->5/5->32 gwy=198.51.100.1/192.0.2.11
+hook=post dir=org act=snat 192.0.2.11:40640->203.0.113.53:53(198.51.100.2:40640)
+hook=pre dir=reply act=dnat 203.0.113.53:53->198.51.100.2:40640(192.0.2.11:40640)
+src_mac=00:00:5e:00:53:81
+misc=0 policy_id=3 pol_uuid_idx=26053 auth_info=0 chk_client_info=0 vd=0
+serial=00001a03 tos=ff/ff app_list=0 app=0 url_cat=0
+sdwan_mbr_seq=1 sdwan_service_id=1
+rpdb_link_id=ff000001 ngfw_id=n/a duplicaton_id=0
+npu_state=0x040000
+no_ofld_reason:  non-npu-intf
+hrx info: valid=1/1, qid=2/4, npuid=1/1, sublink=0/0
+
+session info: proto=17 proto_state=01 duration=84 expire=95 timeout=0 refresh_dir=both flags=00000000 socktype=0 sockport=0 av_idx=0 use=3
+origin-shaper=
+reply-shaper=
+per_ip_shaper=
+class_id=0 ha_id=0 policy_dir=0 tunnel=/ helper=dns-udp vlan_cos=0/255
+state=may_dirty 
+statistic(bytes/packets/allow_err): org=64/1/1 reply=149/1/1 tuples=2
+tx speed(Bps/kbps): 0/0 rx speed(Bps/kbps): 0/0
+orgin->sink: org pre->post, reply pre->post dev=32->5/5->32 gwy=198.51.100.1/192.0.2.11
+hook=post dir=org act=snat 192.0.2.11:40641->203.0.113.53:53(198.51.100.2:40641)
+hook=pre dir=reply act=dnat 203.0.113.53:53->198.51.100.2:40641(192.0.2.11:40641)
+src_mac=00:00:5e:00:53:81
+misc=0 policy_id=3 pol_uuid_idx=26053 auth_info=0 chk_client_info=0 vd=0
+serial=00001a02 tos=ff/ff app_list=0 app=0 url_cat=0
+sdwan_mbr_seq=1 sdwan_service_id=1
+rpdb_link_id=ff000001 ngfw_id=n/a duplicaton_id=0
+npu_state=0x040000
+no_ofld_reason:  non-npu-intf
+hrx info: valid=1/1, qid=3/8, npuid=1/1, sublink=0/0
+total session: 2

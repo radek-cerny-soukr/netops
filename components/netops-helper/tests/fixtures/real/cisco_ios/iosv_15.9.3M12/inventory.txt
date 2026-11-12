@@ -1,0 +1,5 @@
+
+
+NAME: "IOSv", DESCR: "IOSv chassis, Hw Serial#: 0SSSSSSSSS0SS0SSS1SSS, Hw Revision: 1.0"
+PID: IOSv              , VID: 1.0, SN: 0SSSSSSSSS0SS0SSS1SSS
+

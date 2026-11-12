@@ -1,0 +1,2 @@
+Local Interface    Parent Interface    Chassis Id                               Port info          System Name
+ge-0/0/0           -                   00:00:5e:00:53:02                        Ethernet4           host06              

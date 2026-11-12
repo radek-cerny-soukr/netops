@@ -1,0 +1,216 @@
+WTP: FAPEXAMPLE0000001  0-192.0.2.10:5246
+    vdom             : root
+    vap in user      : no
+    wtp-id           : FAPEXAMPLE0000001
+    region-code      : E 
+    name             : 
+    mgmt_vlanid      : 0
+    data-chan-sec    : clear-text
+    mesh-uplink      : ethernet
+    mesh-hop-count   : 0
+    parent-wtp-id    : 
+    software-version : FP231K-v8.0.0-build0033
+    local-ip-addr   : 192.0.2.10
+    board-mac        : 00:00:5e:00:53:01
+    ble-mac          : 00:00:5e:00:53:02
+    join-time        : Sun Nov  8 19:00:44 2026
+    connection-state : Connected
+    image-download-progress: 0
+    last-failure     : 0 -- N/A
+    last-failure-param: 
+    last-failure-time: N/A
+  LLDP               : enabled (total 1)
+    local port       : lan1
+    chassis id       : mac 00:00:5e:00:53:03
+    sys name         : SWEXAMPLE00003
+    sys description  : FortiSwitch-224E-POE v8.0.1,build0069,260728 (GA)
+    capability       : Bridge Router 
+    port id          : port3
+    port description : port3
+    MAU oper type    : 1000BaseTFD - Four-pair Category 5 UTP, full duplex mode
+    ip               : 192.0.2.11
+    vlan id          : N/A
+  SNMP               : disabled
+  Temperature in Celsius: 1 (49)
+  Radio 1            : AP
+    detected_rogue_ap_num     : 12
+    detected_rogue_infra_ap_num     : 1
+    country-name     : DE
+    country-code     : 276
+    client-count     : 1
+    base-bssid       : 00:00:5e:00:53:04
+    max-vaps         : 8
+    oper-chan        : 1
+    radio_max_rate_standard   : 0 mbps
+    radio_max_rate   : 0 mbps
+    oper-chutil-time : Sun Nov  8 21:23:17 2026 (age=7)
+    oper-chutil-val  : 4 (averaged for the last available 15 seconds data)
+    oper-txpower     : 20 (max allowed 20) 
+    bandwidth-rx     : 0
+    bandwidth-tx     : 282
+    bytes-rx         : 277637068
+    bytes-tx         : 278774749
+    tx-retries       : 0%
+    mac-err-rx       : 0
+    mac-err-tx       : 0
+    interfering-ap   : 4
+    peak-sta-cnt     : 2
+    antenna RSSI     :  7   6  (age=7)
+  Radio 2            : AP
+    detected_rogue_ap_num     : 11
+    detected_rogue_infra_ap_num     : 1
+    country-name     : DE
+    country-code     : 276
+    client-count     : 1
+    base-bssid       : 00:00:5e:00:53:05
+    max-vaps         : 8
+    oper-chan        : 124
+    radio_max_rate_standard   : 0 mbps
+    radio_max_rate   : 0 mbps
+    oper-chutil-time : Sun Nov  8 21:23:17 2026 (age=7)
+    oper-chutil-val  : 1 (averaged for the last available 15 seconds data)
+    oper-txpower     : 26 (max allowed 26) 
+    bandwidth-rx     : 3135
+    bandwidth-tx     : 6735
+    bytes-rx         : 39259422
+    bytes-tx         : 38627612
+    tx-retries       : 0%
+    mac-err-rx       : 0
+    mac-err-tx       : 0
+    interfering-ap   : 0
+    peak-sta-cnt     : 1
+    antenna RSSI     : 43  52  (age=7)
+  Radio 3            : AP
+    detected_rogue_ap_num     : 0
+    detected_rogue_infra_ap_num     : 0
+    country-name     : DE
+    country-code     : 276
+    client-count     : 0
+    base-bssid       : 00:00:5e:00:53:06
+    max-vaps         : 8
+    oper-chan        : 0
+    radio_max_rate_standard   : 0 mbps
+    radio_max_rate   : 0 mbps
+    oper-chutil-time : Sun Nov  8 21:23:17 2026 (age=7)
+    oper-chutil-val  : 0 (averaged for the last available 15 seconds data)
+    oper-txpower     : 51 (max allowed 51) 
+    bandwidth-rx     : 0
+    bandwidth-tx     : 0
+    bytes-rx         : 0
+    bytes-tx         : 0
+    tx-retries       : 0%
+    mac-err-rx       : 0
+    mac-err-tx       : 0
+    interfering-ap   : 0
+    peak-sta-cnt     : 0
+  Radio 4            : Not Exist
+  Radio 5            : Not Exist
+  wtp-wanlan-mode            : wan-only
+WTP: FAPEXAMPLE0000002  0-192.0.2.12:5246
+    vdom             : root
+    vap in user      : no
+    wtp-id           : FAPEXAMPLE0000002
+    region-code      : E 
+    name             : 
+    mgmt_vlanid      : 0
+    data-chan-sec    : clear-text
+    mesh-uplink      : ethernet
+    mesh-hop-count   : 0
+    parent-wtp-id    : 
+    software-version : FP23JK-v8.0.0-build0033
+    local-ip-addr   : 192.0.2.12
+    board-mac        : 00:00:5e:00:53:07
+    ble-mac          : 00:00:5e:00:53:08
+    join-time        : Sun Nov  8 19:01:51 2026
+    connection-state : Connected
+    image-download-progress: 0
+    last-failure     : 0 -- N/A
+    last-failure-param: 
+    last-failure-time: N/A
+  LLDP               : enabled (total 1)
+    local port       : wan
+    chassis id       : mac 00:00:5e:00:53:09
+    sys name         : SWEXAMPLE00004
+    sys description  : FortiSwitch-224E-POE v8.0.1,build0069,260728 (GA)
+    capability       : Bridge Router 
+    port id          : port3
+    port description : port3
+    MAU oper type    : 1000BaseTFD - Four-pair Category 5 UTP, full duplex mode
+    ip               : 192.0.2.13
+    vlan id          : N/A
+  SNMP               : disabled
+  Temperature in Celsius: 1 (67)
+  Radio 1            : AP
+    detected_rogue_ap_num     : 9
+    detected_rogue_infra_ap_num     : 1
+    country-name     : DE
+    country-code     : 276
+    client-count     : 0
+    base-bssid       : 00:00:5e:00:53:0a
+    max-vaps         : 8
+    oper-chan        : 6
+    radio_max_rate_standard   : 0 mbps
+    radio_max_rate   : 0 mbps
+    oper-chutil-time : Sun Nov  8 21:23:18 2026 (age=6)
+    oper-chutil-val  : 5 (averaged for the last available 15 seconds data)
+    oper-txpower     : 17 (max allowed 17) 
+    bandwidth-rx     : 0
+    bandwidth-tx     : 0
+    bytes-rx         : 1651308
+    bytes-tx         : 3888444
+    tx-retries       : 0%
+    mac-err-rx       : 0
+    mac-err-tx       : 0
+    interfering-ap   : 4
+    peak-sta-cnt     : 1
+    antenna RSSI     :  5   6  (age=5736)
+  Radio 2            : AP
+    detected_rogue_ap_num     : 10
+    detected_rogue_infra_ap_num     : 1
+    country-name     : DE
+    country-code     : 276
+    client-count     : 0
+    base-bssid       : 00:00:5e:00:53:0b
+    max-vaps         : 8
+    oper-chan        : 116
+    radio_max_rate_standard   : 0 mbps
+    radio_max_rate   : 0 mbps
+    oper-chutil-time : Sun Nov  8 21:23:18 2026 (age=6)
+    oper-chutil-val  : 1 (averaged for the last available 15 seconds data)
+    oper-txpower     : 24 (max allowed 24) 
+    bandwidth-rx     : 0
+    bandwidth-tx     : 0
+    bytes-rx         : 55742104
+    bytes-tx         : 160912566
+    tx-retries       : 0%
+    mac-err-rx       : 0
+    mac-err-tx       : 0
+    interfering-ap   : 0
+    peak-sta-cnt     : 1
+    antenna RSSI     : 62  45  (age=3276)
+  Radio 3            : AP
+    detected_rogue_ap_num     : 0
+    detected_rogue_infra_ap_num     : 0
+    country-name     : DE
+    country-code     : 276
+    client-count     : 0
+    base-bssid       : 00:00:5e:00:53:0c
+    max-vaps         : 8
+    oper-chan        : 0
+    radio_max_rate_standard   : 0 mbps
+    radio_max_rate   : 0 mbps
+    oper-chutil-time : Sun Nov  8 21:23:18 2026 (age=6)
+    oper-chutil-val  : 0 (averaged for the last available 15 seconds data)
+    oper-txpower     : 52 (max allowed 52) 
+    bandwidth-rx     : 0
+    bandwidth-tx     : 0
+    bytes-rx         : 0
+    bytes-tx         : 0
+    tx-retries       : 0%
+    mac-err-rx       : 0
+    mac-err-tx       : 0
+    interfering-ap   : 0
+    peak-sta-cnt     : 0
+  Radio 4            : Virtual Lan AP
+  Radio 5            : Not Exist
+  wtp-wanlan-mode            : wan-only

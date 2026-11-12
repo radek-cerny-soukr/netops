@@ -1,0 +1,26 @@
+config system interface
+            edit "_default"
+                set vlanid "1"
+            next
+            edit "quarantine"
+                set vlanid "4093"
+            next
+            edit "voice"
+                set vlanid "4091"
+            next
+            edit "video"
+                set vlanid "4090"
+            next
+            edit "rspan"
+                set vlanid "4092"
+            next
+            edit "onboarding"
+                set vlanid "4089"
+            next
+            edit "nac_segment"
+                set vlanid "4088"
+            next
+            edit "ap-mgmt"
+                set vlanid "100"
+            next
+end

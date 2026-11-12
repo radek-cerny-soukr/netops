@@ -1,0 +1,9 @@
+associd=0 status=c016 leap_alarm, sync_unspec, 1 event, restart,
+version="ntpd 4.2.8p15-a Fri Jun 19 19:04:15  2026 (1)",
+processor="amd64", system="FreeBSDJNPR-15.0-20260518.25fe30f_buil",
+leap=11, stratum=16, precision=-23, rootdelay=0.000, rootdisp=2.250,
+refid=INIT,
+reftime=(no time),
+clock=ee9b9b7e.227fc05f  Mon, Nov  9 2026  1:08:14.134, peer=0,
+tc=3, mintc=3, offset=+0.000000, frequency=+0.000, sys_jitter=0.000000,
+clk_jitter=0.000, clk_wander=0.000

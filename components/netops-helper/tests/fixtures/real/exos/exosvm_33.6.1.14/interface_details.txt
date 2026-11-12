@@ -1,0 +1,71 @@
+Port:	1
+	Virtual-router:	None
+	Type:		UTP 
+	Random Early drop:	Unsupported
+	Admin state:	Enabled with  auto-speed sensing  auto-duplex
+	Link State:	Active, 100Mbps, full-duplex
+	Link Ups:       1        Last: Sun Nov 08 22:15:28 2026
+	Link Downs:     0        Last: --
+
+	VLAN cfg: 
+		 Name: D10, 802.1Q Tag = 10, MAC-limit = No-limit, Virtual router:   VR-Default
+		       Port-specific VLAN ID:   10
+		 Name: D20, 802.1Q Tag = 20, MAC-limit = No-limit, Virtual router:   VR-Default
+		       Port-specific VLAN ID:   20
+	STP cfg:
+
+	Protocol: 
+	Trunking:	Load sharing is not enabled.
+
+	EDP:		Enabled
+
+	ELSM:		Disabled
+	Ethernet OAM:		Disabled
+	MACsec:		Disabled
+	Learning:	Enabled
+	Link-Flap Detection:	Disabled
+	Unicast Flooding:	Enabled
+	Multicast Flooding:	Enabled
+	Broadcast Flooding:	Enabled
+	Jumbo:		Disabled	Link up/down SNMP trap filter setting:	Enabled
+	QoS Profile:	None configured
+	Aggregate Queue:
+		QP0  MinBw =          0% MaxBw =        100%  Pri = 8
+	Queue:
+		QP1  MinBw =          0% MaxBw =        100%  Pri = 1
+		QP2  MinBw =          0% MaxBw =        100%  Pri = 2
+		QP3  MinBw =          0% MaxBw =        100%  Pri = 3
+		QP4  MinBw =          0% MaxBw =        100%  Pri = 4
+		QP5  MinBw =          0% MaxBw =        100%  Pri = 5
+		QP6  MinBw =          0% MaxBw =        100%  Pri = 6
+		QP7  MinBw =          0% MaxBw =        100%  Pri = 7
+		QP8  MinBw =          0% MaxBw =        100%  Pri = 8
+	Ingress Rate Shaping : 		Unsupported
+	Ingress IPTOS Examination: 	Disabled
+	Ingress 802.1p Priority:        0
+	Egress IPTOS Replacement:	Disabled
+	Egress 802.1p Replacement:	Disabled
+	QOS Profile Settings:     QP1  MinBw =       0%  MaxBw =     100%  Weight =    1     
+                                  QP2  MinBw =       0%  MaxBw =     100%  Weight =    1     
+                                  QP3  MinBw =       0%  MaxBw =     100%  Weight =    1     
+                                  QP4  MinBw =       0%  MaxBw =     100%  Weight =    1     
+                                  QP5  MinBw =       0%  MaxBw =     100%  Weight =    1     
+                                  QP6  MinBw =       0%  MaxBw =     100%  Weight =    1     
+                                  QP7  MinBw =       0%  MaxBw =     100%  Weight =    1     
+                                  QP8  MinBw =       0%  MaxBw =     100%  Weight =    1     
+
+	NetLogin: 			Disabled
+	NetLogin port mode: 		Port based VLANs
+	Smart redundancy: 		Enabled
+	Software redundant port: 	Disabled
+	IPFIX: 				Disabled
+	auto-polarity: 			Enabled
+	VMAN CEP egress filtering:	Disabled
+	Isolation:			Off
+	PTP Configured:      		Disabled
+	Time-Stamping Mode:  		None
+
+	Dynamic VLAN Uplink:          	Disabled
+	VM Tracking Dynamic VLANs:    	Disabled
+	Static MAC-based VLANs:       	Disabled
+

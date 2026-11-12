@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import re
 
-from .triage_health import REASONS, Unparsed, UnsupportedPlatform, _lines, _utc, identity
+from .triage_health import missing_read, Unparsed, UnsupportedPlatform, _lines, _utc, identity
 
 STEPS = (
     ("identity", "system_status"),
@@ -12,6 +12,10 @@ STEPS = (
 )
 PLANNED_READS = len(STEPS)
 REQUIRED = frozenset(query for _, query in STEPS)
+# packet errors below this share of the packets of their direction are a notice, not a fault (1 %)
+ERROR_SHARE_FAULT = 0.01
+# HA synchronisation counters in `diagnose vpn ike errors` describe the cluster, not IKE failures: context only
+CONTEXT_PREFIX = "ha."
 TUNNEL_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,34}")
 
 _SUMMARY = re.compile(
@@ -75,7 +79,10 @@ def ike_errors(text):
         counters[found.group(1)] = sum(int(value) for value in found.group(2).split())
     if not counters:
         raise Unparsed()
-    return {"counters": len(counters), "nonzero": {name: value for name, value in counters.items() if value}}
+    nonzero = {name: value for name, value in counters.items() if value}
+    return {"counters": len(counters),
+            "nonzero": {name: value for name, value in nonzero.items() if not name.startswith(CONTEXT_PREFIX)},
+            "context": {name: value for name, value in nonzero.items() if name.startswith(CONTEXT_PREFIX)}}
 
 
 PARSERS = {"ipsec_summary": ipsec_summary, "routing_table": routing_table, "ike_errors": ike_errors}
@@ -85,11 +92,16 @@ def _instance(name, tunnel):
     return name == tunnel or re.fullmatch(re.escape(tunnel) + r"_\d+", name) is not None
 
 
+def _share(errors, packets):
+    return 0.0 if errors == 0 else errors / packets if packets else float("inf")
+
+
 def findings_for(tunnel, instances, routes, sources):
     found = []
 
-    def add(rule, query, obj, fact):
-        found.append({"id": rule, "layer": "runtime", "object": "vpn:" + obj, "fact": fact, "sources": [sources[query]]})
+    def add(rule, query, obj, fact, severity="fault"):
+        found.append({"id": rule, "severity": severity, "layer": "runtime", "object": "vpn:" + obj, "fact": fact,
+                      "sources": [sources[query]]})
 
     if instances is None:
         return found
@@ -106,8 +118,12 @@ def findings_for(tunnel, instances, routes, sources):
             add("F-VPN-NO-RX", "ipsec_summary", item["name"],
                 "selectors up %d but rx(pkt) 0" % item["selectors_up"])
         if item["rx_errors"] > 0 or item["tx_errors"] > 0:
+            share = max(_share(item["rx_errors"], item["rx_packets"]), _share(item["tx_errors"], item["tx_packets"]))
             add("F-VPN-ERRORS", "ipsec_summary", item["name"],
-                "rx(err) %d, tx(err) %d" % (item["rx_errors"], item["tx_errors"]))
+                "rx(err) %d of %d, tx(err) %d of %d packets (%s)" % (
+                    item["rx_errors"], item["rx_packets"], item["tx_errors"], item["tx_packets"],
+                    "%.2f %% at most" % (share * 100) if share != float("inf") else "errors without packets"),
+                "fault" if share >= ERROR_SHARE_FAULT else "notice")
     if routes is not None and not routes:
         add("F-VPN-NO-ROUTE", "routing_table", tunnel, "no route in routing-table via " + tunnel)
     return found
@@ -129,8 +145,7 @@ def run(read, clock, tunnel):
         moment = clock()
         answer = read(query)
         if not answer.get("ok"):
-            reason = answer.get("reason")
-            missing.append({"step": query, "reason": reason if reason in REASONS else "device_cli_error"})
+            missing.append(missing_read(query, answer))
             continue
         if not answer["text"].strip() and query != "ipsec_summary":
             missing.append({"step": query, "reason": "empty"})
@@ -153,7 +168,7 @@ def run(read, clock, tunnel):
     findings = findings_for(tunnel, instances, routes, sources)
     if missing:
         verdict = "incomplete"
-    elif findings:
+    elif any(item["severity"] == "fault" for item in findings):
         verdict = "fault_found"
     else:
         verdict = "no_fault_in_checked_data"

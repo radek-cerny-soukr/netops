@@ -132,6 +132,28 @@ def ids(result):
     return [item["id"] for item in result["findings"]]
 
 
+NTP_POOL = """HA primary: yes, HA primary ip: 192.0.2.250, management_vfid: 0 ha_direct=0, ha_mgmt_vfid=-1
+synchronized: yes, ntpsync: enabled, server-mode: enabled
+
+ipv4 server(ntp1.example.net) 192.0.2.63 -- reachable(0xff) S:2 T:588 
+	server-version=4, stratum=2
+ipv4 server(ntp2.example.net) 192.0.2.62 -- reachable(0xff) S:2 T:588 selected 
+	server-version=4, stratum=2
+ipv4 server(ntp2.example.net) 192.0.2.60 -- reachable(0xff) S:2 T:588 
+ipv4 server(ntp1.example.net) 192.0.2.61 -- reachable(0xff) S:2 T:588 
+ipv6 server(pool.example.net) 2001:db8::1 -- unreachable(0x00) S:2 T:588 
+"""
+
+
+def test_ntp_servers_with_the_same_name_are_told_apart_by_address():
+    # measured on a FortiGate-80F test unit: ntp1/ntp2 each appear twice with different addresses
+    servers = t.ntp_status(NTP_POOL)["servers"]
+    assert [(item["server"], item["address"]) for item in servers] == [
+        ("ntp1.example.net", "192.0.2.63"), ("ntp2.example.net", "192.0.2.62"), ("ntp2.example.net", "192.0.2.60"),
+        ("ntp1.example.net", "192.0.2.61"), ("pool.example.net", "2001:db8::1")]
+    assert len({item["address"] for item in servers}) == 5 and servers[4]["state"] == "unreachable"
+
+
 def test_docs_samples_parse_into_the_contract_fields():
     assert t.conserve(CONSERVE) == {"memory_conserve_mode": "off", "used_percent": 73, "freeable_percent": 17,
                                     "extreme_percent": 95, "red_percent": 88, "green_percent": 82}
@@ -142,7 +164,7 @@ def test_docs_samples_parse_into_the_contract_fields():
         "WARNING: FG101FTK19xxxxx7 has hbdev down;", "WARNING: FG101FTK19xxxxx8 has hbdev down;"]}
     assert set(t.ha_checksum(checksum())["members"]) == {"FG5H0XXXXXXXXXX0", "FG5H0XXXXXXXXXX1"}
     assert t.ntp_status(NTP) == {"synchronized": "yes", "ntpsync": "enabled",
-                                 "servers": [{"server": "198.51.100.11", "state": "reachable"}]}
+                                 "servers": [{"server": "198.51.100.11", "address": "198.51.100.11", "state": "reachable"}]}
     assert [(p["package"], p["contract_expiry"]) for p in t.autoupdate_versions(UPDATES)] == [
         ("FMWP Definitions", "Wed Jan 1 2031"), ("IP Geography DB", "n/a")]
     assert t.physical_interfaces(PHYSICAL) == [{"name": "port1", "status": "down", "speed": "n/a"},
@@ -357,6 +379,7 @@ def test_engine_maps_policy_refusal_and_device_refusal_to_missing(audit_log, mon
     assert {"step": "session_stats", "reason": "permission_denied"} in result["missing"]
     assert {"step": "ntp_status", "reason": "device_cli_error"} in result["missing"]
     assert result["verdict"] == "incomplete"
+    assert result["ok"] is True and "error_code" not in result and "failed_step" not in result
 
 
 def test_engine_refuses_other_platforms_before_device_contact(audit_log, monkeypatch):

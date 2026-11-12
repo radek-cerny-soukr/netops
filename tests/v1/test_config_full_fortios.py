@@ -49,8 +49,8 @@ class FortiOSFullConfiguration(TestCase):
             self.assertIn(expected, visible)
         self.assertNotIn('PRIVATE-MIXEDCASE', visible)
         self.assertEqual(len(hidden), 0)
-        with self.assertRaises(ValueError):
-            c.redact(raw, (), 'all')
+        minimal, _, _ = c.redact(raw, (), 'all')
+        self.assertNotIn('PRIVATE-MIXEDCASE', minimal.page(0, minimal.total)[0])
 
     def test_wrapped_global_and_vdom_keep_values_in_the_same_exact_context(self):
         raw = ('config global\n config system global\n set hostname gateway\nend\nend\n'
@@ -114,7 +114,7 @@ class FortiOSFullConfiguration(TestCase):
         return (''.join('config ' + part + '\n edit 1\n' for part in context) +
                 ' set name ' + value + '\n' + 'next\nend\n' * len(context))
 
-    def test_snmp_community_values_are_visible_in_every_documented_context(self):
+    def test_snmp_community_values_are_credentials_in_every_documented_context(self):
         contexts = (('system snmp community',), ('switch-controller snmp-community',),
                     ('switch-controller managed-switch', 'snmp-community'),
                     ('wireless-controller snmp', 'community'))
@@ -124,11 +124,11 @@ class FortiOSFullConfiguration(TestCase):
                     with self.subTest(firmware=firmware, wrapper=wrapper, context=context):
                         raw = self._wrapped(self._community(context, 'PRIVATE-COMMUNITY'), wrapper)
                         visible, hidden, count = render(raw, firmware, 1)
-                        self.assertIn('PRIVATE-COMMUNITY', visible)
-                        self.assertIn('set name PRIVATE-COMMUNITY', visible)
+                        self.assertNotIn('PRIVATE-COMMUNITY', visible)
+                        self.assertIn('set name <REDACTED:credential#1>', visible)
                         self.assertEqual(len(hidden), 0)
 
-    def test_explicit_public_map_keeps_snmp_community_values(self):
+    def test_credential_semantics_override_explicit_public_community_map(self):
         contexts = (('system snmp community',), ('switch-controller snmp-community',),
                     ('switch-controller managed-switch', 'snmp-community'),
                     ('wireless-controller snmp', 'community'))
@@ -141,8 +141,8 @@ class FortiOSFullConfiguration(TestCase):
                     raw = self._wrapped(self._community(context, 'PRIVATE-COMMUNITY'), wrapper)
                     content, hidden, count = c.redact(raw, (), 'all', policy=selected)
                     visible = content.page(0, content.total)[0]
-                    self.assertIn('PRIVATE-COMMUNITY', visible)
-                    self.assertIn('set name PRIVATE-COMMUNITY', visible)
+                    self.assertNotIn('PRIVATE-COMMUNITY', visible)
+                    self.assertIn('set name <REDACTED:credential#1>', visible)
 
     def test_guest_identity_recipient_and_all_faz_serial_contexts_remain_visible(self):
         serial_sections = ('log fortianalyzer override-setting', 'log fortianalyzer setting',

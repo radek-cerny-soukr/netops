@@ -608,7 +608,7 @@ def test_a_client_that_ignores_the_terminate_signal_is_still_stopped_on_time(tmp
     marker = tmp_path / "pid"
     call = python(
         "import os, signal, time; signal.signal(signal.SIGTERM, signal.SIG_IGN);"
-        " open(%r, 'w').write(str(os.getpid())); time.sleep(30)" % str(marker)
+        " __import__('pathlib').Path(%r).write_text(str(os.getpid())); time.sleep(30)" % str(marker)
     )
 
     def target():
@@ -628,8 +628,8 @@ def test_a_grandchild_that_ignores_the_terminate_signal_is_killed_without_a_hang
     grandchild = (
         "import os, signal, sys, time;"
         " signal.signal(signal.SIGTERM, signal.SIG_IGN);"
-        " signal.signal(signal.SIGHUP, lambda *_: open(%r, 'w').write('HUP'));"
-        " open(%r, 'w').write(str(os.getpid()));"
+        " signal.signal(signal.SIGHUP, lambda *_: __import__('pathlib').Path(%r).write_text('HUP'));"
+        " __import__('pathlib').Path(%r).write_text(str(os.getpid()));"
         " time.sleep(30)" % (str(hangup), str(marker))
     )
     child = (

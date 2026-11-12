@@ -1,0 +1,18 @@
+{
+  "interfaces_trunk": {
+    "command": "show interfaces trunk",
+    "rc": 0,
+    "captured_at": "2026-11-09T22:45:16Z",
+    "lines": 27,
+    "transport": "PTY; echo, prompt, pager and ANSI removed; no data lines omitted",
+    "outcome": "OK"
+  },
+  "interfaces": {
+    "command": "show interfaces status",
+    "rc": 0,
+    "captured_at": "2026-11-09T22:45:16Z",
+    "lines": 17,
+    "transport": "PTY; echo, prompt, pager and ANSI removed; no data lines omitted",
+    "outcome": "OK"
+  }
+}

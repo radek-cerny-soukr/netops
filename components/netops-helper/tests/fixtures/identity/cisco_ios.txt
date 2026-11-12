@@ -1,0 +1,4 @@
+Cisco IOS Software, C2960 Software (C2960-LANBASE-M), Version 12.2(0.0.16)FX, CISCO DEVELOPMENT TEST VERSION
+lab-ios uptime is 3 days, 20 hours, 8 minutes
+cisco WS-C2960-24TC-L (PowerPC405) processor with 61440K/4088K bytes of memory.
+Processor board ID LAB00000001

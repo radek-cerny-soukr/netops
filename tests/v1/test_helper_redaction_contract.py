@@ -46,7 +46,7 @@ class HelperRedactionContract(unittest.TestCase):
         self.assertEqual(redact(Text("password:canary")),"password:<REDACTED>")
 
     def test_ssh_read_applies_the_existing_size_cap_after_redaction(self):
-        auth=types.SimpleNamespace(alias="synthetic",secrets=())
+        auth=types.SimpleNamespace(alias="synthetic",secrets=(),output_secrets=(),redaction_secrets=())
         pem="-----BEGIN PRIVATE KEY-----\n"+"x"*2_000_001+"\n-----END PRIVATE KEY-----"
         status="Version: FortiGate-VM64-KVM v7.6.7,build3704,release\n"
         reader=lambda body:lambda target,platform,command:(0,status if command=="get system status" else body)

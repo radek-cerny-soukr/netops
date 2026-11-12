@@ -67,7 +67,7 @@ def test_redaction_limit_is_still_enforced() -> None:
 
 def test_community_and_bearer_do_not_cross_line_breaks() -> None:
     source = 'config system snmp community\n    edit 1\n        set name "public"'
-    assert redact(source) == source
+    assert redact(source) == 'config system snmp community\n    edit 1\n        set name <REDACTED:credential#1>'
     neighbor = "Neighbor 192.0.2.1 community\nlocalpref 100"
     assert redact(neighbor) == neighbor
     bearer = "The bearer\nof this packet"
@@ -168,21 +168,25 @@ QUOTED_SECRET_CASES = {
     "preshared-single-trailing-backslash-pair": ("set psksecret 'SYNTHHEAD\\' SYNTHTAIL42\\\\' ssid=lab", "ssid=lab"),
     "preshared-single-unclosed": ("set psksecret 'SYNTHHEAD SYNTHTAIL42\nset ssid=lab", "set ssid=lab"),
     "snmp-cli-double": ('snmp-server community "SYNTHHEAD\\" SYNTHTAIL42" RO', "RO"),
-    "snmp-cli-double-trailing-backslash-pair": ('set community "SYNTHHEAD\\" SYNTHTAIL42\\\\" RO', "RO"),
+    "snmp-cli-double-trailing-backslash-pair": ('set community "SYNTHHEAD\\" SYNTHTAIL42\\\\" RO', None),
     "snmp-cli-single": ("snmp-server community 'SYNTHHEAD\\' SYNTHTAIL42' RO", "RO"),
-    "snmp-cli-single-trailing-backslash-pair": ("set community 'SYNTHHEAD\\' SYNTHTAIL42\\\\' RO", "RO"),
+    "snmp-cli-single-trailing-backslash-pair": ("set community 'SYNTHHEAD\\' SYNTHTAIL42\\\\' RO", None),
     "snmp-cli-single-unclosed": ("snmp-server community 'SYNTHHEAD SYNTHTAIL42\nsnmp-server host 192.0.2.1", "snmp-server host 192.0.2.1"),
     "snmp-cli-double-unclosed": ('snmp-server community "SYNTHHEAD SYNTHTAIL42\nsnmp-server host 192.0.2.1', "snmp-server host 192.0.2.1"),
 }
 
 
 @pytest.mark.parametrize("source,public", QUOTED_SECRET_CASES.values(), ids=QUOTED_SECRET_CASES.keys())
-def test_quoted_secret_leaves_no_fragment_in_the_output(source: str, public: str) -> None:
+def test_quoted_secret_leaves_no_fragment_in_the_output(source: str, public: str | None) -> None:
     cleaned = redact(source)
     assert "SYNTH" not in cleaned
     assert "TAIL42" not in cleaned
     assert "<REDACTED>" in cleaned
-    assert public in cleaned
+    if public is None:
+        # set community carries the complete remaining line under the O1 policy.
+        assert cleaned == "set community <REDACTED>"
+    else:
+        assert public in cleaned
 
 
 def test_quoted_secret_without_escapes_keeps_the_neighboring_value() -> None:

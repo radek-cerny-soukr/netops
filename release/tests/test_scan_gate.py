@@ -86,8 +86,8 @@ class Command(unittest.TestCase):
             summary = os.path.join(tmp, "s.md")
             proc = subprocess.run([sys.executable, scan_gate.__file__, path, "--name", "t", "--output", out, "--summary", summary],
                                   capture_output=True, text=True)
-            with open(out) as stream:
-                return proc.returncode, json.load(stream), open(summary).read()
+            with open(out) as stream, open(summary) as text:
+                return proc.returncode, json.load(stream), text.read()
 
     def fresh(self, matches):
         return json.dumps(report(matches, built=datetime.now(timezone.utc).isoformat()))

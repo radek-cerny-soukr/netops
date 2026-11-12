@@ -1,0 +1,23 @@
+SNTP client is enabled
+SNTP time is not valid
+Primary server:ntp.example.net  VR-Mgmt 
+Secondary server:   
+Broadcasts: VR-Mgmt 
+Query interval:64
+Last valid SNTP update: None till now.
+SNTPC Statistics:
+ Packets transmitted:
+  to primary server:            0
+  to secondary server:          0
+ Packets received with valid time:
+  from Primary server:          0
+  from Secondary server:        0
+  from Broadcast server:        0
+ Packets received without valid time:
+  from Primary server:          0
+  from Secondary server:        0
+  from Broadcast server:        0
+ Replies not received to requests:
+  from Primary server:          0
+  from Secondary server:        0
+

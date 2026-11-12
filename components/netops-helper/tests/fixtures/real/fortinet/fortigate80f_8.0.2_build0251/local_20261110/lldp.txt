@@ -1,0 +1,2 @@
+0 port 'a' 13  mac 00:00:5e:00:53:12  chassis 00:00:5e:00:53:10 port 'port2' system 'S000SSSS00000001'
+1 port 'b' 14  mac 00:00:5e:00:53:21  chassis 00:00:5e:00:53:20 port 'port1' system 'S000SSSS00000002'

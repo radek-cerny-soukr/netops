@@ -1,0 +1,4 @@
+Enabled License Level:
+	Advanced Edge
+Enabled Feature Packs:
+	AVB, Quad 10G Uplink

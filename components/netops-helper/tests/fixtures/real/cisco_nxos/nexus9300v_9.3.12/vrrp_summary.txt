@@ -1,0 +1,4 @@
+Syntax error while parsing 'show vrrp summary'
+
+
+Cmd exec error.

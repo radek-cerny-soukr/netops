@@ -1,0 +1,16 @@
+show interfaces extensive ge-0/0/0 | match "Last flapp
+user01@host01> ...ve ge-0/0/0 | match "Last flappe                      d|errors|Carrier" 
+  Last flapped   : 2026-11-08 22:53:56 UTC (23:52:42 ago)
+  Input errors:
+    Errors: 0, Drops: 0, Framing errors: 0, Runts: 0, Policed discards: 0,
+    L3 incompletes: 0, L2 channel errors: 0, L2 mismatch timeouts: 0,
+    FIFO errors: 0, Resource errors: 0
+  Output errors:
+    Carrier transitions: 1, Errors: 0, Drops: 0, Collisions: 0, Aged packets: 0,
+    FIFO errors: 0, HS link CRC errors: 0, MTU errors: 0, Resource errors: 0
+    Bit errors                             0
+    CRC/Align errors                         0                0
+    FIFO errors                              0                0
+    Total errors                             0                0
+
+user01@host01> 

@@ -754,14 +754,14 @@ def check_query_authority_and_typed_pre_auth(
     }
     expected_counts = {
         "linux": 16,
-        "fortinet": 108,
-        "extreme_exos": 48,
-        "cisco_ios": 27,
-        "cisco_xe": 27,
-        "cisco_nxos": 30,
-        "arista_eos": 33,
-        "juniper_junos": 25,
-        "juniper_junos_els": 29,
+        "fortinet": 119,
+        "extreme_exos": 65,
+        "cisco_ios": 49,
+        "cisco_xe": 50,
+        "cisco_nxos": 61,
+        "arista_eos": 54,
+        "juniper_junos": 41,
+        "juniper_junos_els": 55,
         "ruckus_unleashed": 4,
         "fortiadc": 33,
     }
@@ -776,9 +776,9 @@ def check_query_authority_and_typed_pre_auth(
         for name in sorted(names)
     )
     assert hashlib.sha256(name_contract.encode()).hexdigest() == (
-        "adf453e66e4e9296c2cc205c4e607fc3e6984da1fcbfc2994944a9e943b946d9"
+        "e97e3266009e97be6915dd606d5318416dc917c8ab4a0085011c30489bd29d89"
     )
-    assert sum(expected_counts.values()) == 380
+    assert sum(expected_counts.values()) == 547
 
     expected_kind_inventory = {
         "fortios_sdwan_health_check": "sdwan_health_checks",
@@ -795,10 +795,15 @@ def check_query_authority_and_typed_pre_auth(
         "ip_protocol": "ip_protocols",
         "fortios_policy_type": "policy_types",
         "fortios_station_mac": "wireless_clients",
+        "fortios_wtp_id": "wtp_ids",
+        "wifi_log_lines": "literal",
+        "wifi_mac_literal": "literal",
         "fortios_nat_pool": "nat_pools",
         "address": "addresses",
         "ipv4_address": "addresses",
         "ipv6_address": "addresses",
+        "ipv4_lookup": "addresses",
+        "ipv6_lookup": "addresses",
         "interface": "interfaces",
         "service": "services",
         "switch": "switches",
@@ -819,7 +824,10 @@ def check_query_authority_and_typed_pre_auth(
         "eos_lldp_interface": "interfaces",
         "eos_lacp_interface": "interfaces",
         "eos_stp_interface": "interfaces",
+        "eos_switchport_interface": "interfaces",
         "eos_ospf_interface": "interfaces",
+        "vlan_id": None,
+        "mac_literal": None,
         "junos_interface": "interfaces",
         "junos_physical_interface": "interfaces",
         "junos_logical_interface": "interfaces",
@@ -831,7 +839,7 @@ def check_query_authority_and_typed_pre_auth(
             assert query in module.READ_QUERY_NAMES[platform]
             for slot_name, slot in slots.items():
                 assert slot_name
-                assert set(slot) == {"inventory", "kind"}
+                assert set(slot) in ({"inventory", "kind"}, {"inventory", "kind", "optional"})
                 assert slot["inventory"] == expected_kind_inventory[slot["kind"]]
     flow_slot_kinds = {
         "src_ip": ("addresses", "ipv4_address"),
@@ -843,8 +851,8 @@ def check_query_authority_and_typed_pre_auth(
         "pol_type": ("policy_types", "fortios_policy_type"),
     }
     for query, address_kind in (
-        ("policy_lookup_ipv4", "ipv4_address"),
-        ("policy_lookup_ipv6", "ipv6_address"),
+        ("policy_lookup_ipv4", "ipv4_lookup"),
+        ("policy_lookup_ipv6", "ipv6_lookup"),
     ):
         expected = dict(flow_slot_kinds)
         expected["src_ip"] = ("addresses", address_kind)
@@ -951,6 +959,30 @@ def check_query_authority_and_typed_pre_auth(
         ),
         ("arista_eos", "stp_interface"): (
             "interfaces", "eos_stp_interface",
+        ),
+        ("arista_eos", "interface_switchport"): (
+            "interfaces", "eos_switchport_interface",
+        ),
+        ("arista_eos", "interface_poe"): (
+            "interfaces", "eos_physical_interface",
+        ),
+        ("arista_eos", "stp_vlan"): (None, "vlan_id"),
+        ("arista_eos", "vlan_details"): (None, "vlan_id"),
+        ("cisco_ios", "stp_vlan"): (None, "vlan_id"),
+        ("cisco_ios", "vlan_details"): (None, "vlan_id"),
+        ("cisco_xe", "stp_vlan"): (None, "vlan_id"),
+        ("cisco_xe", "vlan_details"): (None, "vlan_id"),
+        ("cisco_ios", "interface_switchport"): (
+            "interfaces", "cisco_ios_physical_interface",
+        ),
+        ("cisco_ios", "interface_transceiver"): (
+            "interfaces", "cisco_ios_physical_interface",
+        ),
+        ("cisco_xe", "interface_switchport"): (
+            "interfaces", "cisco_xe_physical_interface",
+        ),
+        ("cisco_xe", "interface_transceiver"): (
+            "interfaces", "cisco_xe_physical_interface",
         ),
         ("arista_eos", "ospf_neighbors_interface"): (
             "interfaces", "eos_ospf_interface",
@@ -1720,8 +1752,8 @@ def check_end_to_end_over_a_fake_ssh(module, directory: Path) -> None:
     assert set(envelope) == {
         "alias", "host", "port", "login", "credential_kind", "secret",
         "host_key_fingerprint", "legacy_ssh", "account_role", "ssh_platform",
-        "enabled_queries", "read_inventory", "sftp_roots",
-        "fortios_output_standard_verified", "egress", "configuration_limits",
+        "enabled_queries", "device_types", "read_inventory", "sftp_roots",
+        "fortios_output_standard_verified", "egress", "configuration_limits", "wifi_thresholds",
     }
     assert envelope["host_key_fingerprint"] == DEVICE_PIN
     assert envelope["credential_kind"] == "password"
@@ -1799,6 +1831,8 @@ def check_a_dead_child_is_reported_while_stdin_stays_open(module, directory: Pat
         code = process.wait(timeout=10)
     assert code != 0
     remaining = process.stderr.read()
+    process.stdout.close()
+    process.stderr.close()
     assert b"netops_proxy_transport" not in remaining
 
 
@@ -2137,6 +2171,8 @@ def check_hostile_server_lines_over_a_fake_ssh(module, directory: Path) -> None:
         code = process.wait(timeout=20)
     rest = process.stdout.read()
     stderr = process.stderr.read()
+    process.stdout.close()
+    process.stderr.close()
     assert code == 0, stderr.decode(errors="replace")
     assert rest == b""
     secret = DEVICE_SECRET.encode()
@@ -2373,7 +2409,7 @@ import json, os, subprocess, sys
 secret = %r
 refuse_restart = %r
 record = os.environ["NETOPS_FAKE_SSH_RECORD"]
-restarted = os.path.exists(record) and '"started"' in open(record, encoding="utf-8").read()
+restarted = os.path.exists(record) and '"started"' in __import__('pathlib').Path(record).read_text(encoding="utf-8")
 late_writer = (
     "import json, sys, time\\n"
     "time.sleep(10.0)\\n"
@@ -2512,6 +2548,8 @@ def check_an_overdue_answer_ends_the_session_and_the_next_request_restarts_it(
         code = process.wait(timeout=20)
     reader.join(timeout=5)
     stderr = process.stderr.read().decode(errors="replace")
+    process.stdout.close()
+    process.stderr.close()
     assert code == 0, stderr
     assert stalled == _session_terminated(module, "stall", "response_timeout"), stalled
     assert "result" in following and "error" not in following, following
@@ -2546,7 +2584,10 @@ def check_a_session_that_cannot_restart_ends_the_proxy(module, directory: Path) 
             process.kill()
             process.wait(timeout=10)
     reader.join(timeout=5)
+    process.stdin.close()
     stderr = process.stderr.read().decode(errors="replace")
+    process.stdout.close()
+    process.stderr.close()
     assert code == 2, stderr
     assert stalled == _session_terminated(module, "stall", "response_timeout"), stalled
     assert following == _session_terminated(module, "next", "session_start"), following
@@ -2692,6 +2733,8 @@ def check_a_server_line_over_the_frame_limit_ends_the_session(
             raise
     reader.join(timeout=5)
     stderr = process.stderr.read().decode(errors="replace")
+    process.stdout.close()
+    process.stderr.close()
     assert code == 0, stderr
     head = '{"jsonrpc":"2.0","id":"exact","result":{"content":[{"type":"text","text":"'
     assert exact["result"]["content"][0]["text"] == (
@@ -2811,9 +2854,10 @@ def main(base: Path | None = None) -> int:
     assert module.DEFAULT_RATE_REQUESTS == 30
     expected_control = {"helper_status", "read_query_catalog", "target_scope"}
     expected_device = {
+        "switch_read", "locate_endpoint",
         "dns_probe", "tcp_probe", "icmp_probe", "tls_probe", "ssh_read",
         "snmp_get", "sftp_stat", "ftp_list", "schema_read", "fortios_diagnostics",
-        "config_read", "config_diff", "triage_slb", "triage_health", "triage_routing", "triage_vpn",
+        "config_read", "config_diff", "triage_slb", "triage_health", "triage_routing", "triage_vpn", "wifi_triage", "wifi_clients", "wifi_aps_live", "wifi_rogue", "triage_flow",
     }
     assert module.CONTROL_TOOLS == expected_control
     assert module.DEVICE_TOOLS == expected_device
@@ -2822,10 +2866,11 @@ def main(base: Path | None = None) -> int:
         expected_control | expected_device
     ) - {"target_scope"}
     assert module.SSH_TOOLS == {
+        "switch_read", "locate_endpoint",
         "ssh_read", "sftp_stat", "schema_read", "fortios_diagnostics", "config_read", "config_diff",
-        "triage_slb", "triage_health", "triage_routing", "triage_vpn",
+        "triage_slb", "triage_health", "triage_routing", "triage_vpn", "wifi_triage", "triage_flow",
     }
-    assert len(module.TOOL_ARGUMENT_SCHEMAS) == 19
+    assert len(module.TOOL_ARGUMENT_SCHEMAS) == 26
     assert module.SSH_TRANSPORT_FAILURE_MESSAGE == (
         "The remote MCP SSH transport failed."
     )

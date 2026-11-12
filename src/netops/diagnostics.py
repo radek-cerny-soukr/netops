@@ -1,3 +1,5 @@
+import re
+
 REASONS = {
     "invalid": "invalid configuration; check the documented schema",
     "size": "exceeds its supported byte limit",
@@ -63,6 +65,7 @@ REASONS = {
     "policy": "audit policy cannot be loaded or is invalid for the platform",
     "channel-credential": "credential kind must match the collection channel: ssh uses password or ssh-key, fortios-rest uses api-token, file uses no credential",
     "auditor-platform": "the Auditor has no rule catalog for this platform",
+    "auditor-run-only": "FortiADC is not collected through collect; audit an exported snapshot with run --platform fortiadc",
     "snmp-usm": "SNMPv3 authPriv needs auth_protocol sha256, priv_protocol aes128 and a value and priv_value of 8 to 4096 UTF-8 bytes each",
     "tls-ca-path": "must be a canonical absolute path to a PEM file under /etc/netops-helper/certs, not inline PEM",
     "tls-ca-symlink": "symlink leaves the /etc/netops-helper/certs directory",
@@ -158,6 +161,7 @@ class SyslogConfigurationError(ValueError):
     pass
 
 CONFIGURATION_MESSAGES = {
+    "helper-rest-token": "Invalid FortiOS REST authentication material; replace the referenced api-token credential with a valid token; see docs/fortios-wifi-rest.md",
     "size": "Configuration exceeds supported size",
     "helper-inventory": "Invalid Helper inventory. Each helper section requires account_role, ssh_platform, enabled_queries and egress; check field types, target scope and credential references in docs/helper-configuration.md",
     "auditor-envelope": "Auditor configuration requires tenant/catalog and an optional inventory/vault pair",
@@ -186,6 +190,20 @@ JSON_INPUT_MESSAGES = {
 }
 CONFIGURATION_MESSAGES.update(JSON_INPUT_MESSAGES)
 SYSLOG_MESSAGES.update(JSON_INPUT_MESSAGES)
+
+HELPER_FIELD = re.compile(r"(?:helper(?:\.[a-z0-9_]+){0,2}|address|credential|host_key_fingerprint)(?:, helper\.[a-z0-9_]+)*")
+
+def helper_inventory_error(error):
+    # A refused helper section names the device by its inventory position and the field, never a value:
+    # a device name is not repeated either, it may be a misplaced secret.
+    located = getattr(error, "helper_field", None)
+    index = getattr(error, "diagnostic_index", None)
+    if (not isinstance(located, tuple) or len(located) != 2 or not all(isinstance(part, str) for part in located)
+            or HELPER_FIELD.fullmatch(located[0]) is None or type(index) is not int or index < 0):
+        return None
+    field, problem = located
+    return RoleConfigurationError("Invalid Helper inventory: inventory.devices[" + str(index) + "]: " + field + " " + problem
+                                  + "; compare it with docs/helper-configuration.md (values are not repeated)")
 
 def configuration_message(code):
     return RoleConfigurationError(CONFIGURATION_MESSAGES.get(code, "Invalid role configuration: configuration: " + REASONS["invalid"]))

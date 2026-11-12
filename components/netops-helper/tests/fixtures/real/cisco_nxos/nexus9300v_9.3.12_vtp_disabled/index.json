@@ -1,0 +1,16 @@
+{
+  "interfaces": {
+    "command": "show interface status",
+    "rc": 0,
+    "lines": 85,
+    "captured": "2026-11-11",
+    "source": "read-only CLI replay; no identifying values present"
+  },
+  "interfaces_trunk": {
+    "command": "show interface trunk",
+    "rc": 0,
+    "lines": 27,
+    "captured": "2026-11-11",
+    "source": "read-only CLI replay; no identifying values present"
+  }
+}

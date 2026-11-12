@@ -1,0 +1,146 @@
+config switch-controller managed-switch
+    edit "S000SSSS00000001"
+        config ports
+            edit "port1"
+                set vlan "_default"
+                set allowed-vlans "quarantine"
+                set untagged-vlans "quarantine"
+            next
+            edit "port2"
+                set vlan "_default"
+                set allowed-vlans "quarantine"
+                set untagged-vlans "quarantine"
+            next
+            edit "port3"
+                set vlan "ap-mgmt"
+                set allowed-vlans "quarantine"
+                set untagged-vlans "quarantine"
+            next
+            edit "port4"
+                set vlan "_default"
+                set allowed-vlans "quarantine"
+                set untagged-vlans "quarantine"
+            next
+            edit "port5"
+                set vlan "_default"
+                set allowed-vlans "quarantine"
+                set untagged-vlans "quarantine"
+            next
+            edit "port6"
+                set vlan "_default"
+                set allowed-vlans "quarantine"
+                set untagged-vlans "quarantine"
+            next
+            edit "port7"
+                set vlan "_default"
+                set allowed-vlans "quarantine"
+                set untagged-vlans "quarantine"
+            next
+            edit "port8"
+                set vlan "_default"
+                set allowed-vlans "quarantine"
+                set untagged-vlans "quarantine"
+            next
+            edit "port9"
+                set vlan "_default"
+                set allowed-vlans "quarantine"
+                set untagged-vlans "quarantine"
+            next
+            edit "port10"
+                set vlan "_default"
+                set allowed-vlans "quarantine"
+                set untagged-vlans "quarantine"
+            next
+            edit "port11"
+                set vlan "ap-mgmt"
+                set allowed-vlans "quarantine"
+                set untagged-vlans "quarantine"
+            next
+            edit "port12"
+                set vlan "_default"
+                set allowed-vlans "quarantine"
+                set untagged-vlans "quarantine"
+            next
+            edit "port13"
+                set vlan "_default"
+                set allowed-vlans "quarantine"
+                set untagged-vlans "quarantine"
+            next
+            edit "port14"
+                set vlan "_default"
+                set allowed-vlans "quarantine"
+                set untagged-vlans "quarantine"
+            next
+            edit "port15"
+                set vlan "_default"
+                set allowed-vlans "quarantine"
+                set untagged-vlans "quarantine"
+            next
+            edit "port16"
+                set vlan "_default"
+                set allowed-vlans "quarantine"
+                set untagged-vlans "quarantine"
+            next
+            edit "port17"
+                set vlan "_default"
+                set allowed-vlans "quarantine"
+                set untagged-vlans "quarantine"
+            next
+            edit "port18"
+                set vlan "_default"
+                set allowed-vlans "quarantine"
+                set untagged-vlans "quarantine"
+            next
+            edit "port19"
+                set vlan "_default"
+                set allowed-vlans "quarantine"
+                set untagged-vlans "quarantine"
+            next
+            edit "port20"
+                set vlan "_default"
+                set allowed-vlans "quarantine"
+                set untagged-vlans "quarantine"
+            next
+            edit "port21"
+                set vlan "_default"
+                set allowed-vlans "quarantine"
+                set untagged-vlans "quarantine"
+            next
+            edit "port22"
+                set vlan "_default"
+                set allowed-vlans "quarantine"
+                set untagged-vlans "quarantine"
+            next
+            edit "port23"
+                set vlan "_default"
+                set allowed-vlans "quarantine"
+                set untagged-vlans "quarantine"
+            next
+            edit "port24"
+                set vlan "_default"
+                set allowed-vlans "quarantine"
+                set untagged-vlans "quarantine"
+            next
+            edit "port25"
+                set vlan "_default"
+                set allowed-vlans "quarantine"
+                set untagged-vlans "quarantine"
+            next
+            edit "port26"
+                set vlan "_default"
+                set allowed-vlans "quarantine"
+                set untagged-vlans "quarantine"
+            next
+            edit "port27"
+                set vlan "_default"
+                set allowed-vlans "quarantine"
+                set untagged-vlans "quarantine"
+            next
+            edit "port28"
+                set vlan "_default"
+                set allowed-vlans "quarantine"
+                set untagged-vlans "quarantine"
+            next
+        end
+    next
+end

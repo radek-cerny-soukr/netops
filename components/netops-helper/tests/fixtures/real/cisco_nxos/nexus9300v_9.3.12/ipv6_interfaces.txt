@@ -1,0 +1,3 @@
+IPv6 Interface Status for VRF "default"(1)
+Interface        IPv6 Address/Link-local Address           Interface Status 
+                                                           prot/link/admin

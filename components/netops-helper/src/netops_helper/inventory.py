@@ -1,6 +1,7 @@
 """Validation of the helper section of the shared device inventory."""
 
 from __future__ import annotations
+from contextlib import contextmanager
 
 from dataclasses import dataclass, field
 import ipaddress
@@ -12,6 +13,7 @@ from typing import Any
 from netops_core import inventory as core
 
 from .config_limits import ConfigurationLimits
+from .query_catalog.model import DEVICE_TYPES
 
 from .read_policy import (
     PLATFORM_MAP,
@@ -30,6 +32,7 @@ SECTION_FIELDS = (
     "account_role",
     "ssh_platform",
     "enabled_queries",
+    "device_types",
     "read_inventory",
     "configuration_limits",
     "sftp_roots",
@@ -39,6 +42,10 @@ SECTION_FIELDS = (
     "snmp_credential",
     "role_boundary",
     "tls_ca_certificate",
+    "wifi_thresholds",
+    "fortios_rest_port",
+    "fortios_rest_credential",
+    "fortios_rest_certificate_sha256",
 )
 REQUIRED_SECTION_FIELDS = (
     "account_role", "ssh_platform", "enabled_queries", "egress",
@@ -71,7 +78,7 @@ CATALOG_PLATFORMS = {"fortios": "fortinet", "exos": "extreme_exos"}
 CREDENTIAL_KINDS = ("password", "ssh-key")
 SNMP_CREDENTIAL_KIND = "snmpv3-authpriv"
 SNMP_LEGACY_KIND = "snmp-community"
-INVENTORY_CATEGORIES = ("interfaces", "services", "addresses", "switches", "vlans", "managed_switches", "managed_switch_ports", "managed_switch_trunks", "certificates", "firewall_addresses", "nat_pools", "wireless_clients", "flow_ports", "ip_protocols", "policy_types", "sdwan_members", "sdwan_rules", "sdwan_health_checks", "link_monitors", "schema_paths", "diagnostic_recipes", "diagnostic_vdoms", "diagnostic_virtual_servers", "diagnostic_names", "diagnostic_http_endpoints", "adc_health_checks", "config_access", "adc_vdoms", "adc_virtual_servers")
+INVENTORY_CATEGORIES = ("vrfs", "virtual_routers", "routing_instances", "interfaces", "services", "addresses", "lookup_prefixes", "switches", "vlans", "managed_switches", "managed_switch_ports", "managed_switch_trunks", "certificates", "firewall_addresses", "nat_pools", "wireless_clients", "wtp_ids", "flow_ports", "ip_protocols", "policy_types", "sdwan_members", "sdwan_rules", "sdwan_health_checks", "link_monitors", "schema_paths", "diagnostic_recipes", "diagnostic_vdoms", "diagnostic_virtual_servers", "diagnostic_names", "diagnostic_http_endpoints", "adc_health_checks", "config_access", "adc_vdoms", "adc_virtual_servers")
 POLICY_SCHEMA = 1
 BACKEND = "iptables"
 BRIDGE_NAME = "nh-egress0"
@@ -135,6 +142,11 @@ class HelperSection:
     role_boundary: str | None = None
     configuration_limits: ConfigurationLimits = field(default_factory=ConfigurationLimits)
     tls_ca_certificate: str | None = None
+    wifi_thresholds: dict = field(default_factory=dict)
+    fortios_rest_port: int = 443
+    fortios_rest_credential: str | None = None
+    fortios_rest_certificate_sha256: str | None = None
+    device_types: tuple = ()
 
     def catalog_platform(self) -> str | None:
         return catalog_platform(self.ssh_platform)
@@ -305,7 +317,16 @@ def _checked_platform(where: str, value: Any) -> str | None:
     return value
 
 
-def _checked_queries(where: str, platform: str | None, value: Any) -> tuple:
+def _checked_device_types(where: str, value: Any) -> tuple:
+    items = _bounded_list(where, "device_types", value, len(DEVICE_TYPES))
+    if any(item not in DEVICE_TYPES for item in items) or len(set(items)) != len(items):
+        raise InventoryError(
+            "%s: device_types must be a unique subset of %s" % (where, ", ".join(DEVICE_TYPES))
+        )
+    return tuple(items)
+
+
+def _checked_queries(where: str, platform: str | None, value: Any, device_types: tuple = ()) -> tuple:
     items = _bounded_list(where, "enabled_queries", value, MAX_QUERIES)
     for query in items:
         if not isinstance(query, str) or SAFE_QUERY_NAME.fullmatch(query) is None:
@@ -326,6 +347,15 @@ def _checked_queries(where: str, platform: str | None, value: Any) -> tuple:
         raise InventoryError(
             "%s: enabled_queries holds names outside the %s catalogue: %s"
             % (where, platform, ", ".join(unknown))
+        )
+    blocked = [
+        query for query in items
+        if available[query].group is not None and available[query].group not in device_types
+    ]
+    if blocked:
+        raise InventoryError(
+            "%s: enabled_queries need a device type the target does not declare in device_types: %s"
+            % (where, ", ".join(blocked))
         )
     return tuple(items)
 
@@ -425,15 +455,21 @@ def _checked_rate_limit(where: str, value: Any) -> dict:
 
 
 def _checked_credential(where: str, entry: Device, kinds: dict | None) -> None:
+    with _field("credential"):
+        _checked_credential_record(where, entry, kinds)
+    with _field("host_key_fingerprint"):
+        if entry.host_key_fingerprint is None:
+            raise InventoryError(
+                "%s: host_key_fingerprint must pin the host key of the device, there is no"
+                " first contact trust" % where
+            )
+
+
+def _checked_credential_record(where: str, entry: Device, kinds: dict | None) -> None:
     if entry.credential is None:
         raise InventoryError(
             "%s: credential must name a record in the credential store, a device is"
             " reached with an account" % where
-        )
-    if entry.host_key_fingerprint is None:
-        raise InventoryError(
-            "%s: host_key_fingerprint must pin the host key of the device, there is no"
-            " first contact trust" % where
         )
     if kinds is None:
         return
@@ -593,73 +629,151 @@ def _checked_tls_ca(where: str, value: Any) -> str | None:
     return value
 
 
+@contextmanager
+def _field(name: str, problem: str = "is invalid"):
+    # Names the refused field for the operator message, which repeats the field name and never its value.
+    try:
+        yield
+    except InventoryError as error:
+        if getattr(error, "helper_field", None) is None:
+            error.helper_field = (name, problem)
+        raise
+
+
 def section(entry: Device, kinds: dict | None = None) -> HelperSection:
     where = "device %s: helper section" % entry.name
     item = entry.helper
-    if not isinstance(item, dict):
-        raise InventoryError("%s: must be an object, got %s" % (where, _shape(item)))
+    with _field("helper", "must be an object"):
+        if not isinstance(item, dict):
+            raise InventoryError("%s: must be an object, got %s" % (where, _shape(item)))
     missing = [name for name in REQUIRED_SECTION_FIELDS if name not in item]
-    if missing:
-        raise InventoryError("%s: missing fields: %s" % (where, ", ".join(missing)))
+    with _field(", ".join("helper." + name for name in missing), "is missing" if len(missing) == 1 else "are missing"):
+        if missing:
+            raise InventoryError("%s: missing fields: %s" % (where, ", ".join(missing)))
     unknown = sorted(set(item) - set(SECTION_FIELDS))
-    if unknown:
-        raise InventoryError("%s: unknown fields: %s" % (where, ", ".join(unknown)))
+    with _field("helper", "contains unknown fields; only documented fields are accepted"):
+        if unknown:
+            raise InventoryError("%s: unknown fields: %s" % (where, ", ".join(unknown)))
     role = item["account_role"]
-    if role != ACCOUNT_ROLE and role != ADMIN_BOUNDED_ROLE:
-        raise RoleError(
-            "%s: account_role must be %r, an account the operator has not declared"
-            " read-only is refused, got %r" % (where, ACCOUNT_ROLE, role)
-        )
-    platform = _checked_platform(where, item["ssh_platform"])
-    boundary = _checked_role_boundary(where, role, platform, item)
-    queries = _checked_queries(where, platform, item["enabled_queries"])
-    read_inventory = _checked_read_inventory(where, item.get("read_inventory", {}))
-    try:
-        validate_query_inventory(catalog_platform(platform), queries, read_inventory)
-    except (KeyError, TypeError, ValueError) as error:
-        raise InventoryError(
-            "%s: read_inventory does not hold usable values for the enabled queries (%s)"
-            % (where, error)
-        ) from None
-    try:
-        configuration_limits = ConfigurationLimits.from_mapping(item.get('configuration_limits', {}))
-    except (TypeError, ValueError) as error:
-        raise InventoryError('%s: %s' % (where, str(error))) from None
+    with _field("helper.account_role"):
+        if role != ACCOUNT_ROLE and role != ADMIN_BOUNDED_ROLE:
+            raise RoleError(
+                "%s: account_role must be %r, an account the operator has not declared"
+                " read-only is refused, got %r" % (where, ACCOUNT_ROLE, role)
+            )
+    with _field("helper.ssh_platform"):
+        platform = _checked_platform(where, item["ssh_platform"])
+    with _field("helper.role_boundary"):
+        boundary = _checked_role_boundary(where, role, platform, item)
+    with _field("helper.device_types"):
+        device_types = _checked_device_types(where, item.get("device_types", []))
+    with _field("helper.enabled_queries"):
+        queries = _checked_queries(where, platform, item["enabled_queries"], device_types)
+    with _field("helper.read_inventory"):
+        read_inventory = _checked_read_inventory(where, item.get("read_inventory", {}))
+        try:
+            validate_query_inventory(catalog_platform(platform), queries, read_inventory)
+        except (KeyError, TypeError, ValueError) as error:
+            raise InventoryError(
+                "%s: read_inventory does not hold usable values for the enabled queries (%s)"
+                % (where, error)
+            ) from None
+    with _field("helper.configuration_limits"):
+        try:
+            configuration_limits = ConfigurationLimits.from_mapping(item.get('configuration_limits', {}))
+        except (TypeError, ValueError) as error:
+            raise InventoryError('%s: %s' % (where, str(error))) from None
     verified = item.get("fortios_output_standard_verified", False)
-    if not isinstance(verified, bool):
-        raise InventoryError(
-            "%s: fortios_output_standard_verified must be true or false, got %r"
-            % (where, verified)
-        )
-    egress = _checked_egress(where, item["egress"])
+    with _field("helper.fortios_output_standard_verified"):
+        if not isinstance(verified, bool):
+            raise InventoryError(
+                "%s: fortios_output_standard_verified must be true or false, got %r"
+                % (where, verified)
+            )
+    with _field("helper.egress"):
+        egress = _checked_egress(where, item["egress"])
     _checked_credential(where, entry, kinds)
-    _checked_reach(where, entry, egress)
-    roots = _checked_roots(where, item.get("sftp_roots", []))
-    _checked_derived_port(where, entry, platform, queries, roots, egress)
+    with _field("address"):
+        _checked_reach(where, entry, egress)
+    with _field("helper.sftp_roots"):
+        roots = _checked_roots(where, item.get("sftp_roots", []))
+    with _field("helper.egress.tcp_port_ranges"):
+        _checked_derived_port(where, entry, platform, queries, roots, egress)
+    from .wifi_policy import thresholds
+    with _field("helper.wifi_thresholds"):
+        try:
+            wifi_thresholds = thresholds(item.get("wifi_thresholds"))
+        except ValueError as error:
+            raise InventoryError(str(error)) from None
+    with _field("helper.fortios_rest_port"):
+        rest_port = checked_rest_port(item.get("fortios_rest_port", 443))
+    rest_credential = item.get("fortios_rest_credential")
+    rest_pin = item.get("fortios_rest_certificate_sha256")
+    with _field("helper.fortios_rest_certificate_sha256"):
+        if rest_pin is not None and (not isinstance(rest_pin, str) or re.fullmatch(r"[0-9a-f]{64}", rest_pin) is None):
+            raise InventoryError("fortios_rest_certificate_sha256 must be a lowercase SHA-256 hex digest")
+    with _field("helper.fortios_rest_credential"):
+        _checked_rest(rest_credential, rest_pin, platform, item, kinds)
+    with _field("helper.fortios_rest_port"):
+        if rest_credential is not None and not (rest_port in egress["tcp_ports"] or any(
+                a <= rest_port <= b for a, b in egress["tcp_port_ranges"])):
+            raise InventoryError("FortiOS REST requires fortios_rest_port in TCP egress")
+    with _field("helper.rate_limit"):
+        rate_limit = _checked_rate_limit(where, item.get("rate_limit", {
+            "requests": DEFAULT_RATE_REQUESTS,
+            "window_seconds": DEFAULT_RATE_WINDOW_SECONDS,
+        }))
+    with _field("helper.snmp_credential"):
+        snmp_credential = _checked_snmp_credential(where, item.get("snmp_credential"), kinds)
     return HelperSection(
         account_role=role,
         role_boundary=boundary,
         ssh_platform=platform,
         enabled_queries=queries,
+        device_types=device_types,
         read_inventory=read_inventory,
         configuration_limits=configuration_limits,
         sftp_roots=roots,
         fortios_output_standard_verified=verified,
-        rate_limit=_checked_rate_limit(where, item.get("rate_limit", {
-            "requests": DEFAULT_RATE_REQUESTS,
-            "window_seconds": DEFAULT_RATE_WINDOW_SECONDS,
-        })),
+        rate_limit=rate_limit,
         egress=egress,
-        snmp_credential=_checked_snmp_credential(
-            where, item.get("snmp_credential"), kinds,
-        ),
+        snmp_credential=snmp_credential,
         tls_ca_certificate=_checked_tls_ca(where, item.get("tls_ca_certificate")),
+        wifi_thresholds=wifi_thresholds,
+        fortios_rest_port=rest_port,
+        fortios_rest_credential=rest_credential,
+        fortios_rest_certificate_sha256=rest_pin,
     )
 
 
-FORTIOS_READ_ONLY_REFUSED_QUERIES = (
-    "wifi_clients", "wifi_client_detail", "wifi_access_points", "wifi_ap_detail", "wifi_ssid_mapping",
+def checked_rest_port(value: Any) -> int:
+    if type(value) is not int or not 1 <= value <= 65535:
+        raise InventoryError("fortios_rest_port must be a whole number from 1 to 65535")
+    return value
+
+
+def _checked_rest(rest_credential: Any, rest_pin: Any, platform: str | None, item: dict, kinds: dict | None) -> None:
+    if rest_credential is not None:
+        if not isinstance(rest_credential, str) or not rest_credential.strip():
+            raise InventoryError("fortios_rest_credential must name an api-token credential")
+        if kinds is not None and kinds.get(rest_credential) != "api-token":
+            raise InventoryError("fortios_rest_credential must name an existing api-token credential; value withheld")
+        if platform != "fortios":
+            raise InventoryError("FortiOS REST requires the fortios platform")
+        if rest_pin is None and item.get("tls_ca_certificate") is None:
+            raise InventoryError("FortiOS REST requires a certificate SHA-256 pin or tls_ca_certificate")
+
+
+FORTIOS_READ_ONLY_REFUSED_QUERIES = tuple(
+    name for name, entry in READ_QUERIES["fortinet"].items() if entry.read_only_account == "refused"
 )
+
+
+_REST_ALTERNATIVE = {
+    "wifi_clients": ("stations", "wifi_clients"), "wifi_client_detail": ("stations", "wifi_clients"),
+    "wifi_access_points": ("access points", "wifi_aps_live"), "wifi_ap_detail": ("access points", "wifi_aps_live"),
+    "wifi_ssid_mapping": ("access points and SSIDs", "wifi_aps_live"),
+}
 
 
 def section_warnings(name: str, section: Any) -> list:
@@ -668,7 +782,9 @@ def section_warnings(name: str, section: Any) -> list:
     return [
         "device %s: query %s is enabled for a read-only FortiOS account, which the device refuses"
         " with 'Return code -61'; enroll an admin-bounded account (access profile 'wifi read-write'"
-        " and 'cli-diagnose enable') or remove the query" % (name, query)
+        " and 'cli-diagnose enable') or remove the SSH query. For live %s, use the REST tool"
+        " %s with helper.fortios_rest_credential; see docs/fortios-wifi-rest.md"
+        % ((name, query) + _REST_ALTERNATIVE.get(query, ("stations", "wifi_clients")))
         for query in section.enabled_queries
         if query in FORTIOS_READ_ONLY_REFUSED_QUERIES
     ]

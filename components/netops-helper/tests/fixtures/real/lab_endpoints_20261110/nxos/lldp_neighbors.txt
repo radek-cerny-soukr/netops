@@ -1,0 +1,19 @@
+Capability codes:
+  (R) Router, (B) Bridge, (T) Telephone, (C) DOCSIS Cable Device
+  (W) WLAN Access Point, (P) Repeater, (S) Station, (O) Other
+Device ID            Local Intf      Hold-time  Capability  Port ID  
+
+Chassis id: 0000.5e00.5308
+Port id: mgmt
+Local Port id: mgmt0
+Port Description: null
+System Name: host02
+System Description: ExtremeXOS (EXOS-VM) version 33.6.1.14 by release-manager on Tue Mar 24 02:04:32 PM UTC 2026
+Time remaining: 119 seconds
+System Capabilities: not advertised
+Enabled Capabilities: not advertised
+Management Address: not advertised
+Management Address IPV6: not advertised
+Vlan ID: not advertised
+
+Total entries displayed: 1

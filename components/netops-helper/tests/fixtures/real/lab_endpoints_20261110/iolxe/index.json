@@ -1,0 +1,30 @@
+{
+ "interfaces": {
+  "command": "show interfaces status",
+  "rc": 0,
+  "lines": 4,
+  "captured_at": "2026-11-10T08:53:35.975Z",
+  "account": "netops-ro"
+ },
+ "ip_interfaces": {
+  "command": "show ip interface brief",
+  "rc": 0,
+  "lines": 23,
+  "captured_at": "2026-11-10T08:53:36.442Z",
+  "account": "netops-ro"
+ },
+ "arp_table": {
+  "command": "show ip arp",
+  "rc": 0,
+  "lines": 14,
+  "captured_at": "2026-11-10T08:53:37.301Z",
+  "account": "netops-ro"
+ },
+ "lldp_neighbors": {
+  "command": "show lldp neighbors detail",
+  "rc": 0,
+  "lines": 144,
+  "captured_at": "2026-11-10T08:53:37.796Z",
+  "account": "netops-ro"
+ }
+}

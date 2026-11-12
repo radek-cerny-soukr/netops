@@ -1,0 +1,6 @@
+Total peers : 1
+* - selected for sync, + -  peer mode(active), 
+- - peer mode(passive), = - polled in client mode 
+    remote                                 local                                   st   poll   reach delay   vrf
+-----------------------------------------------------------------------------------------------------------------------
+=198.51.100.123                          0.0.0.0                                 16   64       0   0.00000management

@@ -1,0 +1,10 @@
+{
+  "ethernet_switching_interfaces_refused": {
+    "command": "show ethernet-switching interfaces",
+    "rc": 0,
+    "captured_at": "2026-11-09T22:46:36Z",
+    "lines": 2,
+    "transport": "PTY; echo, prompt, pager and ANSI removed; no data lines omitted",
+    "outcome": "neexistuje"
+  }
+}

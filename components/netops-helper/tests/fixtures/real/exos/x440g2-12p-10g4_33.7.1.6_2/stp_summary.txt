@@ -1,0 +1,17 @@
+		MSTP Global Configuration:
+MSTP Region Name      	: 00005e005302
+MSTP Format Identifier	: 0
+MSTP Revision Level   	: 3
+MSTP Digest           	: ac:36:17:7f:50:28:3c:d4:b8:38:21:d8:ab:26:de:62
+Common and Internal Spanning Tree (CIST)	: s0
+Total Number of MST Instances (MSTI)		: 0
+
+Name       Tag  Flags  Ports Bridge ID        Designated Root  Rt Port Rt Cost
+s0         0000 DM----     0 800000005e005302 0000000000000000 -------       0 
+
+Total number of STPDs: 1		STP Flush Method: VLAN and Port
+STP Filter Method: System-wide		STP BPDU Forwarding: On 
+STP Multicast Send IGMP or MLD Query: On
+
+Flags: (C) Topology Change, (D) Disable, (E) Enable, (R) Rapid Root Failover
+       (T) Topology Change Detected, (M) MSTP CIST, (I) MSTP MSTI 

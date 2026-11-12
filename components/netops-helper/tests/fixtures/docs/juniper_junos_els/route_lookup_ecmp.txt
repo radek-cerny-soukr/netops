@@ -1,0 +1,23 @@
+inet.0: 10 destinations, 10 routes (10 active, 0 holddown, 0 hidden)
+192.0.2.128/25 (1 entry, 1 announced)
+        *OSPF   Preference: 150
+                Next hop type: Router, Next hop index: 1048577
+                Address: 0xb2c1c04
+                Next-hop reference count: 3
+                Next hop: 198.51.100.2 via irb.10, selected
+                Next hop: 198.51.100.3 via irb.10
+                State: <Active Int Ext>
+                Age: 1:11:03    Metric: 20
+                Area: 0.0.0.0
+                Task: OSPF
+                AS path: I
+198.51.100.0/24 (1 entry, 1 announced)
+        *Direct Preference: 0
+                Next hop type: Interface, Next hop index: 0
+                Address: 0xb2c1a44
+                Next-hop reference count: 4
+                Next hop: via irb.10, selected
+                State: <Active Int>
+                Age: 3d 4:15:02
+                Task: IF
+                AS path: I

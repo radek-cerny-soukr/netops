@@ -1,0 +1,77 @@
+Port:	1(host09):
+	Description String: "Default settings for the access port"
+	Virtual-router:	VR-Default
+	Type:		UTP 
+	Random Early drop:	Unsupported
+	Admin state:	Enabled with  auto-speed sensing  auto-duplex
+	Link State:	Active, 1Gbps, full-duplex
+	Link Ups:       6        Last: Thu Oct 22 23:55:37 2026
+	Link Downs:     5        Last: Thu Oct 22 23:55:34 2026
+
+	VLAN cfg: 
+		 Name: VL-30, 802.1Q Tag = 30, MAC-limit = No-limit, Virtual router:   VR-Default
+		       Port-specific VLAN ID:   30
+		 Name: V20, 802.1Q Tag = 20, MAC-limit = No-limit, Virtual router:   VR-Default
+		       Port-specific VLAN ID:   20
+		 Name: VLAN40, 802.1Q Tag = 40, MAC-limit = No-limit, Virtual router:   VR-Default
+		       Port-specific VLAN ID:   40
+		 Name: V50, 802.1Q Tag = 50, MAC-limit = No-limit, Virtual router:   VR-Default
+		       Port-specific VLAN ID:   50
+		 Name: V10, Internal Tag = 10, MAC-limit = No-limit, Virtual router:   VR-Default
+	STP cfg:
+
+	Protocol: 
+		 Name: V10          Protocol: ANY      Match all protocols.
+	Trunking:	Load sharing is not enabled.
+
+	EDP:		Enabled
+
+	EEE:		Disabled
+	ELSM:		Disabled
+	Ethernet OAM:		Disabled
+	MACsec:		Disabled
+	Learning:	Enabled
+	Link-Flap Detection:	Disabled
+	Unicast Flooding:	Enabled
+	Multicast Flooding:	Enabled
+	Broadcast Flooding:	Enabled
+	Jumbo:		Disabled
+	Flow Control:	Rx-Pause: Enabled	Tx-Pause: Disabled
+	Priority Flow Control: Disabled
+	Reflective Relay:	Disabled
+	Link up/down SNMP trap filter setting:	Enabled
+	Egress Port Rate:	No-limit
+	Broadcast Rate:		No-limit
+	Multicast Rate:		No-limit
+	Unknown Dest Mac Rate:	No-limit
+	QoS Profile:	None configured
+	Ingress Rate Shaping : 		Unsupported
+	Ingress IPTOS Examination: 	Disabled
+	Ingress 802.1p Examination: 	Enabled
+	Ingress 802.1p Inner Exam: 	Disabled
+	Ingress 802.1p Priority:        0
+	Egress IPTOS Replacement:	Disabled
+	Egress 802.1p Replacement:	Disabled
+	QOS Profile Settings:     QP1  MinBw =       0%  MaxBw =     100%  MaxBuf =   100%  Weight =    1     
+                                  QP8  MinBw =       0%  MaxBw =     100%  MaxBuf =   100%  Weight =    1     
+
+	NetLogin: 			Disabled
+	NetLogin port mode: 		Port based VLANs
+	Smart redundancy: 		Enabled
+	Software redundant port: 	Disabled
+	IPFIX:   Disabled		Metering:  Ingress, All Packets, All Traffic
+		IPv4 Flow Key Mask:	SIP: 255.255.255.255 		DIP: 255.255.255.255 
+		IPv6 Flow Key Mask:	SIP: ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff 
+					DIP: ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff 
+
+	auto-polarity: 			Enabled
+	Shared packet buffer:		default
+	VMAN CEP egress filtering:	Disabled
+	Isolation:			Off
+	PTP Configured:      		Disabled
+	Time-Stamping Mode:  		None
+
+	Dynamic VLAN Uplink:          	Disabled
+	VM Tracking Dynamic VLANs:    	Disabled
+	Static MAC-based VLANs:       	Disabled
+

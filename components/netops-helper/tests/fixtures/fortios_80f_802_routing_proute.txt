@@ -1,0 +1,13 @@
+list route policy info(vf=root):
+
+id=2132148226(0x7f160002) vwl_service=2(Overlay_rule) vwl_mbr_seq=11 12 13 dscp_tag=0xfc 0xfc flags=0x0 tos=0x00 tos_mask=0x00 protocol=0 port=src(0->0):dst(0->0) iif=0(any)
+path(3): oif=35(HUB-A1), oif=36(HUB-A2), oif=34(HUB-A3)
+source(1): 0.0.0.0-255.255.255.255
+destination(1): 198.51.100.0-198.51.100.255
+hit_count=150 rule_last_used=2026-11-08 20:20:39
+
+id=2132148225(0x7f160001) vwl_service=1(Internet_rule) vwl_mbr_seq=1 2 3 dscp_tag=0xfc 0xfc flags=0x0 tos=0x00 tos_mask=0x00 protocol=0 port=src(0->0):dst(0->0) iif=0(any)
+path(3): oif=5(wan1) path_last_used=2026-11-08 20:20:39, oif=22(LTE-1), oif=23(LTE-2)
+source(1): 0.0.0.0-255.255.255.255
+destination(1): 0.0.0.0-255.255.255.255
+hit_count=7225 rule_last_used=2026-11-08 20:20:39

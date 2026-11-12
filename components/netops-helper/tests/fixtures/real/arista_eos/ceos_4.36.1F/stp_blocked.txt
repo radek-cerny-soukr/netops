@@ -1,0 +1,4 @@
+Name       Blocked Interfaces List
+---------- ---------------------------------------------------------------------
+
+Number of blocked ports (segments) in the system : 0

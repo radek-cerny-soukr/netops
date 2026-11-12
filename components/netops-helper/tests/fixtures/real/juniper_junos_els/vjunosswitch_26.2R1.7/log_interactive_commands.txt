@@ -1,0 +1,2 @@
+
+error: permission denied: log

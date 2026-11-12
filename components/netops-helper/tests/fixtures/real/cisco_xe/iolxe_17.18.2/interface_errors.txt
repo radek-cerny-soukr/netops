@@ -1,0 +1,4 @@
+
+
+
+Line has invalid autocommand "show interfaces Ethernet0/1 counters errors"

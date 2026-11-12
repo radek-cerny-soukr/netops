@@ -1,0 +1,47 @@
+
+
+
+Syslog logging: enabled (0 messages dropped, 2 messages rate-limited, 0 flushes, 0 overruns, xml disabled, filtering disabled)
+
+No Active Message Discriminator.
+
+
+
+No Inactive Message Discriminator.
+
+
+    Console logging: level debugging, 361 messages logged, xml disabled,
+                     filtering disabled
+    Monitor logging: level debugging, 0 messages logged, xml disabled,
+                     filtering disabled
+    Buffer logging:  level debugging, 361 messages logged, xml disabled,
+                    filtering disabled
+    Exception Logging: size (4096 bytes)
+    Count and timestamp logging messages: disabled
+    Persistent logging: disabled
+    Trap logging: level informational, 364 message lines logged
+        Logging Source-Interface:       VRF Name:
+
+Log Buffer (4096 bytes):
+ed
+*Nov  9 00:26:35.398: %SSH-5-SSH2_CLOSE: SSH2 Session from 198.51.100.56 (tty = 0) for user 'user01' using crypto cipher 'chacha20-poly1305@openssh.com', hmac 'hmac-sha2-256-etm@openssh.com' closed
+*Nov  9 00:26:35.861: %SSH-5-SSH2_SESSION: SSH2 Session request from 198.51.100.56 (tty = 0) using crypto cipher 'chacha20-poly1305@openssh.com', hmac 'hmac-sha2-256-etm@openssh.com' Succeeded
+*Nov  9 00:26:36.123: %SEC_LOGIN-5-LOGIN_SUCCESS: Login Success [user: user01] [Source: 198.51.100.56] [localport: 22] at 01:26:36 CET Mon Nov 9 2026
+*Nov  9 00:26:36.123: %SSH-5-SSH2_USERAUTH: User 'user01' authentication for SSH2 Session from 198.51.100.56 (tty = 0) using crypto cipher 'chacha20-poly1305@openssh.com', hmac 'hmac-sha2-256-etm@openssh.com' Succeeded
+*Nov  9 00:26:36.129: %SSH-5-SSH2_CLOSE: SSH2 Session from 198.51.100.56 (tty = 0) for user 'user01' using crypto cipher 'chacha20-poly1305@openssh.com', hmac 'hmac-sha2-256-etm@openssh.com' closed
+*Nov  9 00:26:36.603: %SSH-5-SSH2_SESSION: SSH2 Session request from 198.51.100.56 (tty = 0) using crypto cipher 'chacha20-poly1305@openssh.com', hmac 'hmac-sha2-256-etm@openssh.com' Succeeded
+*Nov  9 00:26:36.830: %SEC_LOGIN-5-LOGIN_SUCCESS: Login Success [user: user01] [Source: 198.51.100.56] [localport: 22] at 01:26:36 CET Mon Nov 9 2026
+*Nov  9 00:26:36.830: %SSH-5-SSH2_USERAUTH: User 'user01' authentication for SSH2 Session from 198.51.100.56 (tty = 0) using crypto cipher 'chacha20-poly1305@openssh.com', hmac 'hmac-sha2-256-etm@openssh.com' Succeeded
+*Nov  9 00:26:36.836: %SSH-5-SSH2_CLOSE: SSH2 Session from 198.51.100.56 (tty = 0) for user 'user01' using crypto cipher 'chacha20-poly1305@openssh.com', hmac 'hmac-sha2-256-etm@openssh.com' closed
+*Nov  9 00:26:37.313: %SSH-5-SSH2_SESSION: SSH2 Session request from 198.51.100.56 (tty = 0) using crypto cipher 'chacha20-poly1305@openssh.com', hmac 'hmac-sha2-256-etm@openssh.com' Succeeded
+*Nov  9 00:26:37.616: %SEC_LOGIN-5-LOGIN_SUCCESS: Login Success [user: user01] [Source: 198.51.100.56] [localport: 22] at 01:26:37 CET Mon Nov 9 2026
+*Nov  9 00:26:37.616: %SSH-5-SSH2_USERAUTH: User 'user01' authentication for SSH2 Session from 198.51.100.56 (tty = 0) using crypto cipher 'chacha20-poly1305@openssh.com', hmac 'hmac-sha2-256-etm@openssh.com' Succeeded
+*Nov  9 00:26:37.621: %SSH-5-SSH2_CLOSE: SSH2 Session from 198.51.100.56 (tty = 0) for user 'user01' using crypto cipher 'chacha20-poly1305@openssh.com', hmac 'hmac-sha2-256-etm@openssh.com' closed
+*Nov  9 00:26:38.093: %SSH-5-SSH2_SESSION: SSH2 Session request from 198.51.100.56 (tty = 0) using crypto cipher 'chacha20-poly1305@openssh.com', hmac 'hmac-sha2-256-etm@openssh.com' Succeeded
+*Nov  9 00:26:38.464: %SEC_LOGIN-5-LOGIN_SUCCESS: Login Success [user: user01] [Source: 198.51.100.56] [localport: 22] at 01:26:38 CET Mon Nov 9 2026
+*Nov  9 00:26:38.464: %SSH-5-SSH2_USERAUTH: User 'user01' authentication for SSH2 Session from 198.51.100.56 (tty = 0) using crypto cipher 'chacha20-poly1305@openssh.com', hmac 'hmac-sha2-256-etm@openssh.com' Succeeded
+*Nov  9 00:26:38.468: %SSH-5-SSH2_CLOSE: SSH2 Session from 198.51.100.56 (tty = 0) for user 'user01' using crypto cipher 'chacha20-poly1305@openssh.com', hmac 'hmac-sha2-256-etm@openssh.com' closed
+*Nov  9 00:26:38.939: %SSH-5-SSH2_SESSION: SSH2 Session request from 198.51.100.56 (tty = 0) using crypto cipher 'chacha20-poly1305@openssh.com', hmac 'hmac-sha2-256-etm@openssh.com' Succeeded
+*Nov  9 00:26:39.175: %SEC_LOGIN-5-LOGIN_SUCCESS: Login Success [user: user01] [Source: 198.51.100.56] [localport: 22] at 01:26:39 CET Mon Nov 9 2026
+*Nov  9 00:26:39.175: %SSH-5-SSH2_USERAUTH: User 'user01' authentication for SSH2 Session from 198.51.100.56 (tty = 0) using crypto cipher 'chacha20-poly1305@openssh.com', hmac 'hmac-sha2-256-etm@openssh.com' Succeeded
+*Nov  9 00:26:39.180: %SSH-5-SSH2_CLOSE: SSH2 Session from 198.51.100.56 (tty = 0) for user 'user01' using crypto cipher 'chacha20-poly1305@openssh.com', hmac 'hmac-sha2-256-etm@openssh.com' closed

@@ -1,0 +1,104 @@
+
+IP access list DLAB-TEST
+	10 permit ip any any 
+IP access list copp-system-p-acl-auto-rp
+	10 permit ip any 224.0.1.39/32 
+	20 permit ip any 224.0.1.40/32 
+IP access list copp-system-p-acl-bgp
+	10 permit tcp any gt 1023 any eq bgp 
+	20 permit tcp any eq bgp any gt 1023 
+IP access list copp-system-p-acl-dhcp
+	10 permit udp any eq bootpc any 
+	20 permit udp any neq bootps any eq bootps 
+IP access list copp-system-p-acl-dhcp-relay-response
+	10 permit udp any eq bootps any 
+	20 permit udp any any eq bootpc 
+IP access list copp-system-p-acl-eigrp
+	10 permit eigrp any any 
+IP access list copp-system-p-acl-ftp
+	10 permit tcp any any eq ftp-data 
+	20 permit tcp any any eq ftp 
+	30 permit tcp any eq ftp-data any 
+	40 permit tcp any eq ftp any 
+IP access list copp-system-p-acl-hsrp
+	10 permit udp any 224.0.0.0/24 eq 1985 
+IP access list copp-system-p-acl-http
+	10 permit tcp any eq www any 
+	20 permit tcp any any eq www 
+IP access list copp-system-p-acl-https
+	10 permit tcp any eq 443 any 
+	20 permit tcp any any eq 443 
+IP access list copp-system-p-acl-icmp
+	10 permit icmp any any echo 
+	20 permit icmp any any echo-reply 
+IP access list copp-system-p-acl-igmp
+	10 permit igmp any 224.0.0.0/3 
+IP access list copp-system-p-acl-msdp
+	10 permit tcp any gt 1023 any eq 639 
+	20 permit tcp any eq 639 any gt 1023 
+IP access list copp-system-p-acl-ntp
+	10 permit udp any any eq ntp 
+	20 permit udp any eq ntp any 
+IP access list copp-system-p-acl-openflow
+	10 permit tcp any eq 6653 any 
+IP access list copp-system-p-acl-ospf
+	10 permit ospf any any 
+IP access list copp-system-p-acl-pim
+	10 permit pim any 224.0.0.0/24 
+	20 permit udp any any eq pim-auto-rp 
+	30 permit ip any 224.0.0.13/32 
+IP access list copp-system-p-acl-pim-mdt-join
+	10 permit udp any 224.0.0.13/32 
+IP access list copp-system-p-acl-pim-reg
+	10 permit pim any any 
+IP access list copp-system-p-acl-ptp
+	10 permit udp any 224.0.1.129/32 eq 319 
+	20 permit udp any 224.0.1.129/32 eq 320 
+IP access list copp-system-p-acl-ptp-uc
+	10 permit udp any any eq 319 
+	20 permit udp any any eq 320 
+IP access list copp-system-p-acl-radius
+	10 permit udp any any eq 1812 
+	20 permit udp any any eq 1813 
+	30 permit udp any any eq 1645 
+	40 permit udp any any eq 1646 
+	50 permit udp any eq 1812 any 
+	60 permit udp any eq 1813 any 
+	70 permit udp any eq 1645 any 
+	80 permit udp any eq 1646 any 
+IP access list copp-system-p-acl-rip
+	10 permit udp any 224.0.0.0/24 eq rip 
+IP access list copp-system-p-acl-sftp
+	10 permit tcp any any eq 115 
+	20 permit tcp any eq 115 any 
+IP access list copp-system-p-acl-snmp
+	10 permit udp any any eq snmp 
+	20 permit udp any any eq snmptrap 
+	30 permit tcp any any eq 161 
+	40 permit tcp any any eq 162 
+IP access list copp-system-p-acl-ssh
+	10 permit tcp any any eq 22 
+	20 permit tcp any eq 22 any 
+IP access list copp-system-p-acl-tacacs
+	10 permit tcp any any eq tacacs 
+	20 permit tcp any eq tacacs any 
+IP access list copp-system-p-acl-telnet
+	10 permit tcp any any eq telnet 
+	20 permit tcp any any eq 107 
+	30 permit tcp any eq telnet any 
+	40 permit tcp any eq 107 any 
+IP access list copp-system-p-acl-tftp
+	10 permit udp any any eq tftp 
+	20 permit udp any any eq 1758 
+	30 permit udp any eq tftp any 
+	40 permit udp any eq 1758 any 
+IP access list copp-system-p-acl-traceroute
+	10 permit icmp any any ttl-exceeded 
+	20 permit icmp any any port-unreachable 
+	30 permit udp any any range 33434 33534 
+IP access list copp-system-p-acl-undesirable
+	10 permit udp any any eq 1434 
+IP access list copp-system-p-acl-vpc
+	10 permit udp any any eq 3200 
+IP access list copp-system-p-acl-vrrp
+	10 permit ip any 224.0.0.18/32 

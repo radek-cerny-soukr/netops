@@ -1,0 +1,7 @@
+
+                                        Root  Hello Max Fwd
+Vlan                   Root ID          Cost  Time  Age Dly  Root Port
+---------------- -------------------- ------- ----- --- ---  ----------------
+VLAN0001         32769 0000.5e00.5308       0    2   20  15  This bridge is root
+VLAN0010         32778 0000.5e00.530b       4    2   20  15       Ethernet1/1
+VLAN0020         32788 0000.5e00.530b       4    2   20  15       Ethernet1/1

@@ -1,7 +1,10 @@
 import copy
 import hashlib
 import json
+import os
 from pathlib import Path
+import subprocess
+import sys
 from types import SimpleNamespace
 
 import pytest
@@ -296,7 +299,7 @@ def cli_run(capsys, tmp_path, text, meta_document=None, extra=()):
 
 def test_cli_clean_complete_snapshot_exits_ok_and_shows_not_evaluated_certificate_rule(capsys, tmp_path):
     code, report, _ = cli_run(capsys, tmp_path, GOOD, meta(GOOD))
-    assert code == cli.EXIT_INCOMPLETE
+    assert code == cli.EXIT_OK
     assert report["findings"] == []
     assert report["rule_status"][FACTORY]["status"] == NOT_EVALUATED
     assert report["rule_status"][TLS]["status"] == EVALUATED
@@ -419,7 +422,7 @@ def test_helper_metadata_of_another_text_is_refused(key):
 
 def test_cli_accepts_the_metadata_document_written_by_the_helper(capsys, tmp_path):
     code, report, _ = cli_run(capsys, tmp_path, GOOD, helper_meta())
-    assert code == cli.EXIT_INCOMPLETE
+    assert code == cli.EXIT_OK
     assert report["findings"] == []
     assert report["rule_status"][TLS]["status"] == EVALUATED
     assert report["rule_status"][FACTORY]["status"] == NOT_EVALUATED
@@ -429,3 +432,88 @@ def test_cli_helper_metadata_of_another_build_reports_the_version_gate(capsys, t
     code, report, _ = cli_run(capsys, tmp_path, GOOD, helper_meta(build="0700"))
     assert [item["rule_id"] for item in report["findings"]] == [VERSION_GATE]
     assert {report["rule_status"][rule]["status"] for rule in ALL_RULES} == {UNSUPPORTED}
+
+
+@pytest.mark.parametrize('output', ['json', 'sarif'])
+@pytest.mark.parametrize('scenario', ['inherent', 'user', 'networking', 'actionable', 'version'])
+def test_cli_process_coverage(tmp_path, output, scenario):
+    text = GOOD
+    if scenario == 'actionable':
+        text = text.replace('set trusted-hosts 192.0.2.0/24\n', '')
+    identity = dict(IDENTITY)
+    if scenario == 'version':
+        identity['version'] = '7.6.6'
+    config = tmp_path / 'snapshot.conf'
+    config.write_text(text)
+    metadata = tmp_path / 'meta.json'
+    limits = [scenario] if scenario in ('networking', 'user') else []
+    metadata.write_text(json.dumps(meta(text, complete=not limits, limits=limits, identity=identity)))
+    args = [sys.executable, '-B', '-m', 'netops_auditor.cli', 'run', '--platform', 'fortiadc',
+            '--tenant', 't', '--device', 'd', '--config', str(config), '--snapshot-meta', str(metadata), '--' + output]
+    result = subprocess.run(args, capture_output=True, text=True, env=os.environ.copy())
+    assert result.returncode == (0 if scenario in ('inherent', 'user') else 3), result.stderr
+    report = json.loads(result.stdout)
+    if output == 'sarif':
+        report = report['runs'][0]['properties']['devices'][0]
+    assert report['evaluation_complete'] is False
+    coverage = report['coverage']
+    assert coverage['complete'] is False
+    if scenario in ('inherent', 'user'):
+        assert {gap['rule_id'] for gap in coverage['inherent_gaps']} == {FACTORY}
+        assert coverage['actionable_gaps'] == []
+    elif scenario == 'networking':
+        assert {gap['rule_id'] for gap in coverage['inherent_gaps']} == {FACTORY}
+        assert {(gap['rule_id'], gap['reason']) for gap in coverage['actionable_gaps']} == {(PLAIN, 'visibility:networking')}
+    else:
+        assert coverage['actionable_gaps']
+
+
+@pytest.mark.parametrize('limits', [[], ['networking']])
+def test_status_reports_the_coverage_of_the_last_run(capsys, tmp_path, limits):
+    store = tmp_path / 'audit.sqlite'
+    config = test_cli.write_config(tmp_path, GOOD)
+    metadata = tmp_path / 'meta.json'
+    metadata.write_text(json.dumps(meta(GOOD, complete=not limits, limits=limits)))
+    argv = test_cli.run_args(config, as_json=True, store=store, platform='fortiadc', device='adc-example')
+    code, _out, _err = test_cli.invoke(capsys, argv + ['--snapshot-meta', str(metadata)])
+    assert code == (cli.EXIT_INCOMPLETE if limits else cli.EXIT_OK)
+    code, out, _err = test_cli.invoke(capsys, test_cli.status_args(store, device='adc-example', as_json=True))
+    report = json.loads(out)
+    # status keeps the conservative reading: any gap, inherent or not, is "incomplete".
+    assert code == cli.EXIT_STALE and report['state'] == 'incomplete'
+    assert report['coverage']['complete'] is False
+    assert {gap['rule_id'] for gap in report['coverage']['inherent_gaps']} == {FACTORY}
+    assert bool(report['coverage']['actionable_gaps']) is bool(limits)
+
+
+def test_status_of_a_device_without_a_run_has_no_coverage(capsys, tmp_path):
+    store = tmp_path / 'audit.sqlite'
+    test_cli.seed_run(store, test_cli.moment(1), device='other')
+    code, out, _err = test_cli.invoke(capsys, test_cli.status_args(store, device='adc-example', as_json=True))
+    assert json.loads(out)['coverage'] is None
+
+
+@pytest.mark.parametrize("limits", [[], ["networking"]])
+def test_text_run_and_status_show_coverage(capsys, tmp_path, limits):
+    store = tmp_path / "audit.sqlite"
+    config = test_cli.write_config(tmp_path, GOOD)
+    metadata = tmp_path / "meta.json"
+    metadata.write_text(json.dumps(meta(GOOD, complete=not limits, limits=limits)))
+    argv = test_cli.run_args(config, store=store, platform="fortiadc", device="adc-example")
+    code, run, _ = test_cli.invoke(capsys, argv + ["--snapshot-meta", str(metadata)])
+    assert code == (cli.EXIT_INCOMPLETE if limits else cli.EXIT_OK)
+    code, status, _ = test_cli.invoke(capsys, test_cli.status_args(store, device="adc-example"))
+    assert code == cli.EXIT_STALE
+    for output in (run, status):
+        assert "coverage complete: false" in output
+        assert "coverage inherent_gaps: 1\n  %s: factory-provenance-unproven" % FACTORY in output
+        assert "coverage actionable_gaps: %d" % bool(limits) in output
+        if limits:
+            assert "  %s: visibility:networking" % PLAIN in output
+
+
+def test_text_status_without_run_shows_unavailable_coverage(capsys, tmp_path):
+    store = tmp_path / "audit.sqlite"
+    test_cli.seed_run(store, test_cli.moment(1), device="other")
+    _, output, _ = test_cli.invoke(capsys, test_cli.status_args(store, device="adc-example"))
+    assert "coverage: unavailable" in output

@@ -1,0 +1,8 @@
+                                                                        Address
+Interface       IP Address            Status     Protocol         MTU   Owner  
+--------------- --------------------- ---------- ------------ --------- -------
+Loopback0       203.0.113.254/32        up         up             65535          
+Management0     203.0.113.53/24     up         up              1500          
+Vlan10          192.0.2.3/24         up         up              1500          
+Vlan20          198.51.100.3/24         up         up              1500          
+

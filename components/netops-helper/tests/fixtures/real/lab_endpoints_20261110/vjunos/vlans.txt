@@ -1,0 +1,8 @@
+
+Routing instance        VLAN name             Tag          Interfaces
+default-switch          D10                   10       
+                                                           ge-0/0/0.0*
+default-switch          D20                   20       
+                                                           ge-0/0/0.0*
+default-switch          default               1        
+                                                            

@@ -1,0 +1,9 @@
+Legend:
+ not learned: Associated MAC address is not present in the MAC address table
+ -: Static (configuration or programmed by feature)
+Address         Age (sec)  Hardware Addr   Interface
+192.0.2.1         0:52:01  0000.5e00.5301  Vlan10, Ethernet1
+192.0.2.5         0:43:54  0000.5e00.5303  Vlan10, Ethernet3
+192.0.2.7       4710:02:12  0000.5e00.5304  Vlan10, Ethernet5
+198.51.100.5      0:40:58  0000.5e00.5303  Vlan20, not learned
+203.0.113.1       0:00:00  0000.5e00.5305  Management0

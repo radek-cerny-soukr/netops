@@ -1,5 +1,6 @@
 import os
 import stat
+import sys
 
 import pytest
 
@@ -41,9 +42,11 @@ def test_without_the_variable_the_program_is_written_into_the_workspace(tmp_path
     assert identity is None
     written = environment["SSH_ASKPASS"]
     assert os.path.dirname(written) == workspace
-    assert open(written, encoding="utf-8").read() == ASKPASS_SCRIPT
+    text = __import__('pathlib').Path(written).read_text(encoding="utf-8")
+    assert text.splitlines()[0] == "#!%s -I" % sys.executable
+    assert text.partition("\n")[2] == ASKPASS_SCRIPT.partition("\n")[2]
     assert stat.S_IMODE(os.stat(written).st_mode) == 0o700
-    assert open(environment["NETOPS_ASKPASS_FILE"], "rb").read() == b"%s\n" % PASSWORD.encode()
+    assert __import__('pathlib').Path(environment["NETOPS_ASKPASS_FILE"]).read_bytes() == b"%s\n" % PASSWORD.encode()
 
 
 def test_the_variable_names_the_program_and_nothing_is_written_beside_the_secret(
@@ -137,9 +140,111 @@ def test_the_packaged_program_answers_with_the_secret_file(tmp_path):
     import sys
 
     answer = subprocess.run(
-        [sys.executable, source],
+        [sys.executable, source, "Password: "],
         capture_output=True,
         env={"NETOPS_ASKPASS_FILE": str(secret), "PATH": os.environ.get("PATH", "/usr/bin:/bin")},
     )
     assert answer.returncode == 0
     assert answer.stdout == b"%s\n" % PASSWORD.encode()
+
+
+@pytest.mark.parametrize("packaged", [False, True], ids=["fallback", "packaged"])
+@pytest.mark.parametrize("prompt", [
+    "Password: ", "password:", "PASSWORD: ", "(netops-ro@switch) Password: ",
+    "netops-ro@switch's password: ",
+])
+def test_password_prompts_answer_once_per_connection(tmp_path, monkeypatch, packaged, prompt):
+    import subprocess
+    from netops_core import askpass
+
+    monkeypatch.delenv(ASKPASS_PROGRAM_ENV, raising=False)
+    if packaged:
+        monkeypatch.setenv(ASKPASS_PROGRAM_ENV, os.path.abspath(askpass.__file__))
+    workspace = _workspace(tmp_path)
+    _, environment = ssh_module._prepared(workspace, "password", FakeCredential())
+    program = environment["SSH_ASKPASS"]
+    first = subprocess.run([program, prompt], env=environment, capture_output=True)
+    assert first.returncode == 0
+    assert first.stdout == PASSWORD.encode() + b"\n"
+    assert first.stderr == b""
+    second = subprocess.run([program, prompt], env=environment, capture_output=True)
+    assert second.returncode != 0
+    assert second.stdout == b""
+    assert PASSWORD.encode() not in second.stderr
+    # A fresh connection has a fresh attempt, with the same credential.
+    other = tmp_path / "other"
+    other.mkdir(mode=0o700)
+    _, fresh = ssh_module._prepared(str(other), "password", FakeCredential())
+    assert subprocess.run([fresh["SSH_ASKPASS"], prompt], env=fresh, capture_output=True).stdout == first.stdout
+
+
+@pytest.mark.parametrize("packaged", [False, True], ids=["fallback", "packaged"])
+@pytest.mark.parametrize("prompts", [
+    [], ["OTP: "], ["Verification code: "], ["Passcode: "],
+    ["New password: "], ["passwordless: "], ["Token's password: "], ["Password: \nOTP: "],
+    ["Are you sure you want to continue connecting (yes/no/[fingerprint])? "],
+])
+def test_other_prompts_fail_without_disclosing_or_logging_password(tmp_path, monkeypatch, packaged, prompts):
+    import subprocess
+    from netops_core import askpass
+
+    monkeypatch.delenv(ASKPASS_PROGRAM_ENV, raising=False)
+    if packaged:
+        monkeypatch.setenv(ASKPASS_PROGRAM_ENV, os.path.abspath(askpass.__file__))
+    _, environment = ssh_module._prepared(_workspace(tmp_path), "password", FakeCredential())
+    program = environment["SSH_ASKPASS"]
+    rejected = subprocess.run([program, *prompts], env=environment, capture_output=True)
+    assert rejected.returncode != 0
+    assert rejected.stdout == b""
+    assert b"ssh_auth_method_unsupported" in rejected.stderr
+    assert PASSWORD.encode() not in rejected.stderr
+    assert b"yes" not in rejected.stdout
+    # A server cannot turn an unsupported exchange into a later password attempt.
+    retry = subprocess.run([program, "Password: "], env=environment, capture_output=True)
+    assert retry.returncode != 0
+    assert retry.stdout == b""
+
+
+@pytest.mark.parametrize("packaged", [False, True], ids=["fallback", "packaged"])
+def test_concurrent_password_prompts_disclose_only_once(tmp_path, monkeypatch, packaged):
+    import subprocess
+    from netops_core import askpass
+
+    monkeypatch.delenv(ASKPASS_PROGRAM_ENV, raising=False)
+    if packaged:
+        monkeypatch.setenv(ASKPASS_PROGRAM_ENV, os.path.abspath(askpass.__file__))
+    _, environment = ssh_module._prepared(_workspace(tmp_path), "password", FakeCredential())
+    children = [subprocess.Popen([environment["SSH_ASKPASS"], "Password: "],
+                env=environment, stdout=subprocess.PIPE, stderr=subprocess.PIPE) for _ in range(4)]
+    answers = [child.communicate(timeout=10) for child in children]
+    assert sum(child.returncode == 0 for child in children) == 1
+    assert sum(out == PASSWORD.encode() + b"\n" for out, err in answers) == 1
+    assert all(PASSWORD.encode() not in err for out, err in answers)
+
+
+@pytest.mark.parametrize("packaged", [False, True], ids=["fallback", "packaged"])
+def test_otp_after_an_accepted_password_is_unsupported_not_a_refusal(tmp_path, monkeypatch, packaged):
+    import subprocess
+    from netops_core import askpass
+
+    monkeypatch.delenv(ASKPASS_PROGRAM_ENV, raising=False)
+    if packaged:
+        monkeypatch.setenv(ASKPASS_PROGRAM_ENV, os.path.abspath(askpass.__file__))
+    _, environment = ssh_module._prepared(_workspace(tmp_path), "password", FakeCredential())
+    program = environment["SSH_ASKPASS"]
+    assert subprocess.run([program, "Password: "], env=environment, capture_output=True).returncode == 0
+    otp = subprocess.run([program, "(u@h) Verification code: "], env=environment, capture_output=True)
+    assert otp.returncode != 0 and otp.stdout == b""
+    assert b"ssh_auth_method_unsupported" in otp.stderr
+    again = subprocess.run([program, "Password: "], env=environment, capture_output=True)
+    assert b"already requested" in again.stderr and again.stdout == b""
+
+
+def test_temporary_askpass_runs_without_python_on_path(tmp_path, monkeypatch):
+    import subprocess
+
+    monkeypatch.delenv(ASKPASS_PROGRAM_ENV, raising=False)
+    _, environment = ssh_module._prepared(_workspace(tmp_path), "password", FakeCredential())
+    environment = dict(environment, PATH="/nonexistent")
+    answer = subprocess.run([environment["SSH_ASKPASS"], "Password: "], env=environment, capture_output=True)
+    assert answer.stdout == PASSWORD.encode() + b"\n"

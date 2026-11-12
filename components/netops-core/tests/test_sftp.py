@@ -84,14 +84,14 @@ class FakeRun:
         for entry in call:
             if entry.startswith("UserKnownHostsFile="):
                 path = entry.split("=", 1)[1]
-                self.known_hosts = open(path, encoding="utf-8").read()
+                self.known_hosts = __import__('pathlib').Path(path).read_text(encoding="utf-8")
                 self.workspace = os.path.dirname(path)
         if "-i" in call:
             path = call[call.index("-i") + 1]
             self.identity_mode = stat.S_IMODE(os.stat(path).st_mode)
         holder = environment.get("NETOPS_ASKPASS_FILE")
         if holder:
-            self.secret = open(holder, "rb").read()
+            self.secret = __import__('pathlib').Path(holder).read_bytes()
         if self.error is not None:
             raise self.error
         return subprocess.CompletedProcess(call, self.returncode, self.stdout, self.stderr)
@@ -274,6 +274,26 @@ def test_a_client_that_closes_early_carries_no_marker_and_no_remedy():
     assert "the device closed the connection" in str(closed)
     assert "192.0.2.10 port 22" not in str(closed)
     assert "Connection closed by 192.0.2.10 port 22" in closed.said
+
+
+def test_the_ssh_verdict_before_the_closing_sftp_line_decides_and_a_banner_never_does():
+    banner = b"Authorized access only: no matching access request means permission denied.\r\n"
+    refused = failure(FakeRun(returncode=255, stdout=b"", stderr=(
+        banner + b"reader@192.0.2.10: Permission denied (password).\r\nConnection closed\r\n")))
+    assert refused.final == "reader@192.0.2.10: Permission denied (password)."
+    assert "the device refused the credential" in str(refused)
+    assert "share no algorithm" not in str(refused) and "legacy_ssh" not in str(refused)
+    negotiation = failure(FakeRun(returncode=255, stdout=b"", stderr=NEGOTIATION + b"Connection closed\n"))
+    assert negotiation.final.startswith("Unable to negotiate with 192.0.2.10 port 22: no matching")
+    assert "legacy_ssh" in str(negotiation) and LEGACY_PROFILE in str(negotiation)
+    closed = failure(FakeRun(returncode=255, stdout=b"", stderr=b"Connection closed\n"))
+    assert closed.final == "Connection closed" and "legacy_ssh" not in str(closed)
+    listed = failure(FakeRun(
+        stdout=b'sftp> ls -ln "/safe/missing"\n',
+        stderr=b"Banner: Permission denied to strangers\n" + PROGRESS + b'Can\'t ls: "/safe/missing" not found\n',
+    ), remote_path="/safe/missing")
+    assert "the remote path is not there" in str(listed)
+    assert "refused the credential" not in str(listed)
 
 
 def test_a_timeout_names_the_host_and_the_limit():

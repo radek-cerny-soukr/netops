@@ -1,0 +1,81 @@
+
+Syslog logging: enabled (0 messages dropped, 0 messages rate-limited, 0 flushes, 0 overruns, xml disabled, filtering disabled)
+
+No Active Message Discriminator.
+
+
+
+No Inactive Message Discriminator.
+
+
+    Console logging: level debugging, 54 messages logged, xml disabled,
+                     filtering disabled
+    Monitor logging: level debugging, 0 messages logged, xml disabled,
+                     filtering disabled
+    Buffer logging:  level debugging, 54 messages logged, xml disabled,
+                    filtering disabled
+    Exception Logging: size (8192 bytes)
+    Count and timestamp logging messages: disabled
+    Persistent logging: disabled
+    Trap logging: level informational, 57 message lines logged
+        Logging Source-Interface:       VRF Name:
+
+Log Buffer (8192 bytes):
+
+*Mar  1 00:00:02.651: %ATA-6-DEV_FOUND: device 0x1F0
+*Mar  1 00:00:03.030: %NVRAM-5-CONFIG_NVRAM_READ_OK: NVRAM configuration 'flash:/nvram' was read from disk.
+*Nov  8 22:11:48.564: %SPANTREE-5-EXTENDED_SYSID: Extended SysId enabled for type vlan
+*Nov  8 22:11:54.877: %LINK-5-CHANGED: Interface GigabitEthernet0/0, changed state to reset
+*Nov  8 22:11:54.878: %LINK-5-CHANGED: Interface GigabitEthernet0/1, changed state to reset
+*Nov  8 22:11:54.878: %LINK-5-CHANGED: Interface GigabitEthernet0/2, changed state to reset
+*Nov  8 22:11:54.879: %LINK-5-CHANGED: Interface GigabitEthernet0/3, changed state to reset
+*Nov  8 22:11:55.790: %SYS-5-CONFIG_I: Configured from memory by console
+*Nov  8 22:11:55.962: %LINEPROTO-5-UPDOWN: Line protocol on Interface GigabitEthernet0/0, changed state to up
+*Nov  8 22:11:55.963: %LINEPROTO-5-UPDOWN: Line protocol on Interface GigabitEthernet0/1, changed state to down
+*Nov  8 22:11:55.964: %LINEPROTO-5-UPDOWN: Line protocol on Interface GigabitEthernet0/2, changed state to down
+*Nov  8 22:11:55.965: %LINEPROTO-5-UPDOWN: Line protocol on Interface GigabitEthernet0/3, changed state to up
+*Nov  8 22:11:56.346: %LINEPROTO-5-UPDOWN: Line protocol on Interface Vlan10, changed state to down
+*Nov  8 22:11:56.773: %LINEPROTO-5-UPDOWN: Line protocol on Interface Vlan20, changed state to down
+*Nov  8 22:11:56.774: %LINEPROTO-5-UPDOWN: Line protocol on Interface Vlan99, changed state to down
+*Nov  8 22:11:57.220: %LINK-3-UPDOWN: Interface GigabitEthernet0/3, changed state to down
+*Nov  8 22:11:57.221: %LINK-3-UPDOWN: Interface GigabitEthernet0/2, changed state to up
+*Nov  8 22:11:57.226: %LINK-3-UPDOWN: Interface GigabitEthernet0/1, changed state to up
+*Nov  8 22:11:57.229: %LINK-3-UPDOWN: Interface GigabitEthernet0/0, changed state to up
+*Nov  8 22:11:58.278: %LINEPROTO-5-UPDOWN: Line protocol on Interface GigabitEthernet0/3, changed state to down
+*Nov  8 22:11:58.279: %LINEPROTO-5-UPDOWN: Line protocol on Interface GigabitEthernet0/2, changed state to up
+*Nov  8 22:11:58.280: %LINEPROTO-5-UPDOWN: Line protocol on Interface GigabitEthernet0/1, changed state to up
+*Nov  8 22:12:04.813: %SYS-5-RESTART: System restarted --
+Cisco IOS Software, vios_l2 Software (vios_l2-ADVENTERPRISEK9-M), Experimental Version 15.2(20200924:215240) [sweickge-sep24-2020-l2iol-release 135]
+Copyright (c) 1986-2020 by Cisco Systems, Inc.
+Compiled Tue 29-Sep-20 11:53 by sweickge
+*Nov  8 22:12:04.885: %PNP-6-PNP_DISCOVERY_STOPPED: PnP Discovery stopped (Startup Config Present)
+*Nov  8 22:12:04.894: %SSH-5-ENABLED: SSH 2.0 has been enabled
+*Nov  8 22:12:06.903: %LINK-3-UPDOWN: Interface Vlan99, changed state to up
+*Nov  8 22:12:08.117: %LINEPROTO-5-UPDOWN: Line protocol on Interface Vlan99, changed state to up
+*Nov  8 22:12:37.227: %LINK-3-UPDOWN: Interface Vlan10, changed state to up
+*Nov  8 22:12:37.229: %LINK-3-UPDOWN: Interface Vlan20, changed state to up
+*Nov  8 22:12:38.285: %LINEPROTO-5-UPDOWN: Line protocol on Interface Vlan10, changed state to up
+*Nov  8 22:12:38.286: %LINEPROTO-5-UPDOWN: Line protocol on Interface Vlan20, changed state to up
+*Nov  8 22:13:19.235: %PLATFORM-5-SIGNATURE_VERIFIED: Image 'flash0:/vios_l2-adventerprisek9-m' passed code signing verification
+*Nov  8 22:37:03.787: %SSH-3-NO_MATCH: No matching kex algorithm found: client sntrup761x25519-sha512,sntrup761x25519-sha512@openssh.com,curve25519-sha256,curve25519-sha256@libssh.org,ecdh-sha2-nistp256,ecdh-sha2-nistp384,ecdh-sha2-nistp521,diffie-hellman-group-exchange-sha256,diffie-hellman-group16-sha512,diffie-hellman-group18-sha512,diffie-hellman-group14-sha256 server diffie-hellman-group-exchange-sha1,diffie-hellman-group14-sha1,diffie-hellman-group1-sha1
+*Nov  8 22:37:03.813: %SSH-3-NO_MATCH: No matching kex algorithm found: client sntrup761x25519-sha512,sntrup761x25519-sha512@openssh.com,curve25519-sha256,curve25519-sha256@libssh.org,ecdh-sha2-nistp256,ecdh-sha2-nistp384,ecdh-sha2-nistp521,diffie-hellman-group-exchange-sha256,diffie-hellman-group16-sha512,diffie-hellman-group18-sha512,diffie-hellman-group14-sha256 server diffie-hellman-group-exchange-sha1,diffie-hellman-group14-sha1,diffie-hellman-group1-sha1
+*Nov  8 22:37:03.820: %SSH-3-NO_MATCH: No matching kex algorithm found: client sntrup761x25519-sha512,sntrup761x25519-sha512@openssh.com,curve25519-sha256,curve25519-sha256@libssh.org,ecdh-sha2-nistp256,ecdh-sha2-nistp384,ecdh-sha2-nistp521,diffie-hellman-group-exchange-sha256,diffie-hellman-group16-sha512,diffie-hellman-group18-sha512,diffie-hellman-group14-sha256 server diffie-hellman-group-exchange-sha1,diffie-hellman-group14-sha1,diffie-hellman-group1-sha1
+*Nov  8 22:37:03.840: %SSH-3-NO_MATCH: No matching kex algorithm found: client sntrup761x25519-sha512,sntrup761x25519-sha512@openssh.com,curve25519-sha256,curve25519-sha256@libssh.org,ecdh-sha2-nistp256,ecdh-sha2-nistp384,ecdh-sha2-nistp521,diffie-hellman-group-exchange-sha256,diffie-hellman-group16-sha512,diffie-hellman-group18-sha512,diffie-hellman-group14-sha256 server diffie-hellman-group-exchange-sha1,diffie-hellman-group14-sha1,diffie-hellman-group1-sha1
+*Nov  8 22:37:03.864: %SSH-3-NO_MATCH: No matching kex algorithm found: client sntrup761x25519-sha512,sntrup761x25519-sha512@openssh.com,curve25519-sha256,curve25519-sha256@libssh.org,ecdh-sha2-nistp256,ecdh-sha2-nistp384,ecdh-sha2-nistp521,diffie-hellman-group-exchange-sha256,diffie-hellman-group16-sha512,diffie-hellman-group18-sha512,diffie-hellman-group14-sha256 server diffie-hellman-group-exchange-sha1,diffie-hellman-group14-sha1,diffie-hellman-group1-sha1
+*Nov  8 22:37:30.998: %SSH-4-SSH2_UNEXPECTED_MSG: Unexpected message type has arrived. Terminating the connection from 198.51.100.36
+*Nov  8 22:57:00.255: %SYS-5-CONFIG_I: Configured from console by console
+*Nov  8 22:57:03.493: %GRUB-5-CONFIG_WRITING: GRUB configuration is being updated on disk. Please wait...
+*Nov  8 22:57:04.319: %GRUB-5-CONFIG_WRITTEN: GRUB configuration was written to disk successfully.
+*Nov  8 22:57:09.005: %LINK-3-UPDOWN: Interface GigabitEthernet0/3, changed state to up
+*Nov  8 22:57:10.005: %LINEPROTO-5-UPDOWN: Line protocol on Interface GigabitEthernet0/3, changed state to up
+*Nov  8 22:58:21.721: %SYS-5-CONFIG_I: Configured from console by netops-admin on vty0 (198.51.100.36)
+*Nov  8 22:58:23.684: %LINK-3-UPDOWN: Interface Port-channel1, changed state to up
+*Nov  8 22:58:24.684: %LINEPROTO-5-UPDOWN: Line protocol on Interface Port-channel1, changed state to up
+*Nov  8 22:59:27.007: %LINEPROTO-5-UPDOWN: Line protocol on Interface GigabitEthernet0/3, changed state to down
+*Nov  8 22:59:27.833: %SYS-5-CONFIG_I: Configured from console by console
+*Nov  8 22:59:28.011: %LINK-3-UPDOWN: Interface GigabitEthernet0/3, changed state to down
+*Nov  8 22:59:29.119: %LINK-3-UPDOWN: Interface Port-channel1, changed state to down
+*Nov  8 22:59:30.138: %LINEPROTO-5-UPDOWN: Line protocol on Interface Port-channel1, changed state to down
+*Nov  8 22:59:30.921: %GRUB-5-CONFIG_WRITING: GRUB configuration is being updated on disk. Please wait...
+*Nov  8 22:59:31.703: %GRUB-5-CONFIG_WRITTEN: GRUB configuration was written to disk successfully.
+*Nov  8 23:03:06.974: %SYS-5-CONFIG_I: Configured from console by netops-admin on vty0 (198.51.100.36)

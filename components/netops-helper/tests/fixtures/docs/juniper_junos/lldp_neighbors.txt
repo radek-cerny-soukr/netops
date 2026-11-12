@@ -1,0 +1,3 @@
+Local Interface    Parent Interface    Chassis Id          Port info          System Name
+ge-0/0/1           -                   00:00:5e:00:53:82   ge-0/0/10          core switch
+ge-0/0/2           ae0                 00:00:5e:00:53:83   Gi0/1              phone-1

@@ -1,0 +1,19 @@
+
+                 Flags                                                         
+----------------------- ----------------------------- -------------------------
+ a - LACP Active         p - LACP Passive             * - static fallback      
+ F - Fallback enabled    f - Fallback configured      ^ - individual fallback  
+ U - In Use              D - Down                                              
+ + - In-Sync             - - Out-of-Sync              i - incompatible with agg
+ P - bundled in Po       s - suspended                G - Aggregable           
+ I - Individual          S - ShortTimeout             w - wait for agg         
+ C - Transmit disabled   M - Exceeds maximum weight                            
+  E - Inactive. The number of configured port channels exceeds the config limit
+
+Number of channels in use: 1
+Number of aggregators: 1
+
+   Port-Channel       Protocol    Ports  
+------------------ -------------- -------
+   Po1(U)             Static      Et6(P) 
+

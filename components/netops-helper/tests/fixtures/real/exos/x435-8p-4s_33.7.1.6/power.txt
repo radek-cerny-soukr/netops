@@ -1,0 +1,3 @@
+
+PowerSupply 1 information:
+ State             : Powered On

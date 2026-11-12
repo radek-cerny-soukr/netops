@@ -1,0 +1,3 @@
+
+> show poe interface Ethernet1
+% Invalid input at line 1

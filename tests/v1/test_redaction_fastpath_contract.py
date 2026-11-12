@@ -95,7 +95,7 @@ class RedactionFastpathContract(unittest.TestCase):
         source = ["a-----BEGIN PRIVATE KEY-----hidden-----END PRIVATE KEY-----z",
                   "set password hidden\nplain", {"note": "secret=hidden; token=hidden"}]
         self.assertEqual(redact(source),
-                         (["a[REDACTED]z", "[REDACTED]\nplain",
+                         (["a[REDACTED]z", "set password [REDACTED]\nplain",
                            {"note": "[REDACTED]; [REDACTED]"}],
                           [["0"], ["1"], ["2", "note"]]))
 

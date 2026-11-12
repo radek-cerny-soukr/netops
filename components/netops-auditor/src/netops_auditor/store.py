@@ -568,6 +568,18 @@ class Store:
         ).fetchone()
         return None if row is None else dict(row)
 
+    def run_for_device(self, tenant, device, run_id):
+        if not isinstance(run_id, (int, float)):
+            return None
+        try:
+            row = self._connection.execute(
+                "SELECT %s FROM runs WHERE id = ? AND tenant = ? AND device = ?" % RUN_COLUMNS,
+                (run_id, tenant, device),
+            ).fetchone()
+        except OverflowError:
+            return None
+        return None if row is None else dict(row)
+
     def runs_for_device(self, tenant, device) -> tuple:
         rows = self._connection.execute(
             "SELECT %s FROM runs WHERE tenant = ? AND device = ? ORDER BY id DESC" % RUN_COLUMNS,

@@ -23,7 +23,7 @@ The exact machine-checked commands, typed slots, volume labels, descriptions, an
 
 Source review establishes documented syntax and helps reject unsafe, secret-bearing, mutating, or unbounded command families. It does not prove that a particular hardware model, software image, feature license, local RBAC role, or TACACS+/RADIUS policy accepts a command. It also does not prove what an SSH driver transmits during login, paging setup, command execution, or cleanup.
 
-EXOS show sharing is excluded on both VM and physical platforms; historical measurements do not establish current support. See [the measured restriction](vendor-cli-references/extreme-switch-engine.md#unsupported-show-sharing).
+EXOS `lag_summary` reads `show sharing` under the documented EXOS exit-status-250 rule; the legacy query name `sharing` stays excluded. See [load sharing](vendor-cli-references/extreme-switch-engine.md#load-sharing-lag_summary).
 
 ## Updating an audit
 

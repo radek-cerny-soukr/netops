@@ -32,7 +32,7 @@ class ConfigureGuidanceBoundary(unittest.TestCase):
             state = Path(temporary)
             (state / "gateway").mkdir(mode=0o700)
             (state / role).mkdir(mode=0o700, exist_ok=True)
-            settings = {"version": 1, "product_version": "1.0.6", "audit": {"mode": "local"}}
+            settings = {"version": 1, "product_version": "1.0.7", "audit": {"mode": "local"}}
             write_private(state / "gateway/config.json", json.dumps(settings).encode())
             before = {str(p.relative_to(state)): p.read_bytes() for p in state.rglob("*") if p.is_file()}
             errors, output = io.StringIO(), io.StringIO()
@@ -106,7 +106,69 @@ class ConfigureGuidanceBoundary(unittest.TestCase):
         entry = document["inventory"]["devices"][0]
         entry["helper"], entry["auditor"] = {}, None
         payload = {"inventory": document["inventory"], "vault": document["vault"]}
-        self.assert_message("helper", payload, "Invalid Helper inventory. Each helper section requires account_role, ssh_platform, enabled_queries and egress; check field types, target scope and credential references in docs/helper-configuration.md")
+        self.assert_message("helper", payload, "Invalid Helper inventory: inventory.devices[0]: helper.account_role, helper.ssh_platform, helper.enabled_queries, helper.egress are missing; compare it with docs/helper-configuration.md (values are not repeated)")
+
+    def helper_payload(self, **changes):
+        document = self.auditor()
+        egress = {"addresses": ["192.0.2.1"], "tcp_ports": [22], "udp_ports": [], "tcp_port_ranges": [],
+                  "udp_port_ranges": [], "allow_icmp": False, "allow_dns": False, "tls_server_names": []}
+        valid = {"name": "second-device", **{k: v for k, v in document["inventory"]["devices"][0].items() if k != "name"},
+                 "auditor": None, "helper": {"account_role": "read-only", "ssh_platform": "fortios",
+                                             "enabled_queries": ["system_status"], "egress": egress}}
+        refused = json.loads(json.dumps(valid))
+        refused["name"] = "x440-lab"
+        device_changes = changes.pop("device", {})
+        refused.update(device_changes)
+        refused["helper"].update(changes)
+        return {"inventory": {"version": 2, "devices": [valid, refused]}, "vault": document["vault"]}
+
+    def test_a_refused_helper_field_names_the_target_and_the_field_but_not_the_value(self):
+        # Live 1.0.7 check: rate_limit.requests 120 in one of 13 devices gave no hint which device and field.
+        prefix = "Invalid Helper inventory: inventory.devices[1]: "
+        suffix = "; compare it with docs/helper-configuration.md (values are not repeated)"
+        cases = [
+            ({"rate_limit": {"requests": 120, "window_seconds": 60}}, "helper.rate_limit is invalid"),
+            ({"rate_limit": {"requests": CANARY, "window_seconds": 60}}, "helper.rate_limit is invalid"),
+            ({"account_role": CANARY}, "helper.account_role is invalid"),
+            ({"ssh_platform": CANARY}, "helper.ssh_platform is invalid"),
+            ({"enabled_queries": [CANARY.lower()]}, "helper.enabled_queries is invalid"),
+            ({"egress": {"addresses": [CANARY]}}, "helper.egress is invalid"),
+            ({"sftp_roots": [CANARY]}, "helper.sftp_roots is invalid"),
+            ({"read_inventory": {"addresses": [CANARY]}}, "helper.read_inventory is invalid"),
+            ({"fortios_output_standard_verified": CANARY}, "helper.fortios_output_standard_verified is invalid"),
+            ({"snmp_credential": CANARY}, "helper.snmp_credential is invalid"),
+            ({"fortios_rest_port": CANARY}, "helper.fortios_rest_port is invalid"),
+            ({"fortios_rest_port": 0}, "helper.fortios_rest_port is invalid"),
+            ({"fortios_rest_port": 65536}, "helper.fortios_rest_port is invalid"),
+            ({"fortios_rest_port": True}, "helper.fortios_rest_port is invalid"),
+            ({"fortios_rest_credential": CANARY}, "helper.fortios_rest_credential is invalid"),
+            ({"fortios_rest_certificate_sha256": CANARY}, "helper.fortios_rest_certificate_sha256 is invalid"),
+            ({CANARY.lower(): 1}, "helper contains unknown fields; only documented fields are accepted"),
+            ({"device": {"credential": CANARY}}, "credential is invalid"),
+            ({"device": {"address": "192.0.2.99"}}, "address is invalid"),
+        ]
+        for changes, problem in cases:
+            with self.subTest(problem=problem, changes=sorted(changes)):
+                message = self.invoke("helper", self.helper_payload(**changes))
+                self.assertEqual(message, "netops: " + prefix + problem + suffix + SUFFIX)
+                self.assertNotIn(CANARY.lower(), message.lower())
+                self.assertNotIn("120", message)
+                self.assertNotIn("x440-lab", message)
+
+    def test_rest_port_outside_egress_refuses_configuration_without_changing_state(self):
+        payload = self.helper_payload(fortios_rest_port=8443,
+                                      fortios_rest_credential="api-ro",
+                                      fortios_rest_certificate_sha256="a" * 64)
+        payload["vault"]["credentials"]["api-ro"] = {
+            "kind": "api-token", "login": None, "value": "synthetic-rest-token-canary"}
+        self.assert_message("helper", payload,
+            "Invalid Helper inventory: inventory.devices[1]: helper.fortios_rest_port is invalid"
+            "; compare it with docs/helper-configuration.md (values are not repeated)")
+
+    def test_a_device_name_is_not_repeated_because_it_may_be_a_misplaced_secret(self):
+        payload = self.helper_payload(rate_limit={"requests": 0, "window_seconds": 60})
+        payload["inventory"]["devices"][1]["name"] = CANARY.lower()
+        self.assert_message("helper", payload, "Invalid Helper inventory: inventory.devices[1]: helper.rate_limit is invalid; compare it with docs/helper-configuration.md (values are not repeated)")
 
     def test_admin_notification_refusals_keep_fixed_guidance(self):
         messages = [
@@ -130,7 +192,7 @@ class ConfigureGuidanceBoundary(unittest.TestCase):
         uid = os.geteuid()
         with tempfile.TemporaryDirectory() as temporary:
             state = Path(temporary); (state / "gateway").mkdir(mode=0o700)
-            write_private(state / "gateway/config.json", json.dumps({"version": 1, "product_version": "1.0.6"}).encode())
+            write_private(state / "gateway/config.json", json.dumps({"version": 1, "product_version": "1.0.7"}).encode())
             lock = os.open(state / "gateway/instance.lock", os.O_RDWR | os.O_CREAT, 0o600)
             try:
                 fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)

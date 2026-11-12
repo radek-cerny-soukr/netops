@@ -1,0 +1,4 @@
+                                                                    CLI 
+    #       Login Time               User     Type    Auth          Auth Location
+=======================================================================================
+*347        Sun Nov  8 22:50:29 2026 user01   ssh2    sshKey        dis  192.0.2.36     

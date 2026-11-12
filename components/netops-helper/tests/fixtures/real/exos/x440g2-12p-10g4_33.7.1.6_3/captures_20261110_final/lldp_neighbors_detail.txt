@@ -1,0 +1,68 @@
+
+-----------------------------------------------------------------------------
+LLDP Port 1 detected 1 neighbor
+  Neighbor: 00:00:5E:00:53:2F/LAN1, age 14 seconds
+    - Chassis ID type: MAC address (4)
+      Chassis ID     : 00:00:5E:00:53:2F
+    - Port ID type: ifAlias (1)
+      Port ID     : "LAN1"
+    - Time To Live: 120 seconds
+    - Port Description: "LAN 192.0.2.0/24"
+    - System Name: "host06"
+    - System Description: "host06        v8.0.2,build0251,260928 (GA.F)"
+    - System Capabilities : "Bridge, Router"
+      Enabled Capabilities: "Router"
+    - Management Address Subtype: IPv4 (1)
+      Management Address        : 192.0.2.1
+      Interface Number Subtype  : ifIndex (2)
+      Interface Number          : 3
+      Object ID String          : "null"
+    - MED Capabilities: "MED Capabilities, Network Policy, Inventory"
+      MED Device Type : Network Connectivity (4)
+    - MED Software Revision: "host06        v8.0.2,build0251,2"
+    - MED Manufacturer Name: "Fortinet"
+    - MED Model Name: "FGT_80F"
+    - IEEE802.1 VLAN Name: "GUEST", VLAN ID: 30
+    - IEEE802.1 VLAN Name: "IoT", VLAN ID: 20
+    - IEEE802.1 VLAN Name: "KAMERY", VLAN ID: 40
+    - IEEE802.1 VLAN Name: "LAB", VLAN ID: 50
+
+-----------------------------------------------------------------------------
+LLDP Port 3 detected 1 neighbor
+  Neighbor: 00:00:5E:00:53:16/1, age 9 seconds
+    - Chassis ID type: MAC address (4)
+      Chassis ID     : 00:00:5E:00:53:16
+    - Port ID type: ifName (5)
+      Port ID     : "1"
+    - Time To Live: 120 seconds
+    - System Name: "host07"
+    - System Description: "ExtremeXOS (host05) version 33.7.1.6 33.\
+                           7.1.6-patch1-11 by release-manager on Tue Jul 28 \
+                           12:53:09 PM EDT 2026"
+
+-----------------------------------------------------------------------------
+LLDP Port 13 detected 1 neighbor
+  Neighbor: 00:00:5E:00:53:2E/13, age 21 seconds
+    - Chassis ID type: MAC address (4)
+      Chassis ID     : 00:00:5E:00:53:2E
+    - Port ID type: ifName (5)
+      Port ID     : "13"
+    - Time To Live: 120 seconds
+    - System Name: "host05"
+    - System Description: "ExtremeXOS (host05) version 33.7.1.6 33.\
+                           7.1.6-patch1-11 by release-manager on Tue Jul 28 \
+                           12:53:09 PM EDT 2026"
+
+-----------------------------------------------------------------------------
+LLDP Port 15 detected 1 neighbor
+  Neighbor: 00:00:5E:00:53:2E/15, age 19 seconds
+    - Chassis ID type: MAC address (4)
+      Chassis ID     : 00:00:5E:00:53:2E
+    - Port ID type: ifName (5)
+      Port ID     : "15"
+    - Time To Live: 120 seconds
+    - System Name: "host05"
+    - System Description: "ExtremeXOS (host05) version 33.7.1.6 33.\
+                           7.1.6-patch1-11 by release-manager on Tue Jul 28 \
+                           12:53:09 PM EDT 2026"
+

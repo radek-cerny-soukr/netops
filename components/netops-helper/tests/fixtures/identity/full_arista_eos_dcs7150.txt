@@ -1,0 +1,13 @@
+Arista DCS-7150S-64-CL-F
+Hardware version:    01.01
+Serial number:       LAB00000013
+System MAC address:  0000.5e00.5301
+
+Software image version: 4.13.2F
+Architecture:           i386
+Internal build version: 4.13.2F-1649184.4132F.2
+Internal build ID:      eeb3c212-b4bd-4c19-ba34-1b0aa36e43f1
+
+Uptime:                 16 hours and 39 minutes
+Total memory:           4017088 kB
+Free memory:            1348228 kB

@@ -5,7 +5,7 @@ import sys
 from pathlib import Path
 from contextlib import contextmanager
 from itertools import zip_longest
-from .config_buffers import Content, ContentBuilder, HiddenRecords, ChangedRecords, ContentLimitError
+from .config_buffers import CHUNK, Content, ContentBuilder, HiddenRecords, ChangedRecords, ContentLimitError
 import hashlib
 import json
 import hmac
@@ -96,6 +96,17 @@ class FullConfigPolicy:
         return found is not None and found.group(1) in self.header_keys
 
 
+_SNMP_COMMUNITY_PATHS = frozenset((('system snmp community',),
+    ('switch-controller snmp-community',), ('switch-controller managed-switch', 'snmp-community'),
+    ('wireless-controller snmp', 'community')))
+
+def _snmp_credential(context, field):
+    if context[:1] in (('global',), ('vdom',)):
+        context = context[1:]
+    return ((field == 'name' and context in _SNMP_COMMUNITY_PATHS) or
+            (field == 'community' and context == ('system health-check',)))
+
+
 _PRIVATE_PEM = re.compile(r'-----BEGIN (?:[A-Z0-9]+ )*PRIVATE KEY(?: BLOCK)?-----')
 _CREDENTIAL_HASH = re.compile(r'^\$(?:[0-9]|apr1|2[aby])\$')
 _HTTP_TOKEN = r"[!#$%&'*+.^_`|~0-9A-Za-z-]+"
@@ -111,6 +122,29 @@ def _public_value(values, forbidden):
     return (bool(values) and not (len(values) > 1 and values[0] == 'ENC') and
             all(not _PRIVATE_PEM.search(value) and not _CREDENTIAL_HASH.match(value) and
                 not any(secret and secret in value for secret in forbidden) for value in values))
+
+def response_content(content, secrets):
+    """The whole helper → proxy → worker chain, before and after terminal cleanup.
+
+    content_sha256, total_bytes and the pages describe this text, so the same layers find nothing to
+    change on a page; the worker still withholds a page that they change (page_changed_by_redaction).
+    """
+    if not isinstance(content, Content):
+        raise ValueError('redaction could not be verified; output withheld')
+    _budget(content.memory_bytes + 8*content.total)
+    from .sanitize import redact_response
+    secrets = tuple(secrets)
+    original = content.page(0, content.total)[0]
+    text = redact_response(original, secrets)
+    if text == original:
+        return content
+    out = ContentBuilder(_BYTE_BUDGET, secrets, serialized_markers=False)
+    try:
+        for start in range(0, len(text), CHUNK):
+            out.add(text[start:start + CHUNK])
+        return out.finish()
+    finally:
+        out.close()
 
 def _quoted_value(value):
     return value if re.fullmatch(r'[A-Za-z0-9_./:@%+*-]+', value) else json.dumps(value, ensure_ascii=True)
@@ -645,7 +679,7 @@ class StreamRedactor:
             return
         self.started = True
         try:
-            ordinary_set = re.fullmatch(r'[ \t]*set[ \t]+([a-z][a-z0-9-]*)[ \t]+(.+)', line, re.S)
+            ordinary_set = re.fullmatch(r'[ \t]*set[ \t]+([A-Za-z0-9][A-Za-z0-9_+().-]*)[ \t]+(.+)', line, re.S)
             if self.policy is None and ordinary_set and ordinary_set.group(1) != 'status' and ordinary_set.group(2).strip():
                 words = ['set', ordinary_set.group(1), '<private-value>']
             else:
@@ -653,7 +687,7 @@ class StreamRedactor:
         except ValueError:
             raise ValueError('redaction could not be verified; output withheld') from None
         command = words[0]
-        grammar = self.policy.grammar if self.policy else '[a-z][a-z0-9-]*'
+        grammar = self.policy.grammar if self.policy else r'[A-Za-z0-9][A-Za-z0-9_+().-]*'
         context = tuple(part[7:].decode() for part in path if part.startswith(b'config\0'))
         clean, withheld = None, False
         if command in ('config', 'edit', 'next', 'end'):
@@ -723,7 +757,9 @@ class StreamRedactor:
             if command == 'unset' and len(words) == 2:
                 clean = 'unset ' + words[1]
             elif command == 'set' and len(words) >= 3:
-                if self.policy is None and words[1] == 'status' and len(words) == 3 and words[2] in ('up', 'down'):
+                if _snmp_credential(context, words[1]):
+                    clean, withheld = 'set ' + words[1] + ' ' + self._credential(), True
+                elif self.policy is None and words[1] == 'status' and len(words) == 3 and words[2] in ('up', 'down'):
                     clean = 'set status ' + words[2]
                 else:
                     clean = 'set ' + words[1] + ' <REDACTED>'
@@ -916,7 +952,7 @@ def compare(auth, base, other, *, platform='fortios', with_metadata=False):
             _budget(out.memory_bytes + changed.memory_bytes)
     elif order_changed:
         out.add('record order changed\n')
-    value = out.finish(), changed, equal and not len(changed) and not order_changed
+    value = response_content(out.finish(), auth.secrets), changed, equal and not len(changed) and not order_changed
     _budget(value[0].memory_bytes + changed.memory_bytes)
     with _LOCK:
         _DIFFS[base,other] = value
@@ -993,15 +1029,26 @@ def get_full_snapshot(auth, identity, section, *, platform, include_defaults):
     return value
 
 def payload(text, offset=0, limit=48000):
+    """One page; a page that is not the last ends after its last line feed, if it has one.
+
+    Response redaction judges whole lines, so a page cut inside a line could be rewritten after its
+    hash was computed; whole-line pages keep content_sha256 and the sizes true for the joined pages.
+    """
     page_arguments(offset, limit)
     if isinstance(text, Content):
         page, end = text.page(offset, limit)
         total, sha = text.total, text.sha256
+        cut = page.rfind('\n') if end < total else -1
+        if cut >= 0:
+            page, end = page[:cut + 1], offset + cut + 1
     else:
         data = text.encode()
         if offset > len(data):
             raise ValueError('configuration page offset is beyond completed content')
         end = min(len(data), offset + limit)
+        cut = data.rfind(b'\n', offset, end) if end < len(data) else -1
+        if cut >= 0:
+            end = cut + 1
         page = data[offset:end].decode('utf-8')
         total, sha = len(data), hashlib.sha256(data).hexdigest()
     return {'untrusted_device_output': page, 'content_sha256': sha,
@@ -1025,7 +1072,7 @@ def filter_digest(snapshot_id, contains, context):
     return hmac.digest(_KEY, value, 'sha256').hex()
 
 
-def filtered_content(text, contains, context, serialized_markers=True):
+def filtered_content(text, contains, context, serialized_markers=True, secrets=()):
     filter_arguments(contains, context)
     if contains is None:
         return text, 0, None
@@ -1054,12 +1101,12 @@ def filtered_content(text, contains, context, serialized_markers=True):
                 _budget(out.memory_bytes + len(line) * (context + 1))
                 checked = out.memory_bytes
         _budget(out.memory_bytes)
-        return out.finish(), total, matched
+        return response_content(out.finish(), secrets), total, matched
     finally:
         out.close()
 
 
-def filtered_snapshot(lookup, identity, contains, context, offset):
+def filtered_snapshot(lookup, identity, contains, context, offset, secrets=()):
     with _LOCK:
         snapshot = lookup()
         if contains is None:
@@ -1072,7 +1119,7 @@ def filtered_snapshot(lookup, identity, contains, context, offset):
         baseline = replace(snapshot, filtered=None)
         _SNAPSHOTS[identity] = baseline
     snapshot = None
-    text, total, matched = filtered_content(baseline.text, contains, context, baseline.profile == PROFILE)
+    text, total, matched = filtered_content(baseline.text, contains, context, baseline.profile == PROFILE, secrets)
     with _LOCK:
         if _SNAPSHOTS.get(identity) is not baseline or time.monotonic() - baseline.created > _TTL:
             raise ValueError('configuration snapshot not found or expired')

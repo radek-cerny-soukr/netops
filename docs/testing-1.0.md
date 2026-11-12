@@ -102,6 +102,14 @@ The shared-product source gate checks tracked files from the sealed clean candid
 
 The mixed historical repository gate is preserved byte for byte, with an individual disposition for every original test, in [the root-gate archive](archive/0.x/root-release-gate/INDEX.json). Its live privacy edge cases run in the current source-gate test module. Its three independent except/else coverage controls remain in tests/test_release_gate.py. They require the hash-locked pytest and coverage tools in the separate QA environment, NETOPS_REQUIRE_RUNTIME_TESTS=1 and NETOPS_EXCEPT_COVERAGE=1. Missing prerequisites are errors. Before a release, run those controls and measure all four engines against the recorded module and component floors. Keep the raw component logs and JSON using scripts/except_branch_coverage.py --log-dir and --json; do not lower floors or use report-only to accept a release. These controls are maintainer QA outside the release test layers; they are not a signing requirement.
 
+The component measurement runs each engine suite under coverage with subprocess measurement. The data files of all test processes and the pytest temporary directories are written below `/tmp` and combined there, so the 512 MiB `/tmp` of the engine regression command is not enough: the measurement then fails with `sqlite3.OperationalError: database or disk is full`. Run the three controls from the engine regression image with an exec tmpfs of 8 GiB as `/tmp`. Pages written to a tmpfs count against the memory limit of the container, so the limit must exceed the tmpfs size:
+
+```sh
+docker run --rm --network none --read-only --cap-drop ALL --security-opt no-new-privileges --memory 10g --tmpfs /tmp:rw,nosuid,nodev,exec,size=8g,mode=1777 -e NETOPS_EXCEPT_COVERAGE=1 -w /repo --entrypoint /testenv/bin/python netops-engine-tests -B -m pytest -p no:cacheprovider tests/test_release_gate.py
+```
+
+Without a CPU limit the three controls take about 11 minutes on an amd64 workstation; limited to two CPUs (`--cpus 2`) they did not finish within 15 minutes.
+
 One product packages the root MIT LICENSE. The component source copies are checked during release review; no automated duplicate-copy mutation gate is claimed. Current workflow action references are reviewed for immutable SHA pins. Automated future-unpin mutations, a source Markdown link resolver and the historical parent-alias case remain follow-up QA work. The current source privacy gate does not resolve Markdown links or anchors. Release review checks the actual installation instructions and changed relative links and anchors; this is not a claim that every historical documentation resolver test is active.
 
 ## Source checkout problems
@@ -128,3 +136,7 @@ stat -c %a release/acceptance/process_profile_recipients.txt
 ```
 
 The first `stat` prints `664` in such a checkout, the second `644`. Alternatively make the checkout under `umask 022`. The source tests of the seal copy the file into a private test directory, so they pass under either umask.
+
+### Release tooling tests outside GitHub Actions
+
+The candidate workflow runs `release/tests` and `release/acceptance/tests` on the `ubuntu-24.04` runner with Python 3.14.10 and the locked SBOM validation tooling from `release/requirements-sbom.lock`. `release/tests/test_workflow_calls.py` executes the run block of the workflow step "Test the release and acceptance tooling" in `candidate.yml` unchanged, so it needs what the runner provides to that block: Bash, `xargs -P`, `nproc` and GNU sed, whose `-u` option passes every prefixed output line on as it arrives. The workflow itself only runs on that runner and is not changed for other hosts. BusyBox sed, the default `sed` on Alpine, has no `-u`; there the pipeline subtests fail with the usage message of sed. On Alpine install GNU sed first (`apk add sed`). `release/tests/test_compose_config.py` needs the Docker Compose CLI plugin (`docker compose version`), not a Docker daemon. Test shims that wrap a system command, such as the `mktemp` shim of `release/acceptance/tests/test_nonroot_operator.py`, call the command found on `PATH` and do not assume its location.

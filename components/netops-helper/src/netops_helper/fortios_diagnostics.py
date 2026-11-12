@@ -20,6 +20,8 @@ TUPLE_IDENTITIES = frozenset({
     ("FortiGate-80F", "8.0.2", "0251"),
 })
 RANGE_TUPLE_IDENTITIES = frozenset({("FortiGate-60F", "7.6.8", "3744")})
+# IP prefix operands: existing 60F range grammar and the 80F probe of 2026-11-09.
+PREFIX_RANGE_IDENTITIES = RANGE_TUPLE_IDENTITIES | frozenset({("FortiGate-80F", "8.0.2", "0251")})
 TIMESTAMP_IDENTITIES = frozenset({
     ("FortiGate-VM64", "8.0.2", "0251"),
     ("FortiGate-60F", "7.6.8", "3744"),
@@ -115,27 +117,62 @@ def _unicast_ipv4(address):
         raise ValueError("a canonical unicast IPv4 address is required")
 
 
+def _filter_network(value, recipe):
+    """The network of a canonical IPv4 prefix with unicast ends; only the sessions and flow filters take one."""
+    from .read_policy import canonical_prefix
+    if recipe not in ("sessions", "flow"):
+        raise ValueError("a canonical unicast IPv4 address is required")
+    try:
+        network = canonical_prefix(value, 4)
+    except ValueError:
+        raise ValueError("a canonical unicast IPv4 prefix is required") from None
+    for end in (network.network_address, network.broadcast_address):
+        if end.is_multicast or end.is_unspecified or int(end) == 4294967295:
+            raise ValueError("a canonical unicast IPv4 prefix is required")
+    return network
+
+
+def filter_operand(value):
+    """The operand of a FortiOS session or flow filter: an address, or `first last` for a prefix."""
+    if "/" not in value:
+        return value
+    network = ipaddress.IPv4Network(value)
+    return str(network.network_address) + " " + str(network.broadcast_address)
+
+
 def validate(recipe, address, interface, count, timeout, max_bytes, vdom=None, *,
-             source_address=None, source_port=None, destination_port=None, protocol=None):
+             source_address=None, source_port=None, destination_port=None, protocol=None,
+             any_source_port=False):
     if not isinstance(recipe, str) or recipe not in RECIPES:
         raise ValueError("unknown diagnostic recipe")
-    _unicast_ipv4(address)
+    if isinstance(address, str) and "/" in address:
+        _filter_network(address, recipe)
+    else:
+        _unicast_ipv4(address)
     if not isinstance(interface, str) or _canonical_fortios_interface(interface) is None:
         raise ValueError("a concrete FortiOS interface is required")
     if vdom is not None and (not isinstance(vdom, str) or not VDOM_NAME.fullmatch(vdom)):
         raise ValueError("a valid VDOM name is required")
     tuple_values = (source_address, source_port, destination_port, protocol)
+    if any_source_port and (recipe != "sessions" or source_port is not None or any(
+            value is None for value in (source_address, destination_port, protocol))):
+        raise ValueError("only the sessions recipe can leave the source port open, with the rest of the tuple")
     if any(value is not None for value in tuple_values):
-        if recipe not in ("sessions", "sniffer", "flow") or any(value is None for value in tuple_values):
+        if recipe not in ("sessions", "sniffer", "flow") or any(
+                value is None for value in (source_address, destination_port, protocol)) or (
+                source_port is None and not any_source_port):
             raise ValueError("a complete TCP or UDP tuple is required")
-        try:
-            source_ip = ipaddress.IPv4Address(source_address)
-        except (ipaddress.AddressValueError, TypeError):
-            raise ValueError("a canonical unicast IPv4 source address is required") from None
-        if (str(source_ip) != source_address or source_ip.is_multicast or
-                source_ip.is_unspecified or int(source_ip) == 4294967295):
-            raise ValueError("a canonical unicast IPv4 source address is required")
-        if (type(source_port) is not int or not 0 <= source_port <= 65535 or
+        if isinstance(source_address, str) and "/" in source_address:
+            _filter_network(source_address, recipe)
+        else:
+            try:
+                source_ip = ipaddress.IPv4Address(source_address)
+            except (ipaddress.AddressValueError, TypeError):
+                raise ValueError("a canonical unicast IPv4 source address is required") from None
+            if (str(source_ip) != source_address or source_ip.is_multicast or
+                    source_ip.is_unspecified or int(source_ip) == 4294967295):
+                raise ValueError("a canonical unicast IPv4 source address is required")
+        if ((not any_source_port and (type(source_port) is not int or not 0 <= source_port <= 65535)) or
                 type(destination_port) is not int or not 0 <= destination_port <= 65535 or
                 type(protocol) is not int or protocol not in (6, 17)):
             raise ValueError("TCP or UDP session tuple fields are invalid")
@@ -151,12 +188,17 @@ def authorize(auth, recipe, address, interface, vdom=None, *, source_address=Non
         raise ValueError("FortiOS output standard must be independently verified")
     if vdom is not None and vdom not in auth.read_inventory.get("diagnostic_vdoms",()):
         raise ValueError("diagnostic VDOM is not enrolled for this target")
-    values = [("diagnostic_recipes", recipe), ("addresses", address), ("interfaces", interface)]
-    if source_address is not None:
-        values.append(("addresses", source_address))
-    for category, value in values:
+    from .read_policy import enrolled_lookup
+    for category, value in (("diagnostic_recipes", recipe), ("interfaces", interface)):
         if value not in auth.read_inventory.get(category, ()):
             raise ValueError("diagnostic scope is not enrolled for this target")
+    for value in (address, source_address):
+        if value is None:
+            continue
+        try:
+            enrolled_lookup(value, 4, auth.read_inventory)
+        except ValueError:
+            raise ValueError("diagnostic scope is not enrolled for this target") from None
 
 
 def fields(text):
@@ -318,8 +360,8 @@ def log_read(output, baseline, address, count, window=None, timed_out=False):
 
 def flow_filter(address, source_address=None, source_port=None, destination_port=None, protocol=None):
     if source_address is None:
-        return "addr " + address + " proto 1"
-    return ("saddr " + source_address + " sport " + str(source_port) + " daddr " + address +
+        return "addr " + filter_operand(address) + " proto 1"
+    return ("saddr " + filter_operand(source_address) + " sport " + str(source_port) + " daddr " + filter_operand(address) +
             " dport " + str(destination_port) + " proto " + str(protocol))
 
 
@@ -375,9 +417,14 @@ def _restore(shell, cleanup, display, baseline, recipe):
 
 
 def run(shell, recipe, address, interface, count, timeout, vdom=None, *, reconnect=None,
-        source_address=None, source_port=None, destination_port=None, protocol=None, window=None):
+        source_address=None, source_port=None, destination_port=None, protocol=None, window=None,
+        any_source_port=False):
     from netops_core import fortios
     identity, domain, mode = status_identity(shell.command("get system status"))
+    if (recipe in ("sessions", "flow")
+            and any(isinstance(value, str) and "/" in value for value in (address, source_address))
+            and identity not in PREFIX_RANGE_IDENTITIES):
+        raise OptionRefused("prefix_not_supported_on_identity: filter ranges are not measured for this hardware and build")
     if source_address is None:
         if identity not in IDENTITIES:
             raise ValueError("diagnostic recipes are not measured for this hardware and build")
@@ -489,12 +536,16 @@ def run(shell, recipe, address, interface, count, timeout, vdom=None, *, reconne
                     ("dst" if recipe == "sessions" else "daddr", address), ("sport", str(source_port)),
                     ("dport", str(destination_port)), ("proto", str(protocol)),
                 ):
-                    command_text = display + " " + selector + " " + value
-                    if identity in RANGE_TUPLE_IDENTITIES and (recipe == "sessions" or selector != "proto"):
+                    if any_source_port and selector == "sport":
+                        continue
+                    operand = filter_operand(value)
+                    command_text = display + " " + selector + " " + operand
+                    if (identity in RANGE_TUPLE_IDENTITIES and (recipe == "sessions" or selector != "proto")
+                            and operand == value):
                         command_text += " " + value
                     shell.command(command_text)
             else:
-                shell.command(display + (" dst " if recipe == "sessions" else " addr ") + address)
+                shell.command(display + (" dst " if recipe == "sessions" else " addr ") + filter_operand(address))
                 shell.command(display + " proto 1")
             if recipe == "sessions":
                 command = "diagnose sys session list"
@@ -578,4 +629,7 @@ def adc_run(shell, recipe, address, timeout, count=3, health_check=None):
     else:
         command = ADC_RECIPES[recipe] + address
     output, timed_out = _bounded(shell, command, timeout, 5)
+    if timed_out:
+        # The final interrupt echo belongs to Helper, not to the diagnostic answer.
+        output = re.sub(r"\^C[ \t]*(?:\r?\n)*\Z", "", output)
     return output, timed_out, identity

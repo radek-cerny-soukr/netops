@@ -1,0 +1,4 @@
+Syntax error while parsing 'show hsrp summary'
+
+
+Cmd exec error.

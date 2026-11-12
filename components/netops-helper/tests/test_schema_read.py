@@ -11,6 +11,8 @@ import tempfile
 from types import SimpleNamespace, ModuleType
 from unittest.mock import patch
 
+import pytest
+
 from netops_core.schema import Library, SchemaError
 from netops_core.hostkey import fingerprint_of
 from netops_helper.auth import TargetAuth
@@ -192,6 +194,101 @@ def test_engine_refuses_before_snapshot_and_paginates_without_another_connection
         engine._SSH_PAGE_CACHE.clear()
 
 
+def schema_pages(engine,path,view,max_bytes):
+    pages=[engine.schema_read(auth(),path,view,None,None,0,max_bytes)]
+    while not pages[-1]["complete"]:
+        pages.append(engine.schema_read(auth(),path,view,None,None,pages[-1]["next_offset"],max_bytes,pages[0]["content_sha256"]))
+    return pages
+
+
+@pytest.mark.parametrize("view", ["get", "show"])
+def test_schema_read_through_exec_preserves_password_and_quoted_labels(tmp_path, monkeypatch, view):
+    from netops_helper import engine
+
+    path, data = registry(tmp_path)
+    definition = document()
+    definition["config"]["system admin"] = {
+        "kind": "table", "scope": "global", "available": True,
+        "attrs": {"password": {"type": "password"}, "description": {"type": "string"}},
+    }
+    library = tmp_path / "library.json"
+    library.write_text(json.dumps(definition))
+    data["targets"]["device-a"]["sha256"] = sha256(library.read_bytes()).hexdigest()
+    path.write_text(json.dumps(data))
+    monkeypatch.setenv("NETOPS_SCHEMA_REGISTRY", str(path))
+    monkeypatch.setattr(engine, "record", lambda *a, **kw: None)
+    monkeypatch.setattr(engine, "_resolve_target_ipv4", lambda auth: ["192.0.2.10"])
+    monkeypatch.setattr(engine, "host_key_line", lambda *a: "pinned")
+    calls = []
+    status = "Version: FortiGate-VM64-KVM v8.0.0,build0167,release\r\nCurrent virtual domain: root\r\n"
+    config = ('config system admin\r\n edit "operator"\r\n'
+              ' set password ENC synthetic-ciphertext\r\n'
+              ' set description "token=abc"\r\n next\r\nend\r\n')
+
+    def command(auth, address, known_hosts, credential, command, platform):
+        calls.append(command)
+        return SimpleNamespace(rc=0, stdout=(status if command == "get system status" else config).encode())
+
+    monkeypatch.setattr(engine, "_exec_command", command)
+    snapshots = []
+    snapshot = reader.snapshot
+
+    def capture_snapshot(*args, **kwargs):
+        report = snapshot(*args, **kwargs)
+        snapshots.append(report)
+        return report
+
+    monkeypatch.setattr(reader, "snapshot", capture_snapshot)
+    result = engine.schema_read(auth(["system admin"]), "system admin", view, None, None, 0, 16000)
+    assert result["ok"] is True and result["complete"] is True
+    report = json.loads(result["untrusted_device_output"])
+    assert len(report["objects"]) == 1
+    assert snapshots[0]["objects"][0]["attributes"]["password"] == ["<REDACTED>"]
+    # The unchanged final response rules use their own marker for sensitive keys.
+    assert report["objects"][0]["attributes"]["password"] == "[REDACTED]"
+    assert "description" in report["objects"][0]["attributes"]
+    assert calls == ["get system status", "show full-configuration"]
+    assert "synthetic-ciphertext" not in result["untrusted_device_output"]
+    assert "token=abc" not in result["untrusted_device_output"]
+
+
+SECRET_DENSE=("config firewall address\n"+"".join(
+    ' edit "obj%d"\n  set comment "%s token=synthetic-token-%d"\n  set password ENC synthetic-enc-%d\n'
+    '  set psksecret "synthetic-psk-%d"\n  set fortitoken "FTK%d"\n  set ciphertext "set passwd synthetic-%d"\n next\n'
+    %(i,"x"*(40+i*7),i,i,i,i,i) for i in range(12))+"end\n")
+
+
+def test_engine_report_pages_form_a_structurally_redacted_json_document():
+    # Engine contract; HelperBridge integration separately checks the final client response.
+    from netops_helper import engine
+    status="Version: FortiGate-VM64-KVM v8.0.0,build0167,release\nCurrent virtual domain: root\n"
+    large=("config firewall address\n"+"".join(
+        ' edit "obj%d"\n  set comment "%s"\n  set fortitoken "FTK%d"\n next\n'
+        %(i,"x"*150,i) for i in range(300))+"end\n")
+    with tempfile.TemporaryDirectory() as temporary:
+        path,_=registry(Path(temporary))
+        with patch.dict(os.environ,{"NETOPS_SCHEMA_REGISTRY":str(path)}),patch.object(engine,"record",lambda *a,**kw:None):
+            for body,count in ((SECRET_DENSE,12),(large,300)):
+                with patch.object(engine,"read_from_device",lambda target,platform,command:(0,status if command=="get system status" else body)):
+                    for view in ("get","show"):
+                        expected=reader.snapshot(reader.binding(auth(),path),body,"firewall address",view,None,[],auth().secrets,current_vdom="root")
+                        encoded=engine._redact_schema_report(expected,auth()).encode()
+                        for max_bytes in (1000,1777,16000,48000):
+                            engine._SSH_PAGE_CACHE.clear()
+                            pages=schema_pages(engine,"firewall address",view,max_bytes)
+                            joined=b"".join(page["untrusted_device_output"].encode() for page in pages)
+                            assert joined==encoded
+                            decoded=json.loads(joined)
+                            assert decoded["objects"]==json.loads(encoded)["objects"]
+                            assert len(decoded["objects"])==count
+                            assert len(joined)==pages[0]["total_bytes"]
+                            assert sha256(joined).hexdigest()==pages[0]["content_sha256"]
+                            assert all(page["content_sha256"]==pages[0]["content_sha256"] for page in pages)
+                            if count==300:
+                                assert len(joined)>48000 and len(pages)>1
+        engine._SSH_PAGE_CACHE.clear()
+
+
 def test_schema_inventory_supports_all_measured_paths_with_a_distinct_bound():
     from netops_helper.inventory import _checked_read_inventory
     paths=["system object"+str(i) for i in range(4096)]
@@ -246,6 +343,7 @@ def main():
                      test_unwrapped_snapshot_requires_live_vdom_and_cannot_claim_root,
                      test_proxy_and_server_both_reject_unenrolled_paths_and_bad_selectors,
                      test_engine_refuses_before_snapshot_and_paginates_without_another_connection,
+                     test_engine_report_pages_form_a_structurally_redacted_json_document,
                      test_schema_inventory_supports_all_measured_paths_with_a_distinct_bound,
                      test_inline_table_keys_preserve_selection_and_redaction,
                      test_registry_refuses_malformed_reference_visibility_and_reads_without_inferring_it]:
@@ -255,3 +353,24 @@ def main():
 
 if __name__=="__main__":
     main()
+
+
+@pytest.mark.parametrize('phase', ['identity', 'snapshot'])
+@pytest.mark.parametrize('refusal', ['Command fail. Return code -61', "command parse error before 'x'"])
+def test_schema_rejects_cli_failure_anywhere_in_control_output(tmp_path, monkeypatch, phase, refusal):
+    from netops_helper import engine
+    path, _ = registry(tmp_path)
+    monkeypatch.setenv('NETOPS_SCHEMA_REGISTRY', str(path))
+    monkeypatch.setattr(engine, 'record', lambda *a, **kw: None)
+    calls = []
+    status = 'Version: FortiGate-VM64-KVM v8.0.0,build0167,release\nCurrent virtual domain: root\n'
+    def read(target, platform, command):
+        calls.append(command)
+        body = status if command == 'get system status' else 'config firewall address\nend\n'
+        if (command == 'get system status') == (phase == 'identity'):
+            body += refusal + '\nCurrent virtual domain: root\n'
+        return 0, body
+    monkeypatch.setattr(engine, 'read_from_device', read)
+    with pytest.raises(ValueError, match='refused'):
+        engine.schema_read(auth(), 'firewall address', 'get', None, None, 0, 1000)
+    assert calls == ['get system status'] + ([] if phase == 'identity' else ['show full-configuration'])

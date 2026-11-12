@@ -1,0 +1,8 @@
+wtp-session-count      : 2
+wtp-session-count(RUN) : 2
+client-count           : 2
+client-count(OFFLINE)  : 0
+sta-cap-count          : 33
+rogue-ap-count         : 53
+rogue-client-count     : 0
+ble-device-count       : 0

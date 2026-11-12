@@ -1,0 +1,5 @@
+Cisco IOS XE Software, Version 03.13.03.S - Extended Support Release
+Cisco IOS Software, ISR Software (X86_64_LINUX_IOSD-UNIVERSALK9-M), Version 15.4(3)S3, RELEASE SOFTWARE (fc1)
+lab-isr uptime is 1 minute
+cisco ISR4331/K9 (1RU) processor with 1687301K/6147K bytes of memory.
+Processor board ID LAB00000006

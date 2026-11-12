@@ -1,0 +1,16 @@
+
+ELRP Standalone Client:           Enabled
+ELRP Inter-VLAN loop detection:   On
+ELRP client hardware assist:      Disabled
+Loopback port:                    None
+
+Number of ELRP sessions:          1
+Number of ELRP pkts transmitted:  20757056
+Number of ELRP pkts received:     0
+
+                                     Interval                   Pkts    Pkts        Disable
+Client VLAN          Ports              (sec) Count Cyclic      Xmit    Rcvd Action Port (sec)
+----------------------------------------------------------------------------------------------
+CLI    V10           1-16               1.000     0 Yes     20757056       0 LTI    Perm    
+----------------------------------------------------------------------------------------------
+Action : (P) Print, (L) Log, (T) Trap, (C) Callback, (E) Egress, (I) Ingress

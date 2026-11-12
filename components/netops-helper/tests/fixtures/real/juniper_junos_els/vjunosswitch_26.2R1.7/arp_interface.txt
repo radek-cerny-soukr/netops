@@ -1,0 +1,7 @@
+MAC Address       Address         Interface                Flags
+00:00:5e:00:53:04 192.0.2.1       irb.10 [ge-0/0/0.0]      none
+00:00:5e:00:53:02 192.0.2.3       irb.10 [ge-0/0/0.0]      none
+00:00:5e:00:53:08 192.0.2.5       irb.10 [ge-0/0/0.0]      none
+00:00:5e:00:53:06 192.0.2.7       irb.10 [ge-0/0/0.0]      none
+00:00:5e:00:53:0f 192.0.2.66      irb.10                   permanent published
+Total entries: 5

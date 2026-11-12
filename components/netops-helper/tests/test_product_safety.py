@@ -133,12 +133,12 @@ def test_schema_snapshot_gate_is_narrow_and_rejects_missing_controls(tmp_path: P
     mutations=[
         original.replace("reader.selectors(auth,library,path,view,vdom,keys)","pass",1),
         original.replace("current_vdom=reader.verify_status(library,status)",'current_vdom="root"',1),
-        original.replace("report=reader.snapshot(library,raw,path,view,vdom,keys,auth.secrets,current_vdom=current_vdom)","report=raw",1),
+        original.replace("report=reader.snapshot(library,raw,path,view,vdom,keys,auth.redaction_secrets,current_vdom=current_vdom)","report=raw",1),
         original.replace('library=reader.binding(auth)','library=None',1),
         original.replace("current_vdom=current_vdom",'current_vdom="root"',1),
         original.replace("current_vdom=reader.verify_status(library,status)",'current_vdom=reader.verify_status(library,status)\n        current_vdom="root"',1),
         original.replace(",current_vdom=current_vdom","",1),
-        original.replace('    page=_page_text(cleaned,offset,max_bytes)','    return raw\n    page=_page_text(cleaned,offset,max_bytes)',1),
+        original.replace('    page=_schema_page(cleaned,offset,max_bytes,auth)','    return raw\n    page=_schema_page(cleaned,offset,max_bytes,auth)',1),
         original+'\nEXPORTED_COMMAND="show full-configuration"\n',
     ]
     for mutant in mutations:

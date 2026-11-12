@@ -1,0 +1,87 @@
+Physical interface: ge-0/0/0, Enabled, Physical link is Up
+  Interface index: 143, SNMP ifIndex: 521, Generation: 146
+  Link-level type: Ethernet, MTU: 1514, LAN-PHY mode, Speed: 1000mbps, BPDU Error: None, Loop Detect PDU Error: None, Ethernet-Switching Error: None, Remote Bounce: None, MAC-REWRITE Error: None, Loopback: Disabled, Source filtering: Disabled, Flow control: Enabled, Auto-negotiation: Enabled, Remote fault: Online, Media type: Fiber
+  Device flags   : Present Running
+  Interface Specific flags: Internal: 0x101200
+  Interface flags: SNMP-Traps Internal: 0x4000
+  Link flags     : None
+  CoS queues     : 8 supported, 8 maximum usable queues
+  Hold-times     : Up 0 ms, Down 0 ms
+  Current address: 00:00:5e:00:53:0e, Hardware address: 00:00:5e:00:53:0e
+  Last flapped   : 2026-11-08 22:53:56 UTC (02:12:49 ago)
+  Statistics last cleared: Never
+  Traffic statistics:
+   Input  bytes  :              1337300                 1112 bps
+   Output bytes  :               301078                 1960 bps
+   Input  packets:                15690                    1 pps
+   Output packets:                 2275                    2 pps
+  Dropped traffic statistics due to STP State:
+   Input  bytes  :                    0
+   Output bytes  :                    0
+   Input  packets:                    0
+   Output packets:                    0
+  Input errors:
+    Errors: 0, Drops: 0, Framing errors: 0, Runts: 0, Policed discards: 0, L3 incompletes: 0, L2 channel errors: 0, L2 mismatch timeouts: 0, FIFO errors: 0, Resource errors: 0
+  Output errors:
+    Carrier transitions: 1, Errors: 0, Drops: 0, Collisions: 0, Aged packets: 0, FIFO errors: 0, HS link CRC errors: 0, MTU errors: 0, Resource errors: 0
+  Active alarms  : None
+  Active defects : None
+  PCS statistics                      Seconds
+    Bit errors                             0
+    Errored blocks                         0
+  MAC statistics:                      Receive         Transmit
+    Total octets                       1806939           216424
+    Total packets                        19149             1312
+    Unicast packets                      19136             1305
+    Broadcast packets                        0                0
+    Multicast packets                        0                0
+    CRC/Align errors                         0                0
+    FIFO errors                              0                0
+    MAC control frames                       0                0
+    MAC pause frames                         0                0
+    Oversized frames                         0
+    Jabber frames                            0
+    Fragment frames                          0
+    VLAN tagged frames                       0
+    Code violations                          0
+    Total errors                             0                0
+  Filter statistics:
+    Input packet count                   19136
+    Input packet rejects                  7529
+    Input DA rejects                         0
+    Input SA rejects                         0
+    Output packet count                                    1305
+    Output packet pad count                                   0
+    Output packet error count                                 0
+    CAM destination filters: 0, CAM source filters: 0
+  Autonegotiation information:
+    Negotiation status: Incomplete
+  Packet Forwarding Engine configuration:
+    Destination slot: 0 (0x00)
+  CoS information:
+    Direction : Output
+    CoS transmit queue               Bandwidth               Buffer Priority   Limit
+                              %            bps     %           usec
+    0 best-effort            95      950000000    95              0      low    none
+    3 network-control         5       50000000     5              0      low    none
+  Interface transmit statistics: Disabled
+
+  Logical interface ge-0/0/0.0 (Index 343) (SNMP ifIndex 541) (Generation 152)
+    Flags: Up SNMP-Traps 0x24024000 Encapsulation: Ethernet-Bridge
+    Traffic statistics:
+     Input  bytes  :               966550
+     Output bytes  :               262336
+     Input  packets:                11480
+     Output packets:                 2190
+   Local statistics:
+    Input  bytes  :                84758
+    Output bytes  :               171692
+    Input  packets:                  752
+    Output packets:                 1227
+   Transit statistics:
+    Input  bytes  :               881792                  744 bps
+    Output bytes  :                90644                  384 bps
+    Input  packets:                10728                    1 pps
+    Output packets:                  963                    0 pps
+    Protocol eth-switch, MTU: 1514, Generation: 161, Route table: 5, Mesh Group: __all_ces__, Next-hop: 580, vpls-status: up
+      Flags: Is-Primary, Trunk-Mode, 0x4000000

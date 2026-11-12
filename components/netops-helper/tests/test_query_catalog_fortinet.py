@@ -6,7 +6,7 @@ from __future__ import annotations
 import re
 
 from netops_helper.query_catalog.fortinet import QUERIES
-from netops_helper.query_catalog.model import Query
+from netops_helper.query_catalog.model import Query, SequenceQuery
 from netops_helper.read_policy import _validate_query_command, render_read_query
 
 
@@ -14,9 +14,26 @@ from netops_helper.read_policy import _validate_query_command, render_read_query
 # retained history, variable protocol peer/session/tunnel lists, and per-pool
 # allocation lists can need continuation. Aggregate and inventory-bound detail stay False.
 EXPECTED = {
+    'managed_switch_port_stats': ('diagnose switch-controller switch-info port-stats {managed_switch} {port}',
+        (('managed_switch', 'managed_switches', 'managed_switch_serial'), ('port', 'managed_switch_ports', 'managed_switch_port')), True),
+    'managed_switch_port_vlans': ('show switch-controller managed-switch {managed_switch}',
+        (('managed_switch', 'managed_switches', 'managed_switch_serial'),), True),
+    'interface_vlan_ids': ('show system interface', (), True),
     'route_cache': ('diagnose ip rtcache list', (), True),
     'ospf_database_brief_ipv4': ('get router info ospf database brief', (), True),
     'ospf_database_ipv6': ('get router info6 ospf database', (), True),
+    "wifi_ap_status": ("get wireless-controller wtp-status {wtp_id}", (("wtp_id", "wtp_ids", "fortios_wtp_id"),), True),
+    "wifi_vap_status": ("get wireless-controller vap-status", (), False),
+    "wifi_neighbors": ("get wireless-controller scan", (), True),
+    "wifi_controller_status": ("get wireless-controller status", (), False),
+    "wifi_controller_statistics": ("get wireless-controller statistics", (), False),
+    "wifi_rf_analysis": ("get wireless-controller rf-analysis {wtp_id}", (("wtp_id", "wtp_ids", "fortios_wtp_id"),), True),
+    "wifi_events": (
+        "execute log filter category event; execute log filter field subtype wireless; "
+        "execute log filter view-lines {lines}; execute log display",
+        (("lines", "literal", "wifi_log_lines"), ("mac_literal", "literal", "wifi_mac_literal")),
+        True,
+    ),
     "wifi_clients": ("diagnose wireless-controller wlac -c sta", (), True),
     "wifi_client_detail": ("diagnose wireless-controller wlac -d sta {mac}", (("mac", "wireless_clients", "fortios_station_mac"),), False),
     "wifi_access_points": ("diagnose wireless-controller wlac -c wtp", (), True),
@@ -39,22 +56,22 @@ EXPECTED = {
     "policy_lookup_ipv4": (
         "diagnose firewall iprope lookup {src_ip} {src_port} {dst_ip} {dst_port} {protocol} {device} {pol_type}",
         (("device", "interfaces", "fortios_interface"),
-         ("dst_ip", "addresses", "ipv4_address"),
+         ("dst_ip", "addresses", "ipv4_lookup"),
          ("dst_port", "flow_ports", "flow_port"),
          ("pol_type", "policy_types", "fortios_policy_type"),
          ("protocol", "ip_protocols", "ip_protocol"),
-         ("src_ip", "addresses", "ipv4_address"),
+         ("src_ip", "addresses", "ipv4_lookup"),
          ("src_port", "flow_ports", "flow_port")),
         False,
     ),
     "policy_lookup_ipv6": (
         "diagnose firewall iprope6 lookup {src_ip} {src_port} {dst_ip} {dst_port} {protocol} {device} {pol_type}",
         (("device", "interfaces", "fortios_interface"),
-         ("dst_ip", "addresses", "ipv6_address"),
+         ("dst_ip", "addresses", "ipv6_lookup"),
          ("dst_port", "flow_ports", "flow_port"),
          ("pol_type", "policy_types", "fortios_policy_type"),
          ("protocol", "ip_protocols", "ip_protocol"),
-         ("src_ip", "addresses", "ipv6_address"),
+         ("src_ip", "addresses", "ipv6_lookup"),
          ("src_port", "flow_ports", "flow_port")),
         False,
     ),
@@ -96,6 +113,7 @@ EXPECTED = {
     "fortiguard_communication": ("diagnose sys service-communication", (), True),
     "disk_status": ("diagnose hardware deviceinfo disk", (), False),
     "physical_interfaces": ("get system interface physical", (), True),
+    "system_interfaces": ("get system interface", (), True),
     "interface_details": (
         "diagnose netlink interface list {interface}",
         (("interface", "interfaces", "fortios_interface"),),
@@ -109,7 +127,7 @@ EXPECTED = {
     "routing_table": ("get router info routing-table all", (), True),
     "route_lookup": (
         "get router info routing-table details {address}",
-        (("address", "addresses", "ipv4_address"),),
+        (("address", "addresses", "ipv4_lookup"),),
         False,
     ),
     "route_protocols": ("get router info protocols", (), False),
@@ -285,7 +303,7 @@ def test_nat_pool_assignments_are_scoped_to_an_enrolled_pool() -> None:
 
 
 def test_commands_are_narrow_read_only_cli() -> None:
-    commands = {query.command for query in QUERIES.values()}
+    commands = {query.command for query in QUERIES.values() if not isinstance(query, SequenceQuery)}
     for command in commands:
         if command in {
             "execute ping-options view-settings",
@@ -294,7 +312,8 @@ def test_commands_are_narrow_read_only_cli() -> None:
             "diagnose debug info",
         }:
             continue
-        assert command.startswith(("get ", "diagnose "))
+        assert command.startswith(("get ", "diagnose ")) or command in {
+            "show switch-controller managed-switch {managed_switch}", "show system interface"}
         assert CONTROL_OR_SHELL.search(command) is None
         assert "\\" not in command
         lowered = command.lower()

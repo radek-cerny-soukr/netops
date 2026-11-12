@@ -11,6 +11,7 @@ PHYSICAL_PORT = {
 
 
 QUERIES: dict[str, Query] = {
+    "vlan_detail": Query("show vlan detail", NO_SLOTS, "Show all VLANs with their tagged and untagged member ports.", high_volume=True),
     "vlan_details": Query("show vlan {vlan}", {"vlan": Slot("vlans", "vlan_name")}, "Show one enrolled VLAN.", high_volume=True),
     "dhcp_snooping_entries": Query("show ip-security dhcp-snooping entries vlan {vlan}", {"vlan": Slot("vlans", "vlan_name")}, "Show DHCP snooping bindings for one enrolled VLAN.", high_volume=True),
 
@@ -138,6 +139,7 @@ QUERIES: dict[str, Query] = {
     "vlan_summary": Query(
         "show vlan", NO_SLOTS, "Summarize all VLANs.", high_volume=True,
     ),
+    "lag_summary": Query("show sharing", NO_SLOTS, "Show load-sharing groups and member link state.", high_volume=True),
     "lacp": Query("show lacp", NO_SLOTS, "Show LACP operating state.", high_volume=True),
     "stp_summary": Query(
         "show stpd", NO_SLOTS, "Summarize spanning-tree domains.",
@@ -214,6 +216,93 @@ QUERIES: dict[str, Query] = {
         "show mirror",
         NO_SLOTS,
         "Show the configured mirror instances and their state.",
+    ),
+    "ports_description": Query(
+        "show ports description",
+        NO_SLOTS,
+        "Show the display string and description of every port.",
+        high_volume=True,
+    ),
+    "ports_rx_errors": Query(
+        "show ports rxerrors no-refresh",
+        NO_SLOTS,
+        "Show a one-shot receive-error snapshot of all ports.",
+        high_volume=True,
+    ),
+    "ports_tx_errors": Query(
+        "show ports txerrors no-refresh",
+        NO_SLOTS,
+        "Show a one-shot transmit-error snapshot of all ports.",
+        high_volume=True,
+    ),
+    "ipconfig": Query(
+        "show ipconfig",
+        NO_SLOTS,
+        "Show the IPv4 settings and the address of every routed VLAN.",
+        high_volume=True,
+    ),
+    "route_table": Query(
+        "show iproute",
+        NO_SLOTS,
+        "Show the IPv4 routing table of the default virtual router.",
+        high_volume=True,
+    ),
+    "ipv6_route_table": Query(
+        "show iproute ipv6",
+        NO_SLOTS,
+        "Show the IPv6 routing table of the default virtual router.",
+        high_volume=True,
+    ),
+    "lldp_neighbors_detail": Query(
+        "show lldp neighbors detailed",
+        NO_SLOTS,
+        "Show detailed LLDP neighbors on all ports, including system capabilities and management address.",
+        high_volume=True,
+    ),
+    "stp_ports": Query(
+        "show stpd s0 ports",
+        NO_SLOTS,
+        "Show port roles and states of the default spanning-tree domain s0.",
+        high_volume=True,
+    ),
+    "mlag_peer": Query(
+        "show mlag peer",
+        NO_SLOTS,
+        "Show the configured MLAG peers and their state.",
+    ),
+    "mlag_ports": Query(
+        "show mlag ports",
+        NO_SLOTS,
+        "Show MLAG ports with local and remote link state.",
+        high_volume=True,
+    ),
+    "inline_power_stats": Query(
+        "show inline-power stats",
+        NO_SLOTS,
+        "Show the PoE firmware state and the count of powered, waiting and faulted ports.",
+    ),
+    "ntp_association": Query(
+        "show ntp association",
+        NO_SLOTS,
+        "Show the NTP associations with stratum, delay, offset and reachability.",
+    ),
+    "log_messages": Query(
+        "show log messages memory-buffer",
+        NO_SLOTS,
+        "Show the local log buffer, newest message first.",
+        high_volume=True,
+    ),
+    "log_warnings": Query(
+        "show log messages memory-buffer severity warning",
+        NO_SLOTS,
+        "Show the local log buffer limited to warning and more severe messages, newest first.",
+        high_volume=True,
+    ),
+    "log_configuration": Query(
+        "show log configuration",
+        NO_SLOTS,
+        "Show the log targets, filters and syslog destinations.",
+        high_volume=True,
     ),
     "edp_neighbors": Query(
         "show edp",

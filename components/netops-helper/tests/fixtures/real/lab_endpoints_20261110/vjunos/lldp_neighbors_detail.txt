@@ -1,0 +1,59 @@
+LLDP Neighbor Information:
+Local Information:
+Local Interface    : ge-0/0/0
+Index: 2 Time to live: 120 Time mark: Tue Nov 10 08:54:10 2026 Age: 15 secs 
+Parent Interface   : -
+Local Port ID      : 521
+Ageout Count       : 0
+Chassis ID         : 00:00:5e:00:53:0d
+
+Neighbor Information:
+Chassis type       : Mac address
+Port type          : Interface name
+Port ID            : Ethernet4
+System name        : host07
+  
+System Description : Arista Networks EOS version 4.36.1F-48405728.4361F (engineering build) running on an Arista cEOSLab
+
+
+System capabilities 
+        Supported: Bridge Router 
+        Enabled  : Bridge Router 
+
+Management address
+        Address           : 203.0.113.254
+        Address Type      : IPv4(1)
+        Interface Number  : 5000000
+        Interface Subtype : ifIndex(2)
+MED Serial number     : D787B1205ED1CFB5DFF5F1D303A12B32
+
+Organization Info
+       Index    : 1
+       OUI      : Ethernet Bridged (0x0080c2)
+       Subtype  : Port Vid (1)
+       Info     : VLAN ID (1),
+
+Organization Info
+       Index    : 2
+       OUI      : IEEE 802.3 Private (0x00120f)
+       Subtype  : Link Aggregation (3)
+       Info     : Aggregation Status [supported, disabled (0x1)], Aggregation Port ID (0)
+
+Organization Info
+       Index    : 3
+       OUI      : IEEE 802.3 Private (0x00120f)
+       Subtype  : Maximum Frame Size (4)
+       Info     : MTU Size (9236)
+
+Organization Info
+       Index    : 4
+       OUI      : TIA TR 41 Committee (0x0012bb)
+       Subtype  : (8)
+       Info     : 4437383742313230354544314346423544464635463144333033413132423332
+
+Organization Info
+       Index    : 5
+       OUI      : TIA TR 41 Committee (0x0012bb)
+       Subtype  : Media Capabilities (1)
+       Info     : Capabilities [LLDP-Med capable, Network policy not capable, Location ID not capable, MDI-PSE not capable, MDI-PD not capable, Inventory not capable (0x01)]
+       Info     : Class Type [Network Connectivity (4)]

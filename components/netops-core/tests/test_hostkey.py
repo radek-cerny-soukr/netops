@@ -204,7 +204,7 @@ def test_scan_refuses_a_broken_pin_before_it_runs_anything():
 def test_known_hosts_file_is_written_once_with_mode_0600(tmp_path):
     path = known_hosts_file(str(tmp_path), LINE)
     assert os.path.dirname(path) == str(tmp_path)
-    assert open(path, encoding="utf-8").read() == "%s\n" % LINE
+    assert __import__('pathlib').Path(path).read_text(encoding="utf-8") == "%s\n" % LINE
     assert stat.S_IMODE(os.stat(path).st_mode) == 0o600
     with pytest.raises(HostKeyError) as caught:
         known_hosts_file(str(tmp_path), LINE)
@@ -393,3 +393,45 @@ def test_scan_with_only_banner_comments_names_no_host_key():
     with pytest.raises(HostKeyError) as caught:
         scan(HOST, PORT, PIN, 17, run=run)
     assert ": no host key could be obtained (exit code 1)" in str(caught.value)
+
+
+class SaidRun:
+    def __init__(self, stderr=b"", error=None):
+        self.stderr = stderr
+        self.error = error
+        self.calls = []
+
+    def __call__(self, argv, **kwargs):
+        self.calls.append({"argv": list(argv), "kwargs": dict(kwargs)})
+        if self.error is not None:
+            raise self.error
+        return subprocess.CompletedProcess(argv, 255, b"", self.stderr)
+
+
+def test_unavailable_said_answers_the_last_client_message_of_a_credential_free_probe():
+    run = SaidRun(b"ssh: connect to host 192.0.2.10 port 22: No route to host\r\n")
+    said = hostkey_module.unavailable_said(HOST, PORT, 5, run=run)
+    assert said == "ssh: connect to host 192.0.2.10 port 22: No route to host"
+    argv = run.calls[0]["argv"]
+    assert argv[0] == "ssh" and argv[-4:] == ["-l", "netops-hostkey", HOST, "exit"]
+    options = _options(argv)
+    for refused in ("PubkeyAuthentication=no", "PasswordAuthentication=no", "KbdInteractiveAuthentication=no",
+                    "BatchMode=yes", "ConnectTimeout=5"):
+        assert refused in options
+    assert run.calls[0]["kwargs"]["timeout"] == 7
+
+
+def test_unavailable_said_names_a_probe_timeout_and_hides_other_failures():
+    timed_out = SaidRun(error=subprocess.TimeoutExpired(["ssh"], 7))
+    assert hostkey_module.unavailable_said(HOST, PORT, 5, run=timed_out) == hostkey_module.PROBE_TIMED_OUT
+    assert hostkey_module.unavailable_said(HOST, PORT, 5, run=SaidRun(error=OSError("no ssh"))) == ""
+    legacy = SaidRun(b"Unable to negotiate with 192.0.2.10 port 22: no matching key exchange method found.")
+    assert "no matching" in hostkey_module.unavailable_said(HOST, PORT, 5, run=legacy, legacy="rsa-sha1-dh14")
+    assert "KexAlgorithms=+diffie-hellman-group14-sha1" in _options(legacy.calls[0]["argv"])
+
+
+def test_unavailable_said_never_turns_its_own_refusal_into_a_host_key_verdict():
+    run = SaidRun(b"unused")
+    assert hostkey_module.unavailable_said(HOST, PORT, 5, run=run, legacy="no-such-profile") == ""
+    assert hostkey_module.unavailable_said("-bad-host", PORT, 5, run=run) == ""
+    assert run.calls == []

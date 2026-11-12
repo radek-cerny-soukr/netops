@@ -1,0 +1,5 @@
+IPv6 Adjacency Table for VRF default
+Total number of entries: 2
+Address         Age       MAC Address     Pref Source     Interface
+2001:db8:10::20 00:03:11  0000.5e00.53a0  50   icmpv6     Vlan10
+fe80::20 00:03:11 0000.5e00.53a0  50   icmpv6     Vlan10

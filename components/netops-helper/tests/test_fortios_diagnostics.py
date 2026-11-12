@@ -390,10 +390,13 @@ def test_engine_icmp_flow_empty_trace_names_icmp(adc_engine, monkeypatch):
 
 
 def test_engine_flow_overflow_fails_closed_after_verified_cleanup(adc_engine, monkeypatch):
+    from netops_helper import engine
     shell, call = _flow_call(adc_engine, monkeypatch, OverflowFlowShell)
-    with pytest.raises(ValueError) as failed:
-        call()
-    assert str(failed.value) == "bounded FortiOS diagnostic failed; the session was closed"
+    result = call()
+    # The state was restored and verified, so the transport class is the answer, not a role failure.
+    assert (result["ok"], result["recipe"], result["error_code"], result["error"]) == (
+        False, "flow", "output_limit", engine._TRANSPORT_ADVICE["output_limit"])
+    assert "untrusted_device_output" not in result
     _cleaned_up(shell)
 
 
@@ -1004,6 +1007,42 @@ def test_adc_traceroute_deadline_returns_partial_not_complete(adc_engine):
     assert finished["status"] == "ok" and finished["detail"] == "deadline_reached"
 
 
+@pytest.mark.parametrize("body", ["", "Server: resolver\r\n", "answer ^C within data\r\n"])
+def test_adc_nslookup_deadline_omits_only_helpers_final_interrupt_echo(adc_engine, body):
+    from netops_helper.sanitize import digest_text
+    class NslookupSession(AdcSession):
+        def send(self, command):
+            super().send(command)
+            if command.startswith("execute nslookup name "):
+                self.pending = (command + "\r\n" + body + "^C\r\n").encode()
+    use, _ = adc_engine
+    session = NslookupSession()
+    result = use(session).fortios_diagnostics(AdcAuth(), "nslookup", ADC_NAME, "", timeout=1)
+    assert session.sent == ["get system status", "execute nslookup name " + ADC_NAME]
+    assert session.interrupted.is_set()
+    assert result["ok"] and result["deadline_reached"] and not result["complete"]
+    expected = body.replace("\r\n", "\n")
+    assert result["untrusted_device_output"] == expected
+    assert result["total_bytes"] == result["returned_bytes"] == len(expected.encode())
+    assert result["content_sha256"] == digest_text(expected)
+
+
+def test_adc_nslookup_default_deadline_and_completed_output(adc_engine):
+    class CompletedSession(AdcSession):
+        def send(self, command):
+            super().send(command)
+            if command.startswith("execute nslookup name "):
+                self.queue.append((command + "\r\nanswer ^C\r\n").encode() + ADC_PROMPT)
+        def expect(self, patterns, timeout):
+            if self.sent and self.sent[-1].startswith("execute nslookup name "):
+                assert timeout == 15  # ten-second default plus the interrupt grace
+            return super().expect(patterns, timeout)
+    use, _ = adc_engine
+    result = use(CompletedSession()).fortios_diagnostics(AdcAuth(), "nslookup", ADC_NAME, "")
+    assert result["complete"] and not result["deadline_reached"]
+    assert result["untrusted_device_output"] == "answer ^C"
+
+
 def test_adc_device_refusal_uses_the_fortiadc_pattern(adc_engine):
     use, _ = adc_engine
     session = AdcSession(tail="Command fail. Return code is -284 (CLI parsing error.)\r\n")
@@ -1588,3 +1627,29 @@ def test_fortiadc_state_list_requires_enrolled_valid_virtual_server(tmp_path):
                         **_audit_fields({"recipe": recipe}, {"virtual_server": ADC_VS}, "fortiadc"))
         event = json.loads(recorder.path().read_text())
         assert event["recipe"] == recipe and event["virtual_server"] == ADC_VS
+
+
+@pytest.mark.parametrize('platform,refusal', [
+    ('fortinet', "command parse error before 'ping'\nCommand fail. Return code -61"),
+    ('fortiadc', 'Command fail. Return code is -284 (CLI parsing error.)'),
+])
+@pytest.mark.parametrize('method', ['command', 'navigate'])
+@pytest.mark.parametrize('suffix', ['', '\nDiagnostic session closed'])
+def test_diagnostic_shell_detects_refusal_after_output(platform, refusal, method, suffix):
+    from netops_helper import engine
+    from netops_helper.fortios_diagnostics import StepRefused
+    prompt = b'lab # '
+    class Session:
+        def __init__(self):
+            self.sent = []
+        def expect(self, patterns, timeout):
+            if not self.sent:
+                return 0, b'login\r\n' + prompt
+            return 0, ('PING 192.0.2.1\n^C\n' + refusal + suffix + '\n').encode() + prompt
+        def discard(self, data):
+            pass
+        def send(self, command):
+            self.sent.append(command)
+    shell = engine._FortiosDiagnosticShell(Session(), platform)
+    with pytest.raises(StepRefused if method == 'command' else ValueError):
+        getattr(shell, method)('execute ping 192.0.2.1')

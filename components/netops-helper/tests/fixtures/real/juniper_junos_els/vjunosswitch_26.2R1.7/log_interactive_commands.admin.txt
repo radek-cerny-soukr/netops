@@ -1,0 +1,202 @@
+Nov  9 01:19:29  host05   mgd[33786]: UI_COMMIT_PROGRESS: Commit operation in progress: mgd tracing: disabled
+Nov  9 01:19:29  host05   mgd[33786]: UI_COMMIT_PROGRESS: Commit operation in progress: New database revision 're0-1794187144-9' and old database revision 're0-1794187082-8'
+Nov  9 01:19:29  host05   mgd[33786]: UI_CONFIGURATION_REVISION_UPDATED: New database revision 're0-1794187144-9' and old database revision 're0-1794187082-8'
+Nov  9 01:19:29  host05   mgd[33786]: UI_COMMIT_COMMENT:  : d-lab D5 temporary log class 3
+Nov  9 01:19:29  host05   mgd[33786]: UI_COMMIT_PROGRESS: Commit operation in progress: commit complete
+Nov  9 01:19:29  host05   mgd[33786]: UI_COMMIT_COMPLETED:  : commit complete
+Nov  9 01:19:29  host05   mgd[33786]: UI_COMMIT_PROGRESS: Commit operation in progress: cannot signal 'Web management gatekeeper process', signal 31, no pid
+Nov  9 01:19:29  host05   mgd[33786]: UI_COMMIT_PROGRESS: Commit operation in progress: signaling 'Alarm control process', pid 20665, signal 30, status 0 with notification errors enabled
+Nov  9 01:19:30  host05   mgd[33786]: UI_CMDLINE_READ_LINE: User 'user01', command 'exit '
+Nov  9 01:19:30  host05   mgd[33786]: UI_DBASE_LOGOUT_EVENT: User 'user01' exiting configuration mode
+Nov  9 01:19:30  host05   mgd[33786]: UI_CMDLINE_READ_LINE: User 'user01', command 'exit '
+Nov  9 01:19:30  host05   mgd[33786]: UI_LOGOUT_EVENT: User 'user01' logout
+Nov  9 01:19:32  host05   sshd[34457]: UI_SSHD_REMOTE_COMMAND: User 'user02', command 'show log messages | last 5 | no-more'
+Nov  9 01:19:33  host05   mgd[34465]: UI_AUTH_EVENT: Authenticated user 'user02' assigned to class 'j-d-log-test'
+Nov  9 01:19:33  host05   mgd[34465]: UI_LOGIN_EVENT: User 'user02' login, class 'j-d-log-test' [34465], ssh-connection '198.51.100.56 39086 203.0.113.184  22', client-mode 'cli'
+Nov  9 01:21:06  host05   mgd[34465]: UI_CMDLINE_DENIED: User 'user02', command 'show log messages | last 5 | no-more' is denied
+Nov  9 01:21:06  host05   mgd[34465]: UI_CMDLINE_READ_LINE: User 'user02', command 'show log '
+Nov  9 01:21:06  host05   mgd[34465]: UI_LOGOUT_EVENT: User 'user02' logout
+Nov  9 01:21:09  host05   sshd[34708]: UI_SSHD_REMOTE_COMMAND: User 'user02', command 'start shell command "id"'
+Nov  9 01:21:10  host05   mgd[34709]: UI_AUTH_EVENT: Authenticated user 'user02' assigned to class 'j-d-log-test'
+Nov  9 01:21:10  host05   mgd[34709]: UI_LOGIN_EVENT: User 'user02' login, class 'j-d-log-test' [34709], ssh-connection '198.51.100.56 59668 203.0.113.184  22', client-mode 'cli'
+Nov  9 01:21:10  host05   mgd[34709]: UI_CMDLINE_DENIED: User 'user02', command 'start shell command id"' is denied
+Nov  9 01:21:10  host05   mgd[34709]: UI_CMDLINE_READ_LINE: User 'user02', command 'start '
+Nov  9 01:21:10  host05   mgd[34709]: UI_LOGOUT_EVENT: User 'user02' logout
+Nov  9 01:21:12  host05   sshd[34715]: UI_SSHD_REMOTE_COMMAND: User 'user02', command 'request system uptime'
+Nov  9 01:21:13  host05   mgd[34716]: UI_AUTH_EVENT: Authenticated user 'user02' assigned to class 'j-d-log-test'
+Nov  9 01:21:13  host05   mgd[34716]: UI_LOGIN_EVENT: User 'user02' login, class 'j-d-log-test' [34716], ssh-connection '198.51.100.56 59676 203.0.113.184  22', client-mode 'cli'
+Nov  9 01:21:17  host05   mgd[34716]: UI_CMDLINE_DENIED: User 'user02', command 'request system uptime' is denied
+Nov  9 01:21:17  host05   mgd[34716]: UI_CMDLINE_READ_LINE: User 'user02', command 'request '
+Nov  9 01:21:18  host05   mgd[34716]: UI_LOGOUT_EVENT: User 'user02' logout
+Nov  9 01:21:20  host05   sshd[34721]: UI_SSHD_REMOTE_COMMAND: User 'user02', command 'show configuration system | no-more'
+Nov  9 01:21:21  host05   mgd[34722]: UI_AUTH_EVENT: Authenticated user 'user02' assigned to class 'j-d-log-test'
+Nov  9 01:21:21  host05   mgd[34722]: UI_LOGIN_EVENT: User 'user02' login, class 'j-d-log-test' [34722], ssh-connection '198.51.100.56 36692 203.0.113.184  22', client-mode 'cli'
+Nov  9 01:22:12  host05   mgd[34722]: UI_CMDLINE_DENIED: User 'user02', command 'show configuration system | no-more' is denied
+Nov  9 01:22:12  host05   mgd[34722]: UI_CMDLINE_READ_LINE: User 'user02', command 'show configuration '
+Nov  9 01:22:12  host05   mgd[34722]: UI_LOGOUT_EVENT: User 'user02' logout
+Nov  9 01:22:14  host05   sshd[34727]: UI_SSHD_REMOTE_COMMAND: User 'user02', command 'show version brief | no-more'
+Nov  9 01:22:14  host05   mgd[34728]: UI_AUTH_EVENT: Authenticated user 'user02' assigned to class 'j-d-log-test'
+Nov  9 01:22:14  host05   mgd[34728]: UI_LOGIN_EVENT: User 'user02' login, class 'j-d-log-test' [34728], ssh-connection '198.51.100.56 39738 203.0.113.184  22', client-mode 'cli'
+Nov  9 01:23:09  host05   mgd[34728]: UI_CMDLINE_READ_LINE: User 'user02', command 'show version brief | no-more '
+Nov  9 01:23:10  host05   mgd[34728]: UI_CHILD_START: Starting child '/usr/libexec/ui/package-info'
+Nov  9 01:23:18  host05   mgd[34728]: UI_CHILD_STATUS: Cleanup child '/usr/libexec/ui/package-info', PID 34733, status 0
+Nov  9 01:23:18  host05   mgd[34728]: UI_LOGOUT_EVENT: User 'user02' logout
+Nov  9 01:23:25  host05   mgd[34936]: UI_AUTH_EVENT: Authenticated user 'user01' assigned to class 'j-super-user'
+Nov  9 01:23:25  host05   mgd[34936]: UI_LOGIN_EVENT: User 'user01' login, class 'j-super-user' [34936], ssh-connection '198.51.100.56 59318 203.0.113.184  22', client-mode 'cli'
+Nov  9 01:23:25  host05   mgd[34936]: UI_CMDLINE_READ_LINE: User 'user01', command 'configure '
+Nov  9 01:23:25  host05   mgd[34936]: UI_DBASE_LOGIN_EVENT: User 'user01' entering configuration mode
+Nov  9 01:23:26  host05   mgd[34936]: UI_CMDLINE_READ_LINE: User 'user01', command 'set system login class d-log-test permissions trace '
+Nov  9 01:23:26  host05   mgd[34936]: UI_CMDLINE_READ_LINE: User 'user01', command 'commit no-synchronize comment "d-lab D5 temporary log class 4" '
+Nov  9 01:23:27  host05   mgd[34936]: UI_COMMIT: User 'user01' requested 'commit' operation (comment: d-lab D5 temporary log class 4)
+Nov  9 01:23:27  host05   mgd[34936]: UI_COMMIT_PROGRESS: Commit operation in progress: Obtaining lock for commit
+Nov  9 01:23:27  host05   mgd[34936]: UI_COMMIT_PROGRESS: Commit operation in progress: updating commit revision
+Nov  9 01:23:27  host05   mgd[34936]: UI_COMMIT_PROGRESS: Commit operation in progress: UI extensions feature is not configured
+Nov  9 01:23:27  host05   mgd[34936]: UI_COMMIT_PROGRESS: Commit operation in progress: UI change-notification feature is not configured
+Nov  9 01:23:27  host05   mgd[34936]: UI_COMMIT_PROGRESS: Commit operation in progress: Started running translation script
+Nov  9 01:23:27  host05   mgd[34936]: UI_COMMIT_PROGRESS: Commit operation in progress: No delta input for translation
+Nov  9 01:23:27  host05   mgd[34936]: UI_COMMIT_PROGRESS: Commit operation in progress: Finished running translation script
+Nov  9 01:23:29  host05   mgd[34936]: UI_COMMIT_PROGRESS: Commit operation in progress: start loading commit script changes
+Nov  9 01:23:29  host05   mgd[34936]: UI_COMMIT_PROGRESS: Commit operation in progress: no commit script changes
+Nov  9 01:23:29  host05   mgd[34936]: UI_COMMIT_PROGRESS: Commit operation in progress: no transient commit script changes
+Nov  9 01:23:29  host05   mgd[34936]: UI_COMMIT_PROGRESS: Commit operation in progress: finished loading commit script changes
+Nov  9 01:23:29  host05   mgd[34936]: UI_COMMIT_PROGRESS: Commit operation in progress: No translation output from the scripts
+Nov  9 01:23:29  host05   mgd[34936]: UI_COMMIT_PROGRESS: Commit operation in progress: building groups inheritance path proportional in candidate db
+Nov  9 01:23:29  host05   mgd[34936]: UI_COMMIT_PROGRESS: Commit operation in progress: finished groups inheritance path
+Nov  9 01:23:29  host05   mgd[34936]: UI_COMMIT_PROGRESS: Commit operation in progress: copying juniper.db to juniper.data+
+Nov  9 01:23:29  host05   mgd[34936]: UI_COMMIT_PROGRESS: Commit operation in progress: finished copying juniper.db to juniper.data+
+Nov  9 01:23:29  host05   mgd[34936]: UI_COMMIT_PROGRESS: Commit operation in progress: exporting juniper.conf+
+Nov  9 01:23:29  host05   mgd[34936]: UI_COMMIT_PROGRESS: Commit operation in progress: expanding interface-ranges
+Nov  9 01:23:29  host05   mgd[34936]: UI_COMMIT_PROGRESS: Commit operation in progress: finished expanding interface-ranges
+Nov  9 01:23:29  host05   mgd[34936]: UI_COMMIT_PROGRESS: Commit operation in progress: Sending constraint check command to evaluate constraints
+Nov  9 01:23:29  host05   mgd[34936]: UI_CHILD_START: Starting child '/usr/sbin/mustd'
+Nov  9 01:23:31  host05   mgd[34936]: UI_CHILD_STATUS: Cleanup child '/usr/sbin/mustd', PID 34942, status 0
+Nov  9 01:23:31  host05   mgd[34936]: UI_COMMIT_PROGRESS: Commit operation in progress: constraints passed in mustd - not checking constraints in propagation
+Nov  9 01:23:31  host05   mgd[34936]: UI_COMMIT_PROGRESS: Commit operation in progress: setup foreign files
+Nov  9 01:23:31  host05   mgd[34936]: UI_COMMIT_PROGRESS: Commit operation in progress: finish setup foreign files
+Nov  9 01:23:31  host05   mgd[34936]: UI_COMMIT_PROGRESS: Commit operation in progress: start ffp propagate
+Nov  9 01:23:31  host05   mgd[34936]: UI_CHILD_START: Starting child '/usr/sbin/ffp'
+Nov  9 01:23:31  host05   mgd[34936]: UI_COMMIT_PROGRESS: Commit operation in progress: propagating foreign files
+Nov  9 01:23:31  host05   mgd[34936]: UI_COMMIT_PROGRESS: Commit operation in progress: complete foreign files
+Nov  9 01:23:31  host05   mgd[34936]: UI_COMMIT_PROGRESS: Commit operation in progress: Collecting the result of ffp propagate(pid: 34944)
+Nov  9 01:23:33  host05   mgd[34936]: UI_CHILD_STATUS: Cleanup child '/usr/sbin/ffp', PID 34944, status 0
+Nov  9 01:23:33  host05   mgd[34936]: UI_COMMIT_PROGRESS: Commit operation in progress: finish ffp propagate
+Nov  9 01:23:33  host05   mgd[34936]: UI_COMMIT_PROGRESS: Commit operation in progress: dropping unchanged foreign files
+Nov  9 01:23:33  host05   mgd[34936]: UI_COMMIT_PROGRESS: Commit operation in progress: daemons checking new configuration
+Nov  9 01:23:33  host05   mgd[34936]: UI_COMMIT_PROGRESS: Commit operation in progress: Spawning PIC services logging process to check new configuration
+Nov  9 01:23:33  host05   mgd[34936]: UI_CHILD_START: Starting child '/usr/sbin/fsad'
+Nov  9 01:23:33  host05   mgd[34936]: UI_COMMIT_PROGRESS: Commit operation in progress: Collecting status of PIC services logging process
+Nov  9 01:23:33  host05   mgd[34936]: UI_CHILD_STATUS: Cleanup child '/usr/sbin/fsad', PID 34945, status 0
+Nov  9 01:23:34  host05   mgd[34936]: UI_COMMIT_PROGRESS: Commit operation in progress: Spawning App-engine virtual machine management process to check new configuration
+Nov  9 01:23:34  host05   mgd[34936]: UI_CHILD_START: Starting child '/usr/sbin/sdk-vmmd'
+Nov  9 01:23:34  host05   mgd[34936]: UI_COMMIT_PROGRESS: Commit operation in progress: Collecting status of App-engine virtual machine management process
+Nov  9 01:23:34  host05   mgd[34936]: UI_CHILD_STATUS: Cleanup child '/usr/sbin/sdk-vmmd', PID 34946, status 0
+Nov  9 01:23:34  host05   mgd[34936]: UI_COMMIT_PROGRESS: Commit operation in progress: commit wrapup...
+Nov  9 01:23:34  host05   mgd[34936]: UI_COMMIT_PROGRESS: Commit operation in progress: start ffp activate
+Nov  9 01:23:34  host05   mgd[34936]: UI_CHILD_START: Starting child '/usr/sbin/ffp'
+Nov  9 01:23:34  host05   mgd[34936]: UI_COMMIT_PROGRESS: Commit operation in progress: start static foreign file activation
+Nov  9 01:23:34  host05   mgd[34936]: UI_COMMIT_PROGRESS: Commit operation in progress: activating '/var/etc/master.passwd'
+Nov  9 01:23:35  host05   mgd[34936]: UI_COMMIT_PROGRESS: Commit operation in progress: activating '/var/etc/rc.conf.inc'
+Nov  9 01:23:35  host05   mgd[34936]: UI_COMMIT_PROGRESS: Commit operation in progress: activating '/var/etc/login.conf'
+Nov  9 01:23:35  host05   mgd[34936]: UI_COMMIT_PROGRESS: Commit operation in progress: activating '/var/etc/group'
+Nov  9 01:23:35  host05   mgd[34936]: UI_COMMIT_PROGRESS: Commit operation in progress: activating '/var/etc/pam.conf'
+Nov  9 01:23:35  host05   mgd[34936]: UI_COMMIT_PROGRESS: Commit operation in progress: activating '/var/etc/pam_radius.conf'
+Nov  9 01:23:35  host05   mgd[34936]: UI_COMMIT_PROGRESS: Commit operation in progress: activating '/var/etc/pam_tacplus.conf'
+Nov  9 01:23:35  host05   mgd[34936]: UI_COMMIT_PROGRESS: Commit operation in progress: activating '/var/etc/accounting_events.conf'
+Nov  9 01:23:35  host05   mgd[34936]: UI_COMMIT_PROGRESS: Commit operation in progress: activating '/var/etc/accounting_radius_servers.conf'
+Nov  9 01:23:35  host05   mgd[34936]: UI_COMMIT_PROGRESS: Commit operation in progress: activating '/var/etc/accounting_tacplus_servers.conf'
+Nov  9 01:23:35  host05   mgd[34936]: UI_COMMIT_PROGRESS: Commit operation in progress: activating '/var/etc/accounting_tacplus_options.conf'
+Nov  9 01:23:35  host05   mgd[34936]: UI_COMMIT_PROGRESS: Commit operation in progress: activating '/var/etc/pam_ldap.conf'
+Nov  9 01:23:35  host05   mgd[34936]: UI_COMMIT_PROGRESS: Commit operation in progress: activating '/var/etc/issue'
+Nov  9 01:23:35  host05   mgd[34936]: UI_COMMIT_PROGRESS: Commit operation in progress: activating '/var/etc/sshd_conf'
+Nov  9 01:23:35  host05   mgd[34936]: UI_COMMIT_PROGRESS: Commit operation in progress: activating '/var/etc/ssh_host_ca.pub'
+Nov  9 01:23:35  host05   mgd[34936]: UI_COMMIT_PROGRESS: Commit operation in progress: activating '/var/etc/ssh_trusted_user_ca.pub'
+Nov  9 01:23:35  host05   mgd[34936]: UI_COMMIT_PROGRESS: Commit operation in progress: activating '/var/etc/ssh_authorized_principals'
+Nov  9 01:23:35  host05   mgd[34936]: UI_COMMIT_PROGRESS: Commit operation in progress: activating '/var/etc/certs'
+Nov  9 01:23:35  host05   mgd[34936]: UI_COMMIT_PROGRESS: Commit operation in progress: activating '/var/etc/motd'
+Nov  9 01:23:35  host05   mgd[34936]: UI_COMMIT_PROGRESS: Commit operation in progress: activating '/var/etc/max-db-size-cfg'
+Nov  9 01:23:35  host05   mgd[34936]: UI_COMMIT_PROGRESS: Commit operation in progress: activating '/var/etc/subs-mgmt-cfg'
+Nov  9 01:23:35  host05   mgd[34936]: UI_COMMIT_PROGRESS: Commit operation in progress: activating '/var/etc/vmm.conf'
+Nov  9 01:23:35  host05   mgd[34936]: UI_COMMIT_PROGRESS: Commit operation in progress: activating '/var/etc/db_ext-cfg'
+Nov  9 01:23:35  host05   mgd[34936]: UI_COMMIT_PROGRESS: Commit operation in progress: activating '/var/etc/ephinst.conf'
+Nov  9 01:23:35  host05   mgd[34936]: UI_COMMIT_PROGRESS: Commit operation in progress: activating '/var/etc/enable_compact_json'
+Nov  9 01:23:35  host05   mgd[34936]: UI_COMMIT_PROGRESS: Commit operation in progress: activating '/var/etc/motd.junos'
+Nov  9 01:23:35  host05   mgd[34936]: UI_COMMIT_PROGRESS: Commit operation in progress: activating '/var/etc/na-grpcd.conf'
+Nov  9 01:23:35  host05   mgd[34936]: UI_COMMIT_PROGRESS: Commit operation in progress: activating '/var/etc/max-cli-sessions'
+Nov  9 01:23:35  host05   mgd[34936]: UI_COMMIT_PROGRESS: Commit operation in progress: activating '/var/etc/inband_ztp.conf'
+Nov  9 01:23:35  host05   mgd[34936]: UI_COMMIT_PROGRESS: Commit operation in progress: activating '/config/db_optimize-cfg'
+Nov  9 01:23:35  host05   mgd[34936]: UI_COMMIT_PROGRESS: Commit operation in progress: executing foreign_commands
+Nov  9 01:23:38  host05   mgd[34936]: UI_COMMIT_PROGRESS: Commit operation in progress: executing ui_commit in rc.ui
+Nov  9 01:23:46  host05   mgd[34936]: UI_COMMIT_PROGRESS: Commit operation in progress: finish static foreign file activation
+Nov  9 01:23:46  host05   mgd[34936]: UI_COMMIT_PROGRESS: Commit operation in progress: Collecting the result of ffp activate (pid: 34947)
+Nov  9 01:23:46  host05   mgd[34936]: UI_CHILD_STATUS: Cleanup child '/usr/sbin/ffp', PID 34947, status 0
+Nov  9 01:23:46  host05   mgd[34936]: UI_COMMIT_PROGRESS: Commit operation in progress: finish ffp activate
+Nov  9 01:23:46  host05   mgd[34936]: UI_COMMIT_PROGRESS: Commit operation in progress: db_groups_info_clear start
+Nov  9 01:23:46  host05   mgd[34936]: UI_COMMIT_PROGRESS: Commit operation in progress: db_groups_info_clear done
+Nov  9 01:23:46  host05   mgd[34936]: UI_COMMIT_PROGRESS: Commit operation in progress: activating '/var/run/db/juniper.data'
+Nov  9 01:23:46  host05   mgd[34936]: UI_COMMIT_PROGRESS: Commit operation in progress: Rotate backup configs
+Nov  9 01:23:46  host05   mgd[34936]: UI_COMMIT_PROGRESS: Commit operation in progress: activating /config/juniper.conf.gz
+Nov  9 01:23:46  host05   mgd[34936]: UI_COMMIT_PROGRESS: Commit operation in progress: signaling 'Simple Network Management Protocol process', pid 20666, signal 31, status 0 with notification errors enabled
+Nov  9 01:23:46  host05   mgd[34936]: UI_COMMIT_PROGRESS: Commit operation in progress: ssync begins
+Nov  9 01:23:46  host05   mgd[34936]: UI_COMMIT_PROGRESS: Commit operation in progress: ssync ends
+Nov  9 01:23:46  host05   mgd[34936]: UI_COMMIT_PROGRESS: Commit operation in progress: notifying daemons of new configuration
+Nov  9 01:23:46  host05   mgd[34936]: UI_COMMIT_PROGRESS: Commit operation in progress:  notifying fsad(33)
+Nov  9 01:23:46  host05   mgd[34936]: UI_COMMIT_PROGRESS: Commit operation in progress: cannot signal 'PIC services logging process', signal 1, no pid
+Nov  9 01:23:46  host05   mgd[34936]: UI_COMMIT_PROGRESS: Commit operation in progress:  notifying sdk-vmmd(76)
+Nov  9 01:23:46  host05   mgd[34936]: UI_COMMIT_PROGRESS: Commit operation in progress: signaling 'App-engine virtual machine management process', pid 20330, signal 1, status 0 with notification errors enabled
+Nov  9 01:23:46  host05   mgd[34936]: UI_COMMIT_PROGRESS: Commit operation in progress:  notifying aaasd(108)
+Nov  9 01:23:46  host05   mgd[34936]: UI_COMMIT_PROGRESS: Commit operation in progress: signaling 'AAA Service Daemon', pid 20421, signal 1, status 0 with notification errors enabled
+Nov  9 01:23:46  host05   mgd[34936]: UI_COMMIT_PROGRESS: Commit operation in progress: ssync begins
+Nov  9 01:23:46  host05   mgd[34936]: UI_COMMIT_PROGRESS: Commit operation in progress: ssync ends
+Nov  9 01:23:46  host05   mgd[34936]: UI_COMMIT_PROGRESS: Commit operation in progress: mgd tracing: disabled
+Nov  9 01:23:46  host05   mgd[34936]: UI_COMMIT_PROGRESS: Commit operation in progress: New database revision 're0-1794187407-10' and old database revision 're0-1794187144-9'
+Nov  9 01:23:46  host05   mgd[34936]: UI_CONFIGURATION_REVISION_UPDATED: New database revision 're0-1794187407-10' and old database revision 're0-1794187144-9'
+Nov  9 01:23:46  host05   mgd[34936]: UI_COMMIT_COMMENT:  : d-lab D5 temporary log class 4
+Nov  9 01:23:46  host05   mgd[34936]: UI_COMMIT_PROGRESS: Commit operation in progress: commit complete
+Nov  9 01:23:46  host05   mgd[34936]: UI_COMMIT_COMPLETED:  : commit complete
+Nov  9 01:23:46  host05   mgd[34936]: UI_COMMIT_PROGRESS: Commit operation in progress: cannot signal 'Web management gatekeeper process', signal 31, no pid
+Nov  9 01:23:46  host05   mgd[34936]: UI_COMMIT_PROGRESS: Commit operation in progress: signaling 'Alarm control process', pid 20665, signal 30, status 0 with notification errors enabled
+Nov  9 01:23:47  host05   mgd[34936]: UI_CMDLINE_READ_LINE: User 'user01', command 'exit '
+Nov  9 01:23:47  host05   mgd[34936]: UI_DBASE_LOGOUT_EVENT: User 'user01' exiting configuration mode
+Nov  9 01:23:47  host05   mgd[34936]: UI_CMDLINE_READ_LINE: User 'user01', command 'exit '
+Nov  9 01:23:47  host05   mgd[34936]: UI_LOGOUT_EVENT: User 'user01' logout
+Nov  9 01:23:50  host05   sshd[35559]: UI_SSHD_REMOTE_COMMAND: User 'user02', command 'show log messages | last 5 | no-more'
+Nov  9 01:23:50  host05   mgd[35560]: UI_AUTH_EVENT: Authenticated user 'user02' assigned to class 'j-d-log-test'
+Nov  9 01:23:50  host05   mgd[35560]: UI_LOGIN_EVENT: User 'user02' login, class 'j-d-log-test' [35560], ssh-connection '198.51.100.56 37944 203.0.113.184  22', client-mode 'cli'
+Nov  9 01:25:14  host05   mgd[35560]: UI_CMDLINE_READ_LINE: User 'user02', command 'show log messages | last 5 | no-more '
+Nov  9 01:25:17  host05   mgd[35560]: UI_LOGOUT_EVENT: User 'user02' logout
+Nov  9 01:25:18  host05   sshd[35805]: UI_SSHD_REMOTE_COMMAND: User 'user02', command 'start shell command "id"'
+Nov  9 01:25:18  host05   mgd[35806]: UI_AUTH_EVENT: Authenticated user 'user02' assigned to class 'j-d-log-test'
+Nov  9 01:25:18  host05   mgd[35806]: UI_LOGIN_EVENT: User 'user02' login, class 'j-d-log-test' [35806], ssh-connection '198.51.100.56 33956 203.0.113.184  22', client-mode 'cli'
+Nov  9 01:25:19  host05   mgd[35806]: UI_CMDLINE_DENIED: User 'user02', command 'start shell command id"' is denied
+Nov  9 01:25:19  host05   mgd[35806]: UI_CMDLINE_READ_LINE: User 'user02', command 'start '
+Nov  9 01:25:19  host05   mgd[35806]: UI_LOGOUT_EVENT: User 'user02' logout
+Nov  9 01:25:20  host05   sshd[35812]: UI_SSHD_REMOTE_COMMAND: User 'user02', command 'request system uptime'
+Nov  9 01:25:20  host05   mgd[35813]: UI_AUTH_EVENT: Authenticated user 'user02' assigned to class 'j-d-log-test'
+Nov  9 01:25:20  host05   mgd[35813]: UI_LOGIN_EVENT: User 'user02' login, class 'j-d-log-test' [35813], ssh-connection '198.51.100.56 60464 203.0.113.184  22', client-mode 'cli'
+Nov  9 01:25:22  host05   mgd[35813]: UI_CMDLINE_DENIED: User 'user02', command 'request system uptime' is denied
+Nov  9 01:25:22  host05   mgd[35813]: UI_CMDLINE_READ_LINE: User 'user02', command 'request '
+Nov  9 01:25:23  host05   mgd[35813]: UI_LOGOUT_EVENT: User 'user02' logout
+Nov  9 01:25:24  host05   sshd[35818]: UI_SSHD_REMOTE_COMMAND: User 'user02', command 'show configuration system | no-more'
+Nov  9 01:25:24  host05   mgd[35819]: UI_AUTH_EVENT: Authenticated user 'user02' assigned to class 'j-d-log-test'
+Nov  9 01:25:24  host05   mgd[35819]: UI_LOGIN_EVENT: User 'user02' login, class 'j-d-log-test' [35819], ssh-connection '198.51.100.56 60474 203.0.113.184  22', client-mode 'cli'
+Nov  9 01:26:27  host05   mgd[35819]: UI_CMDLINE_DENIED: User 'user02', command 'show configuration system | no-more' is denied
+Nov  9 01:26:27  host05   mgd[35819]: UI_CMDLINE_READ_LINE: User 'user02', command 'show configuration '
+Nov  9 01:26:27  host05   mgd[35819]: UI_LOGOUT_EVENT: User 'user02' logout
+Nov  9 01:26:30  host05   sshd[35826]: UI_SSHD_REMOTE_COMMAND: User 'user02', command 'show version brief | no-more'
+Nov  9 01:26:30  host05   mgd[35827]: UI_AUTH_EVENT: Authenticated user 'user02' assigned to class 'j-d-log-test'
+Nov  9 01:26:30  host05   mgd[35827]: UI_LOGIN_EVENT: User 'user02' login, class 'j-d-log-test' [35827], ssh-connection '198.51.100.56 35360 203.0.113.184  22', client-mode 'cli'
+Nov  9 01:27:23  host05   mgd[35827]: UI_CMDLINE_READ_LINE: User 'user02', command 'show version brief | no-more '
+Nov  9 01:27:23  host05   mgd[35827]: UI_CHILD_START: Starting child '/usr/libexec/ui/package-info'
+Nov  9 01:27:32  host05   mgd[35827]: UI_CHILD_STATUS: Cleanup child '/usr/libexec/ui/package-info', PID 35828, status 0
+Nov  9 01:27:32  host05   mgd[35827]: UI_LOGOUT_EVENT: User 'user02' logout
+Nov  9 01:27:40  host05   sshd[36030]: UI_SSHD_REMOTE_COMMAND: User 'user02', command 'show log messages | last 200 | no-more'
+Nov  9 01:27:40  host05   mgd[36031]: UI_AUTH_EVENT: Authenticated user 'user02' assigned to class 'j-d-log-test'
+Nov  9 01:27:40  host05   mgd[36031]: UI_LOGIN_EVENT: User 'user02' login, class 'j-d-log-test' [36031], ssh-connection '198.51.100.56 45684 203.0.113.184  22', client-mode 'cli'
+Nov  9 01:28:39  host05   mgd[36031]: UI_CMDLINE_READ_LINE: User 'user02', command 'show log messages | last 200 | no-more '
+Nov  9 01:28:41  host05   mgd[36031]: UI_LOGOUT_EVENT: User 'user02' logout
+Nov  9 01:28:42  host05   sshd[36039]: UI_SSHD_REMOTE_COMMAND: User 'user02', command 'show log interactive-commands | last 200 | no-more'
+Nov  9 01:28:43  host05   mgd[36040]: UI_AUTH_EVENT: Authenticated user 'user02' assigned to class 'j-d-log-test'
+Nov  9 01:28:43  host05   mgd[36040]: UI_LOGIN_EVENT: User 'user02' login, class 'j-d-log-test' [36040], ssh-connection '198.51.100.56 51520 203.0.113.184  22', client-mode 'cli'
+---(more 100%)---
+                                        
+Nov  9 01:29:37  host05   mgd[36040]: UI_CMDLINE_READ_LINE: User 'user02', command 'show log interactive-commands | last 200 | no-more '

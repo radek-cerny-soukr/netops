@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "netops"
-version = "1.0.6"
+version = "1.0.7"
 description = "Isolated network operations through an audited HTTPS MCP endpoint"
 requires-python = ">=3.13"
 license = "MIT"
@@ -25,6 +25,7 @@ netops_auditor = "components/netops-auditor/src/netops_auditor"
 netops_admin = "components/netops-admin/src/netops_admin"
 
 [tool.setuptools.package-data]
+netops = ["troubleshooting-by-symptom.md"]
 netops_helper = ["config-fortios-*.json", "config-fortiadc-*.json"]
 netops_auditor = ["catalog/*.json"]
 netops_admin = ["profiles/*.json"]

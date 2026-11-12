@@ -14,9 +14,12 @@ AREAS = frozenset(
     ("system", "networking", "load-balance", "log", "link-load-balance",
      "global-load-balance", "security", "share-resource", "user")
 )
-GLOBAL_LIMITATIONS = frozenset(("access-profile-unverified", "vdom-unverified"))
+GLOBAL_LIMITATIONS = frozenset(("access-profile-unverified", "vdom-unverified", "requested-section-only"))
 VDOM_LIMITATION = "vdom-override-unverified"
-KNOWN_LIMITATIONS = AREAS | GLOBAL_LIMITATIONS | {VDOM_LIMITATION}
+# The collector writes a value it could not classify as a <UNVERIFIED:...> marker in the text. Each
+# rule judges the attribute it reads (redacted-or-unverified-value), so these names block no rule.
+VALUE_LIMITATIONS = frozenset(("schema-fields-unverified", "formats-not-verified"))
+KNOWN_LIMITATIONS = AREAS | GLOBAL_LIMITATIONS | VALUE_LIMITATIONS | {VDOM_LIMITATION}
 
 REASON_NO_CONTEXT = "snapshot-context-missing"
 REASON_IDENTITY = "identity-mismatch"
@@ -206,7 +209,7 @@ def _probe(areas, hits, undetermined):
     return status
 
 
-def _attribute_gap(tree, section, attribute):
+def _attribute_gap(tree, section, attribute, unset_is_empty=False):
     entries = _entries(tree, section)
     if entries is None:
         return REASON_SECTION if section in (_ADMIN, _INTERFACE) else None
@@ -214,9 +217,16 @@ def _attribute_gap(tree, section, attribute):
         values = node.values(attribute)
         if _marked(values) or _marked((node.path[-1],)):
             return REASON_MARKER
-        if not values:
+        if not values and not (unset_is_empty and _explicitly_unset(node, attribute)):
             return REASON_DEFAULT
     return None
+
+
+def _explicitly_unset(node, attribute):
+    # The export with defaults writes `unset allowaccess` for an interface without any
+    # administrative service: an empty list stated by the device, not an undocumented default.
+    attr = node.attrs.get(attribute)
+    return attr is not None and attr.unset
 
 
 def _open(values):
@@ -304,7 +314,7 @@ def _contextual(name, hits, areas, undetermined):
 _contextual("fortiadc_trusted_hosts_open", _trusted_hosts_hits, frozenset(("system",)),
             lambda tree: _attribute_gap(tree, _ADMIN, "trusted-hosts"))
 _contextual("fortiadc_plaintext_admin_access", _plaintext_hits, frozenset(("system", "networking")),
-            lambda tree: _attribute_gap(tree, _INTERFACE, "allowaccess"))
+            lambda tree: _attribute_gap(tree, _INTERFACE, "allowaccess", unset_is_empty=True))
 _contextual("fortiadc_legacy_tls_versions", _legacy_tls_hits, frozenset(("load-balance",)),
             lambda tree: _attribute_gap(tree, _SSL_PROFILE, "ssl-allowed-versions"))
 _contextual("fortiadc_pool_no_health_check", _no_health_check_hits, frozenset(("load-balance",)),
@@ -314,6 +324,15 @@ _contextual("fortiadc_pool_single_member", _single_member_hits, frozenset(("load
 
 
 REASON_FACTORY = "factory-provenance-unproven"
+FACTORY_RULE = "fortiadc.tls.factory-certificate"
+
+
+def inherent_gap(rule, reason):
+    # Only the factory certificate provenance cannot be learned from any export;
+    # every visibility gap follows from the collector's access profile.
+    return rule == FACTORY_RULE and (reason == REASON_FACTORY or reason.startswith(REASON_FACTORY + ":"))
+
+
 _MAX_BINDINGS = 8
 
 

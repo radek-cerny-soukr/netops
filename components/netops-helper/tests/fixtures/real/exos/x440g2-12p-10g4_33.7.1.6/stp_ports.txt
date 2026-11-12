@@ -1,0 +1,34 @@
+Port     Mode   State      Cost  Flags     Priority Port ID Designated Bridge
+1      802.1D FORWARDING 20000 eDaepw--B- 128      8001    80:00:00:00:5e:00:53:09
+2      802.1D DISABLED   20000 e?ab-w--B- 128      8002    00:00:00:00:00:00:00:00
+3      802.1D FORWARDING 200000 eDaepw--B- 128      8003    80:00:00:00:5e:00:53:09
+4      802.1D DISABLED   20000 e?ab-w--B- 128      8004    00:00:00:00:00:00:00:00
+5      802.1D FORWARDING 200000 eDaepw--B- 128      8005    80:00:00:00:5e:00:53:09
+6      802.1D DISABLED   20000 e?ab-w--B- 128      8006    00:00:00:00:00:00:00:00
+7      802.1D FORWARDING 20000 eDap-m--B- 128      8007    80:00:00:00:5e:00:53:09
+8      802.1D DISABLED   20000 e?ab-w--B- 128      8008    00:00:00:00:00:00:00:00
+9      802.1D FORWARDING 20000 eDaepw--B- 128      8009    80:00:00:00:5e:00:53:09
+10     802.1D DISABLED   20000 e?ab-w--B- 128      800a    00:00:00:00:00:00:00:00
+11     802.1D FORWARDING 20000 eDaepw--B- 128      800b    80:00:00:00:5e:00:53:09
+12     802.1D FORWARDING 20000 eDaepw--B- 128      800c    80:00:00:00:5e:00:53:09
+13     802.1D DISABLED   2000  e?ab-w--B- 128      800d    00:00:00:00:00:00:00:00
+14     802.1D DISABLED   2000  e?ab-w--B- 128      800e    00:00:00:00:00:00:00:00
+15     802.1D DISABLED   2000  e?ab-w--B- 128      800f    00:00:00:00:00:00:00:00
+16     802.1D DISABLED   2000  e?ab-w--B- 128      8010    00:00:00:00:00:00:00:00
+
+Total Ports: 16
+
+ ------------------------- Flags: ----------------------------
+1:                e=Enable, d=Disable
+2: (Port role)    R=Root, D=Designated, A=Alternate, B=Backup, M=Master
+3: (Config type)  b=broadcast, p=point-to-point, e=edge, a=auto
+4: (Oper. type)   b=broadcast, p=point-to-point, e=edge
+5:                p=proposing, a=agree
+6: (partner mode) d = 802.1d, w = 802.1w, m = mstp
+7:                i = edgeport inconsistency
+8:                S = edgeport safe guard active
+                  s = edgeport safe guard configured but inactive
+8:                G = edgeport safe guard bpdu restrict active in 802.1w and mstp
+                  g = edgeport safe guard bpdu restrict active in 802.1d
+9:                B = Boundary, I = Internal
+10:               r = restricted role, t = active role

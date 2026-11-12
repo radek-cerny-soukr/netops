@@ -1,0 +1,5 @@
+show interfaces counters errors
+                                ^
+% Invalid input detected at '^' marker.
+
+host01>

@@ -1,0 +1,35 @@
+
+SysName:          host01
+SysLocation:      host03
+SysContact:       https://www.extremenetworks.com/support/
+System MAC:       00:00:5E:00:53:0C
+System MAC Used:  Factory MAC
+System Type:      X440G2-12p-10G4
+
+SysHealth check:  Enabled (Normal)
+Recovery Mode:    All
+System Watchdog:  Enabled
+
+Current Time:     Tue Nov 10 11:03:02 2026
+Timezone:         [Auto DST Disabled] GMT Offset: 0 minutes, name is UTC.
+Boot Time:        Mon Oct 19 14:06:54 2026
+Boot Count:       52
+Next Reboot:      None scheduled
+System UpTime:    21 days 20 hours 56 minutes 8 seconds
+
+Current State:    OPERATIONAL             
+Image Selected:   primary                 
+Image Booted:     primary                 
+Primary ver:      33.7.1.6                
+                  patch1-11
+Secondary ver:    32.6.2.68   
+
+Config Selected:  primary.cfg                                          
+Config Booted:    primary.cfg                                          
+Config Automatic: NONE (Disabled)
+
+primary.cfg       Created by ExtremeXOS version 33.7.1.6
+                  295075 bytes saved on Tue Nov 10 10:57:53 2026
+
+
+LAA MAC:          Locally Administered MAC Address Disabled

@@ -113,7 +113,7 @@ SERVER_WITH_A_FAKE_DEVICE = r"""
 import json, sys
 import netops_helper.server as server
 line = json.loads(sys.argv[1])
-server._auth = lambda target, context: None
+server._paged_auth = lambda target, context, redaction_context: None
 server.engine_ssh_read = lambda auth, platform, query, parameters, offset, max_bytes, content_sha256=None: {
     "ok": True, "target": "sw-example", "platform": "linux", "query": "hostname",
     "untrusted_device_output": line}
@@ -159,6 +159,8 @@ def _answer_of_the_mcp_server(line):
         finally:
             child.kill()
             child.wait()
+            child.stdin.close()
+            child.stdout.close()
         if not answer:
             errors.seek(0)
             pytest.fail("the MCP server gave no answer:\n" + errors.read().decode("utf-8", "replace"))

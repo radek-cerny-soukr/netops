@@ -1,0 +1,2 @@
+IPv6 Address                            Age Hardware Addr   State Interface
+2001:db8:10::20                         0:00:10 0000.5e00.53a0  REACHABLE Vlan10, Ethernet2

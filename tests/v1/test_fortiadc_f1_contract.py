@@ -281,7 +281,7 @@ class FortiAdcF1Wire(unittest.TestCase):
         self.reads = []
         self.cache = {}
         self.enterContext(patch.object(engine, "_SSH_PAGE_CACHE", self.cache))
-        self.auth = SimpleNamespace(alias="f1-wire", secrets=(), legacy_ssh=None, ssh_platform="fortiadc")
+        self.auth = SimpleNamespace(alias="f1-wire", secrets=(),output_secrets=(),redaction_secrets=(), legacy_ssh=None, ssh_platform="fortiadc")
 
     def read(self, platform, command, responses, offset=0, snapshot=None, full=False, events=None):
         def device(auth, selected, issued):
@@ -364,7 +364,7 @@ class FortiAdcF1Wire(unittest.TestCase):
         self.assertEqual(self.reads, [("fortinet", "get system status")], "F1-MISSING-WIRE-TRANSPORT")
         self.assertFalse(result["ok"])
         self.assertTrue(result["error"].startswith("RuntimeError"))
-        self.assertNotIn("error_code", result)
+        self.assertEqual(result["error_code"], "ssh_unavailable")
 
     def test_f1_wire_a_continuation_makes_no_probe_and_no_read(self):
         command = "diagnose netlink interface list port3"

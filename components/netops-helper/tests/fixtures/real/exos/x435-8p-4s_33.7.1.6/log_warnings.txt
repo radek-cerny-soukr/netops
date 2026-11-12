@@ -1,0 +1,103 @@
+11/04/2026 01:58:06.27 <Warn:NetTools.SNTP.SrvrNameNotRslved> Host name ntp.example.net is not DNS resolved yet
+10/19/2026 14:49:12.16 <Warn:NetTools.SNTP.SrvrNameNotRslved> Previous message repeated 14 additional times in the last 284796 second(s)
+10/19/2026 14:49:11.63 <Warn:log.NVRAMFull> NVRAM is full, old messages are overwritten.
+10/19/2026 14:49:08.25 <Warn:NetTools.SNTP.SrvrNameNotRslved> Host name ntp.example.net is not DNS resolved yet
+10/19/2026 14:49:07.54 <Warn:STP.DomainEnable> STP domain s0 enabled
+10/19/2026 14:47:33.95 <Warn:EPM.UnexpctRebootDtect> Booting after System Failure.
+10/19/2026 06:40:59.96 <Warn:NetTools.SNTP.SrvrNameNotRslved> Host name ntp.example.net is not DNS resolved yet
+10/19/2026 06:40:44.94 <Warn:NetTools.SNTP.SrvrNameNotRslved> Host name ntp.example.net is not DNS resolved yet
+10/09/2026 18:36:28.54 <Warn:exsshd.KeyAuthFail> Key authentication failed for user user02 from 192.0.2.36. Key invalid/not configured to the user.
+10/09/2026 16:32:43.91 <UNKNW:telegraf.0> NO MESSAGE DECODE; Missing component "telegraf" v1.1
+10/09/2026 16:32:02.23 <UNKNW:telegraf.0> Previous message repeated 2 additional times in the last 31 second(s)
+10/09/2026 16:15:02.35 <UNKNW:inlets.0> NO MESSAGE DECODE; Missing component "inlets" v1.1
+10/09/2026 13:09:41.74 <Warn:exsshd.KeyAuthFail> Key authentication failed for user user01   from 192.0.2.36. Key invalid/not configured to the user.
+10/09/2026 12:51:15.04 <UNKNW:telegraf.0> NO MESSAGE DECODE; Missing component "telegraf" v1.1
+10/09/2026 11:43:49.55 <UNKNW:telegraf.0> Previous message repeated 1 additional times in the last 1 second(s)
+10/08/2026 22:41:56.07 <UNKNW:inlets.0> NO MESSAGE DECODE; Missing component "inlets" v1.1
+10/08/2026 22:41:56.06 <UNKNW:inlets.0> NO MESSAGE DECODE; Missing component "inlets" v1.1
+10/08/2026 22:41:41.07 <UNKNW:inlets.0> NO MESSAGE DECODE; Missing component "inlets" v1.1
+10/08/2026 22:41:41.05 <UNKNW:inlets.0> NO MESSAGE DECODE; Missing component "inlets" v1.1
+10/08/2026 22:41:26.06 <UNKNW:inlets.0> NO MESSAGE DECODE; Missing component "inlets" v1.1
+10/08/2026 22:41:26.05 <UNKNW:inlets.0> NO MESSAGE DECODE; Missing component "inlets" v1.1
+10/08/2026 22:41:11.05 <UNKNW:inlets.0> NO MESSAGE DECODE; Missing component "inlets" v1.1
+10/08/2026 22:41:11.04 <UNKNW:inlets.0> NO MESSAGE DECODE; Missing component "inlets" v1.1
+10/08/2026 22:41:05.05 <UNKNW:inlets.0> NO MESSAGE DECODE; Missing component "inlets" v1.1
+10/08/2026 22:41:05.04 <UNKNW:inlets.0> NO MESSAGE DECODE; Missing component "inlets" v1.1
+10/08/2026 22:40:50.05 <UNKNW:inlets.0> NO MESSAGE DECODE; Missing component "inlets" v1.1
+10/08/2026 22:40:50.03 <UNKNW:inlets.0> NO MESSAGE DECODE; Missing component "inlets" v1.1
+10/08/2026 22:40:35.04 <UNKNW:inlets.0> NO MESSAGE DECODE; Missing component "inlets" v1.1
+10/08/2026 22:40:35.03 <UNKNW:inlets.0> NO MESSAGE DECODE; Missing component "inlets" v1.1
+10/08/2026 22:40:20.02 <UNKNW:inlets.0> NO MESSAGE DECODE; Missing component "inlets" v1.1
+10/08/2026 22:34:12.79 <UNKNW:inlets.0> Previous message repeated 1 additional times in the last 1 second(s)
+10/08/2026 22:34:12.78 <UNKNW:inlets.0> NO MESSAGE DECODE; Missing component "inlets" v1.1
+10/08/2026 22:33:57.79 <UNKNW:inlets.0> NO MESSAGE DECODE; Missing component "inlets" v1.1
+10/08/2026 22:33:57.77 <UNKNW:inlets.0> NO MESSAGE DECODE; Missing component "inlets" v1.1
+10/08/2026 22:33:42.78 <UNKNW:inlets.0> NO MESSAGE DECODE; Missing component "inlets" v1.1
+10/08/2026 22:33:42.77 <UNKNW:inlets.0> NO MESSAGE DECODE; Missing component "inlets" v1.1
+10/08/2026 22:33:27.79 <UNKNW:inlets.0> NO MESSAGE DECODE; Missing component "inlets" v1.1
+10/08/2026 22:33:27.77 <UNKNW:inlets.0> NO MESSAGE DECODE; Missing component "inlets" v1.1
+10/08/2026 22:32:44.50 <UNKNW:inlets.0> NO MESSAGE DECODE; Missing component "inlets" v1.1
+10/08/2026 22:32:44.48 <UNKNW:inlets.0> NO MESSAGE DECODE; Missing component "inlets" v1.1
+10/08/2026 22:32:29.49 <UNKNW:inlets.0> NO MESSAGE DECODE; Missing component "inlets" v1.1
+10/08/2026 22:32:29.48 <UNKNW:inlets.0> NO MESSAGE DECODE; Missing component "inlets" v1.1
+10/08/2026 22:32:14.48 <UNKNW:inlets.0> NO MESSAGE DECODE; Missing component "inlets" v1.1
+10/08/2026 22:32:14.47 <UNKNW:inlets.0> NO MESSAGE DECODE; Missing component "inlets" v1.1
+10/08/2026 22:31:59.47 <UNKNW:inlets.0> NO MESSAGE DECODE; Missing component "inlets" v1.1
+10/08/2026 22:31:59.46 <UNKNW:inlets.0> NO MESSAGE DECODE; Missing component "inlets" v1.1
+10/08/2026 22:31:44.47 <UNKNW:inlets.0> NO MESSAGE DECODE; Missing component "inlets" v1.1
+10/08/2026 22:31:44.46 <UNKNW:inlets.0> NO MESSAGE DECODE; Missing component "inlets" v1.1
+10/08/2026 22:31:29.46 <UNKNW:inlets.0> NO MESSAGE DECODE; Missing component "inlets" v1.1
+10/08/2026 22:31:29.46 <UNKNW:inlets.0> NO MESSAGE DECODE; Missing component "inlets" v1.1
+10/08/2026 22:31:14.46 <UNKNW:inlets.0> NO MESSAGE DECODE; Missing component "inlets" v1.1
+10/08/2026 22:31:14.45 <UNKNW:inlets.0> NO MESSAGE DECODE; Missing component "inlets" v1.1
+10/08/2026 22:30:59.46 <UNKNW:inlets.0> NO MESSAGE DECODE; Missing component "inlets" v1.1
+10/08/2026 22:30:59.45 <UNKNW:inlets.0> NO MESSAGE DECODE; Missing component "inlets" v1.1
+10/08/2026 22:30:44.45 <UNKNW:inlets.0> NO MESSAGE DECODE; Missing component "inlets" v1.1
+10/08/2026 22:30:44.44 <UNKNW:inlets.0> NO MESSAGE DECODE; Missing component "inlets" v1.1
+10/08/2026 22:30:29.44 <UNKNW:inlets.0> NO MESSAGE DECODE; Missing component "inlets" v1.1
+10/08/2026 22:30:29.43 <UNKNW:inlets.0> NO MESSAGE DECODE; Missing component "inlets" v1.1
+10/08/2026 22:30:14.44 <UNKNW:inlets.0> NO MESSAGE DECODE; Missing component "inlets" v1.1
+10/08/2026 22:30:14.43 <UNKNW:inlets.0> NO MESSAGE DECODE; Missing component "inlets" v1.1
+10/08/2026 22:29:59.43 <UNKNW:inlets.0> NO MESSAGE DECODE; Missing component "inlets" v1.1
+10/08/2026 22:29:59.41 <UNKNW:inlets.0> NO MESSAGE DECODE; Missing component "inlets" v1.1
+10/08/2026 22:29:53.39 <UNKNW:inlets.0> NO MESSAGE DECODE; Missing component "inlets" v1.1
+10/08/2026 22:29:53.38 <UNKNW:inlets.0> NO MESSAGE DECODE; Missing component "inlets" v1.1
+10/08/2026 22:29:46.42 <UNKNW:inlets.0> NO MESSAGE DECODE; Missing component "inlets" v1.1
+10/08/2026 22:29:46.41 <UNKNW:inlets.0> NO MESSAGE DECODE; Missing component "inlets" v1.1
+10/08/2026 22:29:31.42 <UNKNW:inlets.0> NO MESSAGE DECODE; Missing component "inlets" v1.1
+10/08/2026 22:29:31.41 <UNKNW:inlets.0> NO MESSAGE DECODE; Missing component "inlets" v1.1
+10/08/2026 22:29:25.14 <UNKNW:inlets.0> NO MESSAGE DECODE; Missing component "inlets" v1.1
+10/08/2026 22:29:25.13 <UNKNW:inlets.0> NO MESSAGE DECODE; Missing component "inlets" v1.1
+10/08/2026 22:29:14.14 <UNKNW:inlets.0> NO MESSAGE DECODE; Missing component "inlets" v1.1
+10/08/2026 22:29:14.13 <UNKNW:inlets.0> NO MESSAGE DECODE; Missing component "inlets" v1.1
+10/08/2026 22:28:59.14 <UNKNW:inlets.0> NO MESSAGE DECODE; Missing component "inlets" v1.1
+10/08/2026 22:28:59.12 <UNKNW:inlets.0> NO MESSAGE DECODE; Missing component "inlets" v1.1
+10/08/2026 22:28:44.13 <UNKNW:inlets.0> NO MESSAGE DECODE; Missing component "inlets" v1.1
+10/08/2026 22:28:44.12 <UNKNW:inlets.0> NO MESSAGE DECODE; Missing component "inlets" v1.1
+10/08/2026 22:28:29.11 <UNKNW:inlets.0> NO MESSAGE DECODE; Missing component "inlets" v1.1
+10/08/2026 21:32:11.59 <UNKNW:inlets.0> Previous message repeated 2 additional times in the last 3036 second(s)
+10/08/2026 18:41:43.68 <UNKNW:telegraf.0> NO MESSAGE DECODE; Missing component "telegraf" v1.1
+10/08/2026 17:29:37.96 <UNKNW:telegraf.0> Previous message repeated 3 additional times in the last 4315 second(s)
+10/08/2026 11:54:48.22 <UNKNW:telegraf.0> NO MESSAGE DECODE; Missing component "telegraf" v1.1
+10/08/2026 11:54:46.88 <UNKNW:telegraf.0> Previous message repeated 1 additional times in the last 1 second(s)
+10/08/2026 09:43:21.27 <UNKNW:telegraf.0> NO MESSAGE DECODE; Missing component "telegraf" v1.1
+10/08/2026 09:43:20.07 <UNKNW:telegraf.0> Previous message repeated 1 additional times in the last 1 second(s)
+10/08/2026 05:52:05.02 <Warn:NetTools.SNTP.SrvrNameNotRslved> Host name ntp.example.net is not DNS resolved yet
+10/08/2026 05:50:50.01 <Warn:NetTools.SNTP.SrvrNameNotRslved> Previous message repeated 5 additional times in the last 60 second(s)
+10/07/2026 21:30:33.24 <Warn:NetTools.SNTP.SrvrNameNotRslved> Host name ntp.example.net is not DNS resolved yet
+10/07/2026 21:29:18.23 <Warn:NetTools.SNTP.SrvrNameNotRslved> Previous message repeated 5 additional times in the last 60 second(s)
+10/07/2026 21:05:34.02 <UNKNW:telegraf.0> NO MESSAGE DECODE; Missing component "telegraf" v1.1
+10/07/2026 21:04:40.87 <UNKNW:telegraf.0> Previous message repeated 2 additional times in the last 22 second(s)
+10/07/2026 20:46:40.13 <UNKNW:telegraf.0> NO MESSAGE DECODE; Missing component "telegraf" v1.1
+10/07/2026 20:41:30.88 <Warn:EPM.Upgrade.State> Upgrade status Installation time may be greater than expected due to a lack of memory resources
+                                                
+10/07/2026 20:40:46.51 <Erro:EPM.Upgrade.Fail> Upgrade failed, script: download failed
+10/07/2026 20:35:59.18 <Warn:log.NVRAMFull> NVRAM is full, old messages are overwritten.
+10/07/2026 20:35:58.72 <Warn:NetTools.SNTP.SrvrNameNotRslved> Host name ntp.example.net is not DNS resolved yet
+10/07/2026 20:35:57.79 <Warn:EDP.PortVLANIdCfgMismatch> One or more untagged ports has been determined to have a VLAN configuration mismatch. Use the "show edp port all vlan-id mismatch untagged" command to see detailed information.
+10/07/2026 20:35:43.73 <Warn:NetTools.SNTP.SrvrNameNotRslved> Host name ntp.example.net is not DNS resolved yet
+10/07/2026 20:35:39.72 <Warn:NetTools.SNTP.SrvrNameNotRslved> Host name ntp.example.net is not DNS resolved yet
+10/07/2026 20:35:39.25 <Warn:STP.DomainEnable> STP domain s0 enabled
+10/07/2026 20:32:52.74 <Warn:EPM.all_shutdown> Shutting down all processes
+
+A total of 100 log messages were displayed.

@@ -68,8 +68,11 @@ from netops_core import vault as core_vault
 from netops_core.snmp import validate_snmp_usm
 from netops_core.inputs import InputError, read_regular
 from netops_helper import inventory as helper_inventory
+from netops_helper.read_policy import _validate_slot as validate_template_slot
 from netops_helper import legacy_configuration
+from netops_helper.page_metadata import PAGED_TOOLS, page_metadata, strip_page_metadata
 from netops_helper.proxy_sanitize import sanitize_object, sanitize_text
+from netops_helper import progress as progress_module
 
 
 def _configured_path(variable: str, default: Path) -> Path:
@@ -93,6 +96,8 @@ RUNNER_FIELDS = ("version", "host", "port", "credential", "host_key_fingerprint"
 HOST_KEY_SCAN_TIMEOUT_SECONDS = 10
 IDENTITY_NAME = "runner-identity"
 AUTH_FIELD = "auth_context"
+REDACTION_FIELD = "redaction_context"
+PRIVATE_ARGUMENTS = frozenset((AUTH_FIELD, REDACTION_FIELD))
 DEFAULT_RATE_REQUESTS = helper_inventory.DEFAULT_RATE_REQUESTS
 DEFAULT_RATE_WINDOW_SECONDS = helper_inventory.DEFAULT_RATE_WINDOW_SECONDS
 MAX_REQUEST_BYTES = 1_048_576
@@ -115,15 +120,21 @@ WITHHELD_CLIENT_CAPABILITIES = ("sampling", "elicitation", "roots")
 CLIENT_CAPABILITIES_META_KEY = "io.modelcontextprotocol/clientCapabilities"
 SSH_TRANSPORT_FAILURE_MESSAGE = "The remote MCP SSH transport failed."
 SSH_HOST_KEY_FAILURE_MESSAGE = "SSH host-key verification failed."
-SSH_TOOLS = {"ssh_read", "sftp_stat", "schema_read", "fortios_diagnostics", "triage_health", "triage_routing",
-             "triage_vpn", "config_read", "config_diff", "triage_slb"}
-TRIAGE_SLB_RATE_COST = 17
+SSH_TOOLS = {"locate_endpoint", "switch_read", "ssh_read", "sftp_stat", "schema_read", "fortios_diagnostics", "triage_health",
+             "triage_routing", "triage_vpn", "config_read", "config_diff", "triage_slb", "wifi_triage", "triage_flow"}
 TRIAGE_SLB_REQUIRED_QUERIES = ("slb_vs_stat", "slb_load", "system_performance")
-TRIAGE_HEALTH_READS = 10
-TRIAGE_ROUTING_READS = 5
-TRIAGE_VPN_READS = 4
-TRIAGE_READS = {"triage_health": TRIAGE_HEALTH_READS, "triage_routing": TRIAGE_ROUTING_READS,
-                "triage_vpn": TRIAGE_VPN_READS, "triage_slb": TRIAGE_SLB_RATE_COST}
+# A triage reserves its planned device reads on acceptance. They count against the target's total
+# rate_limit, which manual queries share, and against the triage sublimit of the same size.
+TRIAGE_READS = {**progress_module.TRIAGE_READS, "triage_flow": 5, "wifi_triage": 7}
+TRIAGE_HEALTH_READS = TRIAGE_READS["triage_health"]
+TRIAGE_ROUTING_READS = TRIAGE_READS["triage_routing"]
+TRIAGE_VPN_READS = TRIAGE_READS["triage_vpn"]
+TRIAGE_SLB_RATE_COST = TRIAGE_READS["triage_slb"]
+TRIAGE_FLOW_READS = TRIAGE_READS["triage_flow"]
+TRIAGE_WIFI_READS = TRIAGE_READS["wifi_triage"]
+LOCATE_MAX_READS = 40
+WIFI_REST_TOOLS = {"wifi_clients", "wifi_aps_live", "wifi_rogue"}
+WIFI_REST_READS = 2
 CONTROL_TOOLS = {"helper_status", "read_query_catalog", "target_scope"}
 LOGGED_SERVER_METHODS = {"sampling/createMessage", "elicitation/create", "roots/list"}
 SERVER_REQUEST_REFUSAL_MESSAGE = (
@@ -170,6 +181,9 @@ READ_QUERY_NAMES = {
         "debug_state",
         "session_filter_state",
         "certificate_details",
+        "managed_switch_port_stats",
+        "managed_switch_port_vlans",
+        "interface_vlan_ids",
         "managed_switch_status",
         "managed_switch_poe",
         "managed_switch_mac",
@@ -249,6 +263,7 @@ READ_QUERY_NAMES = {
         "ospf_status",
         "performance",
         "physical_interfaces",
+        "system_interfaces",
         "policy_routes_ipv4",
         "policy_routes_ipv6",
         "route_lookup",
@@ -268,6 +283,13 @@ READ_QUERY_NAMES = {
         "sslvpn_statistics",
         "system_status",
         "system_top",
+        "wifi_ap_status",
+        "wifi_vap_status",
+        "wifi_neighbors",
+        "wifi_controller_status",
+        "wifi_controller_statistics",
+        "wifi_rf_analysis",
+        "wifi_events",
         "wifi_clients",
         "wifi_client_detail",
         "wifi_access_points",
@@ -275,54 +297,71 @@ READ_QUERY_NAMES = {
         "wifi_ssid_mapping",
     )),
     "extreme_exos": frozenset((
-        "vlan_details",
-        "dhcp_snooping_entries",
         "access_list_counters",
         "arp_address",
         "arp_interface",
         "arp_table",
         "cpu_monitoring",
+        "dhcp_snooping_entries",
         "diagnostics",
         "edp_neighbors",
         "elrp",
         "fans",
         "inline_power",
         "inline_power_port",
+        "inline_power_stats",
         "interface_details",
         "interface_rx_errors",
         "interface_statistics",
         "interface_transceiver",
         "interface_tx_errors",
+        "ipconfig",
         "ipv6_neighbor_address",
         "ipv6_neighbors",
         "ipv6_route_summary",
+        "ipv6_route_table",
         "lacp",
+        "lag_summary",
         "licenses",
         "lldp_interface",
         "lldp_interface_details",
         "lldp_neighbors",
+        "lldp_neighbors_detail",
+        "log_configuration",
+        "log_messages",
+        "log_warnings",
         "mac_interface",
         "mac_table",
         "mcast_cache_summary",
         "memory",
         "mirror",
+        "mlag_peer",
+        "mlag_ports",
         "ntp",
+        "ntp_association",
         "ports",
         "ports_configuration",
+        "ports_description",
+        "ports_rx_errors",
+        "ports_tx_errors",
         "power",
         "processes",
         "qos_profiles",
         "route_summary",
+        "route_table",
         "sessions",
         "sntp_client",
         "stacking",
         "stacking_support",
         "stp_detail",
+        "stp_ports",
         "stp_summary",
         "switch",
         "temperature",
         "version",
+        "vlan_details",
         "vlan_summary",
+        "vlan_detail",
     )),
     "cisco_ios": frozenset((
         "arp_table",
@@ -331,10 +370,18 @@ READ_QUERY_NAMES = {
         "clock",
         "cpu",
         "environment",
+        "err_disabled",
+        "errdisable_recovery",
         "hsrp_summary",
         "interface_details",
         "interface_errors",
+        "interface_switchport",
+        "interface_transceiver",
         "interfaces",
+        "interfaces_counters_errors",
+        "interfaces_details",
+        "interfaces_description",
+        "interfaces_trunk",
         "inventory",
         "ip_interfaces",
         "ipv6_interfaces",
@@ -343,15 +390,29 @@ READ_QUERY_NAMES = {
         "lacp_neighbors",
         "lag_summary",
         "lldp_neighbors",
+        "log_messages",
         "mac_table",
         "memory",
+        "ntp_associations",
+        "ntp_status",
+        "ospf_interfaces",
         "ospf_neighbors",
+        "power_inline",
         "route_lookup",
         "route_summary",
+        "route_table",
+        "stack_members",
+        "stack_ports",
+        "stp_inconsistent",
+        "stp_root",
         "stp_summary",
+        "stp_tree",
+        "stp_vlan",
         "version",
+        "vlan_details",
         "vlans",
         "vrrp_summary",
+        "vtp_status",
     )),
     "cisco_xe": frozenset((
         "arp_table",
@@ -360,10 +421,18 @@ READ_QUERY_NAMES = {
         "clock",
         "cpu",
         "environment",
+        "err_disabled",
+        "errdisable_recovery",
         "hsrp_summary",
         "interface_details",
         "interface_errors",
+        "interface_switchport",
+        "interface_transceiver",
         "interfaces",
+        "interfaces_counters_errors",
+        "interfaces_details",
+        "interfaces_description",
+        "interfaces_trunk",
         "inventory",
         "ip_interfaces",
         "ipv6_interfaces",
@@ -372,27 +441,54 @@ READ_QUERY_NAMES = {
         "lacp_neighbors",
         "lag_summary",
         "lldp_neighbors",
+        "log_messages",
         "mac_table",
         "memory",
+        "ntp_associations",
+        "ntp_status",
+        "ospf_interfaces",
         "ospf_neighbors",
+        "platform_resources",
+        "power_inline",
         "route_lookup",
         "route_summary",
+        "route_table",
+        "stack_members",
+        "stack_ports",
+        "stp_inconsistent",
+        "stp_root",
         "stp_summary",
+        "stp_tree",
+        "stp_vlan",
         "version",
+        "vlan_details",
         "vlans",
         "vrrp_summary",
+        "vtp_status",
     )),
     "cisco_nxos": frozenset((
+        "access_lists",
         "arp_table",
+        "bfd_neighbors",
         "bgp_sessions",
+        "bgp_summary",
         "cdp_neighbors",
         "clock",
         "cpu",
+        "dhcp_snooping_binding",
         "environment",
+        "err_disabled",
+        "errdisable_recovery",
+        "features",
         "hsrp_summary",
         "interface_details",
         "interface_errors",
+        "interface_switchport",
+        "interface_transceiver",
         "interfaces",
+        "interfaces_counters_errors",
+        "interfaces_description",
+        "interfaces_trunk",
         "inventory",
         "ip_interfaces",
         "ipv6_interfaces",
@@ -400,18 +496,37 @@ READ_QUERY_NAMES = {
         "ipv6_route_lookup",
         "lacp_neighbors",
         "lag_summary",
+        "license_usage",
         "lldp_neighbors",
+        "log_messages",
         "mac_table",
         "memory",
+        "modules",
+        "ntp_associations",
+        "ntp_status",
+        "ospf_interfaces",
         "ospf_neighbors",
+        "redundancy_status",
+        "reset_reason",
         "route_lookup",
         "route_summary",
+        "route_table",
+        "stp_blocked",
+        "stp_inconsistent",
+        "stp_root",
         "stp_summary",
+        "stp_tree",
+        "stp_vlan",
+        "system_resources",
         "version",
+        "vlan_details",
         "vlans",
+        "vpc_consistency",
+        "vpc_orphan_ports",
         "vpc_peer_keepalive",
         "vpc_role",
         "vpc_status",
+        "vrfs",
         "vrrp_summary",
     )),
     "arista_eos": frozenset((
@@ -419,12 +534,20 @@ READ_QUERY_NAMES = {
         "arp_table",
         "bgp_summary",
         "clock",
+        "cpu",
         "environment",
         "hostname",
         "interface_details",
         "interface_errors",
         "interface_optics",
+        "interface_poe",
+        "interface_switchport",
         "interfaces",
+        "interfaces_counters_discards",
+        "interfaces_counters_errors",
+        "interfaces_description",
+        "interfaces_errdisabled",
+        "interfaces_trunk",
         "inventory",
         "ip_interfaces",
         "ipv6_bgp_summary",
@@ -437,75 +560,130 @@ READ_QUERY_NAMES = {
         "lacp_peers",
         "lag_summary",
         "lldp_neighbors",
+        "lldp_neighbors_detail",
         "lldp_neighbors_interface",
+        "log_messages",
         "mac_table",
+        "mlag_config_sanity",
+        "mlag_detail",
+        "ntp_associations",
+        "ntp_status",
+        "ospf_interfaces",
         "ospf_neighbors",
         "ospf_neighbors_interface",
         "ospfv3_neighbors",
+        "reload_cause",
         "route_lookup",
         "route_summary",
+        "route_table",
+        "stp_blocked",
         "stp_interface",
         "stp_root",
+        "stp_tree",
+        "stp_vlan",
         "version",
+        "vlan_details",
         "vlans",
     )),
     "juniper_junos": frozenset((
         "arp_interface",
         "arp_table",
+        "bfd_sessions",
         "bgp_summary",
         "chassis_alarms",
+        "commit_history",
         "environment",
+        "fpc",
         "hardware",
         "interface_details",
         "interface_optics",
         "interfaces",
+        "interfaces_descriptions",
         "ipv6_neighbors",
         "ipv6_neighbors_interface",
         "ipv6_route_lookup",
         "lacp_interface",
         "lacp_interfaces",
+        "licenses",
         "lldp_neighbors",
+        "lldp_neighbors_detail",
         "lldp_neighbors_interface",
+        "log_interactive_commands",
+        "log_messages",
+        "ntp_associations",
+        "ntp_status",
+        "ospf_interfaces",
         "ospf_neighbors",
         "ospf_neighbors_interface",
         "ospfv3_neighbors",
         "ospfv3_neighbors_interface",
+        "route_instances",
         "route_lookup",
         "route_summary",
+        "route_table",
+        "routing_engine",
+        "storage",
         "system_alarms",
         "uptime",
         "version",
+        "vrrp_summary",
     )),
     "juniper_junos_els": frozenset((
         "arp_interface",
         "arp_table",
+        "bfd_sessions",
         "bgp_summary",
         "chassis_alarms",
+        "commit_history",
+        "dhcp_security_bindings",
+        "dot1x_interfaces",
         "environment",
+        "ethernet_switching_interface",
+        "ethernet_switching_interfaces",
+        "fpc",
         "hardware",
         "interface_details",
         "interface_optics",
         "interfaces",
+        "interfaces_descriptions",
         "ipv6_neighbors",
         "ipv6_neighbors_interface",
         "ipv6_route_lookup",
         "lacp_interface",
         "lacp_interfaces",
+        "licenses",
         "lldp_neighbors",
+        "lldp_neighbors_detail",
         "lldp_neighbors_interface",
+        "log_interactive_commands",
+        "log_messages",
         "mac_table",
+        "mac_table_address",
+        "mac_table_interface",
+        "ntp_associations",
+        "ntp_status",
+        "ospf_interfaces",
         "ospf_neighbors",
         "ospf_neighbors_interface",
         "ospfv3_neighbors",
         "ospfv3_neighbors_interface",
+        "poe_controller",
+        "poe_interfaces",
+        "route_instances",
         "route_lookup",
         "route_summary",
+        "route_table",
+        "routing_engine",
+        "storage",
         "stp_bridge",
+        "stp_interfaces",
         "system_alarms",
         "uptime",
         "version",
         "virtual_chassis",
+        "virtual_chassis_ports",
         "vlans",
+        "vrrp_summary",
     )),
     "ruckus_unleashed": frozenset((
         "access_points",
@@ -580,19 +758,25 @@ READ_QUERY_SLOTS = {
     "fortinet": {
         "dhcp_leases": {"interface": {"inventory": "interfaces", "kind": "fortios_interface"}},
         "wifi_client_detail": {"mac": {"inventory": "wireless_clients", "kind": "fortios_station_mac"}},
+        "wifi_ap_status": {"wtp_id": {"inventory": "wtp_ids", "kind": "fortios_wtp_id", "optional": True}},
+        "wifi_rf_analysis": {"wtp_id": {"inventory": "wtp_ids", "kind": "fortios_wtp_id", "optional": True}},
+        "wifi_events": {
+            "lines": {"inventory": "literal", "kind": "wifi_log_lines"},
+            "mac_literal": {"inventory": "literal", "kind": "wifi_mac_literal", "optional": True},
+        },
         "policy_lookup_ipv4": {
-            "src_ip": {"inventory": "addresses", "kind": "ipv4_address"},
+            "src_ip": {"inventory": "addresses", "kind": "ipv4_lookup"},
             "src_port": {"inventory": "flow_ports", "kind": "flow_port"},
-            "dst_ip": {"inventory": "addresses", "kind": "ipv4_address"},
+            "dst_ip": {"inventory": "addresses", "kind": "ipv4_lookup"},
             "dst_port": {"inventory": "flow_ports", "kind": "flow_port"},
             "protocol": {"inventory": "ip_protocols", "kind": "ip_protocol"},
             "device": {"inventory": "interfaces", "kind": "fortios_interface"},
             "pol_type": {"inventory": "policy_types", "kind": "fortios_policy_type"},
         },
         "policy_lookup_ipv6": {
-            "src_ip": {"inventory": "addresses", "kind": "ipv6_address"},
+            "src_ip": {"inventory": "addresses", "kind": "ipv6_lookup"},
             "src_port": {"inventory": "flow_ports", "kind": "flow_port"},
-            "dst_ip": {"inventory": "addresses", "kind": "ipv6_address"},
+            "dst_ip": {"inventory": "addresses", "kind": "ipv6_lookup"},
             "dst_port": {"inventory": "flow_ports", "kind": "flow_port"},
             "protocol": {"inventory": "ip_protocols", "kind": "ip_protocol"},
             "device": {"inventory": "interfaces", "kind": "fortios_interface"},
@@ -622,6 +806,10 @@ READ_QUERY_SLOTS = {
         "certificate_details": {"certificate": {"inventory": "certificates", "kind": "certificate_name"}},
         "managed_switch_status": {"managed_switch": {"inventory": "managed_switches", "kind": "managed_switch_serial"}},
         "managed_switch_poe": {"managed_switch": {"inventory": "managed_switches", "kind": "managed_switch_serial"}},
+        "managed_switch_port_stats": {
+            "managed_switch": {"inventory": "managed_switches", "kind": "managed_switch_serial"},
+            "port": {"inventory": "managed_switch_ports", "kind": "managed_switch_port", "optional": True}},
+        "managed_switch_port_vlans": {"managed_switch": {"inventory": "managed_switches", "kind": "managed_switch_serial"}},
         "managed_switch_mac": {"managed_switch": {"inventory": "managed_switches", "kind": "managed_switch_serial"}},
         "managed_switch_stacking": {"managed_switch": {"inventory": "managed_switches", "kind": "managed_switch_serial"}},
         "managed_switch_lldp": {"managed_switch": {"inventory": "managed_switches", "kind": "managed_switch_serial"}},
@@ -664,7 +852,7 @@ READ_QUERY_SLOTS = {
         "route_lookup": {
             "address": {
                 "inventory": "addresses",
-                "kind": "ipv4_address",
+                "kind": "ipv4_lookup",
             },
         },
     },
@@ -757,6 +945,18 @@ READ_QUERY_SLOTS = {
                 "kind": "cisco_ios_physical_interface",
             },
         },
+        "interface_switchport": {
+            "interface": {
+                "inventory": "interfaces",
+                "kind": "cisco_ios_physical_interface",
+            },
+        },
+        "interface_transceiver": {
+            "interface": {
+                "inventory": "interfaces",
+                "kind": "cisco_ios_physical_interface",
+            },
+        },
         "ipv6_route_lookup": {
             "address": {
                 "inventory": "addresses",
@@ -769,6 +969,18 @@ READ_QUERY_SLOTS = {
                 "kind": "ipv4_address",
             },
         },
+        "stp_vlan": {
+            "vlan_id": {
+                "inventory": None,
+                "kind": "vlan_id",
+            },
+        },
+        "vlan_details": {
+            "vlan_id": {
+                "inventory": None,
+                "kind": "vlan_id",
+            },
+        },
     },
     "cisco_xe": {
         "interface_details": {
@@ -778,6 +990,18 @@ READ_QUERY_SLOTS = {
             },
         },
         "interface_errors": {
+            "interface": {
+                "inventory": "interfaces",
+                "kind": "cisco_xe_physical_interface",
+            },
+        },
+        "interface_switchport": {
+            "interface": {
+                "inventory": "interfaces",
+                "kind": "cisco_xe_physical_interface",
+            },
+        },
+        "interface_transceiver": {
             "interface": {
                 "inventory": "interfaces",
                 "kind": "cisco_xe_physical_interface",
@@ -795,6 +1019,18 @@ READ_QUERY_SLOTS = {
                 "kind": "ipv4_address",
             },
         },
+        "stp_vlan": {
+            "vlan_id": {
+                "inventory": None,
+                "kind": "vlan_id",
+            },
+        },
+        "vlan_details": {
+            "vlan_id": {
+                "inventory": None,
+                "kind": "vlan_id",
+            },
+        },
     },
     "cisco_nxos": {
         "interface_details": {
@@ -804,6 +1040,18 @@ READ_QUERY_SLOTS = {
             },
         },
         "interface_errors": {
+            "interface": {
+                "inventory": "interfaces",
+                "kind": "cisco_nxos_errors_interface",
+            },
+        },
+        "interface_switchport": {
+            "interface": {
+                "inventory": "interfaces",
+                "kind": "cisco_nxos_interface",
+            },
+        },
+        "interface_transceiver": {
             "interface": {
                 "inventory": "interfaces",
                 "kind": "cisco_nxos_errors_interface",
@@ -819,6 +1067,18 @@ READ_QUERY_SLOTS = {
             "address": {
                 "inventory": "addresses",
                 "kind": "ipv4_address",
+            },
+        },
+        "stp_vlan": {
+            "vlan_id": {
+                "inventory": None,
+                "kind": "vlan_id",
+            },
+        },
+        "vlan_details": {
+            "vlan_id": {
+                "inventory": None,
+                "kind": "vlan_id",
             },
         },
     },
@@ -845,6 +1105,18 @@ READ_QUERY_SLOTS = {
             "interface": {
                 "inventory": "interfaces",
                 "kind": "eos_physical_interface",
+            },
+        },
+        "interface_poe": {
+            "interface": {
+                "inventory": "interfaces",
+                "kind": "eos_physical_interface",
+            },
+        },
+        "interface_switchport": {
+            "interface": {
+                "inventory": "interfaces",
+                "kind": "eos_switchport_interface",
             },
         },
         "ipv6_neighbor": {
@@ -887,6 +1159,18 @@ READ_QUERY_SLOTS = {
             "interface": {
                 "inventory": "interfaces",
                 "kind": "eos_stp_interface",
+            },
+        },
+        "stp_vlan": {
+            "vlan_id": {
+                "inventory": None,
+                "kind": "vlan_id",
+            },
+        },
+        "vlan_details": {
+            "vlan_id": {
+                "inventory": None,
+                "kind": "vlan_id",
             },
         },
     },
@@ -959,6 +1243,12 @@ READ_QUERY_SLOTS = {
                 "kind": "junos_logical_interface",
             },
         },
+        "ethernet_switching_interface": {
+            "interface": {
+                "inventory": "interfaces",
+                "kind": "junos_physical_interface",
+            },
+        },
         "interface_details": {
             "interface": {
                 "inventory": "interfaces",
@@ -990,6 +1280,18 @@ READ_QUERY_SLOTS = {
             },
         },
         "lldp_neighbors_interface": {
+            "interface": {
+                "inventory": "interfaces",
+                "kind": "junos_physical_interface",
+            },
+        },
+        "mac_table_address": {
+            "mac": {
+                "inventory": None,
+                "kind": "mac_literal",
+            },
+        },
+        "mac_table_interface": {
             "interface": {
                 "inventory": "interfaces",
                 "kind": "junos_physical_interface",
@@ -1367,6 +1669,9 @@ SLOT_KIND_PATTERNS = {
     "certificate_name": re.compile(r"[A-Za-z][A-Za-z0-9_.-]{0,78}"),
     "fortios_address_object": re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,78}"),
     "fortios_station_mac": re.compile(r"[0-9A-Fa-f]{2}(?::[0-9A-Fa-f]{2}){5}"),
+    "fortios_wtp_id": re.compile(r"[A-Za-z0-9][A-Za-z0-9_-]{0,34}"),
+    "wifi_mac_literal": re.compile(r"[0-9a-f]{2}(?::[0-9a-f]{2}){5}"),
+    "wifi_log_lines": re.compile(r"[1-9][0-9]?|1[0-9]{2}|200"),
     "flow_port": re.compile(r"(?:0|[1-9][0-9]{0,4})"),
     "ip_protocol": re.compile(r"(?:0|[1-9][0-9]{0,2})"),
     "fortios_policy_type": re.compile(r"(?:policy|proxy)"),
@@ -1383,6 +1688,7 @@ SLOT_KIND_PATTERNS = {
     "eos_lldp_interface": re.compile(_EOS_PHYSICAL),
     "eos_lacp_interface": re.compile(_EOS_ETHERNET),
     "eos_stp_interface": re.compile(_EOS_PHYSICAL_OR_PC),
+    "eos_switchport_interface": re.compile(_EOS_PHYSICAL_OR_PC),
     "eos_ospf_interface": re.compile(_EOS_INTERFACE),
     "junos_interface": re.compile(_JUNOS_INTERFACE),
     "junos_physical_interface": re.compile(_JUNOS_LINE),
@@ -1396,9 +1702,11 @@ GENERIC_INVENTORY_KINDS = {
     "switches": "switch",
 }
 DEVICE_TOOLS = {
+    "locate_endpoint", "switch_read",
     "dns_probe", "tcp_probe", "icmp_probe", "tls_probe", "ssh_read",
     "snmp_get", "sftp_stat", "ftp_list", "schema_read", "fortios_diagnostics", "triage_health", "triage_routing",
-    "triage_vpn", "config_read", "config_diff", "triage_slb",
+    "triage_vpn", "config_read", "config_diff", "triage_slb", "wifi_triage", "wifi_clients", "wifi_aps_live", "wifi_rogue",
+    "triage_flow",
 }
 TOOL_ARGUMENT_SCHEMAS = {
     "helper_status": (frozenset(), frozenset()),
@@ -1412,9 +1720,16 @@ TOOL_ARGUMENT_SCHEMAS = {
         frozenset({"target", "platform", "query"}),
         frozenset({"parameters", "offset", "max_bytes", "content_sha256"}),
     ),
+    "locate_endpoint": (frozenset({"targets", "endpoint"}), frozenset()),
+    "switch_read": (frozenset({"target", "table"}), frozenset({"vlan_id", "mac", "ip", "interface", "limit", "offset", "max_bytes", "managed_switch"})),
     "triage_health": (frozenset({"target"}), frozenset()),
     "triage_routing": (frozenset({"target", "address"}), frozenset()),
+    "triage_flow": (frozenset({"target", "src", "dst", "port", "proto"}), frozenset()),
     "triage_vpn": (frozenset({"target", "tunnel"}), frozenset()),
+    "wifi_triage": (frozenset({"target"}), frozenset({"mac", "ip", "name", "summary", "history_limit", "history_offset"})),
+    "wifi_clients": (frozenset({"target"}), frozenset({"ssid", "ap", "mac", "name", "limit", "offset", "max_bytes"})),
+    "wifi_aps_live": (frozenset({"target"}), frozenset({"summary", "limit", "offset", "max_bytes"})),
+    "wifi_rogue": (frozenset({"target"}), frozenset({"limit", "min_signal", "offset", "max_bytes", "mac", "ap", "full"})),
     "fortios_diagnostics": (
         frozenset({"target","recipe","address","interface"}),
         frozenset({"count","timeout","max_bytes","vdom","health_check","source_address","source_port","destination_port","protocol","since","until"}),
@@ -1433,9 +1748,59 @@ TOOL_ARGUMENT_SCHEMAS = {
 REMOTE_SERVER_TOOLS = frozenset(TOOL_ARGUMENT_SCHEMAS) - {"target_scope"}
 
 
-def _valid_typed_inventory_value(value: object, kind: str) -> bool:
+LOOKUP_SLOT_KINDS = {"ipv4_lookup": 4, "ipv6_lookup": 6}
+
+
+def _lookup_network(value: object, version: int) -> Any:
+    """The network of a canonical CIDR prefix of this family, or None; /0 and host bits are refused."""
+    if not isinstance(value, str) or value.count("/") != 1 or "%" in value:
+        return None
+    try:
+        network = ipaddress.ip_network(value, strict=True)
+    except ValueError:
+        return None
+    if str(network) != value or network.prefixlen == 0 or network.version != version:
+        return None
+    return network
+
+
+def _lookup_enrolled(value: object, version: int, inventory: Any) -> bool:
+    """An enrolled address, or a prefix inside an enrolled lookup prefix; nothing else."""
     if not isinstance(value, str):
         return False
+    if "/" not in value:
+        return value in inventory.get("addresses", ())
+    network = _lookup_network(value, version)
+    return network is not None and any(
+        (outer := _lookup_network(item, version)) is not None and network.subnet_of(outer)
+        for item in inventory.get("lookup_prefixes", ())
+    )
+
+
+def _diagnostic_filter_valid(value: object, recipe: object) -> bool:
+    """A unicast IPv4 address; for the sessions and flow filters also a canonical prefix whose ends are unicast."""
+    def unicast(ip: Any) -> bool:
+        return not (ip.is_multicast or ip.is_unspecified or int(ip) == 4294967295)
+    if isinstance(value, str) and "/" in value:
+        network = _lookup_network(value, 4) if recipe in ("sessions", "flow") else None
+        return network is not None and unicast(network.network_address) and unicast(network.broadcast_address)
+    return _valid_typed_inventory_value(value, "ipv4_address") and unicast(ipaddress.IPv4Address(value))
+
+
+def _valid_typed_inventory_value(value: object, kind: str, *, lookup_only: bool = False) -> bool:
+    if not isinstance(value, str):
+        return False
+    if kind in LOOKUP_SLOT_KINDS:
+        version = LOOKUP_SLOT_KINDS[kind]
+        if "/" in value:
+            return _lookup_network(value, version) is not None
+        return _valid_typed_inventory_value(value, "ipv%d_address" % version)
+    if kind in {"vlan_id", "mac_literal", "ip_literal", "vrf", "vr", "routing_instance"}:
+        try:
+            validate_template_slot(value, kind, lookup_only=lookup_only)
+        except ValueError:
+            return False
+        return True
     if kind in {"fortios_sdwan_health_check", "fortios_link_monitor"}:
         return (
             re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,34}", value) is not None
@@ -1472,7 +1837,7 @@ def _valid_typed_inventory_value(value: object, kind: str) -> bool:
     return pattern is not None and pattern.fullmatch(value) is not None
 
 
-def _json_document(raw: bytes | str) -> Any:
+def _json_document(raw: bytes | str, *, finite=True) -> Any:
     document = json.loads(raw)
     levels = [iter((document,))]
     while levels:
@@ -1486,6 +1851,8 @@ def _json_document(raw: bytes | str) -> Any:
         elif isinstance(value, list):
             children = iter(value)
         else:
+            if finite and isinstance(value, float) and not float("-inf") < value < float("inf"):
+                raise ValueError("JSON numbers must be finite.")
             continue
         if len(levels) > MAX_JSON_NESTING:
             raise ValueError("JSON nesting exceeds the limit.")
@@ -1581,6 +1948,40 @@ class ToolArgumentsError(ProxyError):
     public_message = "Tool arguments do not match the exact input schema."
 
 
+# data.hint of a -32602 refusal: the rule of the named field, never the refused value.
+ARGUMENT_HINTS = {
+    "target": "Provide one enrolled target alias: 1 to 128 printable characters without spaces",
+    "content_sha256": "Copy content_sha256 of the first page: 64 lower-case hexadecimal characters",
+    "offset": "offset is a whole number from 0 to 8000000; copy next_offset of the previous page",
+    "max_bytes": "max_bytes is a whole number from 1000 to 48000",
+    "platform": "Use a platform name listed by read_query_catalog",
+    "query": "Use a query name listed by read_query_catalog for this platform",
+    "parameters": "parameters holds at most 16 names of 1 to 128 printable characters with string values of at most 128",
+    "vlan_id": "vlan_id is one VLAN number from 1 to 4094 written as a decimal string",
+    "mac": "mac is one MAC address literal, for example 00:00:5e:00:53:01 or 0000.5e00.5301",
+    "ip": "ip is one IPv4 or IPv6 address literal without prefix length or zone",
+    "interface": "interface is one interface name of 1 to 64 letters, digits and _.:/- characters; it selects one port of interface_errors (on Junos an enrolled interface) or filters port_vlan and ip_interface",
+    "managed_switch": "managed_switch is an enrolled FortiSwitch serial: S followed by 11 to 15 upper-case letters or digits",
+    "filter": "vlan_id filters interface, vlan, mac_entry and neighbor_l3; mac filters mac_entry and neighbor_l3; ip filters neighbor_l3 and route; interface filters port_vlan and ip_interface and selects the interface_errors port",
+    "targets": "targets lists 1 to 64 distinct enrolled target aliases",
+    "endpoint": "endpoint is one IPv4 or IPv6 address or MAC address literal, not a host name",
+}
+
+
+def argument_error(field: str, hint: str | None = None) -> ToolArgumentsError:
+    return ToolArgumentsError(data={"field": field, "hint": hint or ARGUMENT_HINTS[field]})
+
+
+def _recipe_limits(arguments: dict[str, Any], limits) -> None:
+    """The bounds of one fortios_diagnostics recipe: (name, default, minimum, maximum) per numeric field."""
+    recipe = arguments["recipe"]
+    for name, default, low, high in limits:
+        value = arguments.get(name, default)
+        if type(value) is not int or not low <= value <= high:
+            bound = "is %d" % low if low == high else "is a whole number from %d to %d" % (low, high)
+            raise argument_error(name, "%s %s for recipe %s" % (name, bound, recipe))
+
+
 class ServerMessageError(ProxyError):
     code, category = -32012, "server_message"
     public_message = "The proxy refused a server message that is not a JSON-RPC object."
@@ -1618,6 +2019,7 @@ class Proxy:
         self.policy_lock = threading.Lock()
         self.rate_lock = threading.Lock()
         self.rate_history: dict[str, deque[float]] = {}
+        self.triage_history: dict[str, deque[float]] = {}
         self.continuations: dict[str, tuple[int, float]] = {}
         self.pending_continuations: dict[Any, str] = {}
         self.server_writer: Any = None
@@ -1750,6 +2152,8 @@ class Proxy:
         entry = self._device(entries, alias)
         section = self._section(entry, None)
         names = (entry.credential,) + ((section.snmp_credential,) if section.snmp_credential else ())
+        if section.fortios_rest_credential:
+            names += (section.fortios_rest_credential,)
         vault = self._vault(names)
         section = self._section(entry, self._credential_kinds(vault))
         self._check_resolvers(section, policy)
@@ -1788,9 +2192,17 @@ class Proxy:
         except (ValueError, core_vault.VaultError):
             raise AuthenticationMaterialError() from None
 
+    def _remember_session_secrets(self, secrets: tuple[str, ...]) -> None:
+        """Keep every target's secrets deduplicated until this session is closed.
+
+        Notifications and later reads must retain protection for earlier targets,
+        including requests that are still pending.
+        """
+        self.session_secrets.update(dict.fromkeys(secrets))
+
     def _auth_context(
         self, entry: Any, section: Any, credential: core_vault.Credential,
-        usm: dict[str, str] | None, tool: str,
+        usm: dict[str, str] | None, tool: str, rest_token: str | None = None,
     ) -> str:
         envelope = {
             "alias": entry.name,
@@ -1805,18 +2217,30 @@ class Proxy:
             **({"role_boundary": section.role_boundary} if section.role_boundary else {}),
             "ssh_platform": section.ssh_platform,
             "enabled_queries": list(section.enabled_queries),
+            "device_types": list(section.device_types),
             "read_inventory": {
                 key: list(items) for key, items in section.read_inventory.items()
             },
             "configuration_limits": section.configuration_limits.as_dict(),
             "sftp_roots": list(section.sftp_roots),
             "fortios_output_standard_verified": section.fortios_output_standard_verified,
+            "wifi_thresholds": getattr(section, "wifi_thresholds", {}),
             "egress": dict(section.egress),
         }
+        if tool == "locate_endpoint":
+            envelope["locate_read_limit"] = self._rate_cost(tool, None, section)
         if usm is not None and tool in SNMP_ENVELOPE_TOOLS:
             envelope["snmp_usm"] = dict(usm)
         if getattr(section, "tls_ca_certificate", None) is not None:
             envelope["tls_ca_certificate"] = section.tls_ca_certificate
+        if tool == "tls_probe" and getattr(section, "fortios_rest_certificate_sha256", None):
+            envelope["fortios_rest_certificate_sha256"] = section.fortios_rest_certificate_sha256
+            envelope["fortios_rest_port"] = section.fortios_rest_port
+        if rest_token is not None:
+            envelope.update(fortios_rest_token=rest_token,
+                            fortios_rest_port=section.fortios_rest_port,
+                            fortios_rest_certificate_sha256=section.fortios_rest_certificate_sha256,
+                            fortios_rest_rate_limit=section.rate_limit)
         raw = json.dumps(envelope, separators=(",", ":")).encode()
         return urlsafe_b64encode(raw).decode().rstrip("=")
 
@@ -1837,11 +2261,13 @@ class Proxy:
     ) -> dict[str, Any]:
         schema = TOOL_ARGUMENT_SCHEMAS.get(tool)
         if schema is None:
-            raise ToolArgumentsError()
+            raise argument_error('tool', 'Use a tool listed by tools/list')
         required, optional = schema
         keys = set(args)
         if not required <= keys <= required | optional:
-            raise ToolArgumentsError()
+            fields = sorted(required - keys)
+            raise ToolArgumentsError(data={"field": fields[0] if fields else "arguments",
+                                          "hint": "Provide required fields only, plus documented optional fields"})
 
         normalized = dict(args)
         if tool == "read_query_catalog":
@@ -1853,10 +2279,10 @@ class Proxy:
                     or not 0 <= normalized.get("offset", 0) <= 1073741824
                     or type(normalized.get("limit", 25)) is not int
                     or not 1 <= normalized.get("limit", 25) <= 100):
-                raise ToolArgumentsError()
+                raise argument_error('platform/query_prefix/offset/limit', 'platform and query_prefix must match the catalogue schema; offset: 0..1073741824; limit: 1..100')
             return normalized
         if "target" in normalized and not cls._valid_alias(normalized["target"]):
-            raise ToolArgumentsError()
+            raise argument_error("target")
 
         if "port" in normalized:
             port = normalized["port"]
@@ -1864,27 +2290,26 @@ class Proxy:
                 isinstance(port, bool) or not isinstance(port, int)
                 or not 1 <= port <= 65_535
             ):
-                raise ToolArgumentsError()
+                raise argument_error('port', 'port is a whole number from 1 to 65535')
 
-        if "timeout" in normalized:
+        # fortios_diagnostics checks count, timeout and max_bytes against the bounds of its recipe below.
+        if "timeout" in normalized and tool != "fortios_diagnostics":
             timeout = normalized["timeout"]
             minimum, maximum = (0.2, 15.0) if tool == "tcp_probe" else (1.0, 30.0)
-            if tool == "fortios_diagnostics" and normalized.get("interface") == "" and normalized.get("recipe") in ("traceroute", "health_check_verify"):
-                maximum = 60.0
             if (
                 isinstance(timeout, bool) or not isinstance(timeout, (int, float))
                 or not math.isfinite(timeout) or not minimum <= timeout <= maximum
             ):
-                raise ToolArgumentsError()
+                raise argument_error('timeout', 'timeout must be a finite number within the tool bounds: tcp_probe 0.2..15, other tools 1..30')
 
         if "content_sha256" in normalized and normalized["content_sha256"] is not None and not (
             isinstance(normalized["content_sha256"], str)
             and re.fullmatch(r"[0-9a-f]{64}", normalized["content_sha256"])
         ):
-            raise ToolArgumentsError()
+            raise argument_error("content_sha256")
 
         for name, maximum in (("offset", 8_000_000), ("max_bytes", 48_000)):
-            if name not in normalized:
+            if name not in normalized or (name == "max_bytes" and tool == "fortios_diagnostics"):
                 continue
             value = normalized[name]
             minimum = 0 if name == "offset" else 1_000
@@ -1892,19 +2317,19 @@ class Proxy:
                 isinstance(value, bool) or not isinstance(value, int)
                 or not minimum <= value <= maximum
             ):
-                raise ToolArgumentsError()
+                raise argument_error(name)
 
-        if "count" in normalized:
+        if "count" in normalized and tool != "fortios_diagnostics":
             count = normalized["count"]
             if (
                 isinstance(count, bool) or not isinstance(count, int)
                 or not 1 <= count <= 8
             ):
-                raise ToolArgumentsError()
+                raise argument_error("count", "count is a whole number from 1 to 8")
 
         for name in ("use_tls", "acknowledge_unencrypted"):
             if name in normalized and not isinstance(normalized[name], bool):
-                raise ToolArgumentsError()
+                raise argument_error(name, name + " must be true or false")
 
         for name in ("remote_path",):
             if name in normalized:
@@ -1913,7 +2338,7 @@ class Proxy:
                     not isinstance(value, str) or not 1 <= len(value) <= 2_000
                     or any(ord(char) < 32 or ord(char) == 127 for char in value)
                 ):
-                    raise ToolArgumentsError()
+                    raise argument_error('remote_path', 'remote_path is 1 to 2000 printable characters')
 
         if "server_name" in normalized:
             server_name = normalized["server_name"]
@@ -1921,61 +2346,147 @@ class Proxy:
                 not isinstance(server_name, str) or not 1 <= len(server_name) <= 253
                 or any(ord(char) < 32 or ord(char) == 127 for char in server_name)
             ):
-                raise ToolArgumentsError()
+                raise argument_error('server_name', 'server_name is null or 1 to 253 printable characters')
 
         if tool in ("config_read", "config_diff"):
             from .configuration import page_arguments
             try:
                 page_arguments(normalized.get("offset", 0), normalized.get("limit", 48000))
             except ValueError:
-                raise ToolArgumentsError() from None
+                raise argument_error("limit", "limit is a whole number from 1 to 48000") from None
             if "snapshot_id" in normalized and (not isinstance(normalized["snapshot_id"], str) or
                     not re.fullmatch("cfg_[0-9a-f]{32}", normalized["snapshot_id"])):
-                raise ToolArgumentsError()
+                raise argument_error("snapshot_id", "Copy snapshot_id from the first page (cfg_ and 32 lower-case hexadecimal characters)")
             if tool == "config_read" and normalized.get("offset", 0) and not normalized.get("snapshot_id"):
-                raise ToolArgumentsError()
+                raise argument_error("snapshot_id", "A continuation requires snapshot_id from the first page")
             if normalized.get("platform") not in ("fortios", "fortinet", "fortiadc"):
-                raise ToolArgumentsError()
+                raise argument_error("platform", "config_read/config_diff supports fortios, fortinet and fortiadc")
             if tool == "config_read":
                 from . import configuration, config_fortios, config_fortiadc
+                field, hint = "redaction", "Use minimal or full; FortiADC requires redaction full explicitly"
                 try:
                     mode = normalized.get("redaction", "minimal")
                     defaults = normalized.get("include_defaults", False)
-                    if mode not in ("minimal", "full") or type(defaults) is not bool:
+                    if mode not in ("minimal", "full") or (normalized["platform"] == "fortiadc" and mode != "full"):
+                        raise ValueError()
+                    field, hint = "include_defaults", "include_defaults must be true or false; defaults require redaction full"
+                    if type(defaults) is not bool or (defaults and mode != "full"):
+                        raise ValueError()
+                    field, hint = "include_all", "include_all must be true only for section all, false for a specific section"
+                    include_all = normalized.get("include_all", False)
+                    if type(include_all) is not bool or include_all != (normalized["section"] == "all"):
+                        raise ValueError()
+                    field, hint = "section", "Provide a documented configuration section; section all requires include_all true"
+                    if not isinstance(normalized["section"], str):
                         raise ValueError()
                     if mode == "full":
                         adapter = config_fortiadc if normalized["platform"] == "fortiadc" else config_fortios
-                        adapter.read_command(normalized.get("section"), normalized.get("include_all", False), defaults)
+                        adapter.read_command(normalized["section"], include_all, defaults)
                     else:
-                        if normalized["platform"] == "fortiadc" or defaults:
-                            raise ValueError()
-                        configuration.read_command(normalized.get("section"), normalized.get("include_all", False))
+                        configuration.read_command(normalized["section"], include_all)
+                    field, hint = "contains", "contains is 1 to 64 printable ASCII characters or null"
+                    configuration.filter_arguments(normalized.get("contains"))
+                    field, hint = "context", "context is a whole number from 0 to 10 and requires contains when nonzero"
+                    configuration.filter_arguments(normalized.get("contains"), normalized.get("context", 0))
+                    field, hint = "filter_sha256", "Copy filter_sha256 from the first filtered page: 64 lower-case hexadecimal characters"
                     configuration.filter_arguments(normalized.get("contains"), normalized.get("context", 0),
                                                    normalized.get("content_sha256"), normalized.get("filter_sha256"))
                     if normalized.get("offset", 0) and (
-                            normalized.get("contains") is not None or normalized.get("filter_sha256") is not None) and (
-                            normalized.get("content_sha256") is None or normalized.get("filter_sha256") is None):
-                        raise ValueError()
+                            normalized.get("contains") is not None or normalized.get("filter_sha256") is not None):
+                        if normalized.get("content_sha256") is None:
+                            field, hint = "content_sha256", ARGUMENT_HINTS["content_sha256"]
+                            raise ValueError()
+                        if normalized.get("filter_sha256") is None:
+                            raise ValueError()
+                    field, hint = "snapshot_id", "Configuration fingerprints require snapshot_id from the first page"
                     if not normalized.get("snapshot_id") and (
                             normalized.get("content_sha256") is not None or normalized.get("filter_sha256") is not None):
                         raise ValueError()
                 except ValueError:
-                    raise ToolArgumentsError() from None
+                    raise argument_error(field, hint) from None
             if "secret_offset" in normalized and (type(normalized["secret_offset"]) is not int or
                     not 0 <= normalized["secret_offset"] <= 1073741824):
-                raise ToolArgumentsError()
-            if tool == "config_diff" and any(
-                    not isinstance(normalized.get(k), str) or not re.fullmatch(
-                        "cfg_[0-9a-f]{32}", normalized[k])
-                    for k in ("base_snapshot", "other_snapshot")):
-                raise ToolArgumentsError()
+                raise argument_error("secret_offset", "secret_offset is a whole number from 0 to 1073741824")
+            if tool == "config_diff":
+                for field in ("base_snapshot", "other_snapshot"):
+                    if not isinstance(normalized.get(field), str) or not re.fullmatch("cfg_[0-9a-f]{32}", normalized[field]):
+                        raise argument_error(field, "Copy a snapshot identifier: cfg_ and 32 lower-case hexadecimal characters")
 
         if tool == "triage_routing" and not _valid_typed_inventory_value(normalized["address"], "ipv4_address"):
-            raise ToolArgumentsError()
+            raise argument_error('address', 'address is one IPv4 address literal')
+
+        if tool == "triage_flow":
+            from . import triage_flow
+            try:
+                triage_flow.validate(normalized["src"], normalized["dst"], normalized["port"], normalized["proto"])
+            except ValueError:
+                raise argument_error('src/dst/port/proto', 'Provide canonical IPv4 src/dst, port 1..65535 and proto tcp, udp or icmp') from None
 
         if tool == "triage_vpn" and (not isinstance(normalized["tunnel"], str) or not re.fullmatch(
                 r"[A-Za-z0-9][A-Za-z0-9_.-]{0,34}", normalized["tunnel"])):
-            raise ToolArgumentsError()
+            raise argument_error('tunnel', 'tunnel is 1 to 35 letters, digits or _.- and starts with a letter or digit')
+
+        if tool in {"switch_read", "wifi_clients", "wifi_aps_live", "wifi_rogue"}:
+            for field, default, low, high in (("limit", 100, 1, 500), ("offset", 0, 0, 8_000_000),
+                                               ("max_bytes", 16_000, 1_000, 48_000)):
+                value = normalized.get(field, default)
+                if type(value) is not int or not low <= value <= high:
+                    raise argument_error(field, "%s must be an integer from %d to %d" % (field, low, high))
+
+        if tool in {"wifi_aps_live", "wifi_triage"} and type(normalized.get("summary", False)) is not bool:
+            raise ToolArgumentsError(data={"field": "summary", "hint": "summary must be true or false"})
+
+        if tool == "wifi_rogue":
+            from .wifi_rest import checked_filters
+            try:
+                checked_filters(ap=normalized.get("ap"), mac=normalized.get("mac"))
+            except ValueError:
+                raise argument_error('ap/mac', 'AP must be 1..128 bytes of printable text; MAC must be lower-case aa:bb:cc:dd:ee:ff') from None
+            if type(normalized.get("full", False)) is not bool:
+                raise argument_error('full', 'full must be true or false')
+            from .wifi_rest import checked_rogue_filters
+            try:
+                checked_rogue_filters(normalized.get("limit", 100), normalized.get("min_signal"))
+            except ValueError:
+                raise ToolArgumentsError(data={"field": "limit" if type(normalized.get("limit", 100)) is not int
+                                              or not 1 <= normalized.get("limit", 100) <= 500 else "min_signal",
+                                              "hint": "limit: 1..500; min_signal: -150..0 dBm"}) from None
+
+        if tool == "wifi_clients":
+            from .wifi_rest import checked_filters
+            try:
+                checked_filters(normalized.get("ssid"), normalized.get("ap"), normalized.get("mac"), normalized.get("name"))
+            except ValueError:
+                mac = normalized.get("mac")
+                bad_mac = mac is not None and not _valid_typed_inventory_value(mac, "wifi_mac_literal")
+                field = "mac" if bad_mac else "ssid"
+                if not bad_mac:
+                    for candidate in ("ssid", "ap", "name"):
+                        try:
+                            checked_filters(**{candidate: normalized.get(candidate)})
+                        except ValueError:
+                            field = candidate
+                            break
+                hint = "MAC must use lower-case aa:bb:cc:dd:ee:ff" if bad_mac else "SSID/AP/name must be 1..128 bytes of printable text"
+                raise ToolArgumentsError(data={"field": field, "hint": hint}) from None
+
+        if tool == "wifi_triage":
+            for field, default, low, high in (("history_limit", 100, 1, 500), ("history_offset", 0, 0, 8_000_000)):
+                value = normalized.get(field, default)
+                if type(value) is not int or not low <= value <= high:
+                    raise argument_error(field, "%s must be an integer from %d to %d" % (field, low, high))
+            mac, ip, name = normalized.get("mac"), normalized.get("ip"), normalized.get("name")
+            from .wifi_rest import checked_filters
+            try:
+                checked_filters(name=name)
+            except ValueError:
+                raise ToolArgumentsError(data={"field": "name", "hint": "name must be bounded printable text"}) from None
+            if sum(v is not None for v in (mac, ip, name)) != 1:
+                raise ToolArgumentsError(data={"field": "mac/ip/name", "hint": "Provide exactly one of mac/ip/name"})
+            if mac is not None and not _valid_typed_inventory_value(mac, "wifi_mac_literal"):
+                raise ToolArgumentsError(data={"field": "mac", "hint": "MAC must use lower-case aa:bb:cc:dd:ee:ff"})
+            if ip is not None and not _valid_typed_inventory_value(ip, "ipv4_address"):
+                raise ToolArgumentsError(data={"field": "ip", "hint": "Provide one canonical IPv4 address"})
 
         if tool == "fortios_diagnostics":
             if normalized["recipe"] in ("session_list", "persistence_list"):
@@ -1984,43 +2495,36 @@ class Proxy:
                         or normalized["interface"] != "" or normalized.get("vdom") is not None
                         or normalized.get("since") is not None or normalized.get("until") is not None
                         or any(name in normalized for name in ("health_check","source_address","source_port","destination_port","protocol"))):
-                    raise ToolArgumentsError()
-                limits = ((normalized.get("count", 3), 1, 50),
-                          (normalized.get("timeout", 5), 1, 10),
-                          (normalized.get("max_bytes", 16000), 1000, 16384))
-                if any(type(value) is not int or not low <= value <= high for value, low, high in limits):
-                    raise ToolArgumentsError()
-                return
+                    raise argument_error('address/interface/vdom/since/until', 'session/persistence list requires a virtual-server name as address, empty interface and no vdom, timestamps or tuple filters')
+                _recipe_limits(normalized, (("count", 3, 1, 50), ("timeout", 10, 1, 10), ("max_bytes", 16000, 1000, 16384)))
+                return normalized
             if normalized["recipe"] in ("system_event_logs", "waf_attack_logs"):
                 if (normalized["address"] != "" or normalized["interface"] != ""
                         or normalized.get("vdom") is not None
                         or normalized.get("since") is not None or normalized.get("until") is not None
                         or any(name in normalized for name in ("health_check","source_address","source_port","destination_port","protocol"))):
-                    raise ToolArgumentsError()
-                limits = ((normalized.get("count", 3), 1, 20),
-                          (normalized.get("timeout", 5), 1, 20),
-                          (normalized.get("max_bytes", 16000), 1000, 16384))
-                if any(type(value) is not int or not low <= value <= high for value, low, high in limits):
-                    raise ToolArgumentsError()
-                return
+                    raise argument_error('address/interface/vdom/since/until', 'system/WAF logs require empty address/interface and no vdom, timestamps or tuple filters')
+                _recipe_limits(normalized, (("count", 3, 1, 20), ("timeout", 10, 1, 20), ("max_bytes", 16000, 1000, 16384)))
+                return normalized
             if normalized["recipe"] not in ("ping","traceroute","sniffer","sessions","flow","nslookup","http_probe","health_check_verify","logs"):
-                raise ToolArgumentsError()
+                raise argument_error('recipe', 'Use a diagnostic recipe listed in the tool schema')
             adc = normalized["interface"] == ""
             verify = normalized["recipe"] == "health_check_verify"
-            if adc and (normalized.get("count",3) not in ((1,2,3,4,5) if verify else (3,)) or type(normalized.get("count",3)) is not int
-                        or normalized["recipe"] not in ("ping","traceroute","nslookup","http_probe","health_check_verify")):
-                raise ToolArgumentsError()
+            if adc and normalized["recipe"] not in ("ping","traceroute","nslookup","http_probe","health_check_verify"):
+                raise argument_error('recipe/interface', 'An empty interface selects FortiADC and supports ping, traceroute, nslookup, http_probe or health_check_verify')
+            if adc:
+                _recipe_limits(normalized, (("count", 3, 1, 5) if verify else ("count", 3, 3, 3),))
             if not adc and (normalized["recipe"] in ("nslookup","http_probe","health_check_verify") or not isinstance(normalized["interface"], str) or _canonical_fortios_interface(normalized["interface"]) is None):
-                raise ToolArgumentsError()
+                raise argument_error('interface', 'Provide an allowed FortiOS interface; ADC-only recipes require an empty interface')
             if verify != ("health_check" in normalized):
-                raise ToolArgumentsError()
+                raise argument_error('health_check', 'health_check is required only for health_check_verify')
             if verify:
                 try:
                     named = helper_inventory.validate_inventory_item("adc_health_checks", normalized["health_check"]) == normalized["health_check"]
                 except ValueError:
                     named = False
                 if not named:
-                    raise ToolArgumentsError()
+                    raise argument_error('health_check', 'Provide one enrolled FortiADC health-check name')
             if normalized["recipe"] in ("nslookup","http_probe"):
                 try:
                     category = "diagnostic_names" if normalized["recipe"] == "nslookup" else "diagnostic_http_endpoints"
@@ -2028,38 +2532,30 @@ class Proxy:
                 except ValueError:
                     named = False
                 if not named:
-                    raise ToolArgumentsError()
-            elif not _valid_typed_inventory_value(normalized["address"], "ipv4_address"):
-                raise ToolArgumentsError()
-            else:
-                ip = ipaddress.IPv4Address(normalized["address"])
-                if ip.is_multicast or ip.is_unspecified or int(ip) == 4294967295:
-                    raise ToolArgumentsError()
+                    raise argument_error('address', 'Provide one enrolled diagnostic DNS name or HTTP endpoint for this recipe')
+            elif not _diagnostic_filter_valid(normalized["address"], normalized["recipe"]):
+                raise argument_error('address', 'Provide one address literal or an allowed recipe filter')
             vdom = normalized.get("vdom")
             if vdom is not None and (not isinstance(vdom,str) or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,30}",vdom)):
-                raise ToolArgumentsError()
+                raise argument_error('vdom', 'vdom is null or 1..31 letters, digits or _.- starting with a letter or digit')
             tuple_names = ("source_address","source_port","destination_port","protocol")
             tuple_values = tuple(normalized.get(name) for name in tuple_names)
             if any(value is not None for value in tuple_values):
                 if normalized["recipe"] not in ("sessions", "sniffer", "flow") or any(value is None for value in tuple_values):
-                    raise ToolArgumentsError()
-                if not _valid_typed_inventory_value(tuple_values[0], "ipv4_address"):
-                    raise ToolArgumentsError()
-                source_ip = ipaddress.IPv4Address(tuple_values[0])
-                if source_ip.is_multicast or source_ip.is_unspecified or int(source_ip) == 4294967295:
-                    raise ToolArgumentsError()
+                    raise argument_error('source_address/source_port/destination_port/protocol', 'Provide all four tuple fields only for sessions, sniffer or flow')
+                if not _diagnostic_filter_valid(tuple_values[0], normalized["recipe"]):
+                    raise argument_error('source_address', 'source_address must be a valid recipe address literal')
                 source_port, destination_port, protocol = tuple_values[1:]
                 if (type(source_port) is not int or not 0 <= source_port <= 65535 or
                         type(destination_port) is not int or not 0 <= destination_port <= 65535 or
                         type(protocol) is not int or protocol not in (6,17)):
-                    raise ToolArgumentsError()
+                    raise argument_error('source_port/destination_port/protocol', 'Ports are whole numbers 0..65535; protocol is 6 or 17')
             for stamp in (normalized.get("since"), normalized.get("until")):
                 if stamp is not None and (not isinstance(stamp,str) or not re.fullmatch(r"\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}",stamp)):
-                    raise ToolArgumentsError()
-            limits = ((normalized.get("count",3),1,3 if normalized["recipe"]=="traceroute" else 8),
-                      (normalized.get("timeout",5),1,60 if adc and normalized["recipe"] in ("traceroute","health_check_verify") else 10),(normalized.get("max_bytes",16000),1000,16000))
-            if any(type(value) is not int or not low<=value<=high for value,low,high in limits):
-                raise ToolArgumentsError()
+                    raise argument_error('since/until', 'Timestamps must use YYYY-MM-DD HH:MM:SS')
+            _recipe_limits(normalized, (("count", 3, 1, 3 if normalized["recipe"] == "traceroute" else 8),
+                                        ("timeout", 10, 1, 60 if adc and normalized["recipe"] in ("traceroute", "health_check_verify") else 10),
+                                        ("max_bytes", 16000, 1000, 16000)))
 
         if tool == "triage_slb":
             for name, category in (("virtual_server", "adc_virtual_servers"), ("vdom", "adc_vdoms")):
@@ -2069,29 +2565,63 @@ class Proxy:
                 except ValueError:
                     named = False
                 if not named:
-                    raise ToolArgumentsError()
+                    raise argument_error(name, name + " must be a documented enrolled FortiADC object name")
 
         if tool == "schema_read":
             path=normalized["path"]
             if not isinstance(path,str) or len(path)>128 or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.+-]*(?: [A-Za-z0-9][A-Za-z0-9_.+-]*){0,31}",path):
-                raise ToolArgumentsError()
+                raise argument_error('path', 'path contains at most 32 schema words using letters, digits and _.+-; total length at most 128')
             if normalized.get("view","show") not in ("show","get"):
-                raise ToolArgumentsError()
+                raise argument_error('view', 'view must be show or get')
             vdom=normalized.get("vdom")
             if vdom is not None and (not isinstance(vdom,str) or not vdom or len(vdom.encode("utf-8"))>128 or not vdom.isprintable()):
-                raise ToolArgumentsError()
+                raise argument_error('vdom', 'vdom is null or 1..128 bytes of printable text')
             owners=normalized.get("owners")
             if owners is not None and (not isinstance(owners,list) or len(owners)>64 or any(not isinstance(k,str) or not k or len(k.encode("utf-8"))>128 or not k.isprintable() for k in owners)):
-                raise ToolArgumentsError()
+                raise argument_error('owners', 'owners is null or a list of at most 64 nonempty printable names of at most 128 bytes each')
+
+        if tool == "locate_endpoint":
+            from netops_helper.tables import literal
+            from netops_helper.locate import MAX_TARGETS
+            targets = normalized['targets']
+            if (not isinstance(targets, list) or not 1 <= len(targets) <= MAX_TARGETS
+                    or any(not cls._valid_alias(t) for t in targets) or len(set(targets)) != len(targets)):
+                raise argument_error("targets")
+            try:
+                literal(normalized['endpoint'])
+            except (ValueError, TypeError):
+                raise argument_error("endpoint") from None
+
+        if tool == "switch_read":
+            from netops_helper.tables import FIELDS as SWITCH_TABLES, request
+            table = normalized['table']
+            if not isinstance(table, str) or table not in SWITCH_TABLES:
+                raise argument_error("table", "table is one of " + ", ".join(SWITCH_TABLES))
+            for name, kind in (("vlan_id", "vlan_id"), ("mac", "mac_literal"), ("ip", "ip_literal"), ("interface", "interface"),
+                               ("managed_switch", "managed_switch_serial")):
+                if normalized.get(name) is not None:
+                    try:
+                        validate_template_slot(normalized[name], kind)
+                    except (ValueError, TypeError):
+                        raise argument_error(name) from None
+            try:
+                # interface_errors validates its port selector per platform at read time.
+                interface = normalized.get('interface') if table != 'interface_errors' and not (
+                    table in ('interface', 'port_vlan') and normalized.get('managed_switch') is not None) else None
+                request('cisco_ios', table, normalized.get('vlan_id'), normalized.get('mac'), normalized.get('ip'), interface=interface)
+            except (ValueError, TypeError):
+                given = [name for name in ("vlan_id", "mac", "ip", "interface") if normalized.get(name) is not None]
+                raise argument_error(given[0] if len(given) == 1 else "/".join(given) or "table",
+                                     ARGUMENT_HINTS["filter"]) from None
 
         if tool == "ssh_read":
             platform = normalized["platform"]
             query = normalized["query"]
             if not isinstance(platform, str) or platform not in PLATFORM_MAP:
-                raise ToolArgumentsError()
+                raise argument_error("platform")
             normalized["platform"] = PLATFORM_MAP[platform]
             if not isinstance(query, str) or not SAFE_QUERY_NAME.fullmatch(query):
-                raise ToolArgumentsError()
+                raise argument_error("query")
             if normalized.get("parameters") is not None:
                 parameters = normalized["parameters"]
                 if (
@@ -2104,7 +2634,7 @@ class Proxy:
                         for name, value in parameters.items()
                     )
                 ):
-                    raise ToolArgumentsError()
+                    raise argument_error("parameters")
 
         if tool == "snmp_get":
             oids = normalized["oids"]
@@ -2116,7 +2646,7 @@ class Proxy:
                     for oid in oids
                 )
             ):
-                raise ToolArgumentsError()
+                raise argument_error('oids', 'oids lists 1 to 20 printable OID strings of 1 to 200 characters')
 
         return normalized
 
@@ -2140,124 +2670,172 @@ class Proxy:
         if tool not in DEVICE_TOOLS:
             raise PolicyScopeError()
         egress = section.egress
+        def listed(category: str) -> Any:
+            return section.read_inventory.get(category, ())
+
+        def refuse(field: str) -> None:
+            raise PolicyScopeError(data={"field": field})
+
+        def require(condition: bool, field: str) -> None:
+            if not condition:
+                refuse(field)
+
         if tool == "dns_probe":
-            if not egress["allow_dns"]:
-                raise PolicyScopeError()
+            require(bool(egress["allow_dns"]), "egress")
             return
         if tool == "icmp_probe":
-            if not egress["allow_icmp"]:
-                raise PolicyScopeError()
+            require(bool(egress["allow_icmp"]), "egress")
             return
         if tool in ("config_read", "config_diff"):
             permission = "read" if tool == "config_read" else "compare"
             expected = "fortiadc" if args.get("platform") == "fortiadc" else "fortinet"
-            if (section.catalog_platform() != expected or
-                    args.get("platform") not in ("fortios", "fortinet", "fortiadc") or
-                    permission not in section.read_inventory.get("config_access", ())):
-                raise PolicyScopeError()
-            if not cls._port_allowed(entry.port, egress, "tcp"):
-                raise PolicyScopeError()
+            require(args.get("platform") in ("fortios", "fortinet", "fortiadc")
+                    and section.catalog_platform() == expected, "platform")
+            require(permission in listed("config_access"), "config_access")
+            require(cls._port_allowed(entry.port, egress, "tcp"), "egress")
             return
         if tool == "triage_slb":
-            if (section.catalog_platform() != "fortiadc"
-                    or "read" not in section.read_inventory.get("config_access", ())
-                    or args["virtual_server"] not in section.read_inventory.get("adc_virtual_servers", ())
-                    or args.get("vdom", "root") not in section.read_inventory.get("adc_vdoms", ())
-                    or any(query not in section.enabled_queries for query in TRIAGE_SLB_REQUIRED_QUERIES)
-                    or not cls._port_allowed(entry.port, egress, "tcp")):
-                raise PolicyScopeError()
+            require(section.catalog_platform() == "fortiadc", "platform")
+            require("read" in listed("config_access"), "config_access")
+            require(args["virtual_server"] in listed("adc_virtual_servers"), "adc_virtual_servers")
+            require(args.get("vdom", "root") in listed("adc_vdoms"), "adc_vdoms")
+            require(all(query in section.enabled_queries for query in TRIAGE_SLB_REQUIRED_QUERIES), "enabled_queries")
+            require(cls._port_allowed(entry.port, egress, "tcp"), "egress")
+            return
+        if tool == "fortios_diagnostics" and args["recipe"] in ("system_event_logs", "waf_attack_logs", "session_list", "persistence_list"):
+            require(section.catalog_platform() == "fortiadc", "platform")
+            require("system_status" in section.enabled_queries, "enabled_queries")
+            require(args["recipe"] in listed("diagnostic_recipes"), "diagnostic_recipes")
+            require(args["recipe"] not in ("session_list", "persistence_list")
+                    or args["address"] in listed("diagnostic_virtual_servers"),
+                    "diagnostic_virtual_servers")
             return
         if tool == "fortios_diagnostics" and section.catalog_platform() == "fortiadc":
             category = {"nslookup": "diagnostic_names", "http_probe": "diagnostic_http_endpoints"}.get(args["recipe"], "addresses")
             host_egress = {"ping": "allow_icmp", "nslookup": "allow_dns"}.get(args["recipe"])
-            if ("system_status" not in section.enabled_queries or args["interface"] != ""
-                    or args["recipe"] not in section.read_inventory.get("diagnostic_recipes",())
-                    or args["address"] not in section.read_inventory.get(category,())
-                    or args["recipe"] == "health_check_verify" and args.get("health_check") not in section.read_inventory.get("adc_health_checks",())
-                    or host_egress is not None and not egress[host_egress]):
-                raise PolicyScopeError()
+            require("system_status" in section.enabled_queries, "enabled_queries")
+            require(args["interface"] == "", "platform")
+            require(args["recipe"] in listed("diagnostic_recipes"), "diagnostic_recipes")
+            require(args["address"] in listed(category), category)
+            require(args["recipe"] != "health_check_verify"
+                    or args.get("health_check") in listed("adc_health_checks"), "adc_health_checks")
+            require(host_egress is None or bool(egress[host_egress]), "egress")
             return
         if tool == "fortios_diagnostics":
-            if args["recipe"] in ("system_event_logs", "waf_attack_logs", "session_list", "persistence_list"):
-                if (section.catalog_platform() != "fortiadc" or "system_status" not in section.enabled_queries
-                        or args["recipe"] not in section.read_inventory.get("diagnostic_recipes",())):
-                    raise PolicyScopeError()
-                if (args["recipe"] in ("session_list", "persistence_list")
-                        and args["address"] not in section.read_inventory.get("diagnostic_virtual_servers",())):
-                    raise PolicyScopeError()
-                return
-            if section.catalog_platform() != "fortinet" or "system_status" not in section.enabled_queries:
-                raise PolicyScopeError()
-            if args.get("vdom") is not None and args["vdom"] not in section.read_inventory.get("diagnostic_vdoms",()):
-                raise PolicyScopeError()
-            for category, name in (("diagnostic_recipes","recipe"),("addresses","address"),("interfaces","interface")):
-                if args[name] not in section.read_inventory.get(category,()):
-                    raise PolicyScopeError()
-            if (args.get("source_address") is not None and
-                    args["source_address"] not in section.read_inventory.get("addresses",())):
-                raise PolicyScopeError()
+            require(section.catalog_platform() == "fortinet", "platform")
+            require("system_status" in section.enabled_queries, "enabled_queries")
+            require(args.get("vdom") is None or args["vdom"] in listed("diagnostic_vdoms"),
+                    "diagnostic_vdoms")
+            def enrolled_address(name: str) -> None:
+                require(args.get(name) is None or _lookup_enrolled(args[name], 4, section.read_inventory),
+                        "lookup_prefixes" if "/" in (args.get(name) or "") else "addresses")
+
+            require(args["recipe"] in listed("diagnostic_recipes"), "diagnostic_recipes")
+            enrolled_address("address")
+            require(args["interface"] in listed("interfaces"), "interfaces")
+            enrolled_address("source_address")
             return
         if tool in {"triage_health", "triage_vpn"}:
-            if section.catalog_platform() != "fortinet" or "system_status" not in section.enabled_queries:
-                raise PolicyScopeError()
+            require(section.catalog_platform() == "fortinet", "platform")
+            require("system_status" in section.enabled_queries, "enabled_queries")
+            return
+        if tool in {"wifi_clients", "wifi_aps_live", "wifi_rogue"}:
+            require(section.catalog_platform() == "fortinet", "platform")
+            if section.fortios_rest_credential:
+                require(cls._port_allowed(section.fortios_rest_port, egress, "tcp"), "egress")
+            return
+        if tool == "wifi_triage":
+            require(section.catalog_platform() == "fortinet", "platform")
+            require("system_status" in section.enabled_queries, "enabled_queries")
+            if section.fortios_rest_credential:
+                require(cls._port_allowed(section.fortios_rest_port, egress, "tcp"), "egress")
             return
         if tool == "triage_routing":
-            if (section.catalog_platform() != "fortinet"
-                    or not {"system_status", "route_lookup"} <= set(section.enabled_queries)
-                    or not _valid_typed_inventory_value(args["address"], "ipv4_address")
-                    or args["address"] not in section.read_inventory.get("addresses", ())):
-                raise PolicyScopeError()
+            require(section.catalog_platform() == "fortinet", "platform")
+            require({"system_status", "route_lookup"} <= set(section.enabled_queries), "enabled_queries")
+            require(_valid_typed_inventory_value(args["address"], "ipv4_address")
+                    and args["address"] in listed("addresses"), "addresses")
+            return
+        if tool == "triage_flow":
+            require(section.catalog_platform() == "fortinet", "platform")
+            require({"system_status", "route_lookup", "policy_lookup_ipv4"} <= set(section.enabled_queries),
+                    "enabled_queries")
             return
         if tool == "schema_read":
-            if section.catalog_platform() != "fortinet" or "system_status" not in section.enabled_queries or args["path"] not in section.read_inventory.get("schema_paths",()):
+            require(section.catalog_platform() == "fortinet", "platform")
+            require("system_status" in section.enabled_queries, "enabled_queries")
+            require(args["path"] in listed("schema_paths"), "schema_paths")
+            return
+        if tool == "locate_endpoint":
+            from netops_helper.locate import is_reader
+            from netops_helper.normalization import IDENTITY_PROFILES
+            if section.catalog_platform() not in IDENTITY_PROFILES | {'fortinet'} or not is_reader(section):
                 raise PolicyScopeError()
             return
+        if tool == "switch_read":
+            from netops_helper.tables import request
+            profile = section.catalog_platform()
+            try:
+                query, parameters, _ = request(profile, args['table'], args.get('vlan_id'), args.get('mac'), args.get('ip'), section.device_types,
+                                               args.get('interface'), args.get('managed_switch'))
+            except ValueError as exc:
+                if 'managed_switch' in str(exc):
+                    raise argument_error('managed_switch', str(exc)) from None
+                if args['table'] == 'interface_errors':
+                    raise argument_error('interface', 'Provide an interface name in the format supported by this platform; on Junos interface is required and must be enrolled') from None
+                raise argument_error('ip', 'route requires ip on this profile (an enrolled address for catalogue lookup)') from None
+            if query is None:
+                # Unsupported output is harmless, but still requires an enrolled
+                # SSH profile; never grants access to another platform.
+                from netops_helper.normalization import IDENTITY_PROFILES
+                if profile not in IDENTITY_PROFILES | {'fortinet'}:
+                    raise PolicyScopeError()
+                return
+            return cls._authorize_tool('ssh_read', {'platform': profile, 'query': query, 'parameters': parameters}, entry, section)
         if tool == "ssh_read":
             platform = args["platform"]
             query = args["query"]
-            if (
-                section.ssh_platform is None or not section.enabled_queries
-                or platform != section.catalog_platform()
-                or query not in section.enabled_queries
-            ):
-                raise PolicyScopeError()
+            require(section.ssh_platform is not None and platform == section.catalog_platform(), "platform")
+            require(bool(section.enabled_queries) and query in section.enabled_queries, "enabled_queries")
             slots = READ_QUERY_SLOTS[platform].get(query, {})
             parameters = args.get("parameters") or {}
-            if set(parameters) != set(slots):
-                raise PolicyScopeError()
-            for name, slot in slots.items():
-                value = parameters[name]
-                category = slot["inventory"]
-                if (
-                    not _valid_typed_inventory_value(value, slot["kind"])
-                    or value not in section.read_inventory.get(category, ())
-                ):
-                    raise PolicyScopeError()
+            required = {name for name, slot in slots.items() if not slot.get("optional")}
+            if not required <= set(parameters) <= set(slots):
+                refuse("parameters")
+            # A literal slot (no inventory) is validated by its type only. A wtp_id outside the enrolled
+            # list is verified by the Helper engine against the access points the target itself listed.
+            refused = [
+                (name, "lookup_prefixes" if slot["kind"] in LOOKUP_SLOT_KINDS and "/" in parameters[name]
+                 else slot["inventory"] or "parameters") for name in parameters for slot in (slots[name],)
+                if not _valid_typed_inventory_value(
+                    parameters[name], slot["kind"], lookup_only=slot.get("lookup_only", False))
+                or not (_lookup_enrolled(parameters[name], LOOKUP_SLOT_KINDS[slot["kind"]], section.read_inventory)
+                        if slot["kind"] in LOOKUP_SLOT_KINDS else
+                        slot["inventory"] in (None, "literal") or slot["kind"] == "fortios_wtp_id"
+                        or parameters[name] in listed(slot["inventory"]))
+            ]
+            if refused:
+                raise PolicyScopeError(data={
+                    "field": refused[0][1], "parameter": refused[0][0],
+                    "parameters": [name for name, _ in refused],
+                })
             return
         if tool == "sftp_stat":
-            if not cls._path_in_roots(args["remote_path"], section.sftp_roots):
-                raise PolicyScopeError()
+            require(cls._path_in_roots(args["remote_path"], section.sftp_roots), "sftp_roots")
             return
         if tool == "snmp_get":
-            if not cls._port_allowed(args.get("port", 161), egress, "udp"):
-                raise PolicyScopeError()
+            require(cls._port_allowed(args.get("port", 161), egress, "udp"), "egress")
             return
         defaults = {"tls_probe": 443, "ftp_list": 21}
         port = args.get("port", defaults.get(tool))
-        if not cls._port_allowed(port, egress, "tcp"):
-            raise PolicyScopeError()
+        require(cls._port_allowed(port, egress, "tcp"), "egress")
         if tool == "tls_probe":
             server_name = args.get("server_name")
-            if (
-                server_name is not None and server_name != entry.address
-                and server_name not in egress["tls_server_names"]
-            ):
-                raise PolicyScopeError()
-        if tool == "ftp_list" and (
-            not egress["tcp_port_ranges"]
-            or not cls._path_in_roots(args["remote_path"], section.sftp_roots)
-        ):
-            raise PolicyScopeError()
+            require(server_name is None or server_name == entry.address
+                    or server_name in egress["tls_server_names"], "egress")
+        if tool == "ftp_list":
+            require(bool(egress["tcp_port_ranges"]), "egress")
+            require(cls._path_in_roots(args["remote_path"], section.sftp_roots), "sftp_roots")
 
     @staticmethod
     def _rate_costs_slot(tool: str, args: dict[str, Any]) -> bool:
@@ -2306,25 +2884,89 @@ class Proxy:
                 del self.continuations[min(self.continuations, key=lambda name: self.continuations[name][1])]
             self.continuations[key] = (next_offset, now + CONTINUATION_TTL_SECONDS)
 
-    def _consume_rate_limit(self, alias: str, limit: dict[str, int], cost: int = 1) -> None:
-        now, window = time.monotonic(), float(limit["window_seconds"])
-        with self.rate_lock:
-            history = self.rate_history.setdefault(alias, deque())
-            while history and history[0] <= now - window:
-                history.popleft()
-            if len(history) + cost > limit["requests"]:
-                if not history:
-                    raise RateLimitError(data={"retry_after_seconds": max(1, math.ceil(window))})
-                index = min(len(history) - 1, max(0, len(history) + cost - limit["requests"] - 1))
-                raise RateLimitError(data={
-                    "retry_after_seconds": max(1, math.ceil(history[index] + window - now)),
-                })
-            history.extend([now] * cost)
+    @staticmethod
+    def _rate_cost(tool: str, rest_token: str | None, section: Any = None, args: dict[str, Any] | None = None) -> int:
+        # A Wi-Fi REST tool costs its two REST reads with an enrolled token; without one it costs one
+        # request, although it then answers unsupported without contacting the device.
+        if tool in WIFI_REST_TOOLS:
+            return (4 if tool == "wifi_rogue" else 3 if tool == "wifi_clients" else WIFI_REST_READS) if rest_token else 1
+        if tool == "locate_endpoint" and section is not None:
+            # Reserve an upper bound, capped by the enrolled rate limit. The
+            # worker enforces this same per-alias cap on actual transport reads.
+            # Plan: identity, caches, MAC/LLDP, edge details,
+            # and own-interface fallback (including joins). Each managed switch
+            # reserves MAC/LLDP, optional port stats and two VLAN reads; only
+            # edge candidates consume auxiliary reads, after all MAC tables.
+            from netops_helper.port_vlan import BINDINGS, CAMPUS
+            profile = section.catalog_platform()
+            vlan_reads = (1 + (profile in CAMPUS or profile == 'extreme_exos')) if BINDINGS.get(profile) in section.enabled_queries else 0
+            return min(LOCATE_MAX_READS, section.rate_limit["requests"], 7 + (profile == "extreme_exos") + vlan_reads
+                       + (2 + (profile == 'fortinet' and 'managed_switch_port_stats' in section.enabled_queries)
+                            + 2 * (profile == 'fortinet' and all(q in section.enabled_queries for q in (
+                                'managed_switch_port_vlans', 'interface_vlan_ids'))))
+                       * len(section.read_inventory.get("managed_switches", ())))
+        if tool == "switch_read" and section is not None and args is not None:
+            from netops_helper.port_vlan import CAMPUS
+            profile, table = section.catalog_platform(), args.get('table')
+            if (profile in ('cisco_ios', 'cisco_xe') and table == 'route'
+                    and isinstance(args.get('ip'), str) and ':' not in args['ip']):
+                return 1 + ('route_table' in section.enabled_queries)
+            if profile == 'fortinet' and table == 'port_vlan':
+                return 2
+            if profile == 'fortinet' and table == 'interface_errors':
+                return 1
+            if table == 'port_vlan':
+                secondary = 'interfaces' if profile in CAMPUS else 'ports' if profile == 'extreme_exos' else None
+                return 1 + (secondary is not None and secondary in section.enabled_queries)
+            if table == 'vlan' and profile in ('cisco_ios', 'cisco_xe'):
+                return 1 + ('interfaces_trunk' in section.enabled_queries)
+            if table == "interface_errors":
+                from netops_helper.port_errors import read_cost
+                return read_cost(profile, args.get("interface"), section.enabled_queries)
+            # A Junos ELS MAC table is joined with a second read of the VLAN table, an ip_interface
+            # table with the route table (IOS, IOS XE, NX-OS) or the VLAN table (EXOS).
+            from netops_helper.ip_interfaces import join_query
+            return 1 + (section.catalog_platform() == "juniper_junos_els" and args.get("table") == "mac_entry"
+                        and "vlans" in section.enabled_queries) + (
+                args.get("table") == "ip_interface"
+                and join_query(section.catalog_platform(), section.enabled_queries) is not None)
+        return TRIAGE_READS.get(tool, 1) + (8 if tool == "wifi_triage" and rest_token else 0)
 
-    def _rate_status(self, alias: str, limit: dict[str, int]) -> dict[str, int]:
+    def _consume_rate_limit(self, alias: str, limit: dict[str, int], cost: int = 1, *, triage: bool = False) -> None:
+        self._consume_rate_limits(((alias, limit, cost),), triage=triage)
+
+    def _consume_rate_limits(self, scopes: Any, *, triage: bool = False) -> None:
+        """Charge each (alias, limit, cost) to its own target, or charge none of them."""
+        now = time.monotonic()
+        with self.rate_lock:
+            charges = []
+            for alias, limit, cost in scopes:
+                window = float(limit["window_seconds"])
+                total = self.rate_history.setdefault(alias, deque())
+                histories = [total]
+                if triage:
+                    histories.append(self.triage_history.setdefault(alias, deque()))
+                # Check every budget under one lock before charging any. The target's
+                # original cap includes manual reads and the reserved triage read plan.
+                for history in histories:
+                    while history and history[0] <= now - window:
+                        history.popleft()
+                    if len(history) + cost > limit["requests"]:
+                        if not history:
+                            raise RateLimitError(data={"retry_after_seconds": max(1, math.ceil(window))})
+                        index = min(len(history) - 1, max(0, len(history) + cost - limit["requests"] - 1))
+                        raise RateLimitError(data={
+                            "retry_after_seconds": max(1, math.ceil(history[index] + window - now)),
+                        })
+                charges.append((histories, cost))
+            for histories, cost in charges:
+                for history in histories:
+                    history.extend([now] * cost)
+
+    def _rate_status(self, alias: str, limit: dict[str, int], *, triage: bool = False) -> dict[str, int]:
         now, window = time.monotonic(), float(limit["window_seconds"])
         with self.rate_lock:
-            history = self.rate_history.setdefault(alias, deque())
+            history = (self.triage_history if triage else self.rate_history).setdefault(alias, deque())
             while history and history[0] <= now - window:
                 history.popleft()
             used = len(history)
@@ -2355,6 +2997,7 @@ class Proxy:
             limits.append({
                 "alias": entry.name,
                 "rate_limit": self._rate_status(entry.name, section.rate_limit),
+                "triage_rate_limit": self._rate_status(entry.name, section.rate_limit, triage=True),
             })
         return {
             "target_aliases": aliases, "target_rate_limits": limits,
@@ -2379,10 +3022,13 @@ class Proxy:
             },
             "configuration_limits": section.configuration_limits.as_dict(),
             "sftp_roots": list(section.sftp_roots),
+            "fortios_wifi_rest_enrolled": section.fortios_rest_credential is not None,
+            "fortios_rest_port": section.fortios_rest_port,
             "snmp_enrolled": snmp_v3,
             "snmp_security": "authPriv" if snmp_v3 else None,
             "host_key_pinned": True,
             "rate_limit": self._rate_status(alias, section.rate_limit),
+            "triage_rate_limit": self._rate_status(alias, section.rate_limit, triage=True),
         }
 
     def _emit(self, message: dict[str, Any]) -> None:
@@ -2513,7 +3159,7 @@ class Proxy:
             self._emit_error(None, -32700, "Request exceeds the size limit.", notification=False)
             return None
         try:
-            message = _json_document(raw)
+            message = _json_document(raw, finite=False)
         except (ValueError, RecursionError):
             self._emit_error(None, -32700, "Invalid JSON.", notification=False)
             return None
@@ -2579,7 +3225,8 @@ class Proxy:
         if has_id:
             with self.pending_lock:
                 self.pending_tools[request_id] = tool
-                if tool in {"config_read", "config_diff", "triage_slb", "triage_health", "triage_routing", "triage_vpn"}:
+                if tool in {"config_read", "config_diff", "triage_slb", "triage_health", "triage_routing", "triage_vpn",
+                            "wifi_triage", "triage_flow"}:
                     self.pending_deadlines[request_id] = time.monotonic() + 670.0
         if tool == "target_scope":
             if set(args) != {"target"} or not self._valid_alias(args.get("target")):
@@ -2607,6 +3254,24 @@ class Proxy:
                 payload = self._helper_status_payload()
                 if has_id:
                     self.control_payloads[request_id] = payload
+            elif tool == "locate_endpoint":
+                contexts, materials, scopes = {}, [], []
+                for alias in args['targets']:
+                    entry, section, vault = self._target(alias)
+                    try:
+                        self._authorize_tool(tool, args, entry, section)
+                    except PolicyScopeError as exc:
+                        exc.data.setdefault('target', alias)    # the whole call is refused: say which alias to check
+                        raise
+                    credential = self._credential(vault, entry.credential)
+                    context = self._auth_context(entry, section, credential, None, tool)
+                    contexts[alias] = context
+                    materials.extend((*self._session_secrets(credential, None), context))
+                    scopes.append((alias, section.rate_limit, self._rate_cost(tool, None, section, args)))
+                # Every target is charged the reads planned on it, or no target is charged.
+                self._consume_rate_limits(scopes)
+                args[AUTH_FIELD] = json.dumps(contexts, separators=(',', ':'))
+                secrets = (*materials, args[AUTH_FIELD])
             elif tool != "read_query_catalog":
                 alias = args.get("target")
                 if not self._valid_alias(alias):
@@ -2621,17 +3286,30 @@ class Proxy:
                 self._authorize_tool(tool, args, entry, section)
                 credential = self._credential(vault, entry.credential)
                 usm = self._snmp_usm(section, vault, tool == "snmp_get")
+                rest_token = None
+                if tool in {"wifi_clients", "wifi_aps_live", "wifi_rogue", "wifi_triage"} and section.fortios_rest_credential:
+                    rest_token = self._credential(vault, section.fortios_rest_credential).use()
+                    from .wifi_rest import checked_token
+                    try:
+                        checked_token(rest_token)
+                    except ValueError:
+                        raise AuthenticationMaterialError(data={
+                            "hint": "Replace the referenced api-token credential with a valid FortiOS REST token; see docs/fortios-wifi-rest.md",
+                        }) from None
                 auth_context = self._auth_context(
-                    entry, section, credential, usm, tool,
+                    entry, section, credential, usm, tool, rest_token,
                 )
                 if self._rate_costs_slot(tool, args) or not self._redeem_continuation(tool, args):
-                    self._consume_rate_limit(alias, section.rate_limit, TRIAGE_READS.get(tool, 1))
+                    self._consume_rate_limit(
+                        alias, section.rate_limit, self._rate_cost(tool, rest_token, section, args),
+                        triage=tool in TRIAGE_READS,
+                    )
                 if has_id and tool in CONTINUATION_TOOLS:
                     with self.pending_lock:
                         self.pending_continuations[request_id] = self._continuation_key(tool, args)
                 args[AUTH_FIELD] = auth_context
                 secrets = (
-                    *self._session_secrets(credential, usm), auth_context,
+                    *self._session_secrets(credential, usm), auth_context, *((rest_token,) if rest_token else ()),
                 )
         except ProxyError as exc:
             self._emit_proxy_error(request_id, exc, notification)
@@ -2643,9 +3321,13 @@ class Proxy:
             if has_id:
                 self._clear_pending(request_id)
             return None
+        if tool in PAGED_TOOLS:
+            # Existing private proxy -> server handoff; never accepted from a client.
+            # Separate from auth_context to avoid recursively growing session envelopes.
+            args[REDACTION_FIELD] = list(dict.fromkeys((*secrets, *self.session_secrets, *self.transport_secrets)))
         if has_id:
             self.response_secrets[request_id] = secrets
-            self.session_secrets.update(dict.fromkeys(secrets))
+            self._remember_session_secrets(secrets)
         return json.dumps(message, separators=(",", ":")).encode() + b"\n"
 
     @staticmethod
@@ -2838,13 +3520,13 @@ class Proxy:
             ]
             if not transformed:
                 return b""
-            return json.dumps(transformed, separators=(",", ":")).encode() + b"\n"
+            return json.dumps(transformed, separators=(",", ":"), allow_nan=False).encode() + b"\n"
         if not isinstance(message, dict) or not self._valid_server_message(message):
             return self._refuse_server_message(epoch)
         transformed_message = self._transform(message, epoch)
         if transformed_message is None:
             return b""
-        return json.dumps(transformed_message, separators=(",", ":")).encode() + b"\n"
+        return json.dumps(transformed_message, separators=(",", ":"), allow_nan=False).encode() + b"\n"
 
     def _transform(
         self, message: dict[str, Any], epoch: int | None = None,
@@ -2893,6 +3575,12 @@ class Proxy:
                 request_id = None
             return self._proxy_error_message(request_id, ServerInputRequestError())
         secrets = (*secrets, *self.session_secrets, *self.transport_secrets)
+        metadata = (page_metadata(result.get("structuredContent"), tool)
+                    if method == "tools/call" and isinstance(result, dict)
+                    and result.get("isError") is not True else None)
+        if metadata is not None:
+            message = dict(message)
+            message["result"], restore_page = strip_page_metadata(result, metadata)
         message = sanitize_object(message, secrets)
         result = message.get("result")
         if isinstance(result, dict) and isinstance(result.get("_meta"), dict):
@@ -2901,6 +3589,8 @@ class Proxy:
             self._mark_untrusted_result(message, secrets)
         else:
             self._sanitize_result_text(message, secrets)
+        if metadata is not None and isinstance(message.get("result"), dict):
+            restore_page(message["result"])
         if method == "tools/call":
             if continuation is not None:
                 self._issue_continuation(continuation, message)
@@ -2922,10 +3612,11 @@ class Proxy:
                         continue
                     properties = schema.get("properties") or {}
                     if isinstance(properties, dict):
-                        properties.pop(AUTH_FIELD, None)
+                        for private in PRIVATE_ARGUMENTS:
+                            properties.pop(private, None)
                     required = schema.get("required") or []
                     if isinstance(required, list):
-                        schema["required"] = [name for name in required if name != AUTH_FIELD]
+                        schema["required"] = [name for name in required if name not in PRIVATE_ARGUMENTS]
                     seen.add(name)
                     filtered.append(item)
                 filtered.append(self._target_scope_tool())
@@ -3270,7 +3961,7 @@ class _ServerConnection:
             )
             return False
         self.stderr_thread = threading.Thread(
-            target=_drain_stderr, args=(child.stderr, self.secrets, self.stderr_state),
+            target=self._read_stderr,
             daemon=True,
         )
         self.stderr_thread.start()
@@ -3288,39 +3979,44 @@ class _ServerConnection:
     def _ended_elsewhere(self) -> bool:
         return self.stopping or not self.proxy.accepting(self.epoch)
 
+    def _read_stderr(self) -> None:
+        with self.child.stderr:
+            _drain_stderr(self.child.stderr, self.secrets, self.stderr_state)
+
     def _responses(self) -> None:
-        proxy = self.proxy
-        for line in iter(lambda: self.child.stdout.readline(MAX_SERVER_FRAME_BYTES + 1), b""):
+        with self.child.stdout:
+            proxy = self.proxy
+            for line in iter(lambda: self.child.stdout.readline(MAX_SERVER_FRAME_BYTES + 1), b""):
+                try:
+                    transformed = proxy.response(line, self.epoch)
+                except Exception:
+                    transformed = _encoded(
+                        proxy._proxy_error_message(None, InternalProxyError()),
+                    ) if proxy.accepting(self.epoch) else b""
+                if not transformed:
+                    continue
+                try:
+                    with proxy.stdout_lock:
+                        sys.stdout.buffer.write(transformed)
+                        sys.stdout.buffer.flush()
+                except BrokenPipeError:
+                    _quiet_closed_stdout()
+                    proxy.close_session("transport_closed", self.epoch)
+                    return
+            if self._ended_elsewhere():
+                return
             try:
-                transformed = proxy.response(line, self.epoch)
-            except Exception:
-                transformed = _encoded(
-                    proxy._proxy_error_message(None, InternalProxyError()),
-                ) if proxy.accepting(self.epoch) else b""
-            if not transformed:
-                continue
-            try:
-                with proxy.stdout_lock:
-                    sys.stdout.buffer.write(transformed)
-                    sys.stdout.buffer.flush()
-            except BrokenPipeError:
-                _quiet_closed_stdout()
+                code = self.child.wait(timeout=10)
+            except subprocess.TimeoutExpired:
                 proxy.close_session("transport_closed", self.epoch)
                 return
-        if self._ended_elsewhere():
-            return
-        try:
-            code = self.child.wait(timeout=10)
-        except subprocess.TimeoutExpired:
+            if self._ended_elsewhere():
+                return
+            if self.stderr_thread is not None:
+                self.stderr_thread.join(timeout=2)
+            with proxy.stdout_lock:
+                _exit_diagnostic(code, False, self.stderr_state)
             proxy.close_session("transport_closed", self.epoch)
-            return
-        if self._ended_elsewhere():
-            return
-        if self.stderr_thread is not None:
-            self.stderr_thread.join(timeout=2)
-        with proxy.stdout_lock:
-            _exit_diagnostic(code, False, self.stderr_state)
-        proxy.close_session("transport_closed", self.epoch)
 
     def await_end(self) -> None:
         if self.response_thread is not None:

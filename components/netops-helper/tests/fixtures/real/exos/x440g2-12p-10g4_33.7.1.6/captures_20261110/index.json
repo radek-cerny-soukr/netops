@@ -1,0 +1,65 @@
+{
+ "arp_table": {
+  "command": "show iparp",
+  "rc": 0,
+  "lines": 35,
+  "captured_at": "2026-11-10T11:02:53.683+00:00",
+  "account": "netops-ro"
+ },
+ "ipconfig": {
+  "command": "show ipconfig",
+  "rc": 0,
+  "lines": 25,
+  "captured_at": "2026-11-10T11:02:49.462+00:00",
+  "account": "netops-ro"
+ },
+ "lacp": {
+  "command": "show lacp",
+  "rc": 0,
+  "lines": 10,
+  "captured_at": "2026-11-10T11:02:59.723+00:00",
+  "account": "netops-ro"
+ },
+ "lldp_neighbors_detail": {
+  "command": "show lldp neighbors detailed",
+  "rc": 0,
+  "lines": 27,
+  "captured_at": "2026-11-10T11:02:55.213+00:00",
+  "account": "netops-ro"
+ },
+ "mac_table": {
+  "command": "show fdb",
+  "rc": 0,
+  "lines": 45,
+  "captured_at": "2026-11-10T11:02:47.866+00:00",
+  "account": "netops-ro"
+ },
+ "ports": {
+  "command": "show ports no-refresh",
+  "rc": 0,
+  "lines": 27,
+  "captured_at": "2026-11-10T11:02:39.577+00:00",
+  "account": "netops-ro"
+ },
+ "switch": {
+  "command": "show switch",
+  "rc": 0,
+  "lines": 35,
+  "captured_at": "2026-11-10T11:03:01.103+00:00",
+  "account": "netops-ro"
+ },
+ "vlan_detail": {
+  "command": "show vlan detail",
+  "rc": 250,
+  "lines": 285,
+  "captured_at": "2026-11-10T11:02:41.663+00:00",
+  "account": "netops-ro"
+ },
+ "vlan_summary": {
+  "command": "show vlan",
+  "rc": 0,
+  "lines": 29,
+  "captured_at": "2026-11-10T11:02:46.258+00:00",
+  "account": "netops-ro"
+ }
+}

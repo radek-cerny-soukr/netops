@@ -64,7 +64,7 @@ docker compose up -d --wait
 
 Call `helper_status` with `{}` and `target_scope` with `{"target":"linux-a.example.invalid"}`, then call `ssh_read` with `{"target":"linux-a.example.invalid","platform":"linux","query":"kernel"}`. A target that is not enrolled is refused with `The target alias is not present in the credential vault.`, also when the alias is missing from the inventory. The MCP caller supplies only the enrolled alias and query; it never supplies a device password or ephemeral authentication context.
 
-Each `helper` section requires `account_role`, `ssh_platform`, `enabled_queries` and all eight `egress` fields shown above. `tcp_ports` and `udp_ports` hold at most 256 unique whole numbers from 1 to 65535. `tcp_port_ranges` and `udp_port_ranges` hold at most 64 non-overlapping `[start, end]` pairs of whole numbers with 1 ≤ start ≤ end ≤ 65535, for example `[[1000, 2000]]`; other forms such as `"1000-2000"` or `{"start": 1000, "end": 2000}` are refused. A port listed in `tcp_ports` or `udp_ports` must not lie inside a range of the same protocol. The device address must be listed in `egress.addresses`; a device named by a DNS name needs `allow_dns` and the explicit IPv4 addresses it may resolve to. The SSH port is taken from the inventory and is not checked against `tcp_ports`; it must not lie inside `tcp_port_ranges` when the device has SSH queries or SFTP roots. The scope limits which enrolled targets and operations the Helper accepts; NetOps 1.0 does not install a host firewall, and it needs no legacy runner or egress-policy file. Choose platform-specific queries from `read_query_catalog`; enable only the required queries. FortiOS also requires independently verified standard output and `fortios_output_standard_verified: true`. For FortiOS, use `fortios` for `helper.ssh_platform`; `target_scope` reports its query-catalog name `fortinet`.
+Each `helper` section requires `account_role`, `ssh_platform`, `enabled_queries` and all eight `egress` fields shown above. `tcp_ports` and `udp_ports` hold at most 256 unique whole numbers from 1 to 65535. `tcp_port_ranges` and `udp_port_ranges` hold at most 64 non-overlapping `[start, end]` pairs of whole numbers with 1 ≤ start ≤ end ≤ 65535, for example `[[1000, 2000]]`; other forms such as `"1000-2000"` or `{"start": 1000, "end": 2000}` are refused. A port listed in `tcp_ports` or `udp_ports` must not lie inside a range of the same protocol. The device address must be listed in `egress.addresses`; a device named by a DNS name needs `allow_dns` and the explicit IPv4 addresses it may resolve to. The SSH port is taken from the inventory and is not checked against `tcp_ports`; it must not lie inside `tcp_port_ranges` when the device has SSH queries or SFTP roots. The scope limits which enrolled targets and operations the Helper accepts; NetOps 1.0 does not install a host firewall, and it needs no legacy runner or egress-policy file. Choose platform-specific queries from `read_query_catalog`; enable only the required queries. The optional `device_types` list (`switch`, `router`, `firewall`; default empty) names the device type of a target and enables the matching template groups; it is an attribute of the target, not a profile, and is not checked against the device model. `locate_endpoint` also uses it: ARP/ND is read only from targets declaring `router` or `firewall`, MAC tables only from targets declaring `switch` (a layer-3 switch declares both), and FortiLink managed-switch tables through a `firewall` target (see components/netops-helper/docs/normalization.md and tools.md). FortiOS also requires independently verified standard output and `fortios_output_standard_verified: true`. For FortiOS, use `fortios` for `helper.ssh_platform`; `target_scope` reports its query-catalog name `fortinet`.
 
 The common [inventory fields](../components/netops-core/docs/inventory.md), [credential records](../components/netops-core/docs/vault.md) and Helper section fields below remain strict: unknown fields, duplicate JSON keys, invalid types and missing credential references are refused. The configuration command validates the entire input before replacing role files. Validation feedback names the expected schema without echoing credential values.
 
@@ -115,19 +115,28 @@ A `helper` section may also hold `read_inventory`, `sftp_roots`, `rate_limit`, `
 }
 ```
 
-`read_inventory` lists the exact values an MCP caller may pass as query parameters. 112 of the 380 catalogue queries take a parameter; `read_query_catalog` names the inventory category of each parameter. A parameter is accepted only when its value is listed, character for character, in that category of the target; any other value is refused with `policy_scope` ("The requested operation is outside the enrolled target scope.") before the device is contacted, and the refusal does not count against `rate_limit`. Pass the values in the `parameters` argument of `ssh_read`, for example `{"target":"linux-a.example.invalid","platform":"linux","query":"interface_link","parameters":{"interface":"eth0"}}`. With the example, `interface_link` with `{"interface":"eth0"}` and `service_status` with `{"service":"ssh.service"}` are accepted; `eth1` or `cron.service` are refused.
+`read_inventory` lists the values an MCP caller may pass as query parameters. 136 of the 547 catalogue queries take a parameter; `read_query_catalog` names the kind and the inventory category of each parameter. An inventory-bound parameter (125 queries have one) is accepted only when its value is listed, character for character, in that category of the target. The exceptions below are checked against their own rule instead:
+
+- Literal parameters, checked only for their fixed form and not looked up in the inventory (10 queries): `vlan_id` (a VLAN number from 1 to 4094), `mac_literal` (a MAC address), and the `lines` (1 to 200) and `mac_literal` (lower-case MAC) of `wifi_events`.
+- Lookup parameters of the FortiOS `route_lookup`, `policy_lookup_ipv4` and `policy_lookup_ipv6` (3 queries): a single address must be listed in `addresses`; a canonical prefix is accepted when it is equal to or inside an entry of `lookup_prefixes`. A prefix does not enroll the addresses inside it.
+- `wtp_id` of `wifi_ap_status` and `wifi_rf_analysis`: listed in `wtp_ids`, or an access point id that an earlier `wifi_ap_status` of the same target returned.
+- `triage_flow`: `src`, `dst`, `port` and `proto` need not be enrolled; the Helper allows them for the route, policy and session reads of that one call only, and no other call gains them. This deliberately broadens lookup scope: enabling `system_status`, `route_lookup` and `policy_lookup_ipv4` permits lookups of arbitrary validated IPv4 flow literals, even outside `addresses`, `lookup_prefixes`, `flow_ports` and `ip_protocols`. Ingress for policy lookup is inferred from the route to `src` and checked for safe syntax; it need not be an enrolled interface. Session reads additionally require the `sessions` diagnostic recipe and that ingress in `interfaces`; their source and destination may still be outside enrolled addresses. The temporary scope never persists and does not broaden egress. Grant these queries only when that flow-lookup access is intended; direct `ssh_read` and `fortios_diagnostics` retain their enrolled-value checks.
+
+Any other value is refused with `policy_scope` ("The requested operation is outside the enrolled target scope.") before the device is contacted, and the refusal does not count against `rate_limit`. The error data names the category in `data.field` and the argument in `data.parameter` (every refused argument in `data.parameters`), never the value; a query that is not enabled gives `data.field` `enabled_queries` and a wrong set of parameters gives `parameters`. Pass the values in the `parameters` argument of `ssh_read`, for example `{"target":"linux-a.example.invalid","platform":"linux","query":"interface_link","parameters":{"interface":"eth0"}}`. With the example, `interface_link` with `{"interface":"eth0"}` and `service_status` with `{"service":"ssh.service"}` are accepted; `eth1` or `cron.service` are refused.
 
 Each category holds at most 256 unique, non-empty strings (`schema_paths`: 4096) of at most 128 characters without control characters, written in the form the category accepts:
 
 | Category | Accepted value | Used by |
 |---|---|---|
-| `interfaces` | letters, digits and `_ . : / -`, starting with a letter or digit, at most 64 characters; it must also be valid for at least one enabled query that takes an interface (for example a FortiOS interface name has at most 15 characters and no `:` or `/`) | 46 catalogue queries; `fortios_diagnostics` |
+| `interfaces` | letters, digits and `_ . : / -`, starting with a letter or digit, at most 64 characters; it must also be valid for at least one enabled query that takes an interface (for example a FortiOS interface name has at most 15 characters and no `:` or `/`) | 60 catalogue queries; `fortios_diagnostics` |
 | `sdwan_members` | canonical decimal member seq-id from 1 to 512, without leading zeros | 4 FortiOS queries |
 | `sdwan_rules` | canonical decimal SD-WAN rule ID from 1 to 4000, without leading zeros | 2 FortiOS queries |
 | `sdwan_health_checks` | 1–35 ASCII letters, digits, underscore, dot or hyphen, starting with a letter or digit; spaces, quotes and Unicode are unsupported | `sdwan_sla_history` |
 | `link_monitors` | same supported name form as `sdwan_health_checks`; `all` is refused regardless of case | `link_monitor_status` |
-| `addresses` | an IPv4 or IPv6 address in canonical form: no leading zeros, lowercase compressed IPv6, no zone index | 23 catalogue queries; `fortios_diagnostics` |
-| `managed_switches` | `S` followed by 11 to 15 uppercase letters or digits | 5 FortiOS queries |
+| `addresses` | an IPv4 or IPv6 address in canonical form: no leading zeros, lowercase compressed IPv6, no zone index | 25 catalogue queries; `fortios_diagnostics` |
+| `wtp_ids` | 1–35 ASCII letters, digits, `_` or `-`, starting with a letter or digit; the serial numbers (wtp-id) of the FortiAP the target manages. Optional: an id returned by an earlier `wifi_ap_status` of the same target is accepted without being listed | `wifi_ap_status`, `wifi_rf_analysis` (optional `wtp_id`) |
+| `lookup_prefixes` | a CIDR prefix of either family in canonical form: the network address without host bits (`198.51.100.0/24`, not `198.51.100.1/24`), a decimal prefix length from 1, lowercase compressed IPv6, no mask notation, no zone index | prefix operands of the FortiOS `route_lookup`, `policy_lookup_ipv4` and `policy_lookup_ipv6` queries and of the `sessions` and `flow` recipes of `fortios_diagnostics` |
+| `managed_switches` | `S` followed by 11 to 15 uppercase letters or digits | 19 FortiOS queries |
 | `services` | letters, digits and `_ . @ -`, starting with a letter or digit, at most 128 characters | 2 Linux queries |
 | `vlans` | a letter followed by up to 31 letters, digits, `_` or `-`; not `all`, `any`, `none`, `detail`, `ipv4`, `ipv6`, `tag`, `ports`, `virtual-router` or `statistics` | 2 EXOS queries |
 | `certificates` | a letter followed by up to 78 letters, digits, `_`, `.` or `-`; not `all`, `any`, `none`, `detail` or `details` | 1 FortiOS query |
@@ -142,6 +151,8 @@ Each category holds at most 256 unique, non-empty strings (`schema_paths`: 4096)
 | `adc_virtual_servers` | letters, digits and `_ . -`, starting with a letter or digit, at most 35 characters | 3 FortiADC queries (`slb_vs_stat`, `tls_handshake_stats`, `tls_session_reuse`) |
 | `diagnostic_virtual_servers` | FortiADC only: a letter or digit followed by up to 62 letters, digits, `_`, `.` or `-` | `fortios_diagnostics` `session_list` / `persistence_list` (the virtual server is passed as `address`) |
 
+`lookup_prefixes` lets a lookup or a filter name a whole client network, for example `198.51.100.0/24`, instead of one enrolled address. A prefix is accepted only where nothing connects to it: the FortiOS `route_lookup` and `policy_lookup_ipv4` / `policy_lookup_ipv6` parameters (`address`, `src_ip`, `dst_ip`) and the `address` and `source_address` of the `sessions` and `flow` recipes of `fortios_diagnostics`. The requested prefix must be canonical and equal to or inside an enrolled `lookup_prefixes` entry of the same family; a single address still has to be listed in `addresses` itself, and an address that merely lies inside an enrolled prefix is not enrolled. `ping`, `traceroute`, `sniffer`, `logs`, BGP peers, `triage_routing`, the other vendors' route lookups and `egress` never take a prefix, and `lookup_prefixes` does not widen `egress`. FortiOS `get router info routing-table details` and `diagnose firewall iprope lookup` take one address, so the Helper sends the network address of the prefix (`198.51.100.0/24` becomes `198.51.100.0`): the answer is the route or policy for that address, not for the whole prefix. The `sessions` and `flow` filters take the range of the prefix (`diagnose sys session filter dst 198.51.100.0 198.51.100.255`, `diagnose debug flow filter addr 198.51.100.0 198.51.100.255`). Prefix filters require measured range grammar: FortiGate-60F 7.6.8 build 3744 with a tuple, or FortiGate-80F 8.0.2 build 0251. Other identities return `prefix_not_supported_on_identity` before diagnostic state changes; route and policy lookups still use the network address. A prefix is refused when its first or last address is multicast, unspecified or the limited broadcast address. A refusal names `lookup_prefixes` in `data.field` when the requested value was a prefix, and `addresses` otherwise.
+
 `fortios_diagnostics` requires its recipe, address and interface to be listed in `diagnostic_recipes`, `addresses` and `interfaces`. An explicit `vdom` must also be listed in `diagnostic_vdoms` and must equal the session's verified current VDOM; the Helper never enters `config vdom`, so a multi-VDOM target needs a login scoped to that VDOM.
 
 `logs` never sets a log filter. It reads `execute log filter dump`, refuses a dump whose nine fields differ from the measured FortiOS 8.0.2 shape, runs one bounded `execute log display` under the current device filter, and requires the dump read afterwards to equal the first one. When the dump differs in the same session, the helper reconnects, verifies the same identity and requires the dump of the new session to equal the first one; otherwise cleanup is reported as not verified. The result names that device filter in `filter_applied`; it is not a filter by type, target or time. Only the loaded batch (at most the device `view-lines`) of the current category is searched: records whose `srcip` or `dstip` equals the enrolled `address` are kept, at most `count` of them, and, when the optional `since` and `until` (form `YYYY-MM-DD HH:MM:SS`, `logs` only) are given, only those inside that window, with `found`, `loaded`, `matched`, `returned`, `truncated` and the `time_range` of the loaded batch. `log_state` is `ok`, `empty` (only for complete zero-count headers), `device_refused`, `unsupported` or `incomplete`; timeouts, a loaded-count/parsed-record mismatch, or a record without a valid timestamp are `incomplete`, never `empty`. Only `ok` and `empty` set the result's `ok` flag. A missing or unknown header is `unsupported`.
@@ -154,7 +165,7 @@ The other optional fields:
 |---|---|---|---|---|
 | `read_inventory` | object of the categories above, each a list of strings | 256 values per category, 4096 for `schema_paths`; 128 characters per value | `{}` | values allowed as query parameters |
 | `sftp_roots` | list of absolute POSIX paths in canonical form: no trailing `/`, no `//`, no `..`, not `/` itself | 256 unique paths, 2000 characters each | `[]` | `sftp_stat` accepts a root and any path below it whose target, as the SFTP server resolves it, stays below the resolved root |
-| `rate_limit` | `{"requests": N, "window_seconds": S}`, both whole numbers, both keys required | `requests` 1–60, `window_seconds` 1–3600 | 30 requests per 60 seconds | per-target limit on accepted device operations; a follow-up page (`offset` > 0) of `ssh_read` or `schema_read` is not counted; an exceeded limit is refused with `rate_limit` and `retry_after_seconds` |
+| `rate_limit` | `{"requests": N, "window_seconds": S}`, both whole numbers, both keys required | `requests` 1–60, `window_seconds` 1–3600 | 30 requests per 60 seconds | per-target limit on accepted device operations; a follow-up page (`offset` > 0) of `ssh_read` or `schema_read` is not counted; an exceeded limit is refused with `rate_limit` and `retry_after_seconds`. The triage tools (`triage_health`, `triage_routing`, `triage_vpn`, `triage_slb`, `triage_flow`, `wifi_triage`) reserve 10, 5, 4, 21, 5 and 7 reads (`wifi_triage` 15 with an enrolled REST token) against this total and a triage sublimit of the same size (`triage_rate_limit` in `target_scope` and `helper_status`); both budgets are checked atomically before acceptance |
 | `fortios_output_standard_verified` | `true` or `false` | — | `false` | FortiOS `ssh_read`, `schema_read` and `fortios_diagnostics` are refused while it is `false` |
 | `role_boundary` | `"catalogue"` | only with `account_role: "admin-bounded"`, which is accepted only for `ssh_platform: "ruckus_unleashed"`, `"fortios"` or `"fortiadc"` | absent | required companion of `admin-bounded`; refused with `read-only` |
 | `snmp_credential` | `null` or the name of a vault record of kind `snmpv3-authpriv` (a legacy `snmp-community` record is refused by `snmp_get` with the replacement instructions) | — | `null` | `target_scope` reports it as `snmp_enrolled`; an `snmpv3-authpriv` record (SHA256, AES128) activates `snmp_get` within the target UDP egress scope and the 1 to 20 OID limit; `snmp_enrolled` is false for a legacy record; SNMPv1, SNMPv2c, noAuthNoPriv and authNoPriv are not supported |
@@ -162,15 +173,15 @@ The other optional fields:
 
 `tls_ca_certificate` is for a target whose certificate comes from a private CA. With it, `tls_probe` trusts only that CA file for this target, not the system store as well, so a publicly signed certificate for the same name is not accepted either; without it the probe uses the system store as before. There is no option to skip verification. The file must exist and be readable for the Helper when the inventory is configured: the container file system is read-only and has no such directory, so mount a host directory read-only in a Compose override, for example `volumes: ["./netops-ca:/etc/netops-helper/certs:ro"]`, with the CA file mode 0644; a file that is missing, unreadable, outside that directory (also through a symlink), not a CA certificate or that holds a private key refuses the section. `configure helper` then names `inventory.devices[N].helper.tls_ca_certificate` and the reason, never the file content. The `tls_probe` result names the trust it used as `trust: "system"` or `trust: "inventory_ca"`, never the path or content of the CA.
 
-`sftp_roots` also makes the SSH port of the device an explicit egress port, so that port must not lie inside `tcp_port_ranges`. `target_scope` returns the stored `read_inventory`, `sftp_roots`, `rate_limit` and `snmp_enrolled` of a target.
+`sftp_roots` also makes the SSH port of the device an explicit egress port, so that port must not lie inside `tcp_port_ranges`. `target_scope` returns the stored `read_inventory`, `sftp_roots`, `rate_limit`, `triage_rate_limit` and `snmp_enrolled` of a target.
 
-A section that breaks any rule above is refused as a whole with `Invalid Helper inventory. Each helper section requires account_role, ssh_platform, enabled_queries and egress; check field types, target scope and credential references in docs/helper-configuration.md`; the message does not name the field, so compare the section with the tables above.
+A section that breaks any rule above is refused as a whole. The message names the device by its position in `devices` and the refused field, never a value and never the device name, which could be a misplaced secret, for example `Invalid Helper inventory: inventory.devices[3]: helper.rate_limit is invalid; compare it with docs/helper-configuration.md (values are not repeated)`. A missing required field is reported as `helper.egress is missing`, an undocumented field as `helper contains unknown fields`, and the device fields the section depends on as `credential`, `host_key_fingerprint` or `address` (the address must be listed in `helper.egress.addresses`). Compare the named field with the tables above. A refusal that cannot be tied to one field keeps the general message `Invalid Helper inventory. Each helper section requires account_role, ssh_platform, enabled_queries and egress; check field types, target scope and credential references in docs/helper-configuration.md`.
 
 ## Additional enrollment controls
 
 See [Optional Helper fields](#optional-helper-fields). The `admin-bounded` account is accepted only on an explicitly supported platform whose read-only role is missing or refuses part of the catalogue (`ruckus_unleashed`, `fortios`, `fortiadc`), with `role_boundary: "catalogue"`; it remains an administrator on the device. See [account boundaries](../components/netops-helper/docs/read-only-accounts.md). SNMP is accepted only as SNMPv3 authPriv (SHA256, AES128); SNMPv1, SNMPv2c and FTP/FTPS are refused even if historical engine fields are present.
 
-Device roles are exactly `perimeter`, `internal` and `lab`; earlier Czech spellings are refused. A failed/refused Helper operation has MCP `isError: true` and preserves its structured error result. The error flag never authorizes a retry or a wider device scope.
+Device roles are exactly `perimeter`, `internal` and `lab`; earlier Czech spellings are refused. A failed/refused Helper operation has MCP `isError: true` and preserves its structured error result. A `switch_read` protocol that is not configured is a valid `not_applicable` answer (`ok: true`, `isError: false`); triage still reports required missing protocol evidence as incomplete. The error flag never authorizes a retry or a wider device scope.
 
 ## Optional configuration captures
 
@@ -257,7 +268,7 @@ through secrets_changed, while secrets_changed_count gives its complete count.
 
 Configuration capture passes SSH stdout bytes directly to a strict incremental UTF-8 redactor. Chunk boundaries may split characters or quoted multiline values. No complete raw stdout is retained. A capture is published only after a successful transport result and complete configuration grammar; errors discard staged state. Redacted content uses bounded ASCII chunks and comparison tokens use packed keyed records. Captures and cached diffs share a fixed 512 MiB process budget, further constrained by available host/container memory with a 64 MiB admission reserve. Only one configuration capture, page or comparison runs at a time; concurrent calls are refused. Each target may lower these limits through its optional helper.configuration_limits policy; the process ceiling and available-memory reserve remain in force. A memory refusal publishes no new capture. Other device read transports retain their existing behavior.
 
-Configuration SSH reads default to a 30-second idle timeout, reset only by received stdout or stderr bytes. The configuration SSH command defaults to a 600-second timeout; this is not a deadline for the complete API call. The proxy allows 670 seconds for configuration tools, including the identity probe and connection pacing; other tools keep their existing pending-response timeout. After the configuration command starts, failures withhold the output and publish no snapshot. Consumer/redaction failures report `redaction-unverifiable`; capture limit failures report `capture-limit-exceeded`; a per-target or process memory refusal keeps its own `configuration memory budget exhausted` category in minimal and full reads, also inside a nested auto-script. A consumer or capture-limit failure does not invalidate the pinned host-key cache. Transport failures remain separate, and raw device error details are withheld.
+Configuration SSH reads default to a 30-second idle timeout, reset only by received stdout or stderr bytes. The configuration SSH command defaults to a 600-second timeout; this is not a deadline for the complete API call. The proxy allows 670 seconds for configuration tools, including the identity probe and connection pacing; other tools keep their existing pending-response timeout. After the configuration command starts, failures withhold the output and publish no snapshot. Consumer/redaction failures report `redaction-unverifiable` (minimal reads expose MCP `-32602` with a safe category and no partial output); capture limit failures report `capture-limit-exceeded`; a per-target or process memory refusal keeps its own `configuration memory budget exhausted` category in minimal and full reads, also inside a nested auto-script. A consumer or capture-limit failure does not invalidate the pinned host-key cache. Transport failures remain separate, and raw device error details are withheld.
 ## Registry-free bounded FortiOS diagnostics
 
 The existing fortios_diagnostics tool needs no NETOPS_SCHEMA_REGISTRY. Keep its enrolled recipes, destination addresses and interfaces, verified standard output and pinned host key. Each session must return one measured hardware/version/build identity, one current VDOM and one Virtual domain configuration marker (disable or multiple) before any diagnostic command. In disable mode the current VDOM must be root. In multiple mode an enrolled explicit vdom equal to the current VDOM is required; a missing or different selector returns config_platform_not_supported. Interface ownership is checked in the same session context without switching VDOM. The response exposes the measured identity and vdom; schema_sha256 is removed. Recipe limits, the 30-second session bound, 131072-byte capture bound and verified cleanup are retained. For FortiGate-VM64 on FortiOS 8.0.2 build 0251, the five recipes ping, traceroute, sniffer, sessions and flow have
@@ -277,11 +288,11 @@ as `config_platform_not_supported`. `interface` must be empty and no remote opti
 changed. Except for `health_check_verify`, `count` must stay 3 and is not applied: the
 device always sends 5 ping packets, and a ping result says so with `count_applied: false`
 and `fixed_ping_packets: 5`. `timeout` is 1-10 seconds for ping, nslookup and `http_probe`
-and 1-60 seconds for traceroute and `health_check_verify`; the default stays 5. For FortiADC traceroute use `timeout: 60`; with the default the result
+and 1-60 seconds for traceroute and `health_check_verify`; the default is 10 seconds (also for FortiOS recipes). FortiADC nslookup uses this default to allow a cold DNS cache lookup. For FortiADC traceroute use `timeout: 60`; with the default the result
 may hold only the header. In the measured run each unanswered traceroute hop took about
 20 seconds. At `timeout` the command is interrupted and the partial output is returned
 with `deadline_reached: true` and `complete: false`; the audit record then carries
-`detail: "deadline_reached"`.
+`detail: "deadline_reached"`. The final `^C` echo of the interrupt sent by Helper is omitted from the device output.
 
 `http_probe` sends one plain HTTP request from the appliance to an endpoint listed exactly
 in `diagnostic_http_endpoints`; enroll only idempotent endpoints. The caller passes the
@@ -298,13 +309,14 @@ health check's own protocol and port come from its configuration on the applianc
 FortiADC 7.6.7 CLI reference gives a default interval of 5 seconds between checks and a
 default check timeout of 3 seconds; in the measured run `count 2` against a check in state
 UP took about 7 seconds. Pass `timeout` of about 5 × `count` + 5 seconds (for `count 5`
-about 30); with the default 5 seconds the result may end with `deadline_reached: true`
+about 30); with the default 10 seconds the result may end with `deadline_reached: true`
 before the summary line. For both recipes `complete: true` means the command returned to
 the prompt within `timeout`, and the HTTP status, body and health check result are in the
-returned device output. Measured are an HTTP 200 response and a check in state UP; an
-unreachable endpoint, a check in state DOWN and an error response were not measured, and
-if the appliance answers them with a `Command fail. Return code is …` line the call ends
-as a failed diagnostic without the device output.
+returned device output. Measured on FortiADC 7.6.7 build 0676 are an HTTP 200 response and health checks
+in both UP and DOWN states; DOWN returns ordinary device output with `ok: true`
+and its health-check state. An unreachable HTTP endpoint and an HTTP error response
+were not measured. A `Command fail. Return code is …` line ends the call as a
+failed diagnostic without the device output.
 
 The FortiADC device permission is the explicit grant: the recipe in
 `diagnostic_recipes` together with the enrolled SSH platform and `system_status`, and
@@ -495,8 +507,9 @@ classification. Passwords, authentication and privacy keys, private keys and
 credential encodings are removed before snapshots, comparison and output.
 A field name containing words such as key, private, password, custom or community
 does not by itself identify a credential. Public certificates, fingerprints,
-object references, descriptions and SNMP communities remain visible when their
-field semantics have been verified. SNMP queries stay SNMPv3 authPriv (SHA256, AES128) only.
+object references and descriptions remain visible when their field semantics have
+been verified; SNMP community strings and SNMPv3 auth/priv passwords are credentials
+and are hidden in both configuration views. SNMP queries stay SNMPv3 authPriv (SHA256, AES128) only.
 
 Known credentials use occurrence labels such as <REDACTED:credential#1>; these
 labels contain no fingerprint of the hidden value. An unclassified field or
@@ -607,6 +620,7 @@ usable when rights or coverage cannot be proved.
 
 On the verified FortiADC-KVM 7.6.7 build0676, config_read accepts
 section="load-balance virtual-server NAME", "load-balance pool NAME",
+"load-balance real-server NAME",
 "system health-check NAME", "security waf profile NAME" or
 "system certificate local_cert_group NAME", with platform="fortiadc"
 and redaction="full". By default each issues exactly show followed by that section.
@@ -672,3 +686,39 @@ snapshot_id. Pages of an active
 view do not reread the device or rescan the snapshot. Unfiltered pages retain
 their existing interface and behavior. Configuration comparison always uses the
 whole snapshot and remains independent of a filtered view.
+
+## Optional FortiOS Wi-Fi REST access
+
+Before enrollment complete the [FortiGate administrator checklist](fortios-wifi-rest.md#create-access-on-fortigate):
+HTTPS management (`allowaccess https`) on the receiving interface, reachable
+`admin-sport` matching `helper.fortios_rest_port` (default 443), source /32 trusthosts after NAT, root VDOM and HA checks,
+a separate RO `netops-api-ro` access profile/API user, privately generated token,
+and independently verified certificate trust. The recommended minimum, verified
+on FortiGate-80F 8.0.2 build0251, is `wifi read` + `loggrp read`, other groups
+`none` (including `authgrp`) and all `cli-*` disabled. All-read remains an
+alternative. Keep the existing SSH account. Omit `set vdom` in single-VDOM mode;
+use `set vdom "root"` only for multi-VDOM provisioning (runtime remains
+unqualified there). Token generation requires an administrator with API-user
+rights; the runtime read-only account cannot generate it.
+
+| Optional Helper field | Value and validation |
+| --- | --- |
+| `helper.fortios_rest_port` | Optional whole number 1–65535, default 443; use the FortiGate management `admin-sport`, which may differ from SSL VPN on 443. With REST enrolled, `configure helper` requires this port in `egress.tcp_ports` or a TCP range. |
+| `helper.fortios_rest_credential` | Name of an existing private vault record of kind `api-token`, with `login: null`; example reference `fortigate-wifi-api-ro`. Only the vault holds the token value. Valid only for FortiOS targets. |
+| `helper.fortios_rest_certificate_sha256` | 64 lowercase hexadecimal digits of the independently verified leaf **DER certificate** SHA-256. Renewals/replacements or firmware certificate regeneration require independent re-verification and a pin update. |
+| `helper.tls_ca_certificate` | Alternative trust via the validated public CA path described above, with SAN/hostname and validity verification. If CA and pin are both supplied, both must pass. |
+| `helper.egress.tcp_ports` | Include the selected REST port (default 443, or its nonoverlapping allowed range) and preserve SSH access; the target address must also satisfy egress. |
+
+REST uses `fortios_rest_port` throughout DNS resolution, egress checking,
+socket connection and HTTPS, independently of inventory SSH `port`. Set it to
+`admin-sport` when management HTTPS is not on 443; HTTP redirection cannot
+substitute for the correct port. Non-root VDOM selection is also unsupported. Apply changes with the complete private stopped-instance
+`configure helper` input; this does not merge a partial JSON fragment.
+
+The proxy injects the token only for `wifi_clients`, `wifi_aps_live`, `wifi_rogue`
+and `wifi_triage`; it never returns it. `target_scope` exposes only
+`fortios_wifi_rest_enrolled` and the effective `fortios_rest_port`, never the credential value. Existing targets without
+a token keep their SSH behavior; the three REST tools return `unsupported`.
+See [MCP verification](fortios-wifi-rest.md#verify-access),
+[troubleshooting](fortios-wifi-rest.md#troubleshooting) and
+[rotation/revocation](fortios-wifi-rest.md#rotate-and-revoke).

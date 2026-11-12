@@ -1,0 +1,13 @@
+Health Check(Internet_ping):
+Seq(1 wan1): state(alive), packet-loss(1.000%), latency(6.439), jitter(1.073), mos(4.345), custom_profile(0.000), bandwidth-up(999898), bandwidth-dw(999943), bandwidth-bi(1999841), sla_map=0x1
+Seq(2 LTE-1/MOD-1-LTE): state(alive), packet-loss(0.000%), latency(19.676), jitter(3.181), mos(4.391), custom_profile(0.000), bandwidth-up(0), bandwidth-dw(0), bandwidth-bi(0), sla_map=0x1
+Seq(3 LTE-2/MOD-2-LTE): state(alive), packet-loss(4.000%), latency(27.479), jitter(9.562), mos(4.090), custom_profile(0.000), bandwidth-up(0), bandwidth-dw(0), bandwidth-bi(0), sla_map=0x1
+
+Health Check(HUB_A1):
+Seq(11 HUB-A1): state(alive), packet-loss(0.000%), latency(11.831), jitter(5.980), mos(4.392), custom_profile(0.000), bandwidth-up(999898), bandwidth-dw(999943), bandwidth-bi(1999841), sla_map=0x1
+
+Health Check(HUB_A2):
+Seq(12 HUB-A2): state(alive), packet-loss(0.000%), latency(27.363), jitter(5.437), mos(4.385), custom_profile(0.000), bandwidth-up(0), bandwidth-dw(0), bandwidth-bi(0), sla_map=0x1
+
+Health Check(HUB_A3):
+Seq(13 HUB-A3): state(alive), packet-loss(7.000%), latency(77.717), jitter(16.286), mos(3.721), custom_profile(0.000), bandwidth-up(0), bandwidth-dw(0), bandwidth-bi(0), sla_map=0x0

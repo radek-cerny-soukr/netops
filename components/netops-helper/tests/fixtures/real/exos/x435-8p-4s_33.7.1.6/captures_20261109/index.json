@@ -1,0 +1,16 @@
+{
+  "port_errors_capture_show-ports-txerrors-no-refresh": {
+    "command": "show ports txerrors no-refresh",
+    "rc": 0,
+    "lines": 22,
+    "account": "read-only",
+    "captured_at": "2026-11-09"
+  },
+  "port_errors_capture_show-ports-rxerrors-no-refresh": {
+    "command": "show ports rxerrors no-refresh",
+    "rc": 0,
+    "lines": 21,
+    "account": "read-only",
+    "captured_at": "2026-11-09"
+  }
+}

@@ -1,0 +1,3 @@
+show bridge control interface internal host.
+fdb: hash size=0, used=0, num=0, depth=0, gc_time=0, ageing_time=0, version_count=0
+Bridge internal host table

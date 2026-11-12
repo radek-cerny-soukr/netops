@@ -119,6 +119,8 @@ def test_every_exec_platform_sends_its_preamble_and_the_catalog_command(
         expected = [*preamble, engine._IDENTITY_COMMAND, *expected]
     assert calls[0]["argv"][0] == "-T", calls[0]["argv"]
     assert calls[0]["argv"][-1] == LOOPBACK
+    if platform in engine.normalization.IDENTITY_PROFILES:
+        expected = [engine.READ_QUERIES[platform]["version"].command, *expected]
     assert [call["argv"][-1] for call in calls[1:]] == expected
     for call in calls[1:]:
         _assert_hardened(call["argv"], PASSWORD, call["env"])
@@ -260,7 +262,7 @@ def test_a_prompted_fortiadc_answer_with_crlf_line_ends_passes_the_identity_chec
     )
     assert result["ok"] is True, result
     assert result["untrusted_device_output"] == (
-        "Version: FortiADC-KVM v7.6.7,build0676\r\nSerial-Number: SYNTH-0001\r\n\r\n"
+        "Version: FortiADC-KVM v7.6.7,build0676\nSerial-Number: SYNTH-0001\n\n"
     )
 
 
@@ -307,8 +309,8 @@ def test_a_nonzero_exit_status_still_returns_the_answer(wire, monkeypatch) -> No
         wire["binaries"], "ssh",
         EXEC_CLIENT.format(log=str(wire["log"]), output=EXEC_OUTPUT + "\n", code=250),
     )
-    target = _target("extreme_exos", "version")
-    result = engine.ssh_read(target, "extreme_exos", "version", {}, 0, 16_000)
+    target = _target("extreme_exos", "memory")
+    result = engine.ssh_read(target, "extreme_exos", "memory", {}, 0, 16_000)
     assert result["ok"] is True, result
     assert result["rc"] == 250
     assert EXEC_OUTPUT in result["untrusted_device_output"]
@@ -399,7 +401,7 @@ import json, os, sys, time
 record = {{"argv": sys.argv[1:], "env": dict(os.environ), "stdin_isatty": sys.stdin.isatty()}}
 for item in sys.argv:
     if item.startswith("UserKnownHostsFile="):
-        record["known_hosts"] = open(item.split("=", 1)[1]).read()
+        record["known_hosts"] = __import__('pathlib').Path(item.split("=", 1)[1]).read_text()
 with open({log!r}, "a") as handle:
     handle.write(json.dumps(record) + "\\n")
 if not sys.stdin.isatty():
@@ -414,7 +416,7 @@ while True:
         break
     transcript.write(line)
     transcript.flush()
-    sys.stdout.write(open({body!r}).read())
+    sys.stdout.write(__import__('pathlib').Path({body!r}).read_text())
     if {answers!r}:
         sys.stdout.write("\\n" + {prompt!r})
     sys.stdout.flush()
@@ -515,7 +517,7 @@ def test_a_fortios_dns_cache_over_the_capture_cap_is_refused_by_name(wire, monke
         _target("fortinet", "dns_cache"), "fortinet", "dns_cache", {}, 0, 16_000,
     )
     assert result["ok"] is False
-    assert "more than 200000 bytes" in result["error"] and "was stopped" in result["error"]
+    assert (result["error_code"], result["error"]) == ("output_limit", engine._TRANSPORT_ADVICE["output_limit"])
     assert "untrusted_device_output" not in result
     assert not engine._SSH_PAGE_CACHE
 
@@ -531,5 +533,49 @@ def test_a_fortios_terminal_that_never_returns_the_prompt_is_refused_by_name(
         _target("fortinet", "dns_cache"), "fortinet", "dns_cache", {}, 0, 16_000,
     )
     assert result["ok"] is False
-    assert "within 1.0 seconds" in result["error"]
+    assert (result["error_code"], result["error"]) == ("timeout", engine._TRANSPORT_ADVICE["timeout"])
     assert "untrusted_device_output" not in result
+
+
+@pytest.mark.parametrize("prompts, reason", [
+    (["OTP: "], "auth_method_unsupported"),
+    (["Verification code: "], "auth_method_unsupported"),
+    (["Passcode: "], "auth_method_unsupported"),
+    (["Are you sure you want to continue connecting (yes/no)? "], "auth_method_unsupported"),
+    (["Password: ", "Password: "], "auth"),
+    (["Password: ", "Verification code: "], "auth_method_unsupported"),
+])
+def test_authentication_prompts_fail_closed_through_engine(wire, prompts, reason):
+    # Substitute only the SSH client; use the real transport, askpass and engine.
+    # Like the real client, pass the askpass diagnostics on to standard error.
+    client = """#!/usr/bin/env python3
+import os, subprocess, sys
+for prompt in %r:
+    answer = subprocess.run([os.environ["SSH_ASKPASS"], prompt],
+                            env=dict(os.environ), capture_output=True)
+    if answer.returncode:
+        sys.stderr.write(answer.stderr.decode())
+        sys.stderr.write("Permission denied (keyboard-interactive).\\n")
+        sys.exit(255)
+sys.stdout.write("unexpected authentication success\\n")
+""" % prompts
+    _write_client(wire["binaries"], "ssh", client)
+    target = _target("arista_eos", "version")
+    result = engine.ssh_read(target, "arista_eos", "version", {}, 0, 16_000)
+    assert result["ok"] is False
+    assert (result["error_code"], result["error"]) == (reason, engine._TRANSPORT_ADVICE[reason])
+    assert PASSWORD not in json.dumps(result)
+    assert not result.get("untrusted_device_output")
+
+
+def test_password_authentication_is_preferred_before_keyboard_interactive(wire):
+    _write_client(wire["binaries"], "ssh", EXEC_CLIENT.format(
+        log=str(wire["log"]), output=EXEC_OUTPUT + "\n", code=0,
+    ))
+    result = engine.ssh_read(_target("arista_eos", "version"), "arista_eos", "version", {}, 0, 16_000)
+    assert result["ok"] is True
+    options = _options(_calls(wire)[-1]["argv"])
+    assert "PreferredAuthentications=password,keyboard-interactive" in options
+    assert "KbdInteractiveAuthentication=yes" in options
+    assert "PasswordAuthentication=yes" in options
+    assert "StrictHostKeyChecking=yes" in options

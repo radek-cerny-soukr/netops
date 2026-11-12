@@ -1,0 +1,16 @@
+
+inet.0: 13 destinations, 13 routes (13 active, 0 holddown, 0 hidden)
+Limit/Threshold: 1048576/1048576 destinations
+192.0.2.0/24 (1 entry, 0 announced)
+        *Direct Preference: 0
+                Next hop type: Interface, Next hop index: 0
+                Address: 0x9504210
+                Next-hop reference count: 1
+                Kernel Table Id: 0
+                Next hop: via irb.10, selected
+                State: <Active Int>
+                Age: 1:38:24 
+                Validation State: unverified 
+                Task: IF
+                AS path: I 
+                Thread: junos-main 

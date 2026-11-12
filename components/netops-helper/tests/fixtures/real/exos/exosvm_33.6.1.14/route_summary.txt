@@ -1,0 +1,10 @@
+=================ROUTE SUMMARY=================
+Mask distribution: 
+       2 routes at length 24
+
+Route origin distribution: 
+2    Direct        
+
+Total number of routes = 2 
+Total number of compressed routes = 0 
+

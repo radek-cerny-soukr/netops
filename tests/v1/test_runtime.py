@@ -136,6 +136,30 @@ class PrivateFiles(unittest.TestCase):
                 if expected:
                     self.assertIn("query wifi_clients", warnings[0])
 
+    def test_helper_configuration_rejects_invalid_saved_rest_token(self):
+        from netops.operator import _validate_helper_inventory
+        from netops_core import vault
+        with tempfile.TemporaryDirectory() as temp:
+            directory = Path(temp)
+            invalid = "synthetic invalid rest token canary"
+            write_private(directory / "vault.json", json.dumps({"version": 2, "credentials": {
+                "fixture-ro": {"kind": "password", "login": "reader", "value": "synthetic-only-value"},
+                "rest-ro": {"kind": "api-token", "login": None, "value": invalid}}}).encode())
+            store = vault.load(directory / "vault.json")
+            egress = {"addresses": ["192.0.2.10"], "tcp_ports": [22, 443], "udp_ports": [],
+                      "tcp_port_ranges": [], "udp_port_ranges": [], "allow_icmp": False,
+                      "allow_dns": False, "tls_server_names": []}
+            device = {"name": "gate", "platform": "fortios", "address": "192.0.2.10", "port": 22,
+                      "role": "lab", "credential": "fixture-ro", "host_key_fingerprint": "SHA256:" + "A" * 43,
+                      "legacy_ssh": None, "auditor": None,
+                      "helper": {"account_role": "read-only", "ssh_platform": "fortios", "enabled_queries": ["system_status"],
+                                 "egress": egress, "fortios_rest_credential": "rest-ro",
+                                 "fortios_rest_certificate_sha256": "a" * 64}}
+            write_private(directory / "inventory.json", json.dumps({"version": 2, "devices": [device]}).encode())
+            with self.assertRaisesRegex(ValueError, "api-token") as caught:
+                _validate_helper_inventory(directory / "inventory.json", store)
+            self.assertNotIn(invalid, str(caught.exception))
+
 
 class RuntimeHealth(unittest.TestCase):
     def test_unready_role_is_refused_with_python_optimization_enabled(self):

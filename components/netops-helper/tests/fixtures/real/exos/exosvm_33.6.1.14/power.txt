@@ -1,0 +1,26 @@
+
+PowerSupply 1 information:
+ State             : Powered On
+ PartInfo          : Internal PSU-2 SN:00000 SS:0S0006
+ Odometer          : 31 minutes 40 seconds since Nov-08-2026
+ Temperature       : 30.1 deg C
+ Input             : 120.00 V AC
+ Output 1          : 50.00 V,  1.00 A   (12V/200W Max)
+ Power Usage       : 56.17 W 
+ Airflow Direction : N/A
+
+PowerSupply 2 information:
+ State             : Powered On
+ PartInfo          : Internal PSU-3 SN:00000 SS:0S0006
+ Odometer          : 33 minutes 20 seconds since Nov-08-2026
+ Temperature       : 30.2 deg C
+ Input             : 120.00 V AC
+ Output 1          : 50.00 V,  1.00 A   (12V/200W Max)
+ Power Usage       : 56.17 W 
+ Airflow Direction : N/A
+
+System Power Usage : 112.34 W 
+ Poll Interval     : 60 s
+ Change Threshold  : N/A
+ Change Action     : N/A
+

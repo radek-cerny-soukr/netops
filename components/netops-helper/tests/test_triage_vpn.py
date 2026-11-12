@@ -70,7 +70,7 @@ def test_docs_sample_parses_into_the_contract_fields():
          "rx_packets": 1200, "rx_errors": 0, "tx_packets": 1180, "tx_errors": 0}]}
     assert result["chain"]["routes"] == [{"prefix": "198.51.100.0/25", "code": "S", "interface": "T1"},
                                          {"prefix": "198.51.100.128/25", "code": "B", "interface": "T1"}]
-    assert result["chain"]["ike_errors"] == {"counters": 4, "nonzero": {}}
+    assert result["chain"]["ike_errors"] == {"counters": 4, "nonzero": {}, "context": {}}
     assert result["verdict"] == "no_fault_in_checked_data" and result["findings"] == []
     assert result["checked"] == ["system_status", "ipsec_summary", "routing_table", "ike_errors"]
     assert result["missing"] == [] and result["hypotheses"] == [] and result["next_steps"] == []
@@ -104,6 +104,42 @@ def test_each_rule_and_its_boundary(line, expected):
     result, _ = run(outputs(ipsec_summary=line + "\n"))
     assert ids(result) == expected
     assert result["verdict"] == ("fault_found" if expected else "no_fault_in_checked_data")
+
+
+def vpn_line(rx, tx):
+    return "'T1' 198.51.100.1:0 selectors(total,up): 1/1 rx(pkt,err): %s tx(pkt,err): %s\n" % (rx, tx)
+
+
+@pytest.mark.parametrize("rx,tx,severity", [
+    ("125248/0", "125248/47", "notice"),   # measured on a FortiGate-80F test unit: 0.04 % of the packets, tunnel healthy
+    ("78000/0", "78000/168", "notice"),    # 0.2 %
+    ("10000/0", "10000/99", "notice"),     # 0.99 %
+    ("10000/0", "10000/100", "fault"),     # exactly 1 %
+    ("100/1", "100/0", "fault"),
+    ("10000/50", "100/1", "fault"),        # the worse direction decides
+    ("5/0", "0/1", "fault"),               # errors without any packet of that direction
+])
+def test_packet_errors_below_one_percent_are_only_a_notice(rx, tx, severity):
+    result, _ = run(outputs(ipsec_summary=vpn_line(rx, tx)))
+    assert ids(result) == ["F-VPN-ERRORS"] and result["findings"][0]["severity"] == severity
+    verdict = "fault_found" if severity == "fault" else "no_fault_in_checked_data"
+    assert result["verdict"] == verdict and result["missing"] == []
+
+
+def test_a_notice_does_not_hide_a_fault_and_every_finding_has_a_severity():
+    down = "'T1' 198.51.100.1:0 selectors(total,up): 1/0 rx(pkt,err): 10000/0 tx(pkt,err): 10000/1\n"
+    result, _ = run(outputs(ipsec_summary=down))
+    assert [(f["id"], f["severity"]) for f in result["findings"]] == [("F-VPN-DOWN", "fault"), ("F-VPN-ERRORS", "notice")]
+    assert result["verdict"] == "fault_found"
+    result, _ = run(outputs(), tunnel="NOPE")
+    assert [f["severity"] for f in result["findings"]] == ["fault"]
+
+
+def test_ha_counters_of_ike_errors_are_context_not_errors():
+    ike = IKE + "ha.sync.msg: 7\nha.sync.skip: 0\n"
+    result, _ = run(outputs(ike_errors=ike))
+    assert result["chain"]["ike_errors"] == {"counters": 6, "nonzero": {}, "context": {"ha.sync.msg": 7}}
+    assert ids(result) == [] and result["verdict"] == "no_fault_in_checked_data"
 
 
 def test_sa_up_without_received_packets_is_not_data_flow():
@@ -160,7 +196,8 @@ def test_no_route_through_the_tunnel_is_a_finding():
 
 def test_ike_error_counters_are_context_only():
     result, _ = run(outputs(ike_errors=IKE.replace("ike.parse: 0", "ike.parse: 3").replace("ike.neg.fail: 0 0", "ike.neg.fail: 0 2")))
-    assert result["chain"]["ike_errors"] == {"counters": 4, "nonzero": {"ike.parse": 3, "ike.neg.fail": 2}}
+    assert result["chain"]["ike_errors"] == {"counters": 4, "nonzero": {"ike.parse": 3, "ike.neg.fail": 2},
+                                              "context": {}}
     assert ids(result) == [] and result["verdict"] == "no_fault_in_checked_data"
 
 
@@ -281,6 +318,7 @@ def test_engine_maps_policy_and_device_refusal_to_missing(audit_log, monkeypatch
     assert {"step": "routing_table", "reason": "permission_denied"} in result["missing"]
     assert {"step": "ike_errors", "reason": "device_cli_error"} in result["missing"]
     assert result["verdict"] == "incomplete"
+    assert result["ok"] is True and "error_code" not in result and "failed_step" not in result
 
 
 def test_engine_refuses_other_platforms_and_bad_names_before_device_contact(audit_log, monkeypatch):

@@ -1,0 +1,14 @@
+inet.0: 10 destinations, 10 routes (10 active, 0 holddown, 0 hidden)
+0.0.0.0/0 (1 entry, 1 announced)
+        *Static Preference: 5
+                Next hop type: Router, Next hop index: 1048574
+                Address: 0xb2c1b64
+                Next-hop reference count: 5
+                Next hop: 198.51.100.1 via ge-0/0/1.0, selected
+                Session Id: 0x141
+                State: <Active Int Ext>
+                Age: 3d 4:12:37
+                Validation State: unverified
+                Task: RT
+                Announcement bits (1): 0-KRT
+                AS path: I

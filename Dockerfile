@@ -1,6 +1,6 @@
 FROM python:3.14.10-alpine3.24@sha256:a18b20ad69e74df6cf6d2e1b1a260d7a1ecf5380fd83b310f83ba88c461cf894 AS base
 LABEL org.opencontainers.image.title="netops" \
-      org.opencontainers.image.version="1.0.6" \
+      org.opencontainers.image.version="1.0.7" \
       org.opencontainers.image.licenses="MIT"
 ENV PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1 \
     SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt \
@@ -20,7 +20,7 @@ WORKDIR /app
 COPY requirements.lock /app/requirements.lock
 RUN --mount=type=secret,id=extra_ca,required=false --mount=type=tmpfs,target=/run/netops-ca \
     if [ -s /run/secrets/extra_ca ]; then cat /etc/ssl/certs/ca-certificates.crt /run/secrets/extra_ca > /run/netops-ca/ca.pem && export PIP_CERT=/run/netops-ca/ca.pem SSL_CERT_FILE=/run/netops-ca/ca.pem; fi \
-    && umask 022 && python -m pip install --no-cache-dir --only-binary=:all: --require-hashes -r /app/requirements.lock && python -m pip check
+    && umask 022 && python -m pip install --root-user-action=ignore --no-cache-dir --only-binary=:all: --require-hashes -r /app/requirements.lock && python -m pip check
 
 FROM base AS builder
 ARG SOURCE_DATE_EPOCH
@@ -31,7 +31,7 @@ WORKDIR /build
 COPY build-requirements.lock /build/build-requirements.lock
 RUN --mount=type=secret,id=extra_ca,required=false --mount=type=tmpfs,target=/run/netops-ca \
     if [ -s /run/secrets/extra_ca ]; then cat /etc/ssl/certs/ca-certificates.crt /run/secrets/extra_ca > /run/netops-ca/ca.pem && export PIP_CERT=/run/netops-ca/ca.pem SSL_CERT_FILE=/run/netops-ca/ca.pem; fi \
-    && python -m pip install --no-cache-dir --no-deps --require-hashes -r /build/build-requirements.lock && python -m pip check
+    && python -m pip install --root-user-action=ignore --no-cache-dir --no-deps --require-hashes -r /build/build-requirements.lock && python -m pip check
 COPY pyproject.toml LICENSE /build/
 COPY src/netops /build/src/netops
 COPY components/netops-core/src/netops_core /build/components/netops-core/src/netops_core
@@ -48,12 +48,12 @@ RUN cc -Os -static -s -Wall -Wextra -Werror -o /dist/netops-start /build/start.c
 
 FROM base AS runtime
 COPY --from=builder /dist /dist
-RUN umask 022 && python -m pip install --no-deps --no-index --no-compile /dist/netops-1.0.6-py3-none-any.whl \
+RUN umask 022 && python -m pip install --root-user-action=ignore --no-deps --no-index --no-compile /dist/netops-1.0.7-py3-none-any.whl \
     && python -m pip check \
     && cp /usr/local/lib/python3.14/site-packages/netops_core/askpass.py /usr/local/bin/netops-askpass \
     && cp /dist/netops-start /usr/local/bin/netops-start \
     && chmod 0755 /usr/local/bin/netops-askpass /usr/local/bin/netops-start \
-    && python -m pip uninstall --yes pip \
+    && python -m pip uninstall --root-user-action=ignore --yes pip \
     && rm -rf /dist
 COPY tests/v1 /opt/netops/tests
 RUN find /opt/netops -type d -exec chmod 0755 {} + \

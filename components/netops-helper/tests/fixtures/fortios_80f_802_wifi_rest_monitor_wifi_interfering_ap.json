@@ -1,0 +1,37 @@
+{
+  "http_method": "GET",
+  "results": [
+    {
+      "mac": "00:00:5e:00:53:81",
+      "wtps": [
+        {
+          "wtp_id": "wtp-id-1",
+          "radio": 1,
+          "signal": -80
+        },
+        {
+          "wtp_id": "wtp-id-2",
+          "radio": 1,
+          "signal": -89
+        }
+      ]
+    },
+    {
+      "mac": "00:00:5e:00:53:82",
+      "wtps": [
+        {
+          "wtp_id": "wtp-id-1",
+          "radio": 1,
+          "signal": -85
+        }
+      ]
+    }
+  ],
+  "vdom": "root",
+  "path": "wifi",
+  "name": "name-3",
+  "status": "success",
+  "serial": "serial-4",
+  "version": "v8.0.2",
+  "build": 251
+}

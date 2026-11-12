@@ -195,7 +195,7 @@ def test_refused_previews_exhaust_the_budget_of_refusals(tmp_path):
     assert runtime.store.rejections_since(0) == 3
     exhausted = execute.preview(runtime, "lab", request())
     assert exhausted == {"result": "rejected", "device": "lab",
-                         "reasons": ["the budget of rejected requests for this hour is exhausted"]}
+                         "reasons": ["the budget of rejected requests for this hour is exhausted"], "reason_codes": ["budget_exhausted"], "reason_details": [{"code": "budget_exhausted", "budget": "rejected_hour"}]}
     assert runtime.store.rejections_since(0) == 3
     with pytest.raises(Rejected):
         execute.apply(runtime, "lab", request())

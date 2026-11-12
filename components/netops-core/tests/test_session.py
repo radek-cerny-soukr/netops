@@ -146,7 +146,7 @@ def test_a_session_starts_ssh_with_a_terminal_and_the_pinned_key():
         assert len(pointed) == 1
         path = pointed[0].split("=", 1)[1]
         assert os.path.dirname(path) == handle.workspace()
-        assert open(path, encoding="utf-8").read() == "%s\n" % HOST_KEY_LINE
+        assert __import__('pathlib').Path(path).read_text(encoding="utf-8") == "%s\n" % HOST_KEY_LINE
         assert line[-1] == "%s@%s" % (LOGIN, HOST)
         assert set(spawn.env()) == {"PATH", "HOME", "LC_ALL"}
         assert spawn.env()["HOME"] == handle.workspace()
@@ -364,7 +364,7 @@ def _deaf_child(marker):
         (
             "import os, signal, time",
             "signal.signal(signal.SIGHUP, signal.SIG_IGN)",
-            "open(%r, 'w').write(str(os.getpid()))" % str(marker),
+            "__import__('pathlib').Path(%r).write_text(str(os.getpid()))" % str(marker),
             "time.sleep(30)",
         )
     )
@@ -487,3 +487,39 @@ def test_send_preserves_the_existing_write_error_mapping(monkeypatch):
         connection.send("show")
     assert str(caught.value) == "cannot write to the session to %s (BrokenPipeError)" % HOST
     proxy.write.assert_called_once_with(37, b"show\n")
+
+
+def test_an_ended_client_keeps_only_its_last_line_for_local_classification():
+    said = "audit-ro@192.0.2.10: Permission denied (password)."
+    spawn = PtySpawn("\n".join(("import sys", "sys.stdout.write(%r)" % (NOISE + "\r\n" + said + "\r\n"))))
+    handle = session(spawn)
+    try:
+        with pytest.raises(SessionError) as caught:
+            handle.expect(["never-shows"], 10)
+        assert caught.value.final == said
+        assert said not in str(caught.value) and NOISE not in str(caught.value)
+    finally:
+        handle.close()
+
+
+def test_a_timeout_keeps_no_client_line():
+    handle = session(PtySpawn(QUIET))
+    try:
+        with pytest.raises(SessionError) as caught:
+            handle.expect(["never-shows"], 0.5)
+        assert caught.value.final == ""
+    finally:
+        handle.close()
+
+
+def test_the_askpass_refusal_is_kept_with_the_last_client_line():
+    lines = ("Pre-login banner", "netops-askpass: ssh_auth_method_unsupported: expected a password prompt",
+             "Permission denied (keyboard-interactive).")
+    spawn = PtySpawn("\n".join(("import sys", "sys.stdout.write(%r)" % "\r\n".join(lines + ("",)))))
+    handle = session(spawn)
+    try:
+        with pytest.raises(SessionError) as caught:
+            handle.expect(["never-shows"], 10)
+        assert caught.value.final == " ".join(lines[1:])
+    finally:
+        handle.close()

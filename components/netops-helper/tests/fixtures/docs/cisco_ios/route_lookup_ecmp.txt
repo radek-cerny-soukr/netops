@@ -1,0 +1,8 @@
+Routing entry for 192.0.2.128/25
+  Known via "ospf 1", distance 110, metric 20, type extern 2, forward metric 2
+  Last update from 198.51.100.2 on Vlan10, 00:03:11 ago
+  Routing Descriptor Blocks:
+  * 198.51.100.2, from 203.0.113.2, 00:03:11 ago, via Vlan10
+      Route metric is 20, traffic share count is 1
+    198.51.100.3, from 203.0.113.3, 00:03:11 ago, via Vlan10
+      Route metric is 20, traffic share count is 1

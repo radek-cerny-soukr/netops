@@ -27,6 +27,10 @@ The exact machine-checked templates and per-query source links are in the [gener
 | `cisco_nxos` | `lag_summary`, `lacp_neighbors`, `stp_summary`, `lldp_neighbors`, `cdp_neighbors`, `route_summary`, `route_lookup`, `ipv6_route_lookup`, `bgp_sessions`, `ospf_neighbors`, `hsrp_summary`, `vrrp_summary` | [NX-OS 10.5(x) complete show-command reference](https://www.cisco.com/c/en/us/td/docs/dcn/nx-os/nexus9000/105x/command-reference/show/b_n9k_show_commands_1051.pdf) |
 | `cisco_nxos` | `vpc_status`, `vpc_peer_keepalive`, `vpc_role` | [NX-OS 10.5(x) show-command index](https://www.cisco.com/c/en/us/td/docs/dcn/nx-os/nexus9000/105x/command-reference/show/b_n9k_show_commands_1051/n9k_show_commands_1051_CLT_chapter.html); older [Nexus 9000 vPC guide](https://www.cisco.com/c/en/us/td/docs/switches/datacenter/nexus9000/sw/7-x/interfaces/configuration/guide/b_Cisco_Nexus_9000_Series_NX-OS_Interfaces_Configuration_Guide_7x/configuring_vpcs.html) is retained only as command-lineage corroboration |
 
+The NetOps 1.0.7 additions are the same on `cisco_ios` and `cisco_xe` (the IOS rows cite the IOS 15.2(7)E consolidated command reference, the XE rows the IOS-XE 17.15 complete command reference): `route_table`, `ospf_interfaces`, `stp_tree`, `stp_root`, `stp_inconsistent`, `stp_vlan`, `err_disabled`, `errdisable_recovery`, `interfaces_description`, `interfaces_trunk`, `interface_switchport`, `interface_transceiver`, `power_inline`, `vtp_status`, `vlan_details`, `ntp_status`, `ntp_associations`, `stack_members`, `stack_ports`, `log_messages` (the fixed `show logging`, bounded by the device's log buffer) and, XE only, `platform_resources`. They were run on IOSv 15.9(3)M12, IOSvL2 15.2(20200924) in the lab (task netops-20261108-23); `interface_transceiver`, `power_inline`, `stack_members`, `stack_ports`, `platform_resources` and the environment reads cannot be answered by those images and are `verified: docs-only`. Their output is in `tests/fixtures/real/cisco_ios`. On a router image (IOSv) the switch-only reads (`interfaces`, `mac_table`, `vlans`, STP, trunk, err-disable, PoE) are answered `Line has invalid autocommand "..."`, which the Helper classifies like a refused command (`permission_denied`).
+
+The NetOps 1.0.7 additions for `cisco_nxos` (all cite the [NX-OS 10.5(x) complete show-command reference](https://www.cisco.com/c/en/us/td/docs/dcn/nx-os/nexus9000/105x/command-reference/show/b_n9k_show_commands_1051.pdf)): `route_table`, `ospf_interfaces`, `bgp_summary`, `stp_tree`, `stp_root`, `stp_blocked`, `stp_inconsistent`, `stp_vlan`, `err_disabled`, `errdisable_recovery`, `interfaces_description`, `interfaces_trunk`, `interfaces_counters_errors`, `interface_switchport`, `interface_transceiver`, `vlan_details`, `ntp_status`, `ntp_associations` (`show ntp peer-status`), `system_resources`, `reset_reason`, `modules`, `license_usage`, `redundancy_status`, `features`, `vrfs`, `bfd_neighbors`, `vpc_consistency`, `vpc_orphan_ports`, `dhcp_snooping_binding`, `access_lists` and `log_messages` (the fixed `show logging last 200`, newest 200 lines). They were run on the Nexus 9300v 9.3(12) lab node with the built-in `network-operator` role (task netops-20261108-28); the outputs are in `tests/fixtures/real/cisco_nxos/nexus9300v_9.3.12`. Features that are off answer `Syntax error while parsing` (`unsupported`: `hsrp_summary`, `vrrp_summary`, `dhcp_snooping_binding`, `bgp_summary` and `bfd_neighbors` until the feature is enabled); `show boot` and `show accounting log` are refused to `network-operator` (`% Permission denied for the role`) and are therefore not in the catalogue. The NX-OS rows are `verified: lab` (measured) except those listed as `docs-only` in the generated tables below. `show running-config diff` stays out of the catalogue, because configuration text can carry secrets.
+
 Additional official Cisco references retained from the audit are the [Catalyst 9300 command-reference release list](https://www.cisco.com/c/en/us/support/switches/catalyst-9300-series-switches/products-command-reference-list.html), the [IOS-XE 17.15 IP Routing Configuration Guide](https://www.cisco.com/c/en/us/td/docs/switches/lan/catalyst9300/software/release/17-15/configuration_guide/rtng/b_1715_rtng_9300_cg.pdf), and the earlier [IOS-XE 17.3 interface and hardware command reference](https://www.cisco.com/c/en/us/td/docs/switches/lan/catalyst9300/software/release/17-3/command_reference/b_173_9300_cr/interface_and_hardware_commands.html) used only to check command lineage.
 
 ### Interface-name grammar sources
@@ -100,3 +104,192 @@ High-volume in NX-OS: `cpu`, `memory`, `interfaces`, `ip_interfaces`, `ipv6_inte
 - EXEC privilege and local syntax support do not imply AAA authorization. TACACS+/RADIUS command authorization and CLI views can reject individual commands; deployment must grant only the catalogued commands.
 - Some detail commands disclose topology, serial numbers, MAC/IP addresses, peer identifiers, and interface descriptions. These are operationally sensitive even though they are not credentials.
 - Source review does not replace live-wire verification. Each driver/profile needs testing for privilege prompts, paging behavior, output size, command echo, timeout, and confirmation that no terminal/configuration command is emitted.
+
+## Lab measurements (GNS3 lab, 2026-11-08)
+
+Every template was run on the lab images with the read-only account; the stored outputs are in `tests/fixtures/real`. Regenerated by `tests/support/render_lab_measurements.py`.
+
+<!-- lab-measurements:begin -->
+
+| Template | Command | IOSv 15.9(3)M12 (router) | IOSvL2 15.2(20200924) | verified |
+|---|---|---|---|---|
+| `version` | `show version` | ok, 44 lines | ok, 41 lines | live |
+| `clock` | `show clock` | ok, 4 lines | ok, 2 lines | live |
+| `interfaces` | `show interfaces status` | not supported by the image | ok, 8 lines | live |
+| `ip_interfaces` | `show ip interface brief` | ok, 11 lines | ok, 10 lines | live |
+| `ipv6_interfaces` | `show ipv6 interface brief` | ok, 17 lines | ok, 17 lines | live |
+| `route_summary` | `show ip route summary` | ok, 14 lines | ok, 9 lines | live |
+| `cpu` | `show processes cpu` | ok, 360 lines | ok, 285 lines | live |
+| `memory` | `show processes memory` | ok, 367 lines | ok, 292 lines | live |
+| `interface_details` | `show interfaces {interface}` | ok, 30 lines | ok, 28 lines | live |
+| `route_lookup` | `show ip route {address}` | ok, 9 lines | ok, 2 lines | live |
+| `ipv6_route_lookup` | `show ipv6 route {address}` | ok, 4 lines | ok, 2 lines | live |
+| `inventory` | `show inventory` | ok, 5 lines | empty | live |
+| `environment` | `show env all` | not supported by the image | not supported by the image | docs-only |
+| `interface_errors` | `show interfaces {interface} counters errors` | not supported by the image | empty | live |
+| `arp_table` | `show ip arp` | ok, 12 lines | ok, 17 lines | live |
+| `ipv6_neighbors` | `show ipv6 neighbors` | empty | empty | live |
+| `mac_table` | `show mac address-table` | not supported by the image | ok, 23 lines | live |
+| `vlans` | `show vlan brief` | not supported by the image | ok, 12 lines | live |
+| `lag_summary` | `show etherchannel summary` | not supported by the image | ok, 23 lines | live |
+| `lacp_neighbors` | `show lacp neighbor` | not supported by the image | empty | live |
+| `stp_summary` | `show spanning-tree summary` | refused to the read-only account, answered to admin | ok, 22 lines | live |
+| `lldp_neighbors` | `show lldp neighbors detail` | ok, 134 lines | ok, 228 lines | live |
+| `cdp_neighbors` | `show cdp neighbors detail` | ok, 80 lines | ok, 74 lines | live |
+| `bgp_summary` | `show ip bgp summary` | not configured | not configured | live |
+| `ospf_neighbors` | `show ip ospf neighbor` | ok, 8 lines | empty | live |
+| `hsrp_summary` | `show standby brief` | empty | empty | live |
+| `vrrp_summary` | `show vrrp brief` | ok, 4 lines | ok, 2 lines | live |
+| `interfaces_counters_errors` | `show interfaces counters errors` | - | - | docs-only |
+| `interfaces_details` | `show interfaces` | ok, 152 lines | ok, 178 lines | live |
+| `route_table` | `show ip route` | ok, 31 lines | ok, 22 lines | live |
+| `ospf_interfaces` | `show ip ospf interface brief` | ok, 6 lines | empty | live |
+| `stp_tree` | `show spanning-tree` | not configured | ok, 78 lines | live |
+| `stp_root` | `show spanning-tree root` | not supported by the image | ok, 9 lines | live |
+| `stp_inconsistent` | `show spanning-tree inconsistentports` | refused to the read-only account, answered to admin | refused to the read-only account, answered to admin | live |
+| `stp_vlan` | `show spanning-tree vlan {vlan_id}` | not supported by the image | ok, 20 lines | live |
+| `err_disabled` | `show interfaces status err-disabled` | not supported by the image | empty | live |
+| `errdisable_recovery` | `show errdisable recovery` | not supported by the image | ok, 34 lines | live |
+| `interfaces_description` | `show interfaces description` | ok, 11 lines | ok, 10 lines | live |
+| `interfaces_trunk` | `show interfaces trunk` | not supported by the image | ok, 21 lines | live |
+| `interface_switchport` | `show interfaces {interface} switchport` | not supported by the image | ok, 27 lines | live |
+| `interface_transceiver` | `show interfaces {interface} transceiver detail` | not supported by the image | not supported by the image | docs-only |
+| `power_inline` | `show power inline` | not supported by the image | not supported by the image | docs-only |
+| `vtp_status` | `show vtp status` | not supported by the image | ok, 18 lines | live |
+| `vlan_details` | `show vlan id {vlan_id}` | not supported by the image | ok, 16 lines | live |
+| `ntp_status` | `show ntp status` | ok, 4 lines | ok, 2 lines | live |
+| `ntp_associations` | `show ntp associations` | empty | empty | live |
+| `stack_members` | `show switch` | not supported by the image | not supported by the image | docs-only |
+| `stack_ports` | `show switch stack-ports summary` | not supported by the image | not supported by the image | docs-only |
+| `log_messages` | `show logging` | refused to the read-only account, answered to admin | refused to the read-only account, answered to admin | live |
+
+<!-- lab-measurements:end -->
+
+### Cisco IOS XE
+
+<!-- lab-measurements:begin cisco_xe -->
+
+| Template | Command | IOL XE 17.18.2 (router) | verified |
+|---|---|---|---|
+| `version` | `show version` | ok, 38 lines | live |
+| `clock` | `show clock` | ok, 4 lines | live |
+| `interfaces` | `show interfaces status` | not supported by the image | docs-only |
+| `ip_interfaces` | `show ip interface brief` | ok, 23 lines | live |
+| `ipv6_interfaces` | `show ipv6 interface brief` | ok, 41 lines | live |
+| `route_summary` | `show ip route summary` | ok, 16 lines | live |
+| `cpu` | `show processes cpu` | ok, 389 lines | live |
+| `memory` | `show processes memory` | ok, 395 lines | live |
+| `interface_details` | `show interfaces {interface}` | ok, 29 lines | live |
+| `route_lookup` | `show ip route {address}` | ok, 8 lines | live |
+| `ipv6_route_lookup` | `show ipv6 route {address}` | ok, 4 lines | live |
+| `inventory` | `show inventory` | empty | live |
+| `environment` | `show environment all` | not supported by the image | docs-only |
+| `interface_errors` | `show interfaces {interface} counters errors` | not supported by the image | docs-only |
+| `arp_table` | `show ip arp` | ok, 13 lines | live |
+| `ipv6_neighbors` | `show ipv6 neighbors` | empty | live |
+| `mac_table` | `show mac address-table` | not supported by the image | docs-only |
+| `vlans` | `show vlan brief` | not supported by the image | docs-only |
+| `lag_summary` | `show etherchannel summary` | not supported by the image | docs-only |
+| `lacp_neighbors` | `show lacp neighbor` | empty | live |
+| `stp_summary` | `show spanning-tree summary` | ok, 17 lines | live |
+| `lldp_neighbors` | `show lldp neighbors detail` | ok, 144 lines | live |
+| `cdp_neighbors` | `show cdp neighbors detail` | ok, 62 lines | live |
+| `bgp_summary` | `show ip bgp summary` | ok, 7 lines | live |
+| `ospf_neighbors` | `show ip ospf neighbor` | ok, 9 lines | live |
+| `hsrp_summary` | `show standby brief` | empty | live |
+| `vrrp_summary` | `show vrrp brief` | ok, 4 lines | live |
+| `interfaces_counters_errors` | `show interfaces counters errors` | - | docs-only |
+| `interfaces_details` | `show interfaces` | ok, 477 lines | live |
+| `route_table` | `show ip route` | ok, 33 lines | live |
+| `ospf_interfaces` | `show ip ospf interface brief` | ok, 6 lines | live |
+| `stp_tree` | `show spanning-tree` | not configured | live |
+| `stp_root` | `show spanning-tree root` | empty | live |
+| `stp_inconsistent` | `show spanning-tree inconsistentports` | refused to the read-only account, answered to admin | live |
+| `stp_vlan` | `show spanning-tree vlan {vlan_id}` | command failed | live |
+| `err_disabled` | `show interfaces status err-disabled` | not supported by the image | docs-only |
+| `errdisable_recovery` | `show errdisable recovery` | not supported by the image | docs-only |
+| `interfaces_description` | `show interfaces description` | ok, 23 lines | live |
+| `interfaces_trunk` | `show interfaces trunk` | not supported by the image | docs-only |
+| `interface_switchport` | `show interfaces {interface} switchport` | not supported by the image | docs-only |
+| `interface_transceiver` | `show interfaces {interface} transceiver detail` | not supported by the image | docs-only |
+| `power_inline` | `show power inline` | not supported by the image | docs-only |
+| `vtp_status` | `show vtp status` | not supported by the image | docs-only |
+| `vlan_details` | `show vlan id {vlan_id}` | not supported by the image | docs-only |
+| `ntp_status` | `show ntp status` | ok, 11 lines | live |
+| `ntp_associations` | `show ntp associations` | ok, 7 lines | live |
+| `stack_members` | `show switch` | not supported by the image | docs-only |
+| `stack_ports` | `show switch stack-ports summary` | not supported by the image | docs-only |
+| `log_messages` | `show logging` | refused to the read-only account, answered to admin | live |
+| `platform_resources` | `show platform resources` | not supported by the image | docs-only |
+
+<!-- lab-measurements:end cisco_xe -->
+
+### Cisco NX-OS
+
+<!-- lab-measurements:begin cisco_nxos -->
+
+| Template | Command | Nexus 9300v 9.3(12) | verified |
+|---|---|---|---|
+| `version` | `show version` | ok, 39 lines | live |
+| `clock` | `show clock` | ok, 2 lines | live |
+| `inventory` | `show inventory` | ok, 9 lines | live |
+| `environment` | `show environment` | ok, 16 lines | live |
+| `cpu` | `show processes cpu` | ok, 175 lines | live |
+| `memory` | `show processes memory` | ok, 172 lines | live |
+| `interfaces` | `show interface status` | ok, 90 lines | live |
+| `ip_interfaces` | `show ip interface brief` | ok, 6 lines | live |
+| `ipv6_interfaces` | `show ipv6 interface brief` | ok, 3 lines | live |
+| `interface_details` | `show interface {interface}` | ok, 44 lines | live |
+| `interface_errors` | `show interface {interface} counters errors` | ok, 20 lines | live |
+| `vlans` | `show vlan` | ok, 41 lines | live |
+| `mac_table` | `show mac address-table` | ok, 18 lines | live |
+| `arp_table` | `show ip arp` | ok, 18 lines | live |
+| `ipv6_neighbors` | `show ipv6 neighbor` | ok, 12 lines | live |
+| `lag_summary` | `show port-channel summary` | ok, 13 lines | live |
+| `lacp_neighbors` | `show lacp neighbor` | ok, 13 lines | live |
+| `stp_summary` | `show spanning-tree summary` | ok, 18 lines | live |
+| `lldp_neighbors` | `show lldp neighbors detail` | ok, 22 lines | live |
+| `cdp_neighbors` | `show cdp neighbors detail` | ok, 63 lines | live |
+| `route_summary` | `show ip route summary` | ok, 17 lines | live |
+| `route_lookup` | `show ip route {address}` | ok, 8 lines | live |
+| `ipv6_route_lookup` | `show ipv6 route {address}` | ok, 6 lines | live |
+| `bgp_sessions` | `show bgp sessions` | ok, 8 lines | live |
+| `ospf_neighbors` | `show ip ospf neighbors` | ok, 7 lines | live |
+| `hsrp_summary` | `show hsrp summary` | feature off or not supported by the image | docs-only |
+| `vrrp_summary` | `show vrrp summary` | feature off or not supported by the image | docs-only |
+| `vpc_status` | `show vpc brief` | ok, 21 lines | live |
+| `vpc_peer_keepalive` | `show vpc peer-keepalive` | ok, 16 lines | live |
+| `vpc_role` | `show vpc role` | ok, 13 lines | live |
+| `route_table` | `show ip route` | ok, 28 lines | live |
+| `ospf_interfaces` | `show ip ospf interface brief` | ok, 6 lines | live |
+| `bgp_summary` | `show bgp ipv4 unicast summary` | ok, 9 lines | live |
+| `stp_tree` | `show spanning-tree` | ok, 56 lines | live |
+| `stp_root` | `show spanning-tree root` | ok, 7 lines | live |
+| `stp_blocked` | `show spanning-tree blockedports` | empty | live |
+| `stp_inconsistent` | `show spanning-tree inconsistentports` | empty | live |
+| `stp_vlan` | `show spanning-tree vlan {vlan_id}` | ok, 17 lines | live |
+| `err_disabled` | `show interface status err-disabled` | ok, 4 lines | live |
+| `errdisable_recovery` | `show errdisable recovery` | ok, 43 lines | live |
+| `interfaces_description` | `show interface description` | ok, 90 lines | live |
+| `interfaces_trunk` | `show interface trunk` | ok, 27 lines | live |
+| `interfaces_counters_errors` | `show interface counters errors` | ok, 276 lines | live |
+| `interface_switchport` | `show interface {interface} switchport` | ok, 21 lines | live |
+| `interface_transceiver` | `show interface {interface} transceiver details` | ok, 3 lines | live |
+| `vlan_details` | `show vlan id {vlan_id}` | ok, 18 lines | live |
+| `ntp_status` | `show ntp status` | ok, 2 lines | live |
+| `ntp_associations` | `show ntp peer-status` | ok, 6 lines | live |
+| `system_resources` | `show system resources` | ok, 10 lines | live |
+| `reset_reason` | `show system reset-reason` | ok, 34 lines | live |
+| `modules` | `show module` | ok, 22 lines | live |
+| `license_usage` | `show license usage` | ok, 42 lines | live |
+| `redundancy_status` | `show redundancy status` | ok, 23 lines | live |
+| `features` | `show feature` | ok, 195 lines | live |
+| `vrfs` | `show vrf` | ok, 3 lines | live |
+| `bfd_neighbors` | `show bfd neighbors` | empty | live |
+| `vpc_consistency` | `show vpc consistency-parameters global` | empty | live |
+| `vpc_orphan_ports` | `show vpc orphan-ports` | command failed, exit status 244 | live |
+| `dhcp_snooping_binding` | `show ip dhcp snooping binding` | feature off or not supported by the image | docs-only |
+| `access_lists` | `show ip access-lists` | ok, 104 lines | live |
+| `log_messages` | `show logging last 200` | ok, 200 lines | live |
+
+<!-- lab-measurements:end cisco_nxos -->

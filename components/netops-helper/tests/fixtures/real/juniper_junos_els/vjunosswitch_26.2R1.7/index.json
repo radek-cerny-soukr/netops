@@ -1,0 +1,350 @@
+{
+ "version": {
+  "command": "show version | no-more",
+  "rc": 0,
+  "lines": 73,
+  "account": "netops-ro"
+ },
+ "uptime": {
+  "command": "show system uptime | no-more",
+  "rc": 0,
+  "lines": 6,
+  "account": "netops-ro"
+ },
+ "system_alarms": {
+  "command": "show system alarms | no-more",
+  "rc": 0,
+  "lines": 3,
+  "account": "netops-ro"
+ },
+ "chassis_alarms": {
+  "command": "show chassis alarms | no-more",
+  "rc": 0,
+  "lines": 3,
+  "account": "netops-ro"
+ },
+ "hardware": {
+  "command": "show chassis hardware | no-more",
+  "rc": 0,
+  "lines": 10,
+  "account": "netops-ro"
+ },
+ "environment": {
+  "command": "show chassis environment | no-more",
+  "rc": 0,
+  "lines": 0,
+  "account": "netops-ro"
+ },
+ "interfaces": {
+  "command": "show interfaces terse | no-more",
+  "rc": 0,
+  "lines": 68,
+  "account": "netops-ro"
+ },
+ "interface_details": {
+  "command": "show interfaces ge-0/0/0 extensive | no-more",
+  "rc": 0,
+  "lines": 87,
+  "account": "netops-ro"
+ },
+ "interface_optics": {
+  "command": "show interfaces diagnostics optics ge-0/0/0 | no-more",
+  "rc": 0,
+  "lines": 0,
+  "account": "netops-ro"
+ },
+ "route_summary": {
+  "command": "show route summary | no-more",
+  "rc": 0,
+  "lines": 19,
+  "account": "netops-ro"
+ },
+ "route_lookup": {
+  "command": "show route 192.0.2.3 detail | no-more",
+  "rc": 0,
+  "lines": 16,
+  "account": "netops-ro"
+ },
+ "route_lookup_connected": {
+  "command": "show route 192.0.2.77 detail | no-more",
+  "rc": 0,
+  "lines": 16,
+  "account": "netops-ro"
+ },
+ "route_lookup_ospf": {
+  "command": "show route 203.0.113.1 detail | no-more",
+  "rc": 0,
+  "lines": 19,
+  "account": "netops-ro"
+ },
+ "ipv6_route_lookup": {
+  "command": "show route 2001:db8::1 detail | no-more",
+  "rc": 0,
+  "lines": 0,
+  "account": "netops-ro"
+ },
+ "arp_table": {
+  "command": "show arp no-resolve | no-more",
+  "rc": 0,
+  "lines": 10,
+  "account": "netops-ro"
+ },
+ "arp_interface": {
+  "command": "show arp no-resolve interface irb.10 | no-more",
+  "rc": 0,
+  "lines": 7,
+  "account": "netops-ro"
+ },
+ "ipv6_neighbors": {
+  "command": "show ipv6 neighbors | no-more",
+  "rc": 0,
+  "lines": 0,
+  "account": "netops-ro"
+ },
+ "ipv6_neighbors_interface": {
+  "command": "show ipv6 neighbors interface irb.10 | no-more",
+  "rc": 0,
+  "lines": 0,
+  "account": "netops-ro"
+ },
+ "lldp_neighbors": {
+  "command": "show lldp neighbors | no-more",
+  "rc": 0,
+  "lines": 2,
+  "account": "netops-ro"
+ },
+ "lldp_neighbors_interface": {
+  "command": "show lldp neighbors interface ge-0/0/0 | no-more",
+  "rc": 0,
+  "lines": 59,
+  "account": "netops-ro"
+ },
+ "lacp_interfaces": {
+  "command": "show lacp interfaces | no-more",
+  "rc": 0,
+  "lines": 0,
+  "account": "netops-ro"
+ },
+ "lacp_interface": {
+  "command": "show lacp interfaces ae0 | no-more",
+  "rc": 0,
+  "lines": 0,
+  "account": "netops-ro"
+ },
+ "bgp_summary": {
+  "command": "show bgp summary | no-more",
+  "rc": 0,
+  "lines": 4,
+  "account": "netops-ro"
+ },
+ "ospf_neighbors": {
+  "command": "show ospf neighbor | no-more",
+  "rc": 0,
+  "lines": 5,
+  "account": "netops-ro"
+ },
+ "ospf_neighbors_interface": {
+  "command": "show ospf neighbor interface irb.10 | no-more",
+  "rc": 0,
+  "lines": 5,
+  "account": "netops-ro"
+ },
+ "ospfv3_neighbors": {
+  "command": "show ospf3 neighbor | no-more",
+  "rc": 0,
+  "lines": 1,
+  "account": "netops-ro"
+ },
+ "ospfv3_neighbors_interface": {
+  "command": "show ospf3 neighbor interface irb.10 | no-more",
+  "rc": 0,
+  "lines": 1,
+  "account": "netops-ro"
+ },
+ "route_table": {
+  "command": "show route | no-more",
+  "rc": 0,
+  "lines": 41,
+  "account": "netops-ro"
+ },
+ "route_instances": {
+  "command": "show route instance | no-more",
+  "rc": 0,
+  "lines": 18,
+  "account": "netops-ro"
+ },
+ "ospf_interfaces": {
+  "command": "show ospf interface brief | no-more",
+  "rc": 0,
+  "lines": 3,
+  "account": "netops-ro"
+ },
+ "lldp_neighbors_detail": {
+  "command": "show lldp neighbors detail | no-more",
+  "rc": 0,
+  "lines": 59,
+  "account": "netops-ro"
+ },
+ "interfaces_descriptions": {
+  "command": "show interfaces descriptions | no-more",
+  "rc": 0,
+  "lines": 0,
+  "account": "netops-ro"
+ },
+ "routing_engine": {
+  "command": "show chassis routing-engine | no-more",
+  "rc": 0,
+  "lines": 36,
+  "account": "netops-ro"
+ },
+ "fpc": {
+  "command": "show chassis fpc | no-more",
+  "rc": 0,
+  "lines": 14,
+  "account": "netops-ro"
+ },
+ "storage": {
+  "command": "show system storage | no-more",
+  "rc": 0,
+  "lines": 4,
+  "account": "netops-ro"
+ },
+ "licenses": {
+  "command": "show system license | no-more",
+  "rc": 0,
+  "lines": 3,
+  "account": "netops-ro"
+ },
+ "commit_history": {
+  "command": "show system commit | no-more",
+  "rc": 0,
+  "lines": 9,
+  "account": "netops-ro"
+ },
+ "ntp_status": {
+  "command": "show ntp status | no-more",
+  "rc": 0,
+  "lines": 9,
+  "account": "netops-ro"
+ },
+ "ntp_associations": {
+  "command": "show ntp associations no-resolve | no-more",
+  "rc": 0,
+  "lines": 3,
+  "account": "netops-ro"
+ },
+ "vrrp_summary": {
+  "command": "show vrrp summary | no-more",
+  "rc": 0,
+  "lines": 3,
+  "account": "netops-ro"
+ },
+ "bfd_sessions": {
+  "command": "show bfd session | no-more",
+  "rc": 0,
+  "lines": 3,
+  "account": "netops-ro"
+ },
+ "log_messages": {
+  "command": "show log messages | last 200 | no-more",
+  "rc": 0,
+  "lines": 2,
+  "account": "netops-ro"
+ },
+ "log_interactive_commands": {
+  "command": "show log interactive-commands | last 200 | no-more",
+  "rc": 0,
+  "lines": 2,
+  "account": "netops-ro"
+ },
+ "vlans": {
+  "command": "show vlans brief | no-more",
+  "rc": 0,
+  "lines": 9,
+  "account": "netops-ro"
+ },
+ "mac_table": {
+  "command": "show ethernet-switching table | no-more",
+  "rc": 0,
+  "lines": 20,
+  "account": "netops-ro"
+ },
+ "stp_bridge": {
+  "command": "show spanning-tree bridge | no-more",
+  "rc": 0,
+  "lines": 16,
+  "account": "netops-ro"
+ },
+ "virtual_chassis": {
+  "command": "show virtual-chassis status | no-more",
+  "rc": 0,
+  "lines": 2,
+  "account": "netops-ro"
+ },
+ "virtual_chassis_ports": {
+  "command": "show virtual-chassis vc-port | no-more",
+  "rc": 0,
+  "lines": 2,
+  "account": "netops-ro"
+ },
+ "ethernet_switching_interfaces": {
+  "command": "show ethernet-switching interface | no-more",
+  "rc": 0,
+  "lines": 15,
+  "account": "netops-ro"
+ },
+ "ethernet_switching_interface": {
+  "command": "show ethernet-switching interface ge-0/0/0 detail | no-more",
+  "rc": 0,
+  "lines": 41,
+  "account": "netops-ro"
+ },
+ "mac_table_interface": {
+  "command": "show ethernet-switching table interface ge-0/0/0 | no-more",
+  "rc": 0,
+  "lines": 33,
+  "account": "netops-ro"
+ },
+ "mac_table_address": {
+  "command": "show ethernet-switching table 00:00:5e:00:53:1b | no-more",
+  "rc": 0,
+  "lines": 11,
+  "account": "netops-ro"
+ },
+ "stp_interfaces": {
+  "command": "show spanning-tree interface | no-more",
+  "rc": 0,
+  "lines": 6,
+  "account": "netops-ro"
+ },
+ "poe_interfaces": {
+  "command": "show poe interface | no-more",
+  "rc": 0,
+  "lines": 1,
+  "account": "netops-ro"
+ },
+ "poe_controller": {
+  "command": "show poe controller | no-more",
+  "rc": 0,
+  "lines": 1,
+  "account": "netops-ro"
+ },
+ "dot1x_interfaces": {
+  "command": "show dot1x interface | no-more",
+  "rc": 0,
+  "lines": 0,
+  "account": "netops-ro"
+ },
+ "dhcp_security_bindings": {
+  "command": "show dhcp-security binding | no-more",
+  "rc": 0,
+  "lines": 0,
+  "account": "netops-ro"
+ },
+ "route_lookup_default": {
+  "command": "show route 203.0.113.9 detail | no-more",
+  "rc": 0,
+  "lines": 18,
+  "account": "netops-ro"
+ }
+}

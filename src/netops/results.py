@@ -13,6 +13,7 @@ def tool_failed(role, name, result):
         if name == "admin_status":
             return False
         if name == "admin_doctor":
-            return payload.get("ready") is False or outcome == "rejected"
+            return (payload.get("local_ready") is False if payload.get("scope") == "local"
+                    else payload.get("ready") is False) or outcome == "rejected"
         return outcome in {"rejected", "unknown", "reverted", "revert-failed"}
     return False

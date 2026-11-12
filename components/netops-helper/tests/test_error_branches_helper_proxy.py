@@ -479,3 +479,22 @@ def test_a_client_that_stops_reading_ends_the_proxy_without_a_traceback(tmp_path
     }, text
     assert json.loads(record.read_text(encoding="utf-8"))["requests"] == []
     assert process.returncode in (0, 120), text
+
+
+def test_managed_switch_table_without_serial_is_refused_before_forwarding(tmp_path, monkeypatch):
+    """A FortiSwitch request needs its selector even after generic table validation."""
+    _enroll(tmp_path, monkeypatch, snmp=False)
+    inventory = json.loads(MODULE.INVENTORY.read_text())
+    helper = inventory['devices'][0]['helper']
+    helper['device_types'] = ['firewall']
+    helper['enabled_queries'] = ['system_status', 'managed_switch_port_vlans', 'interface_vlan_ids']
+    helper['read_inventory']['managed_switches'] = ['S000SSSS00000001']
+    MODULE.INVENTORY.write_text(json.dumps(inventory))
+    proxy, emitted = _proxy(monkeypatch)
+    assert proxy.request(_call(84, 'switch_read', {'target': 'device-a', 'table': 'port_vlan'})) is None
+    assert len(emitted) == 1
+    refusal = emitted[0]
+    assert refusal['id'] == 84 and refusal['error']['code'] == -32602
+    assert refusal['error']['data']['field'] == 'managed_switch'
+    assert 84 not in proxy.pending and 84 not in proxy.response_secrets
+    assert not any(secret in json.dumps(refusal) for secret in SECRETS)

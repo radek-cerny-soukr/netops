@@ -1,0 +1,200 @@
+Nov  8 22:12:15 host09      ProcMgr: %PROCMGR-6-COMMAND_RECEIVED: ProcMgr has received 'warm start' command
+Nov  8 22:12:15 host09      ProcMgr: %PROCMGR-6-COMMAND_RECEIVED: ProcMgr has received 'warm start' command
+Nov  8 22:12:15 host09      ProcMgr: %PROCMGR-6-WORKER_WARMSTART: ProcMgr worker warm start. (PID=1193)
+Nov  8 22:12:15 host09      ConnectedRoute: %AGENT-6-INITIALIZED: Agent 'ConnectedRoute' initialized; pid=1639
+Nov  8 22:12:15 host09      L2Rib: %AGENT-6-INITIALIZED: Agent 'L2Rib' initialized; pid=1655
+Nov  8 22:12:15 host09      ProcLauncher-1: %LAUNCHER-6-PROCESS_START: Configuring process 'Lag' to start in role 'ActiveSupervisor'
+Nov  8 22:12:16 host09      PortSec: %AGENT-6-INITIALIZED: Agent 'PortSec' initialized; pid=1666
+Nov  8 22:12:16 host09      ProcMgr: %PROCMGR-7-NEW_PROCESSES: New processes configured to run under ProcMgr control: ['KernelFib', 'StpTxRx', 'XcvrCentralAgent']
+Nov  8 22:12:16 host09      ProcMgr: %PROCMGR-7-PROCESSES_ADOPTED: ProcMgr (PID=1193) adopted running processes:  (ProcLauncher-1, PID=1240) (PerfMonitor, PID=1241) (Sysdb, PID=1242) (Fru, PID=1243) (Launcher, PID=1244) (ConfigAgent, PID=1245) (StageMgr, PID=1246) (KernelNetworkInfo, PID=1523) (PhyEthtool-1, PID=1524) (SuperServer, PID=1525) (Etba, PID=1526) (ReloadCauseAgent, PID=1527) (Acl, PID=1528) (Aaa, PID=1529) (Ira, PID=1530) (Ebra, PID=1531) (LacpTxAgent, PID=1636) (AgentMonitor, PID=1637) (IgmpSnooping, PID=1638) (ConnectedRoute, PID=1639) (SharedSecretProfile, PID=1640) (RouteCache, PID=1641) (TopoAgent, PID=1643) (FibServices, PID=1644) (EventMgr, PID=1645) (Dot1x, PID=1646) (Bfd, PID=1647) (Qos, PID=1648) (L2Rib, PID=1655) (IfIndex, PID=1665) (PortSec, PID=1666) (SystemInitMonitor, PID=1667) (ArfaAegis, PID=1676) (Arp, PID=1677) (rbfdu, PID=1678) (McastCommon, PID=1695) (Ospf, PID=1698)
+Nov  8 22:12:16 host09      ProcMgr: %PROCMGR-6-PROCESS_STARTED: 'XcvrCentralAgent' starting with PID=1700 (PPID=1193) -- execing '/usr/bin/XcvrCentralAgent'
+Nov  8 22:12:16 host09      ProcMgr: %PROCMGR-6-PROCESS_STARTED: 'KernelFib' starting with PID=1702 (PPID=1193) -- execing '/usr/bin/KernelFib'
+Nov  8 22:12:16 host09      ProcMgr: %PROCMGR-6-PROCESS_STARTED: 'StpTxRx' starting with PID=1701 (PPID=1193) -- execing '/usr/bin/StpTxRx'
+Nov  8 22:12:16 host09      ProcMgr: %PROCMGR-7-WORKER_WARMSTART_DONE: ProcMgr worker warm start done. (PID=1193)
+Nov  8 22:12:16 host09      ProcMgr: %PROCMGR-6-COMMAND_RECEIVED: ProcMgr has received 'warm start' command
+Nov  8 22:12:16 host09      ProcMgr: %PROCMGR-6-WORKER_WARMSTART: ProcMgr worker warm start. (PID=1193)
+Nov  8 22:12:16 host09      ProcLauncher-1: %LAUNCHER-6-PROCESS_START: Configuring process 'RouteInput' to start in role 'AllSupervisors'
+Nov  8 22:12:16 host09      ProcLauncher-1: %LAUNCHER-6-PROCESS_START: Configuring process 'StpTopology' to start in role 'ActiveSupervisor'
+Nov  8 22:12:16 host09      ProcLauncher-1: %LAUNCHER-6-PROCESS_START: Configuring process 'ArfaState' to start in role 'ActiveSupervisor'
+Nov  8 22:12:16 host09      ProcLauncher-1: %LAUNCHER-6-PROCESS_START: Configuring process 'Stp' to start in role 'AllSupervisors'
+Nov  8 22:12:16 host09      ProcLauncher-1: %LAUNCHER-6-PROCESS_START: Configuring process 'McastCommon6' to start in role 'ActiveSupervisor'
+Nov  8 22:12:16 host09      ProcMgr: %PROCMGR-7-NEW_PROCESSES: New processes configured to run under ProcMgr control: ['Lag']
+Nov  8 22:12:16 host09      ProcLauncher-1: %LAUNCHER-6-PROCESS_START: Configuring process 'Tunnel' to start in role 'ActiveSupervisor'
+Nov  8 22:12:16 host09      ProcMgr: %PROCMGR-7-PROCESSES_ADOPTED: ProcMgr (PID=1193) adopted running processes:  (ProcLauncher-1, PID=1240) (PerfMonitor, PID=1241) (Sysdb, PID=1242) (Fru, PID=1243) (Launcher, PID=1244) (ConfigAgent, PID=1245) (StageMgr, PID=1246) (KernelNetworkInfo, PID=1523) (PhyEthtool-1, PID=1524) (SuperServer, PID=1525) (Etba, PID=1526) (ReloadCauseAgent, PID=1527) (Acl, PID=1528) (Aaa, PID=1529) (Ira, PID=1530) (Ebra, PID=1531) (LacpTxAgent, PID=1636) (AgentMonitor, PID=1637) (IgmpSnooping, PID=1638) (ConnectedRoute, PID=1639) (SharedSecretProfile, PID=1640) (RouteCache, PID=1641) (TopoAgent, PID=1643) (FibServices, PID=1644) (EventMgr, PID=1645) (Dot1x, PID=1646) (Bfd, PID=1647) (Qos, PID=1648) (L2Rib, PID=1655) (IfIndex, PID=1665) (PortSec, PID=1666) (SystemInitMonitor, PID=1667) (ArfaAegis, PID=1676) (Arp, PID=1677) (rbfdu, PID=1678) (McastCommon, PID=1695) (Ospf, PID=1698) (XcvrCentralAgent, PID=1700) (StpTxRx, PID=1701) (KernelFib, PID=1702)
+Nov  8 22:12:16 host09      ProcMgr: %PROCMGR-6-PROCESS_STARTED: 'Lag' starting with PID=1711 (PPID=1193) -- execing '/usr/bin/Lag'
+Nov  8 22:12:16 host09      ProcMgr: %PROCMGR-7-WORKER_WARMSTART_DONE: ProcMgr worker warm start done. (PID=1193)
+Nov  8 22:12:16 host09      ProcMgr: %PROCMGR-6-COMMAND_RECEIVED: ProcMgr has received 'warm start' command
+Nov  8 22:12:16 host09      ProcMgr: %PROCMGR-6-COMMAND_RECEIVED: ProcMgr has received 'warm start' command
+Nov  8 22:12:16 host09      ProcMgr: %PROCMGR-6-WORKER_WARMSTART: ProcMgr worker warm start. (PID=1193)
+Nov  8 22:12:16 host09      ProcLauncher-1: %LAUNCHER-6-PROCESS_START: Configuring process 'AgentMonitorWorker.1' to start in role 'ActiveSupervisor'
+Nov  8 22:12:17 host09      AgentMonitor: %AGENT-6-INITIALIZED: Agent 'AgentMonitor' initialized; pid=1637
+Nov  8 22:12:17 host09      IgmpSnooping: %AGENT-6-INITIALIZED: Agent 'IgmpSnooping' initialized; pid=1638
+Nov  8 22:12:17 host09      ProcMgr: %PROCMGR-7-NEW_PROCESSES: New processes configured to run under ProcMgr control: ['ArfaState', 'McastCommon6', 'RouteInput', 'Stp', 'StpTopology', 'Tunnel']
+Nov  8 22:12:17 host09      ProcMgr: %PROCMGR-7-PROCESSES_ADOPTED: ProcMgr (PID=1193) adopted running processes:  (ProcLauncher-1, PID=1240) (PerfMonitor, PID=1241) (Sysdb, PID=1242) (Fru, PID=1243) (Launcher, PID=1244) (ConfigAgent, PID=1245) (StageMgr, PID=1246) (KernelNetworkInfo, PID=1523) (PhyEthtool-1, PID=1524) (SuperServer, PID=1525) (Etba, PID=1526) (ReloadCauseAgent, PID=1527) (Acl, PID=1528) (Aaa, PID=1529) (Ira, PID=1530) (Ebra, PID=1531) (LacpTxAgent, PID=1636) (AgentMonitor, PID=1637) (IgmpSnooping, PID=1638) (ConnectedRoute, PID=1639) (SharedSecretProfile, PID=1640) (RouteCache, PID=1641) (TopoAgent, PID=1643) (FibServices, PID=1644) (EventMgr, PID=1645) (Dot1x, PID=1646) (Bfd, PID=1647) (Qos, PID=1648) (L2Rib, PID=1655) (IfIndex, PID=1665) (PortSec, PID=1666) (SystemInitMonitor, PID=1667) (ArfaAegis, PID=1676) (Arp, PID=1677) (rbfdu, PID=1678) (McastCommon, PID=1695) (Ospf, PID=1698) (XcvrCentralAgent, PID=1700) (StpTxRx, PID=1701) (KernelFib, PID=1702) (Lag, PID=1711)
+Nov  8 22:12:17 host09      Qos: %AGENT-6-INITIALIZED: Agent 'Qos' initialized; pid=1648
+Nov  8 22:12:17 host09      ProcMgr: %PROCMGR-6-PROCESS_STARTED: 'McastCommon6' starting with PID=1732 (PPID=1193) -- execing '/usr/bin/McastCommon6'
+Nov  8 22:12:17 host09      IfIndex: %AGENT-6-INITIALIZED: Agent 'IfIndex' initialized; pid=1665
+Nov  8 22:12:18 host09      ProcMgr: %PROCMGR-6-PROCESS_STARTED: 'ArfaState' starting with PID=1733 (PPID=1193) -- execing '/usr/bin/ArfaState'
+Nov  8 22:12:18 host09      ProcMgr: %PROCMGR-6-PROCESS_STARTED: 'RouteInput' starting with PID=1734 (PPID=1193) -- execing '/usr/bin/RouteInput'
+Nov  8 22:12:18 host09      ProcMgr: %PROCMGR-6-PROCESS_STARTED: 'StpTopology' starting with PID=1735 (PPID=1193) -- execing '/usr/bin/StpTopology'
+Nov  8 22:12:18 host09      ProcMgr: %PROCMGR-6-PROCESS_STARTED: 'Tunnel' starting with PID=1736 (PPID=1193) -- execing '/usr/bin/Tunnel'
+Nov  8 22:12:18 host09      ProcMgr: %PROCMGR-6-PROCESS_STARTED: 'Stp' starting with PID=1737 (PPID=1193) -- execing '/usr/bin/Stp'
+Nov  8 22:12:18 host09      ProcMgr: %PROCMGR-7-WORKER_WARMSTART_DONE: ProcMgr worker warm start done. (PID=1193)
+Nov  8 22:12:18 host09      ProcMgr: %PROCMGR-6-COMMAND_RECEIVED: ProcMgr has received 'warm start' command
+Nov  8 22:12:18 host09      ProcMgr: %PROCMGR-6-WORKER_WARMSTART: ProcMgr worker warm start. (PID=1193)
+Nov  8 22:12:18 host09      ProcMgr: %PROCMGR-7-NEW_PROCESSES: New processes configured to run under ProcMgr control: ['AgentMonitorWorker-1']
+Nov  8 22:12:18 host09      ProcMgr: %PROCMGR-7-PROCESSES_ADOPTED: ProcMgr (PID=1193) adopted running processes:  (ProcLauncher-1, PID=1240) (PerfMonitor, PID=1241) (Sysdb, PID=1242) (Fru, PID=1243) (Launcher, PID=1244) (ConfigAgent, PID=1245) (StageMgr, PID=1246) (KernelNetworkInfo, PID=1523) (PhyEthtool-1, PID=1524) (SuperServer, PID=1525) (Etba, PID=1526) (ReloadCauseAgent, PID=1527) (Acl, PID=1528) (Aaa, PID=1529) (Ira, PID=1530) (Ebra, PID=1531) (LacpTxAgent, PID=1636) (AgentMonitor, PID=1637) (IgmpSnooping, PID=1638) (ConnectedRoute, PID=1639) (SharedSecretProfile, PID=1640) (RouteCache, PID=1641) (TopoAgent, PID=1643) (FibServices, PID=1644) (EventMgr, PID=1645) (Dot1x, PID=1646) (Bfd, PID=1647) (Qos, PID=1648) (L2Rib, PID=1655) (IfIndex, PID=1665) (PortSec, PID=1666) (SystemInitMonitor, PID=1667) (ArfaAegis, PID=1676) (Arp, PID=1677) (rbfdu, PID=1678) (McastCommon, PID=1695) (Ospf, PID=1698) (XcvrCentralAgent, PID=1700) (StpTxRx, PID=1701) (KernelFib, PID=1702) (Lag, PID=1711) (McastCommon6, PID=1732) (ArfaState, PID=1733) (RouteInput, PID=1734) (StpTopology, PID=1735) (Tunnel, PID=1736) (Stp, PID=1737)
+Nov  8 22:12:18 host09      ProcMgr: %PROCMGR-6-PROCESS_STARTED: 'AgentMonitorWorker-1' starting with PID=1741 (PPID=1193) -- execing '/usr/bin/AgentMonitorWorker'
+Nov  8 22:12:18 host09      ProcMgr: %PROCMGR-7-WORKER_WARMSTART_DONE: ProcMgr worker warm start done. (PID=1193)
+Nov  8 22:12:19 host09      McastCommon: %AGENT-6-INITIALIZED: Agent 'McastCommon' initialized; pid=1695
+Nov  8 22:12:19 host09      Dot1x: %AGENT-6-INITIALIZED: Agent 'Dot1x' initialized; pid=1646
+Nov  8 22:12:19 host09      Arp: %AGENT-6-INITIALIZED: Agent 'Arp' initialized; pid=1677
+Nov  8 22:12:20 host09      KernelFib: %AGENT-6-INITIALIZED: Agent 'KernelFib' initialized; pid=1702
+Nov  8 22:12:20 host09      Lag: %AGENT-6-INITIALIZED: Agent 'Lag' initialized; pid=1711
+Nov  8 22:12:20 host09      SystemInitMonitor: %AGENT-6-INITIALIZED: Agent 'SystemInitMonitor' initialized; pid=1667
+Nov  8 22:12:21 host09      StpTxRx: %AGENT-6-INITIALIZED: Agent 'StpTxRx' initialized; pid=1701
+Nov  8 22:12:21 host09      Tunnel: %AGENT-6-INITIALIZED: Agent 'Tunnel' initialized; pid=1736
+Nov  8 22:12:21 host09      ProcLauncher-1: %LAUNCHER-6-PROCESS_START: Configuring process 'Lldp' to start in role 'AllSupervisors'
+Nov  8 22:12:22 host09      ProcMgr: %PROCMGR-6-COMMAND_RECEIVED: ProcMgr has received 'warm start' command
+Nov  8 22:12:22 host09      ProcMgr: %PROCMGR-6-WORKER_WARMSTART: ProcMgr worker warm start. (PID=1193)
+Nov  8 22:12:22 host09      ProcLauncher-1: %LAUNCHER-6-PROCESS_START: Configuring process 'IpRib' to start in role 'AllSupervisors'
+Nov  8 22:12:22 host09      ArfaState: %AGENT-6-INITIALIZED: Agent 'ArfaState' initialized; pid=1733
+Nov  8 22:12:22 host09      McastCommon6: %AGENT-6-INITIALIZED: Agent 'McastCommon6' initialized; pid=1732
+Nov  8 22:12:22 host09      XcvrCentralAgent: %AGENT-6-INITIALIZED: Agent 'XcvrCentralAgent' initialized; pid=1700
+Nov  8 22:12:22 host09      ProcMgr: %PROCMGR-7-NEW_PROCESSES: New processes configured to run under ProcMgr control: ['Lldp']
+Nov  8 22:12:22 host09      ProcMgr: %PROCMGR-7-PROCESSES_ADOPTED: ProcMgr (PID=1193) adopted running processes:  (ProcLauncher-1, PID=1240) (PerfMonitor, PID=1241) (Sysdb, PID=1242) (Fru, PID=1243) (Launcher, PID=1244) (ConfigAgent, PID=1245) (StageMgr, PID=1246) (KernelNetworkInfo, PID=1523) (PhyEthtool-1, PID=1524) (SuperServer, PID=1525) (Etba, PID=1526) (ReloadCauseAgent, PID=1527) (Acl, PID=1528) (Aaa, PID=1529) (Ira, PID=1530) (Ebra, PID=1531) (LacpTxAgent, PID=1636) (AgentMonitor, PID=1637) (IgmpSnooping, PID=1638) (ConnectedRoute, PID=1639) (SharedSecretProfile, PID=1640) (RouteCache, PID=1641) (TopoAgent, PID=1643) (FibServices, PID=1644) (EventMgr, PID=1645) (Dot1x, PID=1646) (Bfd, PID=1647) (Qos, PID=1648) (L2Rib, PID=1655) (IfIndex, PID=1665) (PortSec, PID=1666) (SystemInitMonitor, PID=1667) (ArfaAegis, PID=1676) (Arp, PID=1677) (rbfdu, PID=1678) (McastCommon, PID=1695) (Ospf, PID=1698) (XcvrCentralAgent, PID=1700) (StpTxRx, PID=1701) (KernelFib, PID=1702) (Lag, PID=1711) (McastCommon6, PID=1732) (ArfaState, PID=1733) (RouteInput, PID=1734) (StpTopology, PID=1735) (Tunnel, PID=1736) (Stp, PID=1737) (AgentMonitorWorker-1, PID=1741)
+Nov  8 22:12:23 host09      ProcMgr: %PROCMGR-7-WORKER_WARMSTART_DONE: ProcMgr worker warm start done. (PID=1193)
+Nov  8 22:12:23 host09      ProcMgr: %PROCMGR-6-PROCESS_STARTED: 'Lldp' starting with PID=1777 (PPID=1193) -- execing '/usr/bin/Lldp'
+Nov  8 22:12:23 host09      ProcMgr: %PROCMGR-6-COMMAND_RECEIVED: ProcMgr has received 'warm start' command
+Nov  8 22:12:23 host09      ProcMgr: %PROCMGR-6-WORKER_WARMSTART: ProcMgr worker warm start. (PID=1193)
+Nov  8 22:12:23 host09      RouteInput: %AGENT-6-INITIALIZED: Agent 'RouteInput' initialized; pid=1734
+Nov  8 22:12:23 host09      StpTopology: %AGENT-6-INITIALIZED: Agent 'StpTopology' initialized; pid=1735
+Nov  8 22:12:23 host09      ProcMgr: %PROCMGR-7-NEW_PROCESSES: New processes configured to run under ProcMgr control: ['IpRib']
+Nov  8 22:12:23 host09      Stp: %AGENT-6-INITIALIZED: Agent 'Stp' initialized; pid=1737
+Nov  8 22:12:23 host09      ProcMgr: %PROCMGR-7-PROCESSES_ADOPTED: ProcMgr (PID=1193) adopted running processes:  (ProcLauncher-1, PID=1240) (PerfMonitor, PID=1241) (Sysdb, PID=1242) (Fru, PID=1243) (Launcher, PID=1244) (ConfigAgent, PID=1245) (StageMgr, PID=1246) (KernelNetworkInfo, PID=1523) (PhyEthtool-1, PID=1524) (SuperServer, PID=1525) (Etba, PID=1526) (ReloadCauseAgent, PID=1527) (Acl, PID=1528) (Aaa, PID=1529) (Ira, PID=1530) (Ebra, PID=1531) (LacpTxAgent, PID=1636) (AgentMonitor, PID=1637) (IgmpSnooping, PID=1638) (ConnectedRoute, PID=1639) (SharedSecretProfile, PID=1640) (RouteCache, PID=1641) (TopoAgent, PID=1643) (FibServices, PID=1644) (EventMgr, PID=1645) (Dot1x, PID=1646) (Bfd, PID=1647) (Qos, PID=1648) (L2Rib, PID=1655) (IfIndex, PID=1665) (PortSec, PID=1666) (SystemInitMonitor, PID=1667) (ArfaAegis, PID=1676) (Arp, PID=1677) (rbfdu, PID=1678) (McastCommon, PID=1695) (Ospf, PID=1698) (XcvrCentralAgent, PID=1700) (StpTxRx, PID=1701) (KernelFib, PID=1702) (Lag, PID=1711) (McastCommon6, PID=1732) (ArfaState, PID=1733) (RouteInput, PID=1734) (StpTopology, PID=1735) (Tunnel, PID=1736) (Stp, PID=1737) (AgentMonitorWorker-1, PID=1741) (Lldp, PID=1777)
+Nov  8 22:12:23 host09      AgentMonitorWorker-1: %AGENT-6-INITIALIZED: Agent 'AgentMonitorWorker-1' initialized; pid=1741
+Nov  8 22:12:23 host09      ProcMgr: %PROCMGR-7-WORKER_WARMSTART_DONE: ProcMgr worker warm start done. (PID=1193)
+Nov  8 22:12:23 host09      ProcMgr: %PROCMGR-6-PROCESS_STARTED: 'IpRib' starting with PID=1792 (PPID=1193) -- execing '/usr/bin/IpRib'
+Nov  8 22:12:24 host09      ArfaAegis: %AGENT-6-INITIALIZED: Agent 'ArfaAegis' initialized; pid=1676
+Nov  8 22:12:25 host09      Stp: %SPANTREE-6-ROOTCHANGE: Root changed for instance MST0: new root interface is (none), new root bridge mac address is 00:00:5e:00:53:02 (this switch)
+Nov  8 22:12:25 host09      Stp: %SPANTREE-6-INTERFACE_ADD: Interface Ethernet6 has been added to instance MST0
+Nov  8 22:12:25 host09      Stp: %SPANTREE-6-INTERFACE_ADD: Interface Ethernet10 has been added to instance MST0
+Nov  8 22:12:25 host09      Stp: %SPANTREE-6-INTERFACE_ADD: Interface Ethernet11 has been added to instance MST0
+Nov  8 22:12:25 host09      Stp: %SPANTREE-6-INTERFACE_ADD: Interface Ethernet13 has been added to instance MST0
+Nov  8 22:12:25 host09      Stp: %SPANTREE-6-INTERFACE_ADD: Interface Ethernet4 has been added to instance MST0
+Nov  8 22:12:25 host09      Stp: %SPANTREE-6-INTERFACE_ADD: Interface Ethernet3 has been added to instance MST0
+Nov  8 22:12:25 host09      Stp: %SPANTREE-6-INTERFACE_ADD: Interface Ethernet15 has been added to instance MST0
+Nov  8 22:12:25 host09      Stp: %SPANTREE-6-INTERFACE_ADD: Interface Ethernet12 has been added to instance MST0
+Nov  8 22:12:25 host09      Stp: %SPANTREE-6-INTERFACE_ADD: Interface Ethernet7 has been added to instance MST0
+Nov  8 22:12:25 host09      Stp: %SPANTREE-6-INTERFACE_ADD: Interface Ethernet9 has been added to instance MST0
+Nov  8 22:12:25 host09      Stp: %SPANTREE-6-INTERFACE_ADD: Interface Ethernet14 has been added to instance MST0
+Nov  8 22:12:25 host09      Stp: %SPANTREE-6-INTERFACE_ADD: Interface Ethernet8 has been added to instance MST0
+Nov  8 22:12:25 host09      Stp: %SPANTREE-6-INTERFACE_ADD: Interface Ethernet2 has been added to instance MST0
+Nov  8 22:12:25 host09      Ebra: %LINEPROTO-5-UPDOWN: Line protocol on Interface Vlan10 (VRF default), changed state to up
+Nov  8 22:12:25 host09      Stp: %SPANTREE-6-INTERFACE_ADD: Interface Ethernet1 has been added to instance MST0
+Nov  8 22:12:25 host09      Stp: %SPANTREE-6-INTERFACE_ADD: Interface Ethernet5 has been added to instance MST0
+Nov  8 22:12:25 host09      Ebra: %LINEPROTO-5-UPDOWN: Line protocol on Interface Vlan20 (VRF default), changed state to up
+Nov  8 22:12:25 host09      Lldp: %AGENT-6-INITIALIZED: Agent 'Lldp' initialized; pid=1777
+Nov  8 22:12:26 host09      IpRib: %AGENT-6-INITIALIZED: Agent 'IpRib' initialized; pid=1792
+Nov  8 22:12:26 host09      Ospf: %AGENT-6-INITIALIZED: Agent 'Ospf' initialized; pid=1698
+Nov  8 22:12:26 host09      Lldp: %LLDP-5-NEIGHBOR_NEW: LLDP neighbor with chassisId 0000.5e00.5309 and portId "Et0/0" added on interface Management0
+Nov  8 22:12:26 host09      Ospf: Commence routing updates
+Nov  8 22:12:27 host09      Lldp: %LLDP-5-NEIGHBOR_NEW: LLDP neighbor with chassisId 0000.5e00.5309 and portId "Et0/1" added on interface Ethernet5
+Nov  8 22:12:27 host09      IpRib: %IPRIB-5-RIBREADY_IGP: IGP protocols in VRF default have converged
+Nov  8 22:12:27 host09      IpRib: %IPRIB-5-RIBREADY_PROTO: All protocols in VRF default have converged
+Nov  8 22:12:27 host09      IpRib: %IPRIB-5-RIBREADY_FIB: All routes in VRF default are available in FIB
+Nov  8 22:12:28 host09      SuperServer: %SECURITY-6-SSL_PROFILE_VALID: SSL profile 'ARISTA_DEFAULT_SELF_SIGNED_PROFILE' is valid
+Nov  8 22:12:28 host09      SuperServer: %SECURITY-6-SSL_PROFILE_VALID: SSL profile 'ARISTA_DEFAULT_PROFILE' is valid
+Nov  8 22:12:39 host04 Lldp: %LLDP-5-NEIGHBOR_NEW: LLDP neighbor with chassisId 0000.5e00.5306 and portId "Gi0/0" added on interface Management0
+Nov  8 22:12:40 host04 Lldp: %LLDP-5-NEIGHBOR_NEW: LLDP neighbor with chassisId 0000.5e00.5307 and portId "Gi0/2" added on interface Ethernet1
+Nov  8 22:12:40 host04 Lldp: %LLDP-5-NEIGHBOR_NEW: LLDP neighbor with chassisId 0000.5e00.5307 and portId "Gi0/0" added on interface Management0
+Nov  8 22:12:45 host04 Stp: %SPANTREE-6-INTERFACE_STATE: Interface Ethernet6 instance MST0 moving from discarding to learning
+Nov  8 22:12:45 host04 Stp: %SPANTREE-6-INTERFACE_STATE: Interface Ethernet10 instance MST0 moving from discarding to learning
+Nov  8 22:12:45 host04 Stp: %SPANTREE-6-INTERFACE_STATE: Interface Ethernet11 instance MST0 moving from discarding to learning
+Nov  8 22:12:45 host04 Stp: %SPANTREE-6-INTERFACE_STATE: Interface Ethernet13 instance MST0 moving from discarding to learning
+Nov  8 22:12:45 host04 Stp: %SPANTREE-6-INTERFACE_STATE: Interface Ethernet4 instance MST0 moving from discarding to learning
+Nov  8 22:12:45 host04 Stp: %SPANTREE-6-INTERFACE_STATE: Interface Ethernet3 instance MST0 moving from discarding to learning
+Nov  8 22:12:45 host04 Stp: %SPANTREE-6-INTERFACE_STATE: Interface Ethernet15 instance MST0 moving from discarding to learning
+Nov  8 22:12:45 host04 Stp: %SPANTREE-6-INTERFACE_STATE: Interface Ethernet12 instance MST0 moving from discarding to learning
+Nov  8 22:12:45 host04 Stp: %SPANTREE-6-INTERFACE_STATE: Interface Ethernet7 instance MST0 moving from discarding to learning
+Nov  8 22:12:45 host04 Stp: %SPANTREE-6-INTERFACE_STATE: Interface Ethernet9 instance MST0 moving from discarding to learning
+Nov  8 22:12:45 host04 Stp: %SPANTREE-6-INTERFACE_STATE: Interface Ethernet14 instance MST0 moving from discarding to learning
+Nov  8 22:12:45 host04 Stp: %SPANTREE-6-INTERFACE_STATE: Interface Ethernet8 instance MST0 moving from discarding to learning
+Nov  8 22:12:45 host04 Stp: %SPANTREE-6-INTERFACE_STATE: Interface Ethernet2 instance MST0 moving from discarding to learning
+Nov  8 22:12:45 host04 Stp: %SPANTREE-6-INTERFACE_STATE: Interface Ethernet1 instance MST0 moving from discarding to learning
+Nov  8 22:12:45 host04 Stp: %SPANTREE-6-INTERFACE_STATE: Interface Ethernet6 instance MST0 moving from learning to forwarding
+Nov  8 22:12:45 host04 Stp: %SPANTREE-6-INTERFACE_STATE: Interface Ethernet10 instance MST0 moving from learning to forwarding
+Nov  8 22:12:45 host04 Stp: %SPANTREE-6-INTERFACE_STATE: Interface Ethernet11 instance MST0 moving from learning to forwarding
+Nov  8 22:12:45 host04 Stp: %SPANTREE-6-INTERFACE_STATE: Interface Ethernet13 instance MST0 moving from learning to forwarding
+Nov  8 22:12:45 host04 Stp: %SPANTREE-6-INTERFACE_STATE: Interface Ethernet4 instance MST0 moving from learning to forwarding
+Nov  8 22:12:45 host04 Stp: %SPANTREE-6-INTERFACE_STATE: Interface Ethernet3 instance MST0 moving from learning to forwarding
+Nov  8 22:12:45 host04 Stp: %SPANTREE-6-INTERFACE_STATE: Interface Ethernet15 instance MST0 moving from learning to forwarding
+Nov  8 22:12:45 host04 Stp: %SPANTREE-6-INTERFACE_STATE: Interface Ethernet12 instance MST0 moving from learning to forwarding
+Nov  8 22:12:45 host04 Stp: %SPANTREE-6-INTERFACE_STATE: Interface Ethernet7 instance MST0 moving from learning to forwarding
+Nov  8 22:12:45 host04 Stp: %SPANTREE-6-INTERFACE_STATE: Interface Ethernet9 instance MST0 moving from learning to forwarding
+Nov  8 22:12:45 host04 Stp: %SPANTREE-6-INTERFACE_STATE: Interface Ethernet14 instance MST0 moving from learning to forwarding
+Nov  8 22:12:45 host04 Stp: %SPANTREE-6-INTERFACE_STATE: Interface Ethernet8 instance MST0 moving from learning to forwarding
+Nov  8 22:12:45 host04 Stp: %SPANTREE-6-INTERFACE_STATE: Interface Ethernet2 instance MST0 moving from learning to forwarding
+Nov  8 22:12:45 host04 Stp: %SPANTREE-6-INTERFACE_STATE: Interface Ethernet1 instance MST0 moving from learning to forwarding
+Nov  8 22:12:45 host04 Stp: %SPANTREE-6-INTERFACE_STATE: Interface Ethernet5 instance MST0 moving from discarding to learning
+Nov  8 22:12:45 host04 Stp: %SPANTREE-6-INTERFACE_STATE: Interface Ethernet5 instance MST0 moving from learning to forwarding
+Nov  8 22:12:52 host04 Ospf: Instance 29: %OSPF-4-OSPF_ADJACENCY_ESTABLISHED: NGB 203.0.113.135, interface 192.0.2.3  adjacency established
+Nov  8 22:12:58 host04 Ospf: Instance 29: %OSPF-4-OSPF_ADJACENCY_ESTABLISHED: NGB 203.0.113.129, interface 192.0.2.3  adjacency established
+Nov  8 22:13:03 host04 ConfigAgent: %SYS-5-CONFIG_E: Enter configuration mode by root on UnknownTty (UnknownIpAddr)
+Nov  8 22:13:03 host04 ConfigAgent: %SYS-5-CONFIG_I: Configured by root on UnknownTty (UnknownIpAddr)
+Nov  8 22:13:04 host04 ConfigAgent: %SYS-5-CONFIG_STARTUP: Startup config saved from system:/running-config by root on UnknownTty (UnknownIpAddr).
+Nov  8 22:13:15 host04 Stp: %SPANTREE-6-STABLE_CHANGE: Stp state is now stable
+Nov  8 22:14:29 host04 SuperServer: %SYS-5-SYSTEM_RESTARTED: System restarted
+Nov  8 22:14:29 host04 SuperServer: %SYS-6-SYSTEM_INFO: Software image version: 4.36.1F-48405728.4361F (engineering build)
+Nov  8 22:14:29 host04 SuperServer: %SYS-6-SYSTEM_INFO: Model: cEOSLab
+Nov  8 22:14:29 host04 SuperServer: %SYS-6-SYSTEM_INFO: Serial number: S000S0000SS0SSS0SSS0S0S000S00S04
+Nov  8 22:15:29 host04 Lldp: %LLDP-5-NEIGHBOR_NEW: LLDP neighbor with chassisId 0000.5e00.530a and portId "1" added on interface Ethernet2
+Nov  8 22:15:58 host04 Lldp: %LLDP-5-NEIGHBOR_NEW: LLDP neighbor with chassisId 0000.5e00.530a and portId "mgmt" added on interface Management0
+Nov  8 22:18:17 host04 PhyEthtool-1: %ETH-4-SETPAUSEPARAMFAIL: Failed to set pause parameters on interface Management0 ([Errno 95] Operation not supported) (message repeated 9 times in 369.449 secs)
+Nov  8 22:19:37 host04 Stp: %SPANTREE-6-STABLE_CHANGE: Stp state is now not stable
+Nov  8 22:19:37 host04 Stp: %SPANTREE-6-MSTP_REGION_BORDER_DETECTED: MSTP region border detected on Ethernet3
+Nov  8 22:20:45 host04 Lldp: %LLDP-5-NEIGHBOR_NEW: LLDP neighbor with chassisId 0000.5e00.5308 and portId "mgmt0" added on interface Management0
+Nov  8 22:20:45 host04 Lldp: %LLDP-5-NEIGHBOR_NEW: LLDP neighbor with chassisId 0000.5e00.5316 and portId "Ethernet1/1" added on interface Ethernet3
+Nov  8 22:21:01 host04 Stp: %SPANTREE-6-STABLE_CHANGE: Stp state is now stable
+Nov  8 22:21:03 host04 Ospf: Instance 29: %OSPF-4-OSPF_ADJACENCY_ESTABLISHED: NGB 203.0.113.133, interface 192.0.2.3  adjacency established
+Nov  8 22:22:06 host04 ReloadCauseAgent: %SYS-6-SYSTEM_INFO: Reload Cause 1: Unknown
+Nov  8 22:22:07 host04 PhyEthtool-1: %ETH-4-POLLLINKSTATUSFAIL: Failed to poll link status on interface Management0 ([Errno 95] Operation not supported) (message repeated 311 times in 600.687 secs)
+Nov  8 22:22:52 host04 Lldp: %LLDP-5-NEIGHBOR_TIMEOUT: LLDP neighbor with chassisId 0000.5e00.5316 and portId "Ethernet1/1" timed out on interface Ethernet3
+Nov  8 22:24:17 host04 PhyEthtool-1: %ETH-4-SETPAUSEPARAMFAIL: Failed to set pause parameters on interface Management0 ([Errno 95] Operation not supported) (message repeated 2 times in 360.086 secs)
+Nov  8 22:30:17 host04 PhyEthtool-1: %ETH-4-SETPAUSEPARAMFAIL: Failed to set pause parameters on interface Management0 ([Errno 95] Operation not supported) (message repeated 2 times in 360.088 secs)
+Nov  8 22:32:07 host04 PhyEthtool-1: %ETH-4-POLLLINKSTATUSFAIL: Failed to poll link status on interface Management0 ([Errno 95] Operation not supported) (message repeated 304 times in 600.143 secs)
+Nov  8 22:36:17 host04 PhyEthtool-1: %ETH-4-SETPAUSEPARAMFAIL: Failed to set pause parameters on interface Management0 ([Errno 95] Operation not supported) (message repeated 2 times in 360.085 secs)
+Nov  8 22:42:07 host04 PhyEthtool-1: %ETH-4-POLLLINKSTATUSFAIL: Failed to poll link status on interface Management0 ([Errno 95] Operation not supported) (message repeated 304 times in 600.146 secs)
+Nov  8 22:42:17 host04 PhyEthtool-1: %ETH-4-SETPAUSEPARAMFAIL: Failed to set pause parameters on interface Management0 ([Errno 95] Operation not supported) (message repeated 2 times in 360.097 secs)
+Nov  8 22:48:17 host04 PhyEthtool-1: %ETH-4-SETPAUSEPARAMFAIL: Failed to set pause parameters on interface Management0 ([Errno 95] Operation not supported) (message repeated 2 times in 360.086 secs)
+Nov  8 22:48:38 host04 Ospf: Instance 29: %OSPF-4-OSPF_ADJACENCY_TEARDOWN: NGB 203.0.113.133, interface 192.0.2.3  adjacency dropped: nbr did not list our router ID, state was: FULL
+Nov  8 22:48:52 host04 Ospf: Instance 29: %OSPF-4-OSPF_ADJACENCY_ESTABLISHED: NGB 203.0.113.133, interface 192.0.2.3  adjacency established
+Nov  8 22:52:07 host04 PhyEthtool-1: %ETH-4-POLLLINKSTATUSFAIL: Failed to poll link status on interface Management0 ([Errno 95] Operation not supported) (message repeated 304 times in 600.15 secs)
+Nov  8 22:53:26 host04 SystemInitMonitor: %SYS-4-SYSTEM_INITIALIZATION_TIMEOUT: System is declared initialized (some agents such as PhyEthtool-1 are not ready)
+Nov  8 22:53:26 host04 SuperServer: %SYS-5-CLI_SCHEDULER_ENABLED: CliScheduler is enabled, continuing its execution of scheduled CLI jobs.
+Nov  8 22:53:26 host04 ProcLauncher-1: %LAUNCHER-6-PROCESS_STOP: Configuring process 'SystemInitMonitor' to stop in role 'ActiveSupervisor'
+Nov  8 22:53:26 host04 ProcMgr: %PROCMGR-6-COMMAND_RECEIVED: ProcMgr has received 'warm start' command
+Nov  8 22:53:26 host04 ProcMgr: %PROCMGR-6-WORKER_WARMSTART: ProcMgr worker warm start. (PID=1193)
+Nov  8 22:53:26 host04 ProcMgr: %PROCMGR-7-PROCESSES_DECONFIGURED: Processes no longer running under ProcMgr control: ['SystemInitMonitor']
+Nov  8 22:53:26 host04 ProcMgr: %PROCMGR-7-PROCESSES_ADOPTED: ProcMgr (PID=1193) adopted running processes:  (ProcLauncher-1, PID=1240) (PerfMonitor, PID=1241) (Sysdb, PID=1242) (Fru, PID=1243) (Launcher, PID=1244) (ConfigAgent, PID=1245) (StageMgr, PID=1246) (KernelNetworkInfo, PID=1523) (PhyEthtool-1, PID=1524) (SuperServer, PID=1525) (Etba, PID=1526) (ReloadCauseAgent, PID=1527) (Acl, PID=1528) (Aaa, PID=1529) (Ira, PID=1530) (Ebra, PID=1531) (LacpTxAgent, PID=1636) (AgentMonitor, PID=1637) (IgmpSnooping, PID=1638) (ConnectedRoute, PID=1639) (SharedSecretProfile, PID=1640) (RouteCache, PID=1641) (TopoAgent, PID=1643) (FibServices, PID=1644) (EventMgr, PID=1645) (Dot1x, PID=1646) (Bfd, PID=1647) (Qos, PID=1648) (L2Rib, PID=1655) (IfIndex, PID=1665) (PortSec, PID=1666) (ArfaAegis, PID=1676) (Arp, PID=1677) (rbfdu, PID=1678) (McastCommon, PID=1695) (Ospf, PID=1698) (XcvrCentralAgent, PID=1700) (StpTxRx, PID=1701) (KernelFib, PID=1702) (Lag, PID=1711) (McastCommon6, PID=1732) (ArfaState, PID=1733) (RouteInput, PID=1734) (StpTopology, PID=1735) (Tunnel, PID=1736) (Stp, PID=1737) (AgentMonitorWorker-1, PID=1741) (Lldp, PID=1777) (IpRib, PID=1792)
+Nov  8 22:53:26 host04 ProcMgr: %PROCMGR-6-TERMINATE_RUNNING_PROCESS: Terminating deconfigured/reconfigured process 'SystemInitMonitor' (PID=1667)
+Nov  8 22:53:26 host04 ProcMgr: %PROCMGR-7-WORKER_WARMSTART_DONE: ProcMgr worker warm start done. (PID=1193)
+Nov  8 22:53:26 host04 ProcMgr: %PROCMGR-6-PROCESS_TERMINATED: 'SystemInitMonitor' (PID=1667, status=-9) has terminated.
+Nov  8 22:54:02 host04 Lldp: %LLDP-5-NEIGHBOR_NEW: LLDP neighbor with chassisId 0000.5e00.5315 and portId "521" added on interface Ethernet4
+Nov  8 22:54:17 host04 PhyEthtool-1: %ETH-4-SETPAUSEPARAMFAIL: Failed to set pause parameters on interface Management0 ([Errno 95] Operation not supported) (message repeated 2 times in 360.087 secs)
+Nov  8 22:59:19 host04 ConfigAgent: %SYS-5-CONFIG_E: Enter configuration mode by netops-admin on UnknownTty (198.51.100.36)
+Nov  8 22:59:19 host04 Stp: %SPANTREE-6-STABLE_CHANGE: Stp state is now not stable
+Nov  8 22:59:19 host04 Stp: %SPANTREE-6-INTERFACE_DEL: Interface Ethernet6 has been removed from instance MST0
+Nov  8 22:59:19 host04 Lag: %LAG-5-MEMBER_ADDED: Interface Ethernet6 has joined Port-Channel1
+Nov  8 22:59:19 host04 Ebra: %LINEPROTO-5-UPDOWN: Line protocol on Interface Port-Channel1 (VRF default), changed state to up
+Nov  8 22:59:19 host04 Stp: %SPANTREE-6-INTERFACE_ADD: Interface Port-Channel1 has been added to instance MST0
+Nov  8 22:59:19 host04 ConfigAgent: %SYS-5-CONFIG_I: Configured by netops-admin on UnknownTty (198.51.100.36)
+Nov  8 22:59:39 host04 Stp: %SPANTREE-6-INTERFACE_STATE: Interface Port-Channel1 instance MST0 moving from discarding to learning
+Nov  8 22:59:39 host04 Stp: %SPANTREE-6-INTERFACE_STATE: Interface Port-Channel1 instance MST0 moving from learning to forwarding
+Nov  8 22:59:44 host04 Ospf: Instance 29: %OSPF-4-OSPF_ADJACENCY_TEARDOWN: NGB 203.0.113.133, interface 192.0.2.3  adjacency dropped: inactivity timer expired, state was: FULL
+Nov  8 22:59:53 host04 Ospf: Instance 29: %OSPF-4-OSPF_ADJACENCY_ESTABLISHED: NGB 203.0.113.133, interface 192.0.2.3  adjacency established
+Nov  8 23:00:09 host04 Stp: %SPANTREE-6-STABLE_CHANGE: Stp state is now stable
+Nov  8 23:00:17 host04 PhyEthtool-1: %ETH-4-SETPAUSEPARAMFAIL: Failed to set pause parameters on interface Management0 ([Errno 95] Operation not supported) (message repeated 2 times in 360.115 secs)
+Nov  8 23:02:08 host04 PhyEthtool-1: %ETH-4-POLLLINKSTATUSFAIL: Failed to poll link status on interface Management0 ([Errno 95] Operation not supported) (message repeated 304 times in 600.258 secs)
+Nov  8 23:04:06 host04 ConfigAgent: %SYS-5-CONFIG_E: Enter configuration mode by netops-admin on UnknownTty (198.51.100.36)
+Nov  8 23:04:06 host04 ConfigAgent: %SYS-5-CONFIG_I: Configured by netops-admin on UnknownTty (198.51.100.36)

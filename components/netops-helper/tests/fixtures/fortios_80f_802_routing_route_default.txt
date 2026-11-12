@@ -1,0 +1,6 @@
+Routing table for VRF=default(0)
+Routing entry for 0.0.0.0/0
+  Known via "static", distance 1, metric 0, best
+  * vrf default(0) 198.51.100.1, via wan1, origin 2
+  * vrf default(0) 203.0.113.225, via LTE-1, origin 2
+    vrf default(0) 203.0.113.129, via LTE-2 inactive, origin 2

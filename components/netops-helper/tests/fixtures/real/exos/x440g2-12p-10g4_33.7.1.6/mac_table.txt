@@ -1,0 +1,42 @@
+MAC                                      VLAN Name( Tag)  Age  Flags          Port / Virtual Port List
+------------------------------------------------------------------------------------------------------
+00:00:5e:00:53:0a                          Default(0001) 0119  d m            1
+00:00:5e:00:53:0c                          Default(0001) 0025  d m            11
+00:00:5e:00:53:08                          Default(0001) 0028  d m            1
+00:00:5e:00:53:0e                          Default(0001) 0027  d m            1
+00:00:5e:00:53:0f                          Default(0001) 0024  d m            1
+00:00:5e:00:53:17                          Default(0001) 0057  d m            9
+00:00:5e:00:53:10                          Default(0001) 0020  d m            1
+00:00:5e:00:53:18                           VLAN40(0040) 0006  d m            1
+00:00:5e:00:53:19                           VLAN40(0040) 0020  d m            1
+00:00:5e:00:53:1a                           VLAN40(0040) 0042  d m            1
+00:00:5e:00:53:04                          Default(0001) 0018  d m            1
+00:00:5e:00:53:1b                           VLAN40(0040) 0036  d m            1
+00:00:5e:00:53:1c                              V20(0020) 0048  d m            1
+00:00:5e:00:53:14                          Default(0001) 0116  d m            1
+00:00:5e:00:53:1d                              V20(0020) 0025  d m            1
+00:00:5e:00:53:06                          Default(0001) 0025  d m            1
+00:00:5e:00:53:03                          Default(0001) 0001  d m            1
+00:00:5e:00:53:01                          Default(0001) 0026  d m            1
+00:00:5e:00:53:01                              V20(0020) 0150  d m            1
+00:00:5e:00:53:11                          Default(0001) 0036  d m            1
+00:00:5e:00:53:16                          Default(0001) 0001  d m            3
+00:00:5e:00:53:12                          Default(0001) 0104  d m            1
+00:00:5e:00:53:05                          Default(0001) 0092  d m            1
+00:00:5e:00:53:15                          Default(0001) 0025  d m            1
+00:00:5e:00:53:02                          Default(0001) 0086  d m            1
+00:00:5e:00:53:02                          VLAN100(0100) 0031  d m            1
+00:00:5e:00:53:13                          Default(0001) 0026  d m            1
+00:00:5e:00:53:13                          VLAN100(0100) 0040  d m            1
+00:00:5e:00:53:0b                          Default(0001) 0026  d m            7
+00:00:5e:00:53:07                          Default(0001) 0030  d m            1
+
+Flags : d - Dynamic, s - Static, p - Permanent, n - NetLogin, m - MAC, i - IP,
+        x - IPX, l - lockdown MAC, L - lockdown-timeout MAC, M- Mirror, B - Egress Blackhole,
+        b - Ingress Blackhole, v - MAC-Based VLAN, P - Private VLAN, T - VLAN translation,
+        D - drop packet, h - Hardware Aging (Age=0), o - IEEE 802.1ah Backbone MAC,
+        S - Software Controlled Deletion, r - MSRP,
+        X - VXLAN, E - EVPN
+
+Total: 30 Static: 0  Perm: 0  Dyn: 30  Dropped: 0  Locked: 0  Locked with Timeout: 0
+FDB Aging time: 300

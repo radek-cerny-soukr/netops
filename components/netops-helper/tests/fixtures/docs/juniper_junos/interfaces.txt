@@ -1,0 +1,36 @@
+Interface               Admin Link Proto    Local                 Remote
+ge-0/0/0                up    up
+ge-0/0/0.0              up    up   inet     198.51.100.1/24 
+                                   inet6    fe80::3401/64
+                                            2001:db8:10::1/64
+ge-0/0/1                up    down
+gr-0/0/0                up    up
+ip-0/0/0                up    up
+lsq-0/0/0               up    up
+lt-0/0/0                up    up
+mt-0/0/0                up    up
+sp-0/0/0                up    up
+sp-0/0/0.0              up    up   inet     
+                                   inet6    
+sp-0/0/0.16383          up    up   inet     203.0.113.193       --> 203.0.113.208
+bme0                    up    up
+bme0.32768              up    up   inet     192.0.2.241/2   
+                                            192.0.2.246/2   
+                                            192.0.2.248/2   
+                                   tnp      0x1000010       
+dsc                     up    up
+em0                     up    up
+em0.0                   up    up   inet     203.0.113.101/24 
+gre                     up    up
+ipip                    up    up
+irb                     up    up
+irb.10                  up    up   inet     198.51.100.254/24 
+lo0                     up    up
+lo0.0                   up    up   inet     203.0.113.1         --> 0/0
+lo0.16384               up    up   inet     127.0.0.1           --> 0/0
+lsi                     up    up
+mtun                    up    up
+pimd                    up    up
+pime                    up    up
+tap                     up    up
+vme                     up    down

@@ -1,0 +1,51 @@
+{
+ "interfaces": {
+  "command": "show interfaces status",
+  "rc": 0,
+  "lines": 18,
+  "captured_at": "2026-11-10T08:53:39.100Z",
+  "account": "netops-ro"
+ },
+ "interfaces_trunk": {
+  "command": "show interfaces trunk",
+  "rc": 0,
+  "lines": 27,
+  "captured_at": "2026-11-10T08:53:41.053Z",
+  "account": "netops-ro"
+ },
+ "vlans": {
+  "command": "show vlan",
+  "rc": 0,
+  "lines": 7,
+  "captured_at": "2026-11-10T08:53:43.005Z",
+  "account": "netops-ro"
+ },
+ "mac_table": {
+  "command": "show mac address-table",
+  "rc": 0,
+  "lines": 20,
+  "captured_at": "2026-11-10T08:53:44.950Z",
+  "account": "netops-ro"
+ },
+ "ip_interfaces": {
+  "command": "show ip interface brief",
+  "rc": 0,
+  "lines": 8,
+  "captured_at": "2026-11-10T08:53:46.900Z",
+  "account": "netops-ro"
+ },
+ "arp_table": {
+  "command": "show ip arp",
+  "rc": 0,
+  "lines": 12,
+  "captured_at": "2026-11-10T08:53:50.883Z",
+  "account": "netops-ro"
+ },
+ "lldp_neighbors_detail": {
+  "command": "show lldp neighbors detail",
+  "rc": 0,
+  "lines": 240,
+  "captured_at": "2026-11-10T08:53:52.845Z",
+  "account": "netops-ro"
+ }
+}

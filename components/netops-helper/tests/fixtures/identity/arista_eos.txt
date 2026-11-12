@@ -1,0 +1,5 @@
+Arista DCS-7150S-64-CL-F
+Hardware version: 01.01
+Serial number: LAB00000004
+Software image version: 4.13.2F
+Uptime: 1 hour and 36 minutes

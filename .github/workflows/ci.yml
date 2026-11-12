@@ -3,7 +3,7 @@ name: CI
 on:
   push:
     branches-ignore:
-      - "release/1.0.6-candidate"
+      - "release/1.0.7-candidate"
     tags:
       - "**"
   pull_request:
@@ -31,6 +31,9 @@ jobs:
 
       - name: Install locked SBOM validation tooling
         run: 'python3 -m pip install --only-binary=:all: --require-hashes -r release/requirements-sbom.lock'
+
+      - name: Run the repository tests
+        run: python3 -B -m unittest discover -s tests
 
       - name: Test the release and acceptance tooling
         env:

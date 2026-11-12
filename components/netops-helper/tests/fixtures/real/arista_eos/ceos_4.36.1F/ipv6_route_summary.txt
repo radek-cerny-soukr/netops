@@ -1,0 +1,30 @@
+
+Operating routing protocol model: multi-agent
+Configured routing protocol model: multi-agent
+
+VRF: default
+   Route Source                               Number Of Routes
+------------------------------------- ------------------------
+   connected                                                 0
+   static (persistent)                                       0
+   static (non-persistent)                                   0
+   static nexthop-group                                      0
+   ospf                                                      0
+    Intra-area: 0 Inter-area: 0 External-1: 0 External-2: 0   
+    NSSA External-1: 0 NSSA External-2: 0                     
+   bgp                                                       0
+     External: 0 Internal: 0                                  
+   isis                                                      0
+     Level-1: 0 Level-2: 0                                    
+   internal                                                  3
+   attached                                                  0
+   dhcp                                                      0
+   aggregate                                                 0
+   dynamic policy                                            0
+   gribi                                                     0
+                                                              
+   Total Routes                                              3
+
+Number of routes per mask-length:
+   /10: 1        /96: 1        /104: 1       
+

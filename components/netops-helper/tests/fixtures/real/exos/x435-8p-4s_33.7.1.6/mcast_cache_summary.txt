@@ -1,0 +1,10 @@
+Snooping/MVR Cache Timeout: 300 sec 
+
+
+==============MULTICAST CACHE SUMMARY==============
+
+Multicast cache distribution:
+     6 entries from Snooping           0 entries from MVR           0 entries from PIM
+
+
+Total Cache Entries: 6 

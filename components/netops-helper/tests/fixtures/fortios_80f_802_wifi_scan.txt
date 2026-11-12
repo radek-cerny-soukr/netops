@@ -1,0 +1,34 @@
+CMWF VF  SSID                BSSID              CHAN RATE SIGNAL NOISE  INT CAPS ACT LIVE  AGE WIRED
+                                                         (dBm)  (dBm)                              
+UNNN 0   ssid-01             00:00:5e:00:53:0e   48  866M  -71    -95   100 EPs   Y  8565  384   ?    WME ATH VEN WPA CCMP TKIP RSN VEN VEN
+UNNN 0   ssid-01             00:00:5e:00:53:0f   13  216M  -74    -95   100 EPS   Y  8500  253   ?    WME ATH VEN WPA CCMP TKIP RSN VEN VEN
+UNNN 0   ssid-02             00:00:5e:00:53:10    8  144M  -82    -95   100 EPs   Y  8564  692   ?    WPA CCMP TKIP RSN WME VEN VEN VEN VEN VEN VEN
+UNNN 0   ssid-03             00:00:5e:00:53:11   44  360M  -88    -95   100 EP    Y  8565  389   ?    RSN CCMP WME VEN VEN VEN
+UNNN 0   ssid-04             00:00:5e:00:53:12    3  144M  -80    -95   100 EPs   Y  8565   22   ?    RSN CCMP WME VEN VEN VEN
+UNNN 0   ssid-05             00:00:5e:00:53:13    1  144M  -87    -95   100 EPSs  Y  8552    3   ?    VEN RSN CCMP WME VEN VEN VEN
+UNNN 0                       00:00:5e:00:53:14   48  866M  -71    -95   100 EPs   Y  8565  385   ?    WME ATH RSN CCMP VEN VEN
+UNNN 0                       00:00:5e:00:53:15   13  216M  -82    -95   100 EPS   Y  8562  253   ?    WME ATH RSN CCMP VEN VEN
+UNNN 0                       00:00:5e:00:53:16  104  173M  -90    -95   100 Es    Y  8561  354   ?    WME ATH VEN VEN VEN
+UNNN 0                       00:00:5e:00:53:17  108  173M  -83    -95   100 Es    Y  8561  349   ?    WME ATH VEN VEN VEN
+UNNN 0   ssid-06             00:00:5e:00:53:18    6  286M  -86    -95   100 EPSs  Y  8495   30   ?    RSN CCMP VEN WME VEN VEN VEN VEN VEN
+UNNN 0                       00:00:5e:00:53:19    6  286M  -87    -95   100 EPSs  Y  8495   30   ?    RSN CCMP VEN WME VEN VEN VEN VEN
+UNNN 0   ssid-07             00:00:5e:00:53:1a    1   54M  -86    -95   100 EPSs  Y  8541    1   ?    RSN CCMP TKIP WPA ATH VEN VEN VEN
+UNNN 0   ssid-08             00:00:5e:00:53:1b   11  216M  -73    -95   100 ESs   Y  8563  263   ?    WME VEN VEN VEN
+UNNN 0   ssid-09             00:00:5e:00:53:1c   56  540M  -57    -95   100 EP    Y  8563  374   ?    WME RSN CCMP VEN VEN VEN
+UNNN 0   ssid-10             00:00:5e:00:53:1d   11  216M  -71    -95   100 EPSs  Y  8563  263   ?    WME RSN CCMP VEN VEN VEN
+UNNN 0                       00:00:5e:00:53:1e  157   54M  -53    -95   100 EPSs  Y  8564  293   ?    VEN VEN VEN
+UNNN 0                       00:00:5e:00:53:1f  165   54M  -81    -95   100 EPSs  Y  6525  283   ?    VEN VEN VEN
+UNNN 0                       00:00:5e:00:53:20    6  573M  -89    -95   100 EPSs  N  8484 3056   ?    RSN CCMP WME VEN VEN VEN VEN
+UNNN 0                       00:00:5e:00:53:21    6  573M  -90    -95   100 EPSs  N  8452 2585   ?    RSN CCMP WME VEN VEN VEN VEN
+UNNN 0   ssid-11             00:00:5e:00:53:22    1  144M  -86    -95   100 EPs   Y  5616    1   ?    RSN CCMP TKIP VEN WPA WME VEN VEN
+UNNN 0                       00:00:5e:00:53:23  120  400M  -95    -95   100 Es    N  5494 5494   ?    WME ATH VEN VEN VEN
+UNNN 0                       00:00:5e:00:53:24  140  173M  -95    -95   100 EPs   N  6944 6944   ?    RSN CCMP WME ATH VEN VEN VEN
+UNNN 0                       00:00:5e:00:53:25  128  173M  -95    -95   100 EPs   N  6960 2536   ?    RSN CCMP WME ATH VEN VEN VEN
+UNNN 0   ssid-12             00:00:5e:00:53:26    9  295M  -82    -95   100 EPs   Y  7652  689   ?    RSN CCMP VEN VEN VEN VEN WME VEN VEN
+UNNN 0   ssid-13             00:00:5e:00:53:27   10  144M  -85    -95   100 EP    Y  8563  268   ?    RSN CCMP VEN WPA WME VEN VEN
+UNNN 0   ssid-14             00:00:5e:00:53:28    6   72M  -89    -95   100 EPs   N  3398 3397   ?    RSN CCMP VEN VEN VEN WME VEN VEN
+UNNN 0                       00:00:5e:00:53:29  100  173M  -79    -95   100 Es    Y  8562  359   ?    WME ATH VEN VEN VEN
+UNNN 0   ssid-15             00:00:5e:00:53:2a    1  300M  -88    -95    25 EPs   N  8310 5784   ?    WPA CCMP TKIP RSN WME VEN VEN VEN VEN VEN VEN
+UNNN 0                       00:00:5e:00:53:2b  136  173M  -90    -95   100 EPs   Y  5799  314   ?    RSN CCMP WME ATH VEN VEN VEN
+UNNN 0                       00:00:5e:00:53:2c   52  173M  -90    -95   100 EPs   N  5128 5127   ?    RSN CCMP WME ATH VEN VEN VEN
+UNNN 0   ssid-16             00:00:5e:00:53:2d    6  144M  -90    -95   100 EPSs  N  6099 2923   ?    RSN CCMP WME VEN VEN

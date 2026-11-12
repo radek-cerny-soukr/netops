@@ -1,0 +1,34 @@
+----- reset reason for module 27 (from Supervisor in slot 27) ---
+1) No time
+    Reason: Unknown
+    Service: 
+    Version: 
+2) No time
+    Reason: Unknown
+    Service: 
+    Version: 
+3) No time
+    Reason: Unknown
+    Service: 
+    Version: 
+4) No time
+    Reason: Unknown
+    Service: 
+    Version: 
+----- reset reason for module 28 (from Supervisor in slot 27) ---
+1) No time
+    Reason: Unknown
+    Service: 
+    Version: 
+2) No time
+    Reason: Unknown
+    Service: 
+    Version: 
+3) No time
+    Reason: Unknown
+    Service: 
+    Version: 
+4) No time
+    Reason: Unknown
+    Service: 
+    Version: 

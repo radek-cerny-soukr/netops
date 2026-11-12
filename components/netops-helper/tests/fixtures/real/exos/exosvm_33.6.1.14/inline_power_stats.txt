@@ -1,0 +1,4 @@
+
+Inline-Power Slot Statistics
+Firmware status               : Not Operational
+Firmware revision             : 

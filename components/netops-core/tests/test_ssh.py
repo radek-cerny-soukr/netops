@@ -1,3 +1,4 @@
+import sys
 import os
 import stat
 import subprocess
@@ -7,6 +8,7 @@ import pytest
 
 from netops_core.legacy_ssh import LegacySshError
 from netops_core.ssh import (
+    ASKPASS_SCRIPT,
     CONFIG_FILE,
     DEFAULT_TIMEOUT_SECONDS,
     OPTIONS,
@@ -90,19 +92,19 @@ class FakeRun:
         for entry in call:
             if entry.startswith("UserKnownHostsFile="):
                 path = entry.split("=", 1)[1]
-                self.known_hosts = open(path, encoding="utf-8").read()
+                self.known_hosts = __import__('pathlib').Path(path).read_text(encoding="utf-8")
                 self.workspace = os.path.dirname(path)
         if "-i" in call:
             path = call[call.index("-i") + 1]
-            self.identity = open(path, "rb").read()
+            self.identity = __import__('pathlib').Path(path).read_bytes()
             self.identity_mode = stat.S_IMODE(os.stat(path).st_mode)
         secret = environment.get("NETOPS_ASKPASS_FILE")
         if secret:
-            self.secret = open(secret, "rb").read()
+            self.secret = __import__('pathlib').Path(secret).read_bytes()
             self.secret_mode = stat.S_IMODE(os.stat(secret).st_mode)
         askpass = environment.get("SSH_ASKPASS")
         if askpass:
-            self.askpass = open(askpass, encoding="utf-8").read()
+            self.askpass = __import__('pathlib').Path(askpass).read_text(encoding="utf-8")
             self.askpass_mode = stat.S_IMODE(os.stat(askpass).st_mode)
             self.askpass_executable = os.access(askpass, os.X_OK)
 
@@ -153,7 +155,8 @@ def test_the_hardening_options_are_written_down_in_this_module():
     assert PASSWORD_OPTIONS[0] == "BatchMode=no"
     assert PASSWORD_OPTIONS[1:8] == OPTIONS[1:]
     assert PASSWORD_OPTIONS[8:] == (
-        "PreferredAuthentications=password", "KbdInteractiveAuthentication=no",
+        "PreferredAuthentications=password,keyboard-interactive", "KbdInteractiveAuthentication=yes",
+        "PasswordAuthentication=yes",
         "NumberOfPasswordPrompts=1", "PubkeyAuthentication=no",
     )
     assert DEFAULT_TIMEOUT_SECONDS == 120.0
@@ -257,7 +260,7 @@ def test_a_password_call_hands_the_secret_over_through_a_file_and_askpass(monkey
     assert environment["DISPLAY"] == "none"
     assert os.path.dirname(environment["NETOPS_ASKPASS_FILE"]) == run.workspace
     assert os.path.dirname(environment["SSH_ASKPASS"]) == run.workspace
-    assert run.askpass == '#!/bin/sh\ncat "$NETOPS_ASKPASS_FILE"\n'
+    assert run.askpass == "#!%s -I\n" % sys.executable + ASKPASS_SCRIPT.partition("\n")[2]
     assert run.askpass_mode == 0o700
     assert run.askpass_executable
     assert run.secret_mode == 0o600
@@ -355,6 +358,28 @@ def test_a_nonzero_exit_names_the_code_and_a_recognized_reason():
     assert error.rc == 255
     assert error.said == "Permission denied (publickey)."
     assert "legacy_ssh" not in str(error)
+
+
+def test_the_closing_client_line_is_kept_apart_from_a_banner_before_it():
+    banner = b"Banner: Permission denied to anyone without a contract.\r\n" + b"x" * 300 + b"\n"
+    error = failure(FakeRun(returncode=255, stdout=b"", stderr=banner + b"Connection closed by 192.0.2.10 port 22\n"))
+    assert error.final == "Connection closed by 192.0.2.10 port 22"
+    assert "Banner" in error.said and "Banner" not in error.final
+    askpass = b"netops-askpass: ssh_auth_method_unsupported: expected a password prompt\nPermission denied (keyboard-interactive).\n"
+    error = failure(FakeRun(returncode=255, stdout=b"", stderr=b"Banner line\n" + askpass))
+    assert error.final == ("netops-askpass: ssh_auth_method_unsupported: expected a password prompt "
+                           "Permission denied (keyboard-interactive).")
+    assert failure(FakeRun(returncode=255, stdout=b"", stderr=b"")).final == ""
+
+
+def test_a_banner_naming_no_matching_steers_neither_the_reason_nor_the_remedy():
+    banner = b"Authorized access only: no matching access request means permission denied.\r\n"
+    refused = b"reader@192.0.2.10: Permission denied (password,keyboard-interactive).\n"
+    error = failure(FakeRun(returncode=255, stdout=b"", stderr=banner + refused))
+    assert error.final == "reader@192.0.2.10: Permission denied (password,keyboard-interactive)."
+    assert "the device refused the credential" in str(error)
+    assert "share no algorithm" not in str(error) and "legacy_ssh" not in str(error)
+    assert "Authorized access" not in str(error)
 
 
 def test_what_the_client_said_is_trimmed_and_carries_no_control_characters():

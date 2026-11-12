@@ -1,0 +1,2 @@
+Hostname: host04
+FQDN:     host04

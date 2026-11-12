@@ -1,0 +1,3 @@
+
+> show ipv6 interface brief
+% No IPv6 configured interfaces at line 1

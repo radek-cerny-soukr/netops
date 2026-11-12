@@ -1,0 +1,73 @@
+
+System Memory Information
+-------------------------
+ Total DRAM (KB): 524288
+ System     (KB): 12904
+ User       (KB): 262596
+ Free       (KB): 248788
+
+Memory Utilization Statistics
+-----------------------------
+
+ Process Name     Memory (KB)
+-----------------------------
+ aaa              4015            
+ acl              1633            
+ cfgmgr           1936            
+ cli              20813           
+ devmgr           1259            
+ dirser           440             
+ dnsAnalytics     1230            
+ dosprotect       776             
+ dot1ag           1672            
+ eaps             1695            
+ edp              1760            
+ elrp             1427            
+ elsm             635             
+ ems              2550            
+ epm              2280            
+ erps             1452            
+ esrp             1186            
+ etmon            1865            
+ exacl            0               
+ exdhcpsnoop      0               
+ exdos            0               
+ exnasnoop        0               
+ exosq            0               
+ expolicy         0               
+ exprocfs         0               
+ exsflow          0               
+ exsnoop          0               
+ exsshd           1828            
+ exvlan           0               
+ fdb              2831            
+ gptp             0               
+ hal              39439           
+ ipSecurity       1217            
+ iqagent          796             
+ lacp             1329            
+ licMgr           2326            
+ lldp             2112            
+ mcmgr            2142            
+ mrp              1486            
+ netLogin         2410            
+ netTools         3990            
+ nettx            0               
+ nodemgr          763             
+ ntp              848             
+ poe              1332            
+ polMgr           478             
+ policy           6742            
+ rtmgr            3220            
+ snmpMaster       2612            
+ stp              2039            
+ techSupport      780             
+ telemetry        640             
+ telnetd          660             
+ throw            7005            
+ thttpd           15000           
+ twamp            461             
+ upm              2763            
+ vlan             3118            
+ xmlc             1166            
+ xmld             3559            

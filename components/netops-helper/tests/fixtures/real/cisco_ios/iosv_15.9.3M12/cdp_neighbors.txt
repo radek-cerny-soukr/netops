@@ -1,0 +1,80 @@
+
+
+
+-------------------------
+Device ID: host01(93M7JA0RG21)
+Entry address(es): 
+  IP address: 203.0.113.55
+Platform: N9K-C9300v,  Capabilities: Router Switch CVTA phone port 
+Interface: GigabitEthernet0/0,  Port ID (outgoing port): mgmt0
+Holdtime : 124 sec
+
+Version :
+Cisco Nexus Operating System (NX-OS) Software, Version 9.3(12)
+
+advertisement version: 2
+Duplex: full
+Management address(es): 
+  IP address: 203.0.113.55
+
+-------------------------
+Device ID: host02
+Entry address(es): 
+  IP address: 192.0.2.2
+Platform: Cisco ,  Capabilities: Router Switch IGMP 
+Interface: GigabitEthernet0/1,  Port ID (outgoing port): GigabitEthernet0/1
+Holdtime : 159 sec
+
+Version :
+Cisco IOS Software, vios_l2 Software (vios_l2-ADVENTERPRISEK9-M), Experimental Version 15.2(20200924:215240) [sweickge-sep24-2020-l2iol-release 135]
+Copyright (c) 1986-2020 by Cisco Systems, Inc.
+Compiled Tue 29-Sep-20 11:53 by sweickge
+
+advertisement version: 2
+VTP Management Domain: ''
+Native VLAN: 1
+Duplex: full
+Management address(es): 
+  IP address: 192.0.2.2
+
+-------------------------
+Device ID: host02
+Entry address(es): 
+  IP address: 203.0.113.52
+Platform: Cisco ,  Capabilities: Router Switch IGMP 
+Interface: GigabitEthernet0/0,  Port ID (outgoing port): GigabitEthernet0/0
+Holdtime : 158 sec
+
+Version :
+Cisco IOS Software, vios_l2 Software (vios_l2-ADVENTERPRISEK9-M), Experimental Version 15.2(20200924:215240) [sweickge-sep24-2020-l2iol-release 135]
+Copyright (c) 1986-2020 by Cisco Systems, Inc.
+Compiled Tue 29-Sep-20 11:53 by sweickge
+
+advertisement version: 2
+VTP Management Domain: ''
+Native VLAN: 99
+Duplex: full
+Management address(es): 
+  IP address: 203.0.113.52
+
+-------------------------
+Device ID: host03
+Entry address(es): 
+  IP address: 203.0.113.57
+Platform: Linux Unix,  Capabilities: Router 
+Interface: GigabitEthernet0/0,  Port ID (outgoing port): Ethernet0/0
+Holdtime : 157 sec
+
+Version :
+Cisco IOS Software [IOSXE], Linux Software (X86_64BI_LINUX-ADVENTERPRISEK9-M), Version 17.18.2, RELEASE SOFTWARE (fc3)
+Technical Support: http://www.cisco.com/techsupport
+Copyright (c) 1986-2025 by Cisco Systems, Inc.
+Compiled Fri 19-Dec-25 03:28 by mcpre
+
+advertisement version: 2
+Duplex: full
+Management address(es): 
+  IP address: 203.0.113.57
+
+
+Total cdp entries displayed : 4

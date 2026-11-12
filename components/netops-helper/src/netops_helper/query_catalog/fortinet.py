@@ -4,11 +4,14 @@ from __future__ import annotations
 
 from .model import (
     FORTIOS_INTERFACE,
+    FORTIOS_WTP,
+    LITERAL,
     FORTIOS_PHYSICAL_INTERFACE,
-    IPV4_ADDRESS,
+    IPV4_LOOKUP,
     NO_SLOTS,
     SWITCH,
     Query,
+    SequenceQuery,
     Slot,
 )
 
@@ -129,6 +132,21 @@ QUERIES: dict[str, Query] = {
         {"certificate": Slot("certificates", "certificate_name")},
         "Show validity and public metadata of one enrolled local certificate.",
     ),
+    'managed_switch_port_stats': Query(
+        'diagnose switch-controller switch-info port-stats {managed_switch} {port}',
+        {'managed_switch': Slot('managed_switches', 'managed_switch_serial'),
+         'port': Slot('managed_switch_ports', 'managed_switch_port')},
+        'Read link state, speed and cumulative error/drop counters of one enrolled FortiSwitch, optionally one enrolled port.',
+        high_volume=True, optional_slots=frozenset({'port'})),
+    'managed_switch_port_vlans': Query(
+        'show switch-controller managed-switch {managed_switch}',
+        {'managed_switch': Slot('managed_switches', 'managed_switch_serial')},
+        'Read configured native, allowed and untagged VLAN names of one enrolled FortiSwitch; configuration, not forwarding state.',
+        high_volume=True),
+    'interface_vlan_ids': Query(
+        'show system interface', NO_SLOTS,
+        'Read the configured VLAN interface names and VLAN IDs used to resolve FortiSwitch port membership.',
+        high_volume=True),
     'managed_switch_status': Query('diagnose switch-controller switch-info status {managed_switch}', {"managed_switch": Slot("managed_switches", "managed_switch_serial")}, "Show a bounded state view of one enrolled managed switch.", high_volume=False),
     'managed_switch_poe': Query('diagnose switch-controller switch-info poe summary {managed_switch}', {"managed_switch": Slot("managed_switches", "managed_switch_serial")}, "Show PoE status of one enrolled PoE-capable managed switch.", high_volume=False),
     'managed_switch_mac': Query('diagnose switch-controller switch-info mac-table {managed_switch}', {"managed_switch": Slot("managed_switches", "managed_switch_serial")}, "Show a bounded state view of one enrolled managed switch.", high_volume=True),
@@ -199,6 +217,12 @@ QUERIES: dict[str, Query] = {
         "Show physical interface status.",
         high_volume=True,
     ),
+    "system_interfaces": Query(
+        "get system interface",
+        NO_SLOTS,
+        "Show every interface with its IPv4 address, mask, configured status and type.",
+        high_volume=True,
+    ),
     "interface_details": Query(
         "diagnose netlink interface list {interface}",
         FORTIOS_INTERFACE,
@@ -217,35 +241,35 @@ QUERIES: dict[str, Query] = {
     ),
     "route_lookup": Query(
         "get router info routing-table details {address}",
-        IPV4_ADDRESS,
-        "Show the IPv4 route for one enrolled address.",
+        IPV4_LOOKUP,
+        "Show the IPv4 route for one enrolled address; for a prefix inside an enrolled lookup prefix the route of its network address.",
     ),
     "policy_lookup_ipv4": Query(
         "diagnose firewall iprope lookup {src_ip} {src_port} {dst_ip} {dst_port} {protocol} {device} {pol_type}",
         {
-            "src_ip": Slot("addresses", "ipv4_address"),
+            "src_ip": Slot("addresses", "ipv4_lookup"),
             "src_port": Slot("flow_ports", "flow_port"),
-            "dst_ip": Slot("addresses", "ipv4_address"),
+            "dst_ip": Slot("addresses", "ipv4_lookup"),
             "dst_port": Slot("flow_ports", "flow_port"),
             "protocol": Slot("ip_protocols", "ip_protocol"),
             "device": Slot("interfaces", "fortios_interface"),
             "pol_type": Slot("policy_types", "fortios_policy_type"),
         },
-        "Look up the IPv4 firewall policy that matches one enrolled flow tuple.",
+        "Look up the IPv4 firewall policy that matches one enrolled flow tuple; a prefix inside an enrolled lookup prefix stands for its network address.",
         high_volume=False,
     ),
     "policy_lookup_ipv6": Query(
         "diagnose firewall iprope6 lookup {src_ip} {src_port} {dst_ip} {dst_port} {protocol} {device} {pol_type}",
         {
-            "src_ip": Slot("addresses", "ipv6_address"),
+            "src_ip": Slot("addresses", "ipv6_lookup"),
             "src_port": Slot("flow_ports", "flow_port"),
-            "dst_ip": Slot("addresses", "ipv6_address"),
+            "dst_ip": Slot("addresses", "ipv6_lookup"),
             "dst_port": Slot("flow_ports", "flow_port"),
             "protocol": Slot("ip_protocols", "ip_protocol"),
             "device": Slot("interfaces", "fortios_interface"),
             "pol_type": Slot("policy_types", "fortios_policy_type"),
         },
-        "Look up the IPv6 firewall policy that matches one enrolled flow tuple.",
+        "Look up the IPv6 firewall policy that matches one enrolled flow tuple; a prefix inside an enrolled lookup prefix stands for its network address.",
         high_volume=False,
     ),
     "policy_routes_ipv4": Query(
@@ -539,34 +563,87 @@ QUERIES: dict[str, Query] = {
         NO_SLOTS,
         "Show antivirus outbreak-prevention statistics.",
     ),
+    # Measured with a read-only account on FortiGate-80F 8.0.2 build0251 (fixtures fortios_80f_802_wifi_*).
+    "wifi_ap_status": Query(
+        "get wireless-controller wtp-status {wtp_id}", FORTIOS_WTP,
+        "Show managed access points with their radios, client counts, channel utilisation and rogue counters; "
+        "wtp_id narrows the output to one access point listed in wtp_ids or returned by an earlier wifi_ap_status for this target.",
+        high_volume=True, optional_slots=frozenset({"wtp_id"}),
+    ),
+    "wifi_vap_status": Query(
+        "get wireless-controller vap-status", NO_SLOTS,
+        "Show wireless virtual access points (SSIDs) with state and station counts.",
+    ),
+    "wifi_neighbors": Query(
+        "get wireless-controller scan", NO_SLOTS,
+        "Show the controller scan table of neighbouring, rogue and interfering access points; "
+        "the table does not name the access point that heard each neighbour.",
+        high_volume=True,
+    ),
+    "wifi_controller_status": Query(
+        "get wireless-controller status", NO_SLOTS,
+        "Show wireless controller session and client counters.",
+    ),
+    "wifi_controller_statistics": Query(
+        "get wireless-controller statistics", NO_SLOTS,
+        "Show wireless controller totals for sessions, clients, rogue access points and rogue clients.",
+    ),
+    "wifi_rf_analysis": Query(
+        "get wireless-controller rf-analysis {wtp_id}", FORTIOS_WTP,
+        "Show per-channel RF analysis (rssi total, rf score, overlapping and interfering access points, "
+        "channel utilisation); wtp_id narrows the output to one access point listed in wtp_ids or returned by an earlier wifi_ap_status for this target.",
+        high_volume=True, optional_slots=frozenset({"wtp_id"}),
+    ),
+    "wifi_events": SequenceQuery(
+        "execute log filter category event; execute log filter field subtype wireless; "
+        "execute log filter view-lines {lines}; execute log display",
+        {"lines": Slot(LITERAL, "wifi_log_lines"), "mac_literal": Slot(LITERAL, "wifi_mac_literal")},
+        "Show the newest wireless event log records (client connect, disconnect and failure events, rogue access point events) "
+        "from one SSH session with a session-local display filter (no persistent configuration write); triage prefers an enrolled read-only REST log GET. Lines is 1 to 200 and the optional mac_literal "
+        "keeps only records that contain that lower-case MAC address, applied by the Helper to the redacted records "
+        "of the returned lines only.",
+        high_volume=True, optional_slots=frozenset({"mac_literal"}),
+        commands=(
+            "execute log filter category event",
+            "execute log filter field subtype wireless",
+            "execute log filter view-lines {lines}",
+            "execute log display",
+        ),
+        filter_slots=frozenset({"mac_literal"}),
+    ),
     "wifi_clients": Query(
         "diagnose wireless-controller wlac -c sta",
         NO_SLOTS,
         "Show the wireless-controller station list for clients connected to managed FortiAPs.",
+        requires_device_permission="wifi read-write", read_only_account="refused",
         high_volume=True,
     ),
     "wifi_client_detail": Query(
         "diagnose wireless-controller wlac -d sta {mac}",
         {"mac": Slot("wireless_clients", "fortios_station_mac")},
         "Show wireless station detail for one enrolled station MAC address.",
+        requires_device_permission="wifi read-write", read_only_account="refused",
         high_volume=False,
     ),
     "wifi_access_points": Query(
         "diagnose wireless-controller wlac -c wtp",
         NO_SLOTS,
         "Show access-point control records and the status reported by the wireless controller.",
+        requires_device_permission="wifi read-write", read_only_account="refused",
         high_volume=True,
     ),
     "wifi_ap_detail": Query(
         "diagnose wireless-controller wlac -d wtp",
         NO_SLOTS,
         "Show wireless access-point data-plane records without resetting their state.",
+        requires_device_permission="wifi read-write", read_only_account="refused",
         high_volume=True,
     ),
     "wifi_ssid_mapping": Query(
         "diagnose wireless-controller wlac -c vap",
         NO_SLOTS,
         "Show virtual access-point records for mapping wireless service interfaces and SSIDs.",
+        requires_device_permission="wifi read-write", read_only_account="refused",
         high_volume=True,
     ),
 }

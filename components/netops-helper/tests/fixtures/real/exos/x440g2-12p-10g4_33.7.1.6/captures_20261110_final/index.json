@@ -1,0 +1,8 @@
+{
+  "lag_summary": {
+    "command": "show sharing",
+    "rc": 250,
+    "captured_at": "2026-11-10T17:21:31.703+00:00",
+    "lines": 16
+  }
+}

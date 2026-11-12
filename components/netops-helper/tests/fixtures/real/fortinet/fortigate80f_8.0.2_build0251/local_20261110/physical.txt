@@ -1,0 +1,91 @@
+== [onboard]
+	==[a]
+		mode: static
+		ip: 0.0.0.0 0.0.0.0
+		ipv6: ::/0
+		status: up
+		speed: 1000Mbps (Duplex: full)
+		FEC: none
+		FEC_cap: none
+	==[b]
+		mode: static
+		ip: 0.0.0.0 0.0.0.0
+		ipv6: ::/0
+		status: up
+		speed: 1000Mbps (Duplex: full)
+		FEC: none
+		FEC_cap: none
+	==[internal1]
+		mode: static
+		ip: 0.0.0.0 0.0.0.0
+		ipv6: ::/0
+		status: down
+		speed: n/a
+		FEC: none
+		FEC_cap: none
+	==[internal2]
+		mode: static
+		ip: 0.0.0.0 0.0.0.0
+		ipv6: ::/0
+		status: down
+		speed: n/a
+		FEC: none
+		FEC_cap: none
+	==[internal3]
+		mode: static
+		ip: 0.0.0.0 0.0.0.0
+		ipv6: ::/0
+		status: down
+		speed: n/a
+		FEC: none
+		FEC_cap: none
+	==[internal4]
+		mode: static
+		ip: 192.0.2.9 255.255.255.248
+		ipv6: ::/0
+		status: up
+		speed: 1000Mbps (Duplex: full)
+		FEC: none
+		FEC_cap: none
+	==[internal5]
+		mode: static
+		ip: 0.0.0.0 0.0.0.0
+		ipv6: ::/0
+		status: up
+		speed: 1000Mbps (Duplex: full)
+		FEC: none
+		FEC_cap: none
+	==[internal6]
+		mode: static
+		ip: 0.0.0.0 0.0.0.0
+		ipv6: ::/0
+		status: up
+		speed: 1000Mbps (Duplex: full)
+		FEC: none
+		FEC_cap: none
+	==[wan1]
+		mode: dhcp
+		ip: 198.51.100.206 255.255.255.0
+		ipv6: ::/0
+		status: up
+		speed: 1000Mbps (Duplex: full)
+		medium: copper
+		FEC: none
+		FEC_cap: none
+	==[wan2]
+		mode: static
+		ip: 192.0.2.1 255.255.255.248
+		ipv6: ::/0
+		status: up
+		speed: 1000Mbps (Duplex: full)
+		medium: copper
+		FEC: none
+		FEC_cap: none
+	==[modem]
+		mode: pppoe
+		ip: 0.0.0.0 0.0.0.0
+		ipv6: ::/0
+		status: down
+		speed: n/a
+		FEC: none
+		FEC_cap: none

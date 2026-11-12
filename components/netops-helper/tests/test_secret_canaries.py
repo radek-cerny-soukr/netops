@@ -142,7 +142,7 @@ port = int(argv[argv.index("-p") + 1])
 received = "publickey"
 if "-i" not in argv and os.environ.get("SSH_ASKPASS"):
     received = subprocess.run(
-        [os.environ["SSH_ASKPASS"]], capture_output=True, check=False,
+        [os.environ["SSH_ASKPASS"], "Password: "], capture_output=True, check=False,
     ).stdout.decode("utf-8").strip()
 
 
@@ -205,7 +205,7 @@ argv = sys.argv[1:]
 received = "publickey"
 if "-i" not in argv and os.environ.get("SSH_ASKPASS"):
     received = subprocess.run(
-        [os.environ["SSH_ASKPASS"]], capture_output=True, check=False,
+        [os.environ["SSH_ASKPASS"], "Password: "], capture_output=True, check=False,
     ).stdout.decode("utf-8").strip()
 lines = sys.stdin.read().splitlines()
 path = lines[-1].split(chr(34))[1]
@@ -401,6 +401,8 @@ def run_server():
     code = child.wait()
     for thread in threads:
         thread.join()
+    child.stdout.close()
+    child.stderr.close()
     return code
 
 
@@ -725,6 +727,8 @@ class ProxyRun:
         code = self.process.wait(timeout=90)
         for reader in self.readers:
             reader.join(timeout=10)
+        self.process.stdout.close()
+        self.process.stderr.close()
         return code
 
 

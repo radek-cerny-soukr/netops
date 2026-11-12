@@ -1,0 +1,7 @@
+{
+  "command": "show interfaces",
+  "utc": "2026-11-10T02:12:12.449160+00:00",
+  "rc": 0,
+  "account": "read-only",
+  "preparation": "anonymize_fixture.py --check; no device configuration changes"
+}

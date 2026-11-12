@@ -1,0 +1,4 @@
+Syntax error while parsing 'show ip dhcp snooping binding'
+
+
+Cmd exec error.

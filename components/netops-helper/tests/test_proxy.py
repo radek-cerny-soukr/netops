@@ -172,8 +172,8 @@ def test_request_injects_the_read_only_scope_and_the_pinned_host_key(
     assert set(scope) == {
         "alias", "host", "port", "login", "credential_kind", "secret",
         "host_key_fingerprint", "legacy_ssh", "account_role", "ssh_platform",
-        "enabled_queries", "read_inventory", "sftp_roots",
-        "fortios_output_standard_verified", "egress", "configuration_limits",
+        "enabled_queries", "device_types", "read_inventory", "sftp_roots",
+        "fortios_output_standard_verified", "egress", "configuration_limits", "wifi_thresholds",
     }
     assert scope["account_role"] == "read-only"
     assert scope["credential_kind"] == "password"
@@ -331,6 +331,38 @@ def test_batched_server_responses_are_sanitized() -> None:
     assert "credential-value" not in transformed[0]["result"]["content"][0]["text"]
     assert transformed[1] == batch[1]
     assert not proxy.pending
+
+
+def test_session_secret_memory_retains_all_values_and_deduplicates() -> None:
+    proxy = MODULE.Proxy()
+    proxy._remember_session_secrets(("first", "second"))
+    proxy._remember_session_secrets(("first",))
+    for index in range(552):
+        proxy._remember_session_secrets(("synthetic-%d" % index,))
+    assert len(proxy.session_secrets) == 554
+    assert {"first", "second", "synthetic-0", "synthetic-551"} <= proxy.session_secrets.keys()
+
+
+@pytest.mark.parametrize("completed", [False, True])
+def test_notifications_retain_earlier_target_secrets_after_session_growth(completed) -> None:
+    proxy = MODULE.Proxy()
+    secrets = ("SYNTHETIC_ACTIVE_TARGET_PASSWORD", "synthetic-active-auth-context")
+    proxy.pending[1] = "tools/call"
+    proxy.pending_tools[1] = "ssh_read"
+    proxy.response_secrets[1] = secrets
+    proxy._remember_session_secrets(secrets)
+    for index in range(256):
+        proxy._remember_session_secrets((f"synthetic-password-{index}", f"synthetic-context-{index}"))
+    if completed:
+        proxy.response(json.dumps({"jsonrpc": "2.0", "id": 1, "result": {}}).encode())
+    assert (1 in proxy.pending) is not completed
+    if not completed:
+        assert proxy.response_secrets[1] == secrets
+    note = {"jsonrpc": "2.0", "method": "notifications/message",
+            "params": {"data": "plain " + " and ".join(secrets) + " tail"}}
+    transformed = proxy.response(json.dumps(note).encode()).decode()
+    assert all(secret not in transformed for secret in secrets)
+    assert "<REDACTED>" in transformed
 
 
 def test_every_server_message_is_sanitized_with_session_secrets() -> None:
@@ -1328,3 +1360,77 @@ def test_stderr_window_starting_mid_line_still_drops_the_partial_line() -> None:
     partial = b"C" * (kept - len(tail) - 1) + b"\n"
     assert _drained(b"head of the cut line " + partial + tail) == tail.decode()
     assert _drained(b"x" + b"D" * (kept - 1) + b"\n") is None
+
+
+def test_page_metadata_survives_a_known_secret_and_the_page_text_does_not() -> None:
+    import hashlib
+
+    from netops_helper.page_metadata import PAGE_METADATA
+
+    proxy = MODULE.Proxy()
+    text = "x" * 1500
+    for request_id, secret in ((201, "1000"), (202, hashlib.sha256(text.encode()).hexdigest()[20:24])):
+        proxy.pending[request_id] = "tools/call"; proxy.pending_tools[request_id] = "ssh_read"
+        proxy.pending_continuations[request_id] = "synthetic-continuation"
+        proxy.session_secrets.clear(); proxy.session_secrets.update(dict.fromkeys((secret,)))
+        page = {"ok": True, "rc": int(secret) if secret.isdigit() else 0, "total_bytes": 1500, "offset": 0,
+                "returned_bytes": 1000, "next_offset": 1000, "complete": False,
+                "content_sha256": hashlib.sha256(text.encode()).hexdigest(),
+                "untrusted_device_output": text[:990] + secret + "x" * 6}
+        raw = json.dumps({"jsonrpc": "2.0", "id": request_id, "result": {
+            "content": [{"type": "text", "text": json.dumps(page)}], "structuredContent": page,
+        }}).encode()
+        result = json.loads(proxy.response(raw))["result"]
+        for view in (result["structuredContent"], json.loads(result["content"][0]["text"])):
+            for name in PAGE_METADATA:
+                assert view[name] == page[name] and type(view[name]) is type(page[name])
+            assert view["untrusted_device_output"] == text[:990] + "<REDACTED>" + "x" * 6
+            assert view["rc"] == ("<REDACTED>" if secret.isdigit() else 0)
+            assert list(view)[:9] == list(page)[:9]
+        key = "synthetic-continuation\n" + page["content_sha256"]
+        assert proxy.continuations[key][0] == 1000
+
+
+def test_page_metadata_of_another_shape_is_not_exempt_from_redaction() -> None:
+    proxy = MODULE.Proxy(); proxy.pending[203] = "tools/call"; proxy.pending_tools[203] = "ssh_read"
+    proxy.session_secrets.update(dict.fromkeys(("1000",)))
+    page = {"ok": True, "total_bytes": 1500, "offset": 0, "returned_bytes": "1000", "next_offset": 1000,
+            "complete": False, "content_sha256": "a" * 64, "untrusted_device_output": "x"}
+    raw = json.dumps({"jsonrpc": "2.0", "id": 203, "result": {
+        "content": [{"type": "text", "text": json.dumps(page)}], "structuredContent": page,
+    }}).encode()
+    view = json.loads(proxy.response(raw))["result"]["structuredContent"]
+    assert view["returned_bytes"] == "<REDACTED>" and view["next_offset"] == "<REDACTED>"
+
+
+@pytest.mark.parametrize("category", MODULE.helper_inventory.INVENTORY_CATEGORIES)
+def test_every_inventory_category_survives_configuration_proxy_and_auth(tmp_path, monkeypatch, category):
+    from netops_helper.auth import TargetAuth
+    inventory, _, _, _ = _paths(tmp_path, monkeypatch)
+    document = json.loads(inventory.read_text())
+    values = ["blue"] if category in {"vrfs", "virtual_routers", "routing_instances"} else []
+    document["devices"][0]["helper"]["read_inventory"][category] = values
+    _rewrite(inventory, document)
+    transformed = MODULE.Proxy().request(json.dumps({
+        "jsonrpc": "2.0", "id": 21, "method": "tools/call",
+        "params": {"name": "ssh_read", "arguments": {
+            "target": "device-a", "platform": "fortios", "query": "system_status",
+        }},
+    }).encode())
+    assert transformed is not None
+    context = json.loads(transformed)["params"]["arguments"]["auth_context"]
+    assert TargetAuth.decode("device-a", context).read_inventory[category] == tuple(values)
+
+
+@pytest.mark.parametrize("value", ["NaN", "Infinity", "-Infinity", "1e999", "-1e999"])
+def test_proxy_refuses_nonfinite_server_json(value):
+    proxy = MODULE.Proxy()
+    proxy.pending[22] = "tools/call"
+    emitted = []
+    proxy._emit = emitted.append
+    raw = ('{"jsonrpc":"2.0","id":22,"result":{"noise":' + value + '}}').encode()
+    answer = proxy.response(raw)
+    assert answer == b""
+    assert proxy.session_open is False
+    for message in emitted:
+        json.loads(json.dumps(message, allow_nan=False))

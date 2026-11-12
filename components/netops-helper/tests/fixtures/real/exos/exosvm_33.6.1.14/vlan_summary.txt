@@ -1,0 +1,26 @@
+Untagged ports auto-move: Inform
+-----------------------------------------------------------------------------------------------
+Name            VID  Protocol Addr       Flags                         Proto  Ports  Virtual   
+                                                                              Active router
+                                                                              /Total
+-----------------------------------------------------------------------------------------------
+D10             10   192.0.2.4      /24  ---------------------------   ANY    1 /2   VR-Default 
+D20             20   198.51.100.4   /24  ---------------------------   ANY    1 /1   VR-Default 
+Default         1    --------------------------------T--------------   ANY    0 /10  VR-Default 
+Mgmt            4095 203.0.113.54   /24  ---------------------------   ANY    1 /1   VR-Mgmt    
+-----------------------------------------------------------------------------------------------
+Flags : (B) BFD Enabled, (c) 802.1ad customer VLAN, (C) EAPS Control VLAN,
+        (d) Dynamically created VLAN, (D) VLAN Admin Disabled,
+        (E) ESRP Enabled, (f) IP Forwarding Enabled,
+        (F) Learning Disabled, (i) ISIS Enabled,
+        (I) Inter-Switch Connection VLAN for MLAG, (k) PTP Configured,
+        (l) MPLS Enabled, (L) Loopback Enabled, (m) IPmc Forwarding Enabled,
+        (M) Translation Member VLAN or Subscriber VLAN, (n) IP Multinetting Enabled,
+        (N) Network Login VLAN, (o) OSPF Enabled, (O) Virtual Network Overlay,
+        (p) PIM Enabled, (P) EAPS protected VLAN, (r) RIP Enabled,
+        (R) Sub-VLAN IP Range Configured, (s) Sub-VLAN, (S) Super-VLAN,
+        (t) Translation VLAN or Network VLAN, (T) Member of STP Domain,
+        (v) VRRP Enabled, (V) VPLS Enabled, (w) Layer 2 Forwarding Disabled,
+        (W) VPWS Enabled, (Y) Policy Enabled
+
+Total number of VLAN(s) : 4 

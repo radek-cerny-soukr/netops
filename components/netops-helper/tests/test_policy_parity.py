@@ -38,6 +38,9 @@ HOST_KEY_PIN = fingerprint_of(b64encode(b"policy-parity-host-key").decode("ascii
 REPRESENTATIVE_SLOT_VALUES = {
     "fortios_address_object": "api.example",
     "fortios_station_mac": "00:00:5e:00:53:01",
+    "fortios_wtp_id": "FAPEXAMPLE0000001",
+    "wifi_log_lines": "50",
+    "wifi_mac_literal": "00:00:5e:00:53:01",
     "flow_port": "443",
     "ip_protocol": "6",
     "fortios_policy_type": "policy",
@@ -52,6 +55,8 @@ REPRESENTATIVE_SLOT_VALUES = {
     "switch": "edge-a",
     "ipv4_address": "192.0.2.20",
     "ipv6_address": "2001:db8::1",
+    "ipv4_lookup": "192.0.2.20",
+    "ipv6_lookup": "2001:db8::1",
     "fortios_sdwan_health_check": "PingSLA",
     "fortios_link_monitor": "wan-monitor",
     "fortios_sdwan_member": "1",
@@ -73,6 +78,9 @@ REPRESENTATIVE_SLOT_VALUES = {
     "eos_lldp_interface": "Management1",
     "eos_lacp_interface": "Ethernet1",
     "eos_stp_interface": "Port-Channel10",
+    "eos_switchport_interface": "Port-Channel10",
+    "vlan_id": "10",
+    "mac_literal": "00:00:5e:00:53:1a",
     "eos_ospf_interface": "Vlan4094",
     "junos_interface": "ae0.0",
     "junos_physical_interface": "xe-0/0/1",
@@ -316,14 +324,14 @@ class PolicyParityTests(unittest.TestCase):
         }
         expected_counts = {
             "linux": 16,
-            "fortinet": 108,
-            "extreme_exos": 48,
-            "cisco_ios": 27,
-            "cisco_xe": 27,
-            "cisco_nxos": 30,
-            "arista_eos": 33,
-            "juniper_junos": 25,
-            "juniper_junos_els": 29,
+            "fortinet": 119,
+            "extreme_exos": 65,
+            "cisco_ios": 49,
+            "cisco_xe": 50,
+            "cisco_nxos": 61,
+            "arista_eos": 54,
+            "juniper_junos": 41,
+            "juniper_junos_els": 55,
             "ruckus_unleashed": 4,
             "fortiadc": 33,
         }
@@ -335,7 +343,7 @@ class PolicyParityTests(unittest.TestCase):
             },
             expected_counts,
         )
-        self.assertEqual(sum(expected_counts.values()), 380)
+        self.assertEqual(sum(expected_counts.values()), 547)
         expected_names = {
             platform: frozenset(queries)
             for platform, queries in read_policy.READ_QUERIES.items()
@@ -346,6 +354,7 @@ class PolicyParityTests(unittest.TestCase):
                     slot_name: {
                         "inventory": slot.inventory,
                         "kind": slot.kind,
+                        **({"optional": True} if slot_name in query.optional_slots else {}),
                     }
                     for slot_name, slot in query.slots.items()
                 }
@@ -407,7 +416,9 @@ class PolicyParityTests(unittest.TestCase):
                     for slot_name, slot in query.slots.items():
                         value = REPRESENTATIVE_SLOT_VALUES[slot.kind]
                         parameters[slot_name] = value
-                        if value not in inventory[slot.inventory]:
+                        if slot.inventory in (None, "literal"):
+                            continue
+                        if value not in inventory.setdefault(slot.inventory, []):
                             inventory[slot.inventory].append(value)
 
                     device = canonical_device()
@@ -442,12 +453,18 @@ class PolicyParityTests(unittest.TestCase):
                         target.require_ssh_query(platform, query_name),
                         platform,
                     )
-                    normalized, rendered = read_policy.render_read_query(
-                        platform,
-                        query_name,
-                        parameters,
-                        target.read_inventory,
-                    )
+                    if read_policy.is_read_sequence(platform, query_name):
+                        normalized, commands, _ = read_policy.render_read_sequence(
+                            platform, query_name, parameters, target.read_inventory,
+                        )
+                        rendered = "; ".join(commands)
+                    else:
+                        normalized, rendered = read_policy.render_read_query(
+                            platform,
+                            query_name,
+                            parameters,
+                            target.read_inventory,
+                        )
                     self.assertEqual(normalized, platform)
                     self.assertEqual(
                         rendered,
@@ -463,7 +480,7 @@ class PolicyParityTests(unittest.TestCase):
                     )
                     exercised += 1
 
-        self.assertEqual(exercised, 112)
+        self.assertEqual(exercised, 136)
 
     def test_typed_query_rejections_have_proxy_render_parity(self) -> None:
         cases = (

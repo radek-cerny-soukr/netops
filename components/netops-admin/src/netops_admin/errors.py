@@ -12,7 +12,9 @@ def shown(value) -> str:
 
 
 class Rejected(Exception):
-    def __init__(self, reasons):
+    def __init__(self, reasons, *, reason_codes=None, reason_details=None):
+        self.reason_codes = list(reason_codes) if reason_codes is not None else [getattr(self, "default_code", "unspecified_refusal")]
+        self.reason_details = list(reason_details or [])
         self.reasons = [str(reason) for reason in reasons]
         super().__init__("; ".join(self.reasons))
 
@@ -31,8 +33,8 @@ class SnapshotRejected(Rejected):
 
 
 class BudgetExhausted(Rejected):
-    pass
+    default_code = "budget_exhausted"
 
 
 class StateUnreadable(Rejected):
-    pass
+    default_code = "state_unreadable"

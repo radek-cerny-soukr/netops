@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 from .engine import EVALUATED, NOT_EVALUATED, UNSUPPORTED
 from .findings import SEVERITIES
 from .state import STATE_GONE, STATES, UNEVALUATED_RULES, classify, suppressions_for_device
-from .state import STATE_NOT_EVALUATED, evaluation_complete, last_evaluated, stored_statuses, unevaluated_rules
+from .state import STATE_NOT_EVALUATED, coverage, evaluation_complete, last_evaluated, stored_statuses, unevaluated_rules
 from .state import AGE_FRESH, AGE_STALE, age_state
 from .suppressions import MOMENT_FORMAT
 
@@ -37,6 +37,7 @@ DEVICE_STATUS_KEYS = (
     "severity_counts",
     "state_counts",
     "rule_status",
+    "coverage",
 )
 
 TOTALS_KEYS = ("devices", STATUS_FRESH, STATUS_STALE, STATUS_NEVER)
@@ -193,25 +194,28 @@ def _runs(store, tenant, device) -> tuple:
     return tuple(store.runs_for_device(tenant, device))
 
 
-def _classified(store, tenant, device, runs, stored, suppressions, now):
-    previous = last_evaluated(store, tenant, runs[1:])[1]
+def _history(store, tenant, runs) -> tuple:
+    """Request-local: the last evaluated earlier run and its findings, looked up once."""
+    return last_evaluated(store, tenant, runs[1:])
+
+
+def _classified(store, tenant, device, stored, suppressions, now, statuses, history):
     return classify(
         tuple(_Stored(item["fingerprint"], item["rule_id"]) for item in stored),
         store.baseline_fingerprints(tenant, device),
         suppressions_for_device(suppressions, device),
-        previous,
+        history[1],
         now,
-        stored_statuses(store, tenant, runs[0]["id"]),
+        statuses,
     )
 
 
-def _unevaluated_history(store, tenant, runs, stored) -> tuple:
-    statuses = stored_statuses(store, tenant, runs[0]["id"])
+def _unevaluated_history(stored, statuses, history) -> tuple:
     complete = evaluation_complete(stored, statuses)
     skipped = unevaluated_rules(statuses)
     if complete and not skipped:
         return None, ()
-    run, previous = last_evaluated(store, tenant, runs[1:])
+    run, previous = history
     if complete:
         present = {item["fingerprint"] for item in stored}
         previous = tuple(item for item in previous if item["rule_id"] in skipped and item["fingerprint"] not in present)
@@ -317,17 +321,19 @@ def _device_status(store, tenant, device, now, stale_after_hours) -> dict:
             "severity_counts": dict.fromkeys(SEVERITIES, 0),
             "state_counts": dict.fromkeys(STATES, 0),
             "rule_status": {},
+            "coverage": None,
         }
     last = runs[0]
     stored = store.findings_for_run(tenant, last["id"])
     statuses = stored_statuses(store, tenant, last["id"])
-    result = _classified(store, tenant, device, runs, stored, (), now)
+    result = _classified(store, tenant, device, stored, (), now, statuses, _history(store, tenant, runs))
     age = (now - _moment(last["started_at"])).total_seconds() / 3600.0
     complete = evaluation_complete(stored, statuses)
     return {
         "device": device,
         "state": age_state(age, stale_after_hours) if complete else STATUS_INCOMPLETE,
         "rule_status": statuses,
+        "coverage": coverage(stored, statuses),
         "last_audit": last["started_at"],
         "age_hours": round(age, 2),
         "run_id": last["id"],
@@ -428,13 +434,14 @@ def list_findings(
         return _empty_listing(tenant, device, RUN_BEFORE_SINCE)
     stored = store.findings_for_run(tenant, last["id"])
     statuses = stored_statuses(store, tenant, last["id"])
-    result = _classified(store, tenant, device, runs, stored, suppressions, moment)
+    history = _history(store, tenant, runs)
+    result = _classified(store, tenant, device, stored, suppressions, moment, statuses, history)
     states = dict(result.states)
     findings = tuple(
         _present_entry(item, states[item["fingerprint"]], _rule_state(statuses, stored, item["rule_id"]))
         for item in stored
     )
-    historical = _unevaluated_history(store, tenant, runs, stored)[1]
+    historical = _unevaluated_history(stored, statuses, history)[1]
     findings += tuple(
         _present_entry(item, STATE_NOT_EVALUATED, _rule_state(statuses, stored, item["rule_id"]))
         for item in historical
@@ -498,7 +505,9 @@ def finding_detail(store, tenant, device, fingerprint, suppressions=(), now=None
         return None
     last = runs[0]
     stored = store.findings_for_run(tenant, last["id"])
-    historical_run, historical = _unevaluated_history(store, tenant, runs, stored)
+    statuses = stored_statuses(store, tenant, last["id"])
+    history = _history(store, tenant, runs)
+    historical_run, historical = _unevaluated_history(stored, statuses, history)
     historical_match = False
     match = None
     for item in stored:
@@ -510,8 +519,8 @@ def finding_detail(store, tenant, device, fingerprint, suppressions=(), now=None
         historical_match = match is not None
     if match is None:
         return None
-    result = _classified(store, tenant, device, runs, stored, suppressions, moment)
-    rule_state = _rule_state(stored_statuses(store, tenant, last["id"]), stored, match["rule_id"])
+    result = _classified(store, tenant, device, stored, suppressions, moment, statuses, history)
+    rule_state = _rule_state(statuses, stored, match["rule_id"])
     entry = _present_entry(
         match, STATE_NOT_EVALUATED if historical_match else dict(result.states)[fingerprint], rule_state
     )
@@ -526,8 +535,8 @@ def finding_detail(store, tenant, device, fingerprint, suppressions=(), now=None
     return entry
 
 
-def _checked_run(runs, tenant, device, run_id) -> dict:
-    run = runs.get(run_id)
+def _checked_run(store, tenant, device, run_id) -> dict:
+    run = store.run_for_device(tenant, device, run_id)
     if run is None:
         raise QueryError(
             "run %r does not belong to tenant %r and device %r" % (run_id, tenant, device)
@@ -562,9 +571,8 @@ def _compare_items(items, fingerprints) -> tuple:
 def compare(store, tenant, device, first_run_id, second_run_id) -> dict:
     _checked_text("tenant", tenant)
     _checked_text("device", device)
-    runs = {run["id"]: run for run in _runs(store, tenant, device)}
-    first = _checked_run(runs, tenant, device, first_run_id)
-    second = _checked_run(runs, tenant, device, second_run_id)
+    first = _checked_run(store, tenant, device, first_run_id)
+    second = _checked_run(store, tenant, device, second_run_id)
     first_findings = store.findings_for_run(tenant, first["id"])
     second_findings = store.findings_for_run(tenant, second["id"])
     first_statuses = stored_statuses(store, tenant, first["id"])

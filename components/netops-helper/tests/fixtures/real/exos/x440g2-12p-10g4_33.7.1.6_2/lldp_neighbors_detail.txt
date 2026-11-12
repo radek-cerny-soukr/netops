@@ -1,0 +1,138 @@
+
+-----------------------------------------------------------------------------
+LLDP Port 2 detected 1 neighbor
+  Neighbor: 00:00:5E:00:53:23/8, age 18 seconds
+    - Chassis ID type: MAC address (4)
+      Chassis ID     : 00:00:5E:00:53:23
+    - Port ID type: Locally assigned (7)
+      Port ID     : "8"
+    - Time To Live: 120 seconds
+    - IEEE802.3 Power via MDI
+      Port Class                : Power Sourcing Equipment (PSE)
+      MDI Power Support         : Supported
+      MDI Power State           : Enabled
+      Pairs Control Ability     : Not Controllable
+      Power Pair                : Signal (0x01)
+      Power Class               : Class4 (0x05)
+      Power Type                : Type 2 PSE
+      Power Source              : Primary power source
+      Power Priority            : Low
+      PD Requested Power Value  : 0.0 Watts
+      PSE Allocated Power Value : 31.2 Watts
+    - IEEE802.3 MAC/PHY Configuration/Status
+      Auto-negotiation       : Supported, Enabled (0x03)
+      Operational MAU Type   : 1000BaseTFD (30)
+    - Port Description: ""
+    - System Name: "host05"
+    - System Description: "host05"
+    - System Capabilities : "Bridge"
+      Enabled Capabilities: "Bridge"
+    - Management Address Subtype: IPv4 (1)
+      Management Address        : 192.0.2.4
+      Interface Number Subtype  : System Port Number (3)
+      Interface Number          : 0
+      Object ID String          : "null"
+    - IEEE802.1 Port VLAN Identifier: 10
+    - Unknown organizational specific TLV: Length=15 bytes, OUI=00A0C5
+      HEX Dump [000]: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 
+    - Unknown organizational specific TLV: Length=31 bytes, OUI=00A0C5
+      HEX Dump [000]: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 
+      HEX Dump [010]: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 
+    - Unknown organizational specific TLV: Length=22 bytes, OUI=00A0C5
+      HEX Dump [000]: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 
+      HEX Dump [010]: 00 00 00 00 00 00 
+    - Unknown organizational specific TLV: Length=25 bytes, OUI=00A0C5
+      HEX Dump [000]: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 
+      HEX Dump [010]: 00 00 00 00 00 00 00 00 00 
+    - Unknown organizational specific TLV: Length=11 bytes, OUI=00A0C5
+      HEX Dump [000]: 00 00 00 00 00 00 00 00 00 00 00 
+
+-----------------------------------------------------------------------------
+LLDP Port 3 detected 1 neighbor
+  Neighbor: 00:00:5E:00:53:14/00:00:5E:00:53:14, age 29 seconds
+    - Chassis ID type: MAC address (4)
+      Chassis ID     : 00:00:5E:00:53:14
+    - Port ID type: MAC address (3)
+      Port ID     : 00:00:5E:00:53:14
+    - Time To Live: 120 seconds
+    - System Name: "host06"
+    - System Description: "Ruckus R610 Multimedia Hotzone Wireless AP/SW Ver\
+                           sion: 200.15.6.212.27"
+    - System Capabilities : "Bridge, WLAN AP, Router"
+      Enabled Capabilities: "Bridge, WLAN AP"
+    - Management Address Subtype: IPv4 (1)
+      Management Address        : 192.0.2.5
+      Interface Number Subtype  : Unknown (1)
+      Interface Number          : 0
+      Object ID String          : "null"
+    - Port Description: "eth0"
+    - IEEE802.3 Link-aggregation
+      Capability/Status : Capable, Disabled (0x01)
+      Aggregated Port ID: 0 (0x00000000)
+    - IEEE802.3 MAC/PHY Configuration/Status
+      Auto-negotiation       : Supported, Enabled (0x03)
+      Operational MAU Type   : 1000BaseTFD (30)
+
+-----------------------------------------------------------------------------
+LLDP Port 11 detected 1 neighbor
+  Neighbor: (5.1)192.0.2.7/00005E00531E:P1, age 8 seconds
+    - Chassis ID type: Network address (5); Address type: IPv4 (1)
+      Chassis ID     : 192.0.2.7
+    - Port ID type: Locally assigned (7)
+      Port ID     : "00005E00531E:P1"
+    - Time To Live: 180 seconds
+    - Port Description: "NET PORT"
+    - System Name: "host07"
+    - System Description: "snom;snom300-SIP 203.0.113.17;lid:203.0.113.17"
+    - System Capabilities : "Bridge, Telephone"
+      Enabled Capabilities: "Bridge, Telephone"
+    - IEEE802.3 MAC/PHY Configuration/Status
+      Auto-negotiation       : Supported, Enabled (0x03)
+      Operational MAU Type   : 100BaseTXFD (16)
+    - MED Capabilities: "MED Capabilities, Network Policy, Extended Power via MDI - PD, Inventory"
+      MED Device Type : Endpoint Class III (3)
+    - MED Network Policy
+      Application Type  : Voice (1)
+      Policy Flags      : Unknown Policy, Untagged (0x0)
+      VLAN ID           : 0
+      L2 Priority       : 0
+      DSCP Value        : 0
+    - MED Extended Power-via-MDI
+      Power Type    : PD Device (1)
+      Power Source  : PSE and Local (3)
+      Power Priority: Unknown (0)
+      Power Value   : 3.8 Watts
+    - MED Hardware Revision: "host07"
+    - MED Firmware Revision: "snom300-SIP 203.0.113.17"
+    - MED Software Revision: "snom300-SIP 203.0.113.17"
+    - MED Serial Number: "00000000SS04"
+    - MED Manufacturer Name: "snom technology AG"
+    - MED Model Name: "host07"
+    - MED Asset ID: ""
+
+-----------------------------------------------------------------------------
+LLDP Port 13 detected 1 neighbor
+  Neighbor: 00:00:5E:00:53:13/13, age 28 seconds
+    - Chassis ID type: MAC address (4)
+      Chassis ID     : 00:00:5E:00:53:13
+    - Port ID type: ifName (5)
+      Port ID     : "13"
+    - Time To Live: 120 seconds
+    - System Name: "host04"
+    - System Description: "ExtremeXOS (X440G2-12p-10G4) version 33.7.1.6 33.\
+                           7.1.6-patch1-11 by release-manager on Tue Jul 28 \
+                           12:53:09 PM EDT 2026"
+
+-----------------------------------------------------------------------------
+LLDP Port 15 detected 1 neighbor
+  Neighbor: 00:00:5E:00:53:13/15, age 2 seconds
+    - Chassis ID type: MAC address (4)
+      Chassis ID     : 00:00:5E:00:53:13
+    - Port ID type: ifName (5)
+      Port ID     : "15"
+    - Time To Live: 120 seconds
+    - System Name: "host04"
+    - System Description: "ExtremeXOS (X440G2-12p-10G4) version 33.7.1.6 33.\
+                           7.1.6-patch1-11 by release-manager on Tue Jul 28 \
+                           12:53:09 PM EDT 2026"
+

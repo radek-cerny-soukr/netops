@@ -1,0 +1,14 @@
+--------------------------------------------------------------------------------
+Port          Name               Status    Vlan      Duplex  Speed   Type
+--------------------------------------------------------------------------------
+mgmt0         --                 connected routed    full    1000    --
+Eth1/1        leaf-uplink        connected trunk     full    10G     10Gbase-SR
+Eth1/2        --                 notconnec 10        auto    auto    --
+Eth1/3        server             connected 10        full    1000    1000base-T
+Eth1/4        --                 sfpAbsent 1         auto    auto    --
+Eth1/5        --                 xcvrAbsen 1         auto    auto    --
+Eth1/6        --                 noOperMem 1         auto    auto    --
+Eth1/7        --                 down      1         auto    auto    --
+Eth1/8        --                 disabled  1         auto    auto    --
+Po1           vpc-peer-link      connected trunk     full    10G     --
+Vlan10        --                 connected routed    auto    auto    --

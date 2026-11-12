@@ -1,0 +1,11 @@
+
+MAC flags (S - static MAC, D - dynamic MAC, L - locally learned, P - Persistent static, C - Control MAC
+           SE - statistics enabled, NM - non configured MAC, R - remote PE MAC, O - ovsdb MAC
+           GBP - group based policy, B - Blocked MAC)
+
+
+Ethernet switching table : 10 entries, 9 learned
+Routing instance : default-switch
+    Vlan                MAC                 MAC         Age   GBP     Logical                NH        MAC        RTR
+    name                address             flags             Tag     interface              Index     property   ID
+    D10                 00:00:5e:00:53:12   S             -           ge-0/0/1.0             0                    0       

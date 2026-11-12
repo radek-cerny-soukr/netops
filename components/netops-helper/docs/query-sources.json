@@ -155,6 +155,18 @@
       "baseline": "EOS 4.36.x, primarily 4.36.2F",
       "url": "https://www.arista.com/en/um-eos/eos-spanning-tree-protocol"
     },
+    "A-EOS-BOOTING": {
+      "vendor": "Arista",
+      "title": "EOS Switch booting commands",
+      "baseline": "EOS 4.36.x, primarily 4.36.2F",
+      "url": "https://www.arista.com/en/um-eos/eos-switch-booting-commands"
+    },
+    "A-EOS-MLAG": {
+      "vendor": "Arista",
+      "title": "EOS Multi-Chassis Link Aggregation",
+      "baseline": "EOS 4.36.x, primarily 4.36.2F",
+      "url": "https://www.arista.com/en/um-eos/eos-multi-chassis-link-aggregation"
+    },
     "A-F6D14459CDD4": {
       "vendor": "Arista",
       "title": "EOS IPv6",
@@ -851,6 +863,42 @@
       "baseline": "FortiOS 7.6.x and 8.0.0",
       "url": "https://docs.fortinet.com/document/fortigate/8.0.0/cli-reference/113792463/execute-traceroute-options"
     },
+    "F-WIFI-STATUS-600": {
+      "vendor": "Fortinet",
+      "title": "FortiOS 6.0.0 CLI Reference: wireless-controller status (older release; the 8.0.2 `get` form is covered by the measurement below)",
+      "baseline": "FortiOS 6.0.0",
+      "url": "https://docs.fortinet.com/document/fortigate/6.0.0/cli-reference/681997/wireless-controller-status"
+    },
+    "F-WIFI-WTP-STATUS-605": {
+      "vendor": "Fortinet",
+      "title": "FortiOS 6.0.5 CLI Reference: wireless-controller wtp-status (older release; the 8.0.2 `get` form is covered by the measurement below)",
+      "baseline": "FortiOS 6.0.5",
+      "url": "https://docs.fortinet.com/document/fortigate/6.0.5/cli-reference/216858/wireless-controller-wtp-status"
+    },
+    "J-0011AAF3FF0F": {
+      "vendor": "Juniper Networks",
+      "title": "show system commit",
+      "baseline": "Junos OS 23.4R2 common cross-family profile",
+      "url": "https://www.juniper.net/documentation/us/en/software/junos/cli-reference/topics/ref/command/show-system-commit.html"
+    },
+    "J-030870934066": {
+      "vendor": "Juniper Networks",
+      "title": "show vrrp",
+      "baseline": "Junos OS 23.4R2 common cross-family profile",
+      "url": "https://www.juniper.net/documentation/us/en/software/junos/cli-reference/topics/ref/command/show-vrrp.html"
+    },
+    "J-0411C5507EA4": {
+      "vendor": "Juniper Networks",
+      "title": "show poe interface",
+      "baseline": "Junos OS 23.4R2 common cross-family profile",
+      "url": "https://www.juniper.net/documentation/us/en/software/junos/cli-reference/topics/ref/command/show-poe-interface.html"
+    },
+    "J-06292024D996": {
+      "vendor": "Juniper Networks",
+      "title": "show log",
+      "baseline": "Junos OS 23.4R2 common cross-family profile",
+      "url": "https://www.juniper.net/documentation/us/en/software/junos/cli-reference/topics/ref/command/show-log.html"
+    },
     "J-07A2F7009BE1": {
       "vendor": "Juniper Networks",
       "title": "show system uptime",
@@ -868,6 +916,12 @@
       "title": "show OSPF/OSPF3 neighbor",
       "baseline": "Junos OS 23.4R2; EX/QFX ELS extension",
       "url": "https://www.juniper.net/documentation/us/en/software/junos/cli-reference/topics/ref/command/show-ospf-ospf3-neighbor.html"
+    },
+    "J-12934A6D7269": {
+      "vendor": "Juniper Networks",
+      "title": "show system license",
+      "baseline": "Junos OS 23.4R2 common cross-family profile",
+      "url": "https://www.juniper.net/documentation/us/en/software/junos/cli-reference/topics/ref/command/show-system-license-security.html"
     },
     "J-130C9F34D696": {
       "vendor": "Juniper Networks",
@@ -905,17 +959,35 @@
       "baseline": "Junos OS 23.4R2; EX/QFX ELS extension",
       "url": "https://www.juniper.net/documentation/us/en/software/junos/cli-reference/topics/ref/command/show-system-alarms.html"
     },
+    "J-34E1A8407610": {
+      "vendor": "Juniper Networks",
+      "title": "show virtual-chassis vc-port",
+      "baseline": "Junos OS 23.4R2 common cross-family profile",
+      "url": "https://www.juniper.net/documentation/us/en/software/junos/cli-reference/topics/ref/command/show-virtual-chassis-vc-port.html"
+    },
     "J-355BB599ED2F": {
       "vendor": "Juniper Networks",
       "title": "show lldp neighbors",
       "baseline": "Junos OS 23.4R2; EX/QFX ELS extension",
       "url": "https://www.juniper.net/documentation/us/en/software/junos/cli-reference/topics/ref/command/show-lldp-neighbors.html"
     },
+    "J-37228FF82811": {
+      "vendor": "Juniper Networks",
+      "title": "show interfaces (descriptions option)",
+      "baseline": "Junos OS 23.4R2 common cross-family profile",
+      "url": "https://www.juniper.net/documentation/us/en/software/junos/cli-reference/topics/ref/command/show-interfaces-m-series-and-t-series-management-and-internal-ethernet.html"
+    },
     "J-3B1AD935270F": {
       "vendor": "Juniper Networks",
       "title": "show vlans",
       "baseline": "Junos OS 23.4R2; EX/QFX ELS extension",
       "url": "https://www.juniper.net/documentation/us/en/software/junos/cli-reference/topics/ref/command/show-vlans-bridging-qfx-series.html"
+    },
+    "J-3D950623F418": {
+      "vendor": "Juniper Networks",
+      "title": "show ethernet-switching interfaces",
+      "baseline": "Junos OS 23.4R2 common cross-family profile",
+      "url": "https://www.juniper.net/documentation/us/en/software/junos/cli-reference/topics/ref/command/show-ethernet-switching-interfaces-qfx-series.html"
     },
     "J-3DD5C214BC9C": {
       "vendor": "Juniper Networks",
@@ -929,11 +1001,47 @@
       "baseline": "Junos OS 23.4R2; EX/QFX ELS extension",
       "url": "https://www.juniper.net/documentation/us/en/software/junos/cli-reference/topics/ref/command/show-arp.html"
     },
+    "J-45C67A2450D3": {
+      "vendor": "Juniper Networks",
+      "title": "show poe controller",
+      "baseline": "Junos OS 23.4R2 common cross-family profile",
+      "url": "https://www.juniper.net/documentation/us/en/software/junos/cli-reference/topics/ref/command/show-poe-controller.html"
+    },
     "J-4ED688C5DF60": {
       "vendor": "Juniper Networks",
       "title": "data-center validated design",
       "baseline": "Junos OS 23.4R2; EX/QFX ELS extension",
       "url": "https://www.juniper.net/documentation/us/en/software/nce/sg-005-data-center-fabric/sg-005-data-center-fabric.pdf"
+    },
+    "J-59DC15590596": {
+      "vendor": "Juniper Networks",
+      "title": "show system storage",
+      "baseline": "Junos OS 23.4R2 common cross-family profile",
+      "url": "https://www.juniper.net/documentation/us/en/software/junos/cli-reference/topics/ref/command/show-system-storage.html"
+    },
+    "J-5E0003935BD7": {
+      "vendor": "Juniper Networks",
+      "title": "show ntp status",
+      "baseline": "Junos OS 23.4R2 common cross-family profile",
+      "url": "https://www.juniper.net/documentation/us/en/software/junos/cli-reference/topics/ref/command/show-ntp-status.html"
+    },
+    "J-64B16ED9FCF6": {
+      "vendor": "Juniper Networks",
+      "title": "show chassis routing-engine",
+      "baseline": "Junos OS 23.4R2 common cross-family profile",
+      "url": "https://www.juniper.net/documentation/us/en/software/junos/cli-reference/topics/ref/command/show-chassis-routing-engine.html"
+    },
+    "J-76AD87F889AC": {
+      "vendor": "Juniper Networks",
+      "title": "show chassis fpc",
+      "baseline": "Junos OS 23.4R2 common cross-family profile",
+      "url": "https://www.juniper.net/documentation/us/en/software/junos/cli-reference/topics/ref/command/show-chassis-fpc.html"
+    },
+    "J-796638183D24": {
+      "vendor": "Juniper Networks",
+      "title": "show dhcp-security binding",
+      "baseline": "Junos OS 23.4R2 common cross-family profile",
+      "url": "https://www.juniper.net/documentation/us/en/software/junos/cli-reference/topics/ref/command/show-dhcp-security-binding.html"
     },
     "J-7F196AFA400D": {
       "vendor": "Juniper Networks",
@@ -959,11 +1067,29 @@
       "baseline": "Junos OS 23.4R2; EX/QFX ELS extension",
       "url": "https://www.juniper.net/documentation/us/en/software/junos/cli-reference/topics/ref/command/show-chassis-environment.html"
     },
+    "J-C3C5E858020A": {
+      "vendor": "Juniper Networks",
+      "title": "show spanning-tree interface",
+      "baseline": "Junos OS 23.4R2 common cross-family profile",
+      "url": "https://www.juniper.net/documentation/us/en/software/junos/cli-reference/topics/ref/command/show-stp-interface-command.html"
+    },
     "J-C9E9E5FBFEA7": {
       "vendor": "Juniper Networks",
       "title": "show route summary",
       "baseline": "Junos OS 23.4R2; EX/QFX ELS extension",
       "url": "https://www.juniper.net/documentation/us/en/software/junos/cli-reference/topics/ref/command/show-route-summary.html"
+    },
+    "J-CDC120BE0A1B": {
+      "vendor": "Juniper Networks",
+      "title": "show bfd session",
+      "baseline": "Junos OS 23.4R2 common cross-family profile",
+      "url": "https://www.juniper.net/documentation/us/en/software/junos/cli-reference/topics/ref/command/show-bfd-session.html"
+    },
+    "J-D65440862299": {
+      "vendor": "Juniper Networks",
+      "title": "show route instance",
+      "baseline": "Junos OS 23.4R2 common cross-family profile",
+      "url": "https://www.juniper.net/documentation/us/en/software/junos/cli-reference/topics/ref/command/show-route-instance.html"
     },
     "J-D689A0A85E4B": {
       "vendor": "Juniper Networks",
@@ -971,17 +1097,35 @@
       "baseline": "Junos OS 23.4R2; EX/QFX ELS extension",
       "url": "https://www.juniper.net/documentation/us/en/software/junos/cli-reference/topics/ref/command/show-version.html"
     },
+    "J-D72CA0B29114": {
+      "vendor": "Juniper Networks",
+      "title": "show OSPF/OSPF3 interface",
+      "baseline": "Junos OS 23.4R2 common cross-family profile",
+      "url": "https://www.juniper.net/documentation/us/en/software/junos/cli-reference/topics/ref/command/show-ospf-ospf3-interface.html"
+    },
     "J-E49A406FCB12": {
       "vendor": "Juniper Networks",
       "title": "Segment Routing guide",
       "baseline": "Junos OS 23.4R2; EX/QFX ELS extension",
       "url": "https://www.juniper.net/documentation/us/en/software/junos/segment-routing/segment-routing.pdf"
     },
+    "J-E698BC3473DE": {
+      "vendor": "Juniper Networks",
+      "title": "show ntp associations",
+      "baseline": "Junos OS 23.4R2 common cross-family profile",
+      "url": "https://www.juniper.net/documentation/us/en/software/junos/cli-reference/topics/ref/command/show-ntp-associations.html"
+    },
     "J-F1F20D262A8C": {
       "vendor": "Juniper Networks",
       "title": "show spanning-tree bridge",
       "baseline": "Junos OS 23.4R2; EX/QFX ELS extension",
       "url": "https://www.juniper.net/documentation/us/en/software/junos/cli-reference/topics/ref/command/show-stp-bridge-command.html"
+    },
+    "J-FAE82DE1B4E2": {
+      "vendor": "Juniper Networks",
+      "title": "show dot1x interface",
+      "baseline": "Junos OS 23.4R2 common cross-family profile",
+      "url": "https://www.juniper.net/documentation/us/en/software/junos/cli-reference/topics/ref/command/show-dot1x-interface-802-1x-security.html"
     },
     "J-FDA215DE967E": {
       "vendor": "Juniper Networks",
@@ -1025,6 +1169,14 @@
     "arista_eos/clock": {
       "profile": "arista_eos",
       "query": "clock",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "A-CB06492BD8F1"
+      ]
+    },
+    "arista_eos/cpu": {
+      "profile": "arista_eos",
+      "query": "cpu",
       "source_type": "official_vendor",
       "source_ids": [
         "A-CB06492BD8F1"
@@ -1076,6 +1228,22 @@
         "A-F6D14459CDD4"
       ]
     },
+    "arista_eos/interface_poe": {
+      "profile": "arista_eos",
+      "query": "interface_poe",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "A-2066645273AF"
+      ]
+    },
+    "arista_eos/interface_switchport": {
+      "profile": "arista_eos",
+      "query": "interface_switchport",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "A-3B27AC9544C3"
+      ]
+    },
     "arista_eos/interfaces": {
       "profile": "arista_eos",
       "query": "interfaces",
@@ -1084,6 +1252,46 @@
         "A-2066645273AF",
         "A-C3569E76164F",
         "A-F6D14459CDD4"
+      ]
+    },
+    "arista_eos/interfaces_counters_discards": {
+      "profile": "arista_eos",
+      "query": "interfaces_counters_discards",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "A-2066645273AF"
+      ]
+    },
+    "arista_eos/interfaces_counters_errors": {
+      "profile": "arista_eos",
+      "query": "interfaces_counters_errors",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "A-2066645273AF"
+      ]
+    },
+    "arista_eos/interfaces_description": {
+      "profile": "arista_eos",
+      "query": "interfaces_description",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "A-2066645273AF"
+      ]
+    },
+    "arista_eos/interfaces_errdisabled": {
+      "profile": "arista_eos",
+      "query": "interfaces_errdisabled",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "A-2066645273AF"
+      ]
+    },
+    "arista_eos/interfaces_trunk": {
+      "profile": "arista_eos",
+      "query": "interfaces_trunk",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "A-3B27AC9544C3"
       ]
     },
     "arista_eos/inventory": {
@@ -1186,6 +1394,14 @@
         "A-82850E553564"
       ]
     },
+    "arista_eos/lldp_neighbors_detail": {
+      "profile": "arista_eos",
+      "query": "lldp_neighbors_detail",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "A-82850E553564"
+      ]
+    },
     "arista_eos/lldp_neighbors_interface": {
       "profile": "arista_eos",
       "query": "lldp_neighbors_interface",
@@ -1194,12 +1410,60 @@
         "A-82850E553564"
       ]
     },
+    "arista_eos/log_messages": {
+      "profile": "arista_eos",
+      "query": "log_messages",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "A-CB06492BD8F1"
+      ]
+    },
     "arista_eos/mac_table": {
       "profile": "arista_eos",
       "query": "mac_table",
       "source_type": "official_vendor",
       "source_ids": [
         "A-96252BF26FA4"
+      ]
+    },
+    "arista_eos/mlag_config_sanity": {
+      "profile": "arista_eos",
+      "query": "mlag_config_sanity",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "A-EOS-MLAG"
+      ]
+    },
+    "arista_eos/mlag_detail": {
+      "profile": "arista_eos",
+      "query": "mlag_detail",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "A-EOS-MLAG"
+      ]
+    },
+    "arista_eos/ntp_associations": {
+      "profile": "arista_eos",
+      "query": "ntp_associations",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "A-CB06492BD8F1"
+      ]
+    },
+    "arista_eos/ntp_status": {
+      "profile": "arista_eos",
+      "query": "ntp_status",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "A-CB06492BD8F1"
+      ]
+    },
+    "arista_eos/ospf_interfaces": {
+      "profile": "arista_eos",
+      "query": "ospf_interfaces",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "A-4975BB4508C8"
       ]
     },
     "arista_eos/ospf_neighbors": {
@@ -1226,6 +1490,14 @@
         "A-0FE2D09446AB"
       ]
     },
+    "arista_eos/reload_cause": {
+      "profile": "arista_eos",
+      "query": "reload_cause",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "A-EOS-BOOTING"
+      ]
+    },
     "arista_eos/route_lookup": {
       "profile": "arista_eos",
       "query": "route_lookup",
@@ -1240,6 +1512,22 @@
       "source_type": "official_vendor",
       "source_ids": [
         "A-C3569E76164F"
+      ]
+    },
+    "arista_eos/route_table": {
+      "profile": "arista_eos",
+      "query": "route_table",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "A-C3569E76164F"
+      ]
+    },
+    "arista_eos/stp_blocked": {
+      "profile": "arista_eos",
+      "query": "stp_blocked",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "A-CE9B9CFFFAC2"
       ]
     },
     "arista_eos/stp_interface": {
@@ -1258,12 +1546,36 @@
         "A-CE9B9CFFFAC2"
       ]
     },
+    "arista_eos/stp_tree": {
+      "profile": "arista_eos",
+      "query": "stp_tree",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "A-CE9B9CFFFAC2"
+      ]
+    },
+    "arista_eos/stp_vlan": {
+      "profile": "arista_eos",
+      "query": "stp_vlan",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "A-CE9B9CFFFAC2"
+      ]
+    },
     "arista_eos/version": {
       "profile": "arista_eos",
       "query": "version",
       "source_type": "official_vendor",
       "source_ids": [
         "A-7332768EBECB"
+      ]
+    },
+    "arista_eos/vlan_details": {
+      "profile": "arista_eos",
+      "query": "vlan_details",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "A-3B27AC9544C3"
       ]
     },
     "arista_eos/vlans": {
@@ -1328,6 +1640,22 @@
         "C-23E95EF197A2"
       ]
     },
+    "cisco_ios/err_disabled": {
+      "profile": "cisco_ios",
+      "query": "err_disabled",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "C-FFD149196371"
+      ]
+    },
+    "cisco_ios/errdisable_recovery": {
+      "profile": "cisco_ios",
+      "query": "errdisable_recovery",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "C-FFD149196371"
+      ]
+    },
     "cisco_ios/hsrp_summary": {
       "profile": "cisco_ios",
       "query": "hsrp_summary",
@@ -1356,6 +1684,22 @@
         "C-IOS-1527-CONFIG"
       ]
     },
+    "cisco_ios/interface_switchport": {
+      "profile": "cisco_ios",
+      "query": "interface_switchport",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "C-FFD149196371"
+      ]
+    },
+    "cisco_ios/interface_transceiver": {
+      "profile": "cisco_ios",
+      "query": "interface_transceiver",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "C-FFD149196371"
+      ]
+    },
     "cisco_ios/interfaces": {
       "profile": "cisco_ios",
       "query": "interfaces",
@@ -1364,6 +1708,42 @@
         "C-FFD149196371",
         "C-2879FC67941D",
         "C-IOS-1527-CONFIG"
+      ]
+    },
+    "cisco_ios/interfaces_counters_errors": {
+      "profile": "cisco_ios",
+      "query": "interfaces_counters_errors",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "C-FFD149196371",
+        "C-2879FC67941D",
+        "C-IOS-1527-CONFIG"
+      ]
+    },
+    "cisco_ios/interfaces_description": {
+      "profile": "cisco_ios",
+      "query": "interfaces_description",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "C-FFD149196371"
+      ]
+    },
+    "cisco_ios/interfaces_details": {
+      "profile": "cisco_ios",
+      "query": "interfaces_details",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "C-FFD149196371",
+        "C-2879FC67941D",
+        "C-IOS-1527-CONFIG"
+      ]
+    },
+    "cisco_ios/interfaces_trunk": {
+      "profile": "cisco_ios",
+      "query": "interfaces_trunk",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "C-FFD149196371"
       ]
     },
     "cisco_ios/inventory": {
@@ -1441,6 +1821,14 @@
         "C-26C271D4D164"
       ]
     },
+    "cisco_ios/log_messages": {
+      "profile": "cisco_ios",
+      "query": "log_messages",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "C-FFD149196371"
+      ]
+    },
     "cisco_ios/mac_table": {
       "profile": "cisco_ios",
       "query": "mac_table",
@@ -1458,9 +1846,41 @@
         "C-FFD149196371"
       ]
     },
+    "cisco_ios/ntp_associations": {
+      "profile": "cisco_ios",
+      "query": "ntp_associations",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "C-FFD149196371"
+      ]
+    },
+    "cisco_ios/ntp_status": {
+      "profile": "cisco_ios",
+      "query": "ntp_status",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "C-FFD149196371"
+      ]
+    },
+    "cisco_ios/ospf_interfaces": {
+      "profile": "cisco_ios",
+      "query": "ospf_interfaces",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "C-FFD149196371"
+      ]
+    },
     "cisco_ios/ospf_neighbors": {
       "profile": "cisco_ios",
       "query": "ospf_neighbors",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "C-FFD149196371"
+      ]
+    },
+    "cisco_ios/power_inline": {
+      "profile": "cisco_ios",
+      "query": "power_inline",
       "source_type": "official_vendor",
       "source_ids": [
         "C-FFD149196371"
@@ -1484,6 +1904,46 @@
         "C-4B38FE4FF1B6"
       ]
     },
+    "cisco_ios/route_table": {
+      "profile": "cisco_ios",
+      "query": "route_table",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "C-FFD149196371"
+      ]
+    },
+    "cisco_ios/stack_members": {
+      "profile": "cisco_ios",
+      "query": "stack_members",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "C-FFD149196371"
+      ]
+    },
+    "cisco_ios/stack_ports": {
+      "profile": "cisco_ios",
+      "query": "stack_ports",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "C-FFD149196371"
+      ]
+    },
+    "cisco_ios/stp_inconsistent": {
+      "profile": "cisco_ios",
+      "query": "stp_inconsistent",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "C-FFD149196371"
+      ]
+    },
+    "cisco_ios/stp_root": {
+      "profile": "cisco_ios",
+      "query": "stp_root",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "C-FFD149196371"
+      ]
+    },
     "cisco_ios/stp_summary": {
       "profile": "cisco_ios",
       "query": "stp_summary",
@@ -1491,6 +1951,22 @@
       "source_ids": [
         "C-FFD149196371",
         "C-26C271D4D164"
+      ]
+    },
+    "cisco_ios/stp_tree": {
+      "profile": "cisco_ios",
+      "query": "stp_tree",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "C-FFD149196371"
+      ]
+    },
+    "cisco_ios/stp_vlan": {
+      "profile": "cisco_ios",
+      "query": "stp_vlan",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "C-FFD149196371"
       ]
     },
     "cisco_ios/version": {
@@ -1501,6 +1977,14 @@
         "C-FFD149196371",
         "C-6F07812B98F0",
         "C-23E95EF197A2"
+      ]
+    },
+    "cisco_ios/vlan_details": {
+      "profile": "cisco_ios",
+      "query": "vlan_details",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "C-FFD149196371"
       ]
     },
     "cisco_ios/vlans": {
@@ -1520,6 +2004,22 @@
         "C-FFD149196371"
       ]
     },
+    "cisco_ios/vtp_status": {
+      "profile": "cisco_ios",
+      "query": "vtp_status",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "C-FFD149196371"
+      ]
+    },
+    "cisco_nxos/access_lists": {
+      "profile": "cisco_nxos",
+      "query": "access_lists",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "C-845C68D3A01D"
+      ]
+    },
     "cisco_nxos/arp_table": {
       "profile": "cisco_nxos",
       "query": "arp_table",
@@ -1529,9 +2029,25 @@
         "C-BF47DA02377E"
       ]
     },
+    "cisco_nxos/bfd_neighbors": {
+      "profile": "cisco_nxos",
+      "query": "bfd_neighbors",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "C-845C68D3A01D"
+      ]
+    },
     "cisco_nxos/bgp_sessions": {
       "profile": "cisco_nxos",
       "query": "bgp_sessions",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "C-845C68D3A01D"
+      ]
+    },
+    "cisco_nxos/bgp_summary": {
+      "profile": "cisco_nxos",
+      "query": "bgp_summary",
       "source_type": "official_vendor",
       "source_ids": [
         "C-845C68D3A01D"
@@ -1563,12 +2079,44 @@
         "C-845C68D3A01D"
       ]
     },
+    "cisco_nxos/dhcp_snooping_binding": {
+      "profile": "cisco_nxos",
+      "query": "dhcp_snooping_binding",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "C-845C68D3A01D"
+      ]
+    },
     "cisco_nxos/environment": {
       "profile": "cisco_nxos",
       "query": "environment",
       "source_type": "official_vendor",
       "source_ids": [
         "C-64F553F33A1E",
+        "C-845C68D3A01D"
+      ]
+    },
+    "cisco_nxos/err_disabled": {
+      "profile": "cisco_nxos",
+      "query": "err_disabled",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "C-845C68D3A01D"
+      ]
+    },
+    "cisco_nxos/errdisable_recovery": {
+      "profile": "cisco_nxos",
+      "query": "errdisable_recovery",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "C-845C68D3A01D"
+      ]
+    },
+    "cisco_nxos/features": {
+      "profile": "cisco_nxos",
+      "query": "features",
+      "source_type": "official_vendor",
+      "source_ids": [
         "C-845C68D3A01D"
       ]
     },
@@ -1606,6 +2154,22 @@
         "C-NXOS-105-IP-TUNNEL"
       ]
     },
+    "cisco_nxos/interface_switchport": {
+      "profile": "cisco_nxos",
+      "query": "interface_switchport",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "C-845C68D3A01D"
+      ]
+    },
+    "cisco_nxos/interface_transceiver": {
+      "profile": "cisco_nxos",
+      "query": "interface_transceiver",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "C-845C68D3A01D"
+      ]
+    },
     "cisco_nxos/interfaces": {
       "profile": "cisco_nxos",
       "query": "interfaces",
@@ -1617,6 +2181,30 @@
         "C-NXOS-105-L3-INTERFACE",
         "C-NXOS-105-PORT-CHANNEL",
         "C-NXOS-105-IP-TUNNEL"
+      ]
+    },
+    "cisco_nxos/interfaces_counters_errors": {
+      "profile": "cisco_nxos",
+      "query": "interfaces_counters_errors",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "C-845C68D3A01D"
+      ]
+    },
+    "cisco_nxos/interfaces_description": {
+      "profile": "cisco_nxos",
+      "query": "interfaces_description",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "C-845C68D3A01D"
+      ]
+    },
+    "cisco_nxos/interfaces_trunk": {
+      "profile": "cisco_nxos",
+      "query": "interfaces_trunk",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "C-845C68D3A01D"
       ]
     },
     "cisco_nxos/inventory": {
@@ -1687,9 +2275,25 @@
         "C-845C68D3A01D"
       ]
     },
+    "cisco_nxos/license_usage": {
+      "profile": "cisco_nxos",
+      "query": "license_usage",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "C-845C68D3A01D"
+      ]
+    },
     "cisco_nxos/lldp_neighbors": {
       "profile": "cisco_nxos",
       "query": "lldp_neighbors",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "C-845C68D3A01D"
+      ]
+    },
+    "cisco_nxos/log_messages": {
+      "profile": "cisco_nxos",
+      "query": "log_messages",
       "source_type": "official_vendor",
       "source_ids": [
         "C-845C68D3A01D"
@@ -1713,9 +2317,57 @@
         "C-845C68D3A01D"
       ]
     },
+    "cisco_nxos/modules": {
+      "profile": "cisco_nxos",
+      "query": "modules",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "C-845C68D3A01D"
+      ]
+    },
+    "cisco_nxos/ntp_associations": {
+      "profile": "cisco_nxos",
+      "query": "ntp_associations",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "C-845C68D3A01D"
+      ]
+    },
+    "cisco_nxos/ntp_status": {
+      "profile": "cisco_nxos",
+      "query": "ntp_status",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "C-845C68D3A01D"
+      ]
+    },
+    "cisco_nxos/ospf_interfaces": {
+      "profile": "cisco_nxos",
+      "query": "ospf_interfaces",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "C-845C68D3A01D"
+      ]
+    },
     "cisco_nxos/ospf_neighbors": {
       "profile": "cisco_nxos",
       "query": "ospf_neighbors",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "C-845C68D3A01D"
+      ]
+    },
+    "cisco_nxos/redundancy_status": {
+      "profile": "cisco_nxos",
+      "query": "redundancy_status",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "C-845C68D3A01D"
+      ]
+    },
+    "cisco_nxos/reset_reason": {
+      "profile": "cisco_nxos",
+      "query": "reset_reason",
       "source_type": "official_vendor",
       "source_ids": [
         "C-845C68D3A01D"
@@ -1737,9 +2389,65 @@
         "C-845C68D3A01D"
       ]
     },
+    "cisco_nxos/route_table": {
+      "profile": "cisco_nxos",
+      "query": "route_table",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "C-845C68D3A01D"
+      ]
+    },
+    "cisco_nxos/stp_blocked": {
+      "profile": "cisco_nxos",
+      "query": "stp_blocked",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "C-845C68D3A01D"
+      ]
+    },
+    "cisco_nxos/stp_inconsistent": {
+      "profile": "cisco_nxos",
+      "query": "stp_inconsistent",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "C-845C68D3A01D"
+      ]
+    },
+    "cisco_nxos/stp_root": {
+      "profile": "cisco_nxos",
+      "query": "stp_root",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "C-845C68D3A01D"
+      ]
+    },
     "cisco_nxos/stp_summary": {
       "profile": "cisco_nxos",
       "query": "stp_summary",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "C-845C68D3A01D"
+      ]
+    },
+    "cisco_nxos/stp_tree": {
+      "profile": "cisco_nxos",
+      "query": "stp_tree",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "C-845C68D3A01D"
+      ]
+    },
+    "cisco_nxos/stp_vlan": {
+      "profile": "cisco_nxos",
+      "query": "stp_vlan",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "C-845C68D3A01D"
+      ]
+    },
+    "cisco_nxos/system_resources": {
+      "profile": "cisco_nxos",
+      "query": "system_resources",
       "source_type": "official_vendor",
       "source_ids": [
         "C-845C68D3A01D"
@@ -1754,6 +2462,14 @@
         "C-845C68D3A01D"
       ]
     },
+    "cisco_nxos/vlan_details": {
+      "profile": "cisco_nxos",
+      "query": "vlan_details",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "C-845C68D3A01D"
+      ]
+    },
     "cisco_nxos/vlans": {
       "profile": "cisco_nxos",
       "query": "vlans",
@@ -1761,6 +2477,22 @@
       "source_ids": [
         "C-64F553F33A1E",
         "C-BF47DA02377E"
+      ]
+    },
+    "cisco_nxos/vpc_consistency": {
+      "profile": "cisco_nxos",
+      "query": "vpc_consistency",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "C-845C68D3A01D"
+      ]
+    },
+    "cisco_nxos/vpc_orphan_ports": {
+      "profile": "cisco_nxos",
+      "query": "vpc_orphan_ports",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "C-845C68D3A01D"
       ]
     },
     "cisco_nxos/vpc_peer_keepalive": {
@@ -1788,6 +2520,14 @@
       "source_ids": [
         "C-64F553F33A1E",
         "C-092025707963"
+      ]
+    },
+    "cisco_nxos/vrfs": {
+      "profile": "cisco_nxos",
+      "query": "vrfs",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "C-845C68D3A01D"
       ]
     },
     "cisco_nxos/vrrp_summary": {
@@ -1864,6 +2604,22 @@
         "C-4A456165AC7D"
       ]
     },
+    "cisco_xe/err_disabled": {
+      "profile": "cisco_xe",
+      "query": "err_disabled",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "C-6F1D28B2FE79"
+      ]
+    },
+    "cisco_xe/errdisable_recovery": {
+      "profile": "cisco_xe",
+      "query": "errdisable_recovery",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "C-6F1D28B2FE79"
+      ]
+    },
     "cisco_xe/hsrp_summary": {
       "profile": "cisco_xe",
       "query": "hsrp_summary",
@@ -1901,6 +2657,22 @@
         "C-XE-1715-INTERFACE-GUIDE"
       ]
     },
+    "cisco_xe/interface_switchport": {
+      "profile": "cisco_xe",
+      "query": "interface_switchport",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "C-6F1D28B2FE79"
+      ]
+    },
+    "cisco_xe/interface_transceiver": {
+      "profile": "cisco_xe",
+      "query": "interface_transceiver",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "C-6F1D28B2FE79"
+      ]
+    },
     "cisco_xe/interfaces": {
       "profile": "cisco_xe",
       "query": "interfaces",
@@ -1912,6 +2684,48 @@
         "C-4A456165AC7D",
         "C-XE-1715-INTERFACE-CMD",
         "C-XE-1715-INTERFACE-GUIDE"
+      ]
+    },
+    "cisco_xe/interfaces_counters_errors": {
+      "profile": "cisco_xe",
+      "query": "interfaces_counters_errors",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "C-861E8F0777A1",
+        "C-6F1D28B2FE79",
+        "C-9EB4D483A6A9",
+        "C-4A456165AC7D",
+        "C-XE-1715-INTERFACE-CMD",
+        "C-XE-1715-INTERFACE-GUIDE"
+      ]
+    },
+    "cisco_xe/interfaces_description": {
+      "profile": "cisco_xe",
+      "query": "interfaces_description",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "C-6F1D28B2FE79"
+      ]
+    },
+    "cisco_xe/interfaces_details": {
+      "profile": "cisco_xe",
+      "query": "interfaces_details",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "C-861E8F0777A1",
+        "C-6F1D28B2FE79",
+        "C-9EB4D483A6A9",
+        "C-4A456165AC7D",
+        "C-XE-1715-INTERFACE-CMD",
+        "C-XE-1715-INTERFACE-GUIDE"
+      ]
+    },
+    "cisco_xe/interfaces_trunk": {
+      "profile": "cisco_xe",
+      "query": "interfaces_trunk",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "C-6F1D28B2FE79"
       ]
     },
     "cisco_xe/inventory": {
@@ -2006,6 +2820,14 @@
         "C-4A456165AC7D"
       ]
     },
+    "cisco_xe/log_messages": {
+      "profile": "cisco_xe",
+      "query": "log_messages",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "C-6F1D28B2FE79"
+      ]
+    },
     "cisco_xe/mac_table": {
       "profile": "cisco_xe",
       "query": "mac_table",
@@ -2028,6 +2850,30 @@
         "C-4A456165AC7D"
       ]
     },
+    "cisco_xe/ntp_associations": {
+      "profile": "cisco_xe",
+      "query": "ntp_associations",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "C-6F1D28B2FE79"
+      ]
+    },
+    "cisco_xe/ntp_status": {
+      "profile": "cisco_xe",
+      "query": "ntp_status",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "C-6F1D28B2FE79"
+      ]
+    },
+    "cisco_xe/ospf_interfaces": {
+      "profile": "cisco_xe",
+      "query": "ospf_interfaces",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "C-6F1D28B2FE79"
+      ]
+    },
     "cisco_xe/ospf_neighbors": {
       "profile": "cisco_xe",
       "query": "ospf_neighbors",
@@ -2037,6 +2883,22 @@
         "C-6F1D28B2FE79",
         "C-9EB4D483A6A9",
         "C-4A456165AC7D"
+      ]
+    },
+    "cisco_xe/platform_resources": {
+      "profile": "cisco_xe",
+      "query": "platform_resources",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "C-6F1D28B2FE79"
+      ]
+    },
+    "cisco_xe/power_inline": {
+      "profile": "cisco_xe",
+      "query": "power_inline",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "C-6F1D28B2FE79"
       ]
     },
     "cisco_xe/route_lookup": {
@@ -2061,6 +2923,46 @@
         "C-4A456165AC7D"
       ]
     },
+    "cisco_xe/route_table": {
+      "profile": "cisco_xe",
+      "query": "route_table",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "C-6F1D28B2FE79"
+      ]
+    },
+    "cisco_xe/stack_members": {
+      "profile": "cisco_xe",
+      "query": "stack_members",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "C-6F1D28B2FE79"
+      ]
+    },
+    "cisco_xe/stack_ports": {
+      "profile": "cisco_xe",
+      "query": "stack_ports",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "C-6F1D28B2FE79"
+      ]
+    },
+    "cisco_xe/stp_inconsistent": {
+      "profile": "cisco_xe",
+      "query": "stp_inconsistent",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "C-6F1D28B2FE79"
+      ]
+    },
+    "cisco_xe/stp_root": {
+      "profile": "cisco_xe",
+      "query": "stp_root",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "C-6F1D28B2FE79"
+      ]
+    },
     "cisco_xe/stp_summary": {
       "profile": "cisco_xe",
       "query": "stp_summary",
@@ -2072,6 +2974,22 @@
         "C-4A456165AC7D"
       ]
     },
+    "cisco_xe/stp_tree": {
+      "profile": "cisco_xe",
+      "query": "stp_tree",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "C-6F1D28B2FE79"
+      ]
+    },
+    "cisco_xe/stp_vlan": {
+      "profile": "cisco_xe",
+      "query": "stp_vlan",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "C-6F1D28B2FE79"
+      ]
+    },
     "cisco_xe/version": {
       "profile": "cisco_xe",
       "query": "version",
@@ -2081,6 +2999,14 @@
         "C-6F1D28B2FE79",
         "C-9EB4D483A6A9",
         "C-4A456165AC7D"
+      ]
+    },
+    "cisco_xe/vlan_details": {
+      "profile": "cisco_xe",
+      "query": "vlan_details",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "C-6F1D28B2FE79"
       ]
     },
     "cisco_xe/vlans": {
@@ -2103,6 +3029,14 @@
         "C-6F1D28B2FE79",
         "C-9EB4D483A6A9",
         "C-4A456165AC7D"
+      ]
+    },
+    "cisco_xe/vtp_status": {
+      "profile": "cisco_xe",
+      "query": "vtp_status",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "C-6F1D28B2FE79"
       ]
     },
     "extreme_exos/access_list_counters": {
@@ -2201,6 +3135,14 @@
         "E-INDEX"
       ]
     },
+    "extreme_exos/inline_power_stats": {
+      "profile": "extreme_exos",
+      "query": "inline_power_stats",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "E-INDEX"
+      ]
+    },
     "extreme_exos/interface_details": {
       "profile": "extreme_exos",
       "query": "interface_details",
@@ -2241,6 +3183,14 @@
         "E-PORT-TX"
       ]
     },
+    "extreme_exos/ipconfig": {
+      "profile": "extreme_exos",
+      "query": "ipconfig",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "E-INDEX"
+      ]
+    },
     "extreme_exos/ipv6_neighbor_address": {
       "profile": "extreme_exos",
       "query": "ipv6_neighbor_address",
@@ -2265,12 +3215,28 @@
         "E-IPROUTE6"
       ]
     },
+    "extreme_exos/ipv6_route_table": {
+      "profile": "extreme_exos",
+      "query": "ipv6_route_table",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "E-INDEX"
+      ]
+    },
     "extreme_exos/lacp": {
       "profile": "extreme_exos",
       "query": "lacp",
       "source_type": "official_vendor",
       "source_ids": [
         "E-LACP"
+      ]
+    },
+    "extreme_exos/lag_summary": {
+      "profile": "extreme_exos",
+      "query": "lag_summary",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "E-INDEX"
       ]
     },
     "extreme_exos/licenses": {
@@ -2303,6 +3269,38 @@
       "source_type": "official_vendor",
       "source_ids": [
         "E-LLDP"
+      ]
+    },
+    "extreme_exos/lldp_neighbors_detail": {
+      "profile": "extreme_exos",
+      "query": "lldp_neighbors_detail",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "E-INDEX"
+      ]
+    },
+    "extreme_exos/log_configuration": {
+      "profile": "extreme_exos",
+      "query": "log_configuration",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "E-INDEX"
+      ]
+    },
+    "extreme_exos/log_messages": {
+      "profile": "extreme_exos",
+      "query": "log_messages",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "E-INDEX"
+      ]
+    },
+    "extreme_exos/log_warnings": {
+      "profile": "extreme_exos",
+      "query": "log_warnings",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "E-INDEX"
       ]
     },
     "extreme_exos/mac_interface": {
@@ -2345,9 +3343,33 @@
         "E-INDEX"
       ]
     },
+    "extreme_exos/mlag_peer": {
+      "profile": "extreme_exos",
+      "query": "mlag_peer",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "E-INDEX"
+      ]
+    },
+    "extreme_exos/mlag_ports": {
+      "profile": "extreme_exos",
+      "query": "mlag_ports",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "E-INDEX"
+      ]
+    },
     "extreme_exos/ntp": {
       "profile": "extreme_exos",
       "query": "ntp",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "E-INDEX"
+      ]
+    },
+    "extreme_exos/ntp_association": {
+      "profile": "extreme_exos",
+      "query": "ntp_association",
       "source_type": "official_vendor",
       "source_ids": [
         "E-INDEX"
@@ -2367,6 +3389,30 @@
       "source_type": "official_vendor",
       "source_ids": [
         "E-PORTS-CONFIG"
+      ]
+    },
+    "extreme_exos/ports_description": {
+      "profile": "extreme_exos",
+      "query": "ports_description",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "E-INDEX"
+      ]
+    },
+    "extreme_exos/ports_rx_errors": {
+      "profile": "extreme_exos",
+      "query": "ports_rx_errors",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "E-INDEX"
+      ]
+    },
+    "extreme_exos/ports_tx_errors": {
+      "profile": "extreme_exos",
+      "query": "ports_tx_errors",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "E-INDEX"
       ]
     },
     "extreme_exos/power": {
@@ -2399,6 +3445,14 @@
       "source_type": "official_vendor",
       "source_ids": [
         "E-IPROUTE"
+      ]
+    },
+    "extreme_exos/route_table": {
+      "profile": "extreme_exos",
+      "query": "route_table",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "E-INDEX"
       ]
     },
     "extreme_exos/sessions": {
@@ -2441,6 +3495,14 @@
         "E-STPD"
       ]
     },
+    "extreme_exos/stp_ports": {
+      "profile": "extreme_exos",
+      "query": "stp_ports",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "E-INDEX"
+      ]
+    },
     "extreme_exos/stp_summary": {
       "profile": "extreme_exos",
       "query": "stp_summary",
@@ -2471,6 +3533,14 @@
       "source_type": "official_vendor",
       "source_ids": [
         "E-VERSION"
+      ]
+    },
+    "extreme_exos/vlan_detail": {
+      "profile": "extreme_exos",
+      "query": "vlan_detail",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "E-VLAN"
       ]
     },
     "extreme_exos/vlan_details": {
@@ -3148,6 +4218,15 @@
         "F-IPSEC-ALIAS-80"
       ]
     },
+    "fortinet/interface_vlan_ids": {
+      "profile": "fortinet",
+      "query": "interface_vlan_ids",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "F-CONFIG-SYSTEM-INTERFACE-80",
+        "F-CLI-802"
+      ]
+    },
     "fortinet/ips_anomaly_status": {
       "profile": "fortinet",
       "query": "ips_anomaly_status",
@@ -3311,6 +4390,22 @@
       "source_ids": [
         "F-CHEAT-80",
         "F-CHEAT-802"
+      ]
+    },
+    "fortinet/managed_switch_port_stats": {
+      "profile": "fortinet",
+      "query": "managed_switch_port_stats",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "F-CHEAT-802"
+      ]
+    },
+    "fortinet/managed_switch_port_vlans": {
+      "profile": "fortinet",
+      "query": "managed_switch_port_vlans",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "F-CLI-802"
       ]
     },
     "fortinet/managed_switch_stacking": {
@@ -3767,6 +4862,16 @@
         "F-CLI-802"
       ]
     },
+    "fortinet/system_interfaces": {
+      "profile": "fortinet",
+      "query": "system_interfaces",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "F-CLI-76",
+        "F-CLI-80",
+        "F-CLI-802"
+      ]
+    },
     "fortinet/system_status": {
       "profile": "fortinet",
       "query": "system_status",
@@ -3818,6 +4923,15 @@
         "F-CLI-802"
       ]
     },
+    "fortinet/wifi_ap_status": {
+      "profile": "fortinet",
+      "query": "wifi_ap_status",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "F-CLI-802",
+        "F-WIFI-WTP-STATUS-605"
+      ]
+    },
     "fortinet/wifi_client_detail": {
       "profile": "fortinet",
       "query": "wifi_client_detail",
@@ -3838,6 +4952,47 @@
         "F-CLI-802"
       ]
     },
+    "fortinet/wifi_controller_statistics": {
+      "profile": "fortinet",
+      "query": "wifi_controller_statistics",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "F-CLI-802"
+      ]
+    },
+    "fortinet/wifi_controller_status": {
+      "profile": "fortinet",
+      "query": "wifi_controller_status",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "F-CLI-802",
+        "F-WIFI-STATUS-600"
+      ]
+    },
+    "fortinet/wifi_events": {
+      "profile": "fortinet",
+      "query": "wifi_events",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "F-CLI-802"
+      ]
+    },
+    "fortinet/wifi_neighbors": {
+      "profile": "fortinet",
+      "query": "wifi_neighbors",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "F-CLI-802"
+      ]
+    },
+    "fortinet/wifi_rf_analysis": {
+      "profile": "fortinet",
+      "query": "wifi_rf_analysis",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "F-CLI-802"
+      ]
+    },
     "fortinet/wifi_ssid_mapping": {
       "profile": "fortinet",
       "query": "wifi_ssid_mapping",
@@ -3845,6 +5000,14 @@
       "source_ids": [
         "F-CHEAT-76",
         "F-CLI-768",
+        "F-CLI-802"
+      ]
+    },
+    "fortinet/wifi_vap_status": {
+      "profile": "fortinet",
+      "query": "wifi_vap_status",
+      "source_type": "official_vendor",
+      "source_ids": [
         "F-CLI-802"
       ]
     },
@@ -3866,6 +5029,14 @@
         "J-4ED688C5DF60"
       ]
     },
+    "juniper_junos/bfd_sessions": {
+      "profile": "juniper_junos",
+      "query": "bfd_sessions",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "J-CDC120BE0A1B"
+      ]
+    },
     "juniper_junos/bgp_summary": {
       "profile": "juniper_junos",
       "query": "bgp_summary",
@@ -3882,12 +5053,28 @@
         "J-3DD5C214BC9C"
       ]
     },
+    "juniper_junos/commit_history": {
+      "profile": "juniper_junos",
+      "query": "commit_history",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "J-0011AAF3FF0F"
+      ]
+    },
     "juniper_junos/environment": {
       "profile": "juniper_junos",
       "query": "environment",
       "source_type": "official_vendor",
       "source_ids": [
         "J-BBD80D66FDCB"
+      ]
+    },
+    "juniper_junos/fpc": {
+      "profile": "juniper_junos",
+      "query": "fpc",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "J-76AD87F889AC"
       ]
     },
     "juniper_junos/hardware": {
@@ -3920,6 +5107,14 @@
       "source_type": "official_vendor",
       "source_ids": [
         "J-07B6D3963B4F"
+      ]
+    },
+    "juniper_junos/interfaces_descriptions": {
+      "profile": "juniper_junos",
+      "query": "interfaces_descriptions",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "J-37228FF82811"
       ]
     },
     "juniper_junos/ipv6_neighbors": {
@@ -3963,9 +5158,25 @@
         "J-BB870301F7CD"
       ]
     },
+    "juniper_junos/licenses": {
+      "profile": "juniper_junos",
+      "query": "licenses",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "J-12934A6D7269"
+      ]
+    },
     "juniper_junos/lldp_neighbors": {
       "profile": "juniper_junos",
       "query": "lldp_neighbors",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "J-355BB599ED2F"
+      ]
+    },
+    "juniper_junos/lldp_neighbors_detail": {
+      "profile": "juniper_junos",
+      "query": "lldp_neighbors_detail",
       "source_type": "official_vendor",
       "source_ids": [
         "J-355BB599ED2F"
@@ -3977,6 +5188,46 @@
       "source_type": "official_vendor",
       "source_ids": [
         "J-355BB599ED2F"
+      ]
+    },
+    "juniper_junos/log_interactive_commands": {
+      "profile": "juniper_junos",
+      "query": "log_interactive_commands",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "J-06292024D996"
+      ]
+    },
+    "juniper_junos/log_messages": {
+      "profile": "juniper_junos",
+      "query": "log_messages",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "J-06292024D996"
+      ]
+    },
+    "juniper_junos/ntp_associations": {
+      "profile": "juniper_junos",
+      "query": "ntp_associations",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "J-E698BC3473DE"
+      ]
+    },
+    "juniper_junos/ntp_status": {
+      "profile": "juniper_junos",
+      "query": "ntp_status",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "J-5E0003935BD7"
+      ]
+    },
+    "juniper_junos/ospf_interfaces": {
+      "profile": "juniper_junos",
+      "query": "ospf_interfaces",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "J-D72CA0B29114"
       ]
     },
     "juniper_junos/ospf_neighbors": {
@@ -4011,6 +5262,14 @@
         "J-0D2669AC9DEE"
       ]
     },
+    "juniper_junos/route_instances": {
+      "profile": "juniper_junos",
+      "query": "route_instances",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "J-D65440862299"
+      ]
+    },
     "juniper_junos/route_lookup": {
       "profile": "juniper_junos",
       "query": "route_lookup",
@@ -4026,6 +5285,30 @@
       "source_type": "official_vendor",
       "source_ids": [
         "J-C9E9E5FBFEA7"
+      ]
+    },
+    "juniper_junos/route_table": {
+      "profile": "juniper_junos",
+      "query": "route_table",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "J-FDA215DE967E"
+      ]
+    },
+    "juniper_junos/routing_engine": {
+      "profile": "juniper_junos",
+      "query": "routing_engine",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "J-64B16ED9FCF6"
+      ]
+    },
+    "juniper_junos/storage": {
+      "profile": "juniper_junos",
+      "query": "storage",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "J-59DC15590596"
       ]
     },
     "juniper_junos/system_alarms": {
@@ -4052,6 +5335,14 @@
         "J-D689A0A85E4B"
       ]
     },
+    "juniper_junos/vrrp_summary": {
+      "profile": "juniper_junos",
+      "query": "vrrp_summary",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "J-030870934066"
+      ]
+    },
     "juniper_junos_els/arp_interface": {
       "profile": "juniper_junos_els",
       "query": "arp_interface",
@@ -4070,6 +5361,14 @@
         "J-4ED688C5DF60"
       ]
     },
+    "juniper_junos_els/bfd_sessions": {
+      "profile": "juniper_junos_els",
+      "query": "bfd_sessions",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "J-CDC120BE0A1B"
+      ]
+    },
     "juniper_junos_els/bgp_summary": {
       "profile": "juniper_junos_els",
       "query": "bgp_summary",
@@ -4086,12 +5385,60 @@
         "J-3DD5C214BC9C"
       ]
     },
+    "juniper_junos_els/commit_history": {
+      "profile": "juniper_junos_els",
+      "query": "commit_history",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "J-0011AAF3FF0F"
+      ]
+    },
+    "juniper_junos_els/dhcp_security_bindings": {
+      "profile": "juniper_junos_els",
+      "query": "dhcp_security_bindings",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "J-796638183D24"
+      ]
+    },
+    "juniper_junos_els/dot1x_interfaces": {
+      "profile": "juniper_junos_els",
+      "query": "dot1x_interfaces",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "J-FAE82DE1B4E2"
+      ]
+    },
     "juniper_junos_els/environment": {
       "profile": "juniper_junos_els",
       "query": "environment",
       "source_type": "official_vendor",
       "source_ids": [
         "J-BBD80D66FDCB"
+      ]
+    },
+    "juniper_junos_els/ethernet_switching_interface": {
+      "profile": "juniper_junos_els",
+      "query": "ethernet_switching_interface",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "J-3D950623F418"
+      ]
+    },
+    "juniper_junos_els/ethernet_switching_interfaces": {
+      "profile": "juniper_junos_els",
+      "query": "ethernet_switching_interfaces",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "J-3D950623F418"
+      ]
+    },
+    "juniper_junos_els/fpc": {
+      "profile": "juniper_junos_els",
+      "query": "fpc",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "J-76AD87F889AC"
       ]
     },
     "juniper_junos_els/hardware": {
@@ -4124,6 +5471,14 @@
       "source_type": "official_vendor",
       "source_ids": [
         "J-07B6D3963B4F"
+      ]
+    },
+    "juniper_junos_els/interfaces_descriptions": {
+      "profile": "juniper_junos_els",
+      "query": "interfaces_descriptions",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "J-37228FF82811"
       ]
     },
     "juniper_junos_els/ipv6_neighbors": {
@@ -4167,9 +5522,25 @@
         "J-BB870301F7CD"
       ]
     },
+    "juniper_junos_els/licenses": {
+      "profile": "juniper_junos_els",
+      "query": "licenses",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "J-12934A6D7269"
+      ]
+    },
     "juniper_junos_els/lldp_neighbors": {
       "profile": "juniper_junos_els",
       "query": "lldp_neighbors",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "J-355BB599ED2F"
+      ]
+    },
+    "juniper_junos_els/lldp_neighbors_detail": {
+      "profile": "juniper_junos_els",
+      "query": "lldp_neighbors_detail",
       "source_type": "official_vendor",
       "source_ids": [
         "J-355BB599ED2F"
@@ -4183,12 +5554,68 @@
         "J-355BB599ED2F"
       ]
     },
+    "juniper_junos_els/log_interactive_commands": {
+      "profile": "juniper_junos_els",
+      "query": "log_interactive_commands",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "J-06292024D996"
+      ]
+    },
+    "juniper_junos_els/log_messages": {
+      "profile": "juniper_junos_els",
+      "query": "log_messages",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "J-06292024D996"
+      ]
+    },
     "juniper_junos_els/mac_table": {
       "profile": "juniper_junos_els",
       "query": "mac_table",
       "source_type": "official_vendor",
       "source_ids": [
         "J-1E18ADA5DDAE"
+      ]
+    },
+    "juniper_junos_els/mac_table_address": {
+      "profile": "juniper_junos_els",
+      "query": "mac_table_address",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "J-1E18ADA5DDAE"
+      ]
+    },
+    "juniper_junos_els/mac_table_interface": {
+      "profile": "juniper_junos_els",
+      "query": "mac_table_interface",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "J-1E18ADA5DDAE"
+      ]
+    },
+    "juniper_junos_els/ntp_associations": {
+      "profile": "juniper_junos_els",
+      "query": "ntp_associations",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "J-E698BC3473DE"
+      ]
+    },
+    "juniper_junos_els/ntp_status": {
+      "profile": "juniper_junos_els",
+      "query": "ntp_status",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "J-5E0003935BD7"
+      ]
+    },
+    "juniper_junos_els/ospf_interfaces": {
+      "profile": "juniper_junos_els",
+      "query": "ospf_interfaces",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "J-D72CA0B29114"
       ]
     },
     "juniper_junos_els/ospf_neighbors": {
@@ -4223,6 +5650,30 @@
         "J-0D2669AC9DEE"
       ]
     },
+    "juniper_junos_els/poe_controller": {
+      "profile": "juniper_junos_els",
+      "query": "poe_controller",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "J-45C67A2450D3"
+      ]
+    },
+    "juniper_junos_els/poe_interfaces": {
+      "profile": "juniper_junos_els",
+      "query": "poe_interfaces",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "J-0411C5507EA4"
+      ]
+    },
+    "juniper_junos_els/route_instances": {
+      "profile": "juniper_junos_els",
+      "query": "route_instances",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "J-D65440862299"
+      ]
+    },
     "juniper_junos_els/route_lookup": {
       "profile": "juniper_junos_els",
       "query": "route_lookup",
@@ -4240,12 +5691,44 @@
         "J-C9E9E5FBFEA7"
       ]
     },
+    "juniper_junos_els/route_table": {
+      "profile": "juniper_junos_els",
+      "query": "route_table",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "J-FDA215DE967E"
+      ]
+    },
+    "juniper_junos_els/routing_engine": {
+      "profile": "juniper_junos_els",
+      "query": "routing_engine",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "J-64B16ED9FCF6"
+      ]
+    },
+    "juniper_junos_els/storage": {
+      "profile": "juniper_junos_els",
+      "query": "storage",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "J-59DC15590596"
+      ]
+    },
     "juniper_junos_els/stp_bridge": {
       "profile": "juniper_junos_els",
       "query": "stp_bridge",
       "source_type": "official_vendor",
       "source_ids": [
         "J-F1F20D262A8C"
+      ]
+    },
+    "juniper_junos_els/stp_interfaces": {
+      "profile": "juniper_junos_els",
+      "query": "stp_interfaces",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "J-C3C5E858020A"
       ]
     },
     "juniper_junos_els/system_alarms": {
@@ -4280,12 +5763,28 @@
         "J-7F196AFA400D"
       ]
     },
+    "juniper_junos_els/virtual_chassis_ports": {
+      "profile": "juniper_junos_els",
+      "query": "virtual_chassis_ports",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "J-34E1A8407610"
+      ]
+    },
     "juniper_junos_els/vlans": {
       "profile": "juniper_junos_els",
       "query": "vlans",
       "source_type": "official_vendor",
       "source_ids": [
         "J-3B1AD935270F"
+      ]
+    },
+    "juniper_junos_els/vrrp_summary": {
+      "profile": "juniper_junos_els",
+      "query": "vrrp_summary",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "J-030870934066"
       ]
     },
     "linux/addresses": {

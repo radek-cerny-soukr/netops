@@ -1,0 +1,33 @@
+
+MAC database for interface ge-0/0/0
+
+MAC database for interface ge-0/0/0.0
+
+MAC flags (S - static MAC, D - dynamic MAC, L - locally learned, P - Persistent static, C - Control MAC
+           SE - statistics enabled, NM - non configured MAC, R - remote PE MAC, O - ovsdb MAC
+           GBP - group based policy, B - Blocked MAC)
+
+
+Ethernet switching table : 6 entries, 6 learned
+Routing instance : default-switch
+    Vlan                MAC                 MAC         Age   GBP     Logical                NH        MAC        RTR
+    name                address             flags             Tag     interface              Index     property   ID
+    D10                 00:00:5e:00:53:02   D             -           ge-0/0/0.0             0                    0       
+    D10                 00:00:5e:00:53:03   D             -           ge-0/0/0.0             0                    0       
+    D10                 00:00:5e:00:53:13   D             -           ge-0/0/0.0             0                    0       
+    D10                 00:00:5e:00:53:04   D             -           ge-0/0/0.0             0                    0       
+    D10                 00:00:5e:00:53:08   D             -           ge-0/0/0.0             0                    0       
+    D10                 00:00:5e:00:53:06   D             -           ge-0/0/0.0             0                    0       
+
+MAC flags (S - static MAC, D - dynamic MAC, L - locally learned, P - Persistent static, C - Control MAC
+           SE - statistics enabled, NM - non configured MAC, R - remote PE MAC, O - ovsdb MAC
+           GBP - group based policy, B - Blocked MAC)
+
+
+Ethernet switching table : 3 entries, 3 learned
+Routing instance : default-switch
+    Vlan                MAC                 MAC         Age   GBP     Logical                NH        MAC        RTR
+    name                address             flags             Tag     interface              Index     property   ID
+    D20                 00:00:5e:00:53:02   D             -           ge-0/0/0.0             0                    0       
+    D20                 00:00:5e:00:53:03   D             -           ge-0/0/0.0             0                    0       
+    D20                 00:00:5e:00:53:13   D             -           ge-0/0/0.0             0                    0       

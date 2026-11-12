@@ -1,0 +1,19 @@
+Port   Display String        Description String                                
+====== ====================  ==================================================
+1      port-desc-02          Default settings for the access port
+2      port-desc-03          Default settings for the access port
+3      port-desc-04          Default settings for the access port
+4                            Default settings for the access port
+5      port-desc-05          Default settings for the access port
+6      port-desc-06          Default settings for the access port
+7      port-desc-07          Default settings for the access port
+8      port-desc-08          Default settings for the access port
+9      port-desc-09          Default settings for the access port
+10                           Default settings for the access port
+11     port-desc-10          Default settings for the access port
+12                           Default settings for the access port
+13     port-desc-01          Default settings for the access port
+14                           Default settings for the access port
+15                           Default settings for the access port
+16                           Default settings for the access port
+=====  ====================  ==================================================

@@ -1,0 +1,13 @@
+
+DefaultMirror   (Disabled)
+    Description:    Default Mirror Instance, created automatically
+    Mirror to port: -
+    Truncate Payload : Disabled
+
+Mirrors defined:          1 
+Mirrors enabled:          0 (Maximum 4)
+HW filter instances used: 0 (Maximum 128)
+HW mirror instances used: 0 ingress, 0 egress (Maximum 4 total, 2 egress)
+Remote IP protocol type:  ERSPAN v1 (0x88be)
+
+

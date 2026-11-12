@@ -64,7 +64,7 @@ populate_from() {
   python3 -c 'import secrets, sys; sys.stdout.write(secrets.token_urlsafe(24))' > "$WORK/secret/vault-secret" &&
   python3 - "$WORK/secret/vault-secret" "$TARGET" > "$WORK/secret/helper-private.json" <<'EOF' &&
 import json, sys
-secret, target = open(sys.argv[1]).read(), sys.argv[2]
+secret, target = __import__('pathlib').Path(sys.argv[1]).read_text(), sys.argv[2]
 egress = {"addresses": ["192.0.2.10"], "tcp_ports": [22], "udp_ports": [], "tcp_port_ranges": [],
           "udp_port_ranges": [], "allow_icmp": False, "allow_dns": False, "tls_server_names": []}
 device = {"name": target, "platform": "linux", "address": "192.0.2.10", "port": 22, "role": "lab",
@@ -74,7 +74,11 @@ device = {"name": target, "platform": "linux", "address": "192.0.2.10", "port": 
 print(json.dumps({"inventory": {"version": 2, "devices": [device]},
                   "vault": {"version": 2, "credentials": {"linux-a-ro": {"kind": "password", "login": "read-only", "value": secret}}}}))
 EOF
+  python3 "$HERE/populate_roles.py" admin-input "$WORK/secret/vault-secret" > "$WORK/secret/admin-private.json" &&
   dc_from stop &&
+  dc_from run -T --rm netops configure admin < "$WORK/secret/admin-private.json" &&
+  dc_from run -T --rm --user 51002:51002 --entrypoint python netops -B - auditor < "$HERE/populate_roles.py" &&
+  dc_from run -T --rm --user 51003:51003 --entrypoint python netops -B - admin < "$HERE/populate_roles.py" &&
   dc_from run -T --rm netops configure helper < "$WORK/secret/helper-private.json" &&
   dc_from up -d --wait &&
   python3 "$HERE/verify_state.py" mcp --url "$URL" --ca "$WORK/from-ca.pem" --token-file "$WORK/secret/token" \

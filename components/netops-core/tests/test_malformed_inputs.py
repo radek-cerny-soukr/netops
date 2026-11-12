@@ -462,7 +462,7 @@ def _limited():
 def _askpass(environment, codes=(0, 1)):
     try:
         done = guard.run(
-            [sys.executable, "-B", str(COMPONENT / "src" / "netops_core" / "askpass.py")],
+            [sys.executable, "-B", str(COMPONENT / "src" / "netops_core" / "askpass.py"), "Password: "],
             stdin=subprocess.DEVNULL, capture_output=True, timeout=SECONDS, env=environment,
             memory_limit=MEMORY, preexec_fn=_limited,
         )

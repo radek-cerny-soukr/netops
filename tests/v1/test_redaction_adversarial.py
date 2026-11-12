@@ -1,5 +1,6 @@
 import hashlib
 import json
+from pathlib import Path
 import subprocess
 import sys
 import unittest
@@ -68,6 +69,30 @@ class PublicRedactionAdversarial(unittest.TestCase):
         cleaned, paths = redact(marker+"body-----END PRIVATE KEY-----", (marker,))
         self.assertEqual(cleaned, "[REDACTED]body-----END PRIVATE KEY-----")
         self.assertEqual(paths, [[]])
+
+    def test_repeated_capability_prefix_has_1_0_6_work_budget(self):
+        reference = str(Path(__file__).parent / "fixtures" / "redaction_1_0_6.py")
+        reference_worker = WORKER.replace("from netops.redaction import redact",
+            "import runpy\nredact=runpy.run_path(sys.argv[1])['redact']")
+        for count in (16000, 32000, 64000):
+            value = "128-length " * count + "passwd: synthetic-test"
+            measurements = []
+            for script, args in ((WORKER, []), (reference_worker, [reference])):
+                process = subprocess.run([sys.executable, "-B", "-c", script, *args],
+                    input=json.dumps(value), text=True, capture_output=True, timeout=60)
+                self.assertEqual(process.returncode, 0, process.stdout[:256] + process.stderr[:256])
+                lines = process.stdout.splitlines()
+                self.assertEqual(lines[0], "START")
+                measurements.append(json.loads(lines[1]))
+            actual, original = measurements
+            self.assertEqual(actual["sha256"], original["sha256"])
+            self.assertEqual(actual["paths"], original["paths"])
+            self.assertLess(actual["seconds"], 3.0)
+            # A generous relative bound tolerates scheduling and interpreter noise,
+            # but rejects the 16.8s versus 0.3s regression from review round 2.
+            self.assertLess(actual["seconds"], max(0.5, original["seconds"] * 3))
+            print("CAPABILITY_REDACTION=" + json.dumps({"count": count,
+                "cpu_seconds": actual["seconds"], "reference_cpu_seconds": original["seconds"]}), flush=True)
 
     def test_untrusted_max_strings_finish_within_work_budget(self):
         size = 4 * 1024 * 1024 - 1024

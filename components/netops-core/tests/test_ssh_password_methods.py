@@ -15,10 +15,11 @@ def options(argv):
 
 
 @pytest.mark.parametrize("transport", (ssh, session, sftp))
-def test_password_uses_one_authentication_method(transport):
+def test_password_is_preferred_before_keyboard_interactive(transport):
     selected = options(client_argv(transport, None))
-    assert selected.get("PreferredAuthentications") == "password"
-    assert selected.get("KbdInteractiveAuthentication") == "no"
+    assert selected.get("PreferredAuthentications") == "password,keyboard-interactive"
+    assert selected.get("KbdInteractiveAuthentication") == "yes"
+    assert selected["PasswordAuthentication"] == "yes"
     assert selected["NumberOfPasswordPrompts"] == "1"
     assert selected["PubkeyAuthentication"] == "no"
     assert selected["BatchMode"] == "no"

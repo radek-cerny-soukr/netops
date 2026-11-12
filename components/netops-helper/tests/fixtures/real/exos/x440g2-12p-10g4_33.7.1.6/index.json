@@ -1,0 +1,312 @@
+{
+ "access_list_counters": {
+  "command": "show access-list counter",
+  "rc": 0,
+  "lines": 1
+ },
+ "arp_address": {
+  "command": "show iparp 192.0.2.1",
+  "rc": 0,
+  "lines": 18
+ },
+ "arp_interface": {
+  "command": "show iparp port 1",
+  "rc": 0,
+  "lines": 30
+ },
+ "arp_table": {
+  "command": "show iparp",
+  "rc": 0,
+  "lines": 34
+ },
+ "cpu_monitoring": {
+  "command": "show cpu-monitoring",
+  "rc": 0,
+  "lines": 96
+ },
+ "dhcp_snooping_entries": {
+  "command": "show ip-security dhcp-snooping entries vlan Default",
+  "rc": 0,
+  "lines": 9
+ },
+ "diagnostics": {
+  "command": "show diagnostics",
+  "rc": 0,
+  "lines": 1
+ },
+ "edp_neighbors": {
+  "command": "show edp",
+  "rc": 0,
+  "lines": 6
+ },
+ "elrp": {
+  "command": "show elrp",
+  "rc": 0,
+  "lines": 15
+ },
+ "fans": {
+  "command": "show fans",
+  "rc": 0,
+  "lines": 6
+ },
+ "inline_power": {
+  "command": "show inline-power",
+  "rc": 0,
+  "lines": 9
+ },
+ "inline_power_port": {
+  "command": "show inline-power info ports 1",
+  "rc": 0,
+  "lines": 4
+ },
+ "inline_power_stats": {
+  "command": "show inline-power stats",
+  "rc": 0,
+  "lines": 9
+ },
+ "interface_details": {
+  "command": "show port 1 information detail",
+  "rc": 250,
+  "lines": 79
+ },
+ "interface_rx_errors": {
+  "command": "show ports 1 rxerrors no-refresh",
+  "rc": 0,
+  "lines": 7
+ },
+ "interface_statistics": {
+  "command": "show ports 1 statistics no-refresh",
+  "rc": 0,
+  "lines": 8
+ },
+ "interface_transceiver": {
+  "command": "show ports 1 transceiver information detail",
+  "rc": 0,
+  "lines": 7
+ },
+ "interface_tx_errors": {
+  "command": "show ports 1 txerrors no-refresh",
+  "rc": 0,
+  "lines": 8
+ },
+ "ipconfig": {
+  "command": "show ipconfig",
+  "rc": 0,
+  "lines": 25
+ },
+ "ipv6_neighbors": {
+  "command": "show neighbor-discovery cache ipv6",
+  "rc": 0,
+  "lines": 15
+ },
+ "ipv6_route_summary": {
+  "command": "show iproute ipv6 summary",
+  "rc": 250,
+  "lines": 10
+ },
+ "ipv6_route_table": {
+  "command": "show iproute ipv6",
+  "rc": 0,
+  "lines": 31
+ },
+ "lacp": {
+  "command": "show lacp",
+  "rc": 0,
+  "lines": 10
+ },
+ "licenses": {
+  "command": "show licenses",
+  "rc": 0,
+  "lines": 4
+ },
+ "lldp_interface": {
+  "command": "show lldp port 1 neighbors",
+  "rc": 0,
+  "lines": 8
+ },
+ "lldp_interface_details": {
+  "command": "show lldp port 1 neighbors detailed",
+  "rc": 0,
+  "lines": 14
+ },
+ "lldp_neighbors": {
+  "command": "show lldp neighbors",
+  "rc": 0,
+  "lines": 9
+ },
+ "lldp_neighbors_detail": {
+  "command": "show lldp neighbors detailed",
+  "rc": 0,
+  "lines": 27
+ },
+ "log_configuration": {
+  "command": "show log configuration",
+  "rc": 0,
+  "lines": 61
+ },
+ "log_messages": {
+  "command": "show log messages memory-buffer",
+  "rc": 0,
+  "lines": 151
+ },
+ "log_warnings": {
+  "command": "show log messages memory-buffer severity warning",
+  "rc": 0,
+  "lines": 3
+ },
+ "mac_interface": {
+  "command": "show fdb ports 1",
+  "rc": 0,
+  "lines": 38
+ },
+ "mac_table": {
+  "command": "show fdb",
+  "rc": 0,
+  "lines": 42
+ },
+ "mcast_cache_summary": {
+  "command": "show mcast cache summary",
+  "rc": 0,
+  "lines": 10
+ },
+ "memory": {
+  "command": "show memory",
+  "rc": 0,
+  "lines": 98
+ },
+ "mirror": {
+  "command": "show mirror",
+  "rc": 0,
+  "lines": 12
+ },
+ "mlag_peer": {
+  "command": "show mlag peer",
+  "rc": 0,
+  "lines": 1
+ },
+ "mlag_ports": {
+  "command": "show mlag ports",
+  "rc": 0,
+  "lines": 18
+ },
+ "ntp": {
+  "command": "show ntp",
+  "rc": 0,
+  "lines": 4
+ },
+ "ntp_association": {
+  "command": "show ntp association",
+  "rc": 0,
+  "lines": 6
+ },
+ "ports": {
+  "command": "show ports no-refresh",
+  "rc": 0,
+  "lines": 27
+ },
+ "ports_configuration": {
+  "command": "show ports configuration no-refresh",
+  "rc": 0,
+  "lines": 27
+ },
+ "ports_description": {
+  "command": "show ports description",
+  "rc": 0,
+  "lines": 19
+ },
+ "ports_rx_errors": {
+  "command": "show ports rxerrors no-refresh",
+  "rc": 0,
+  "lines": 22
+ },
+ "ports_tx_errors": {
+  "command": "show ports txerrors no-refresh",
+  "rc": 0,
+  "lines": 23
+ },
+ "power": {
+  "command": "show power",
+  "rc": 0,
+  "lines": 10
+ },
+ "processes": {
+  "command": "show process",
+  "rc": 0,
+  "lines": 87
+ },
+ "qos_profiles": {
+  "command": "show qosprofile",
+  "rc": 0,
+  "lines": 3
+ },
+ "route_summary": {
+  "command": "show iproute summary",
+  "rc": 0,
+  "lines": 11
+ },
+ "route_table": {
+  "command": "show iproute",
+  "rc": 0,
+  "lines": 37
+ },
+ "sessions": {
+  "command": "show session",
+  "rc": 0,
+  "lines": 4
+ },
+ "sntp_client": {
+  "command": "show sntp-client",
+  "rc": 0,
+  "lines": 24
+ },
+ "stacking": {
+  "command": "show stacking",
+  "rc": 0,
+  "lines": 11
+ },
+ "stacking_support": {
+  "command": "show stacking-support",
+  "rc": 0,
+  "lines": 11
+ },
+ "stp_detail": {
+  "command": "show stpd detail",
+  "rc": 0,
+  "lines": 41
+ },
+ "stp_ports": {
+  "command": "show stpd s0 ports",
+  "rc": 0,
+  "lines": 34
+ },
+ "stp_summary": {
+  "command": "show stpd",
+  "rc": 0,
+  "lines": 17
+ },
+ "switch": {
+  "command": "show switch",
+  "rc": 0,
+  "lines": 35
+ },
+ "temperature": {
+  "command": "show temperature",
+  "rc": 0,
+  "lines": 3
+ },
+ "version": {
+  "command": "show version",
+  "rc": 0,
+  "lines": 10
+ },
+ "vlan_details": {
+  "command": "show vlan Default",
+  "rc": 250,
+  "lines": 44
+ },
+ "vlan_summary": {
+  "command": "show vlan",
+  "rc": 0,
+  "lines": 29
+ }
+}

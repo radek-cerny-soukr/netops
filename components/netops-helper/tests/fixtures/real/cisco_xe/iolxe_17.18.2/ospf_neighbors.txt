@@ -1,0 +1,9 @@
+
+
+
+
+Neighbor ID     Pri   State           Dead Time   Address         Interface
+203.0.113.1       1   FULL/DROTHER    00:00:31    192.0.2.1       Ethernet0/1.10
+203.0.113.3       1   FULL/BDR        00:00:33    192.0.2.3       Ethernet0/1.10
+203.0.113.5       1   FULL/DROTHER    00:00:31    192.0.2.5       Ethernet0/1.10
+203.0.113.6     128   FULL/DROTHER    00:00:34    192.0.2.6       Ethernet0/1.10

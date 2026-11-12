@@ -188,7 +188,7 @@ class Auth:
     def __init__(self, allow_icmp=True, **inventory_changes):
         self.egress = SimpleNamespace(allow_icmp=allow_icmp)
         self.read_inventory = {"config_access": ("read",), "adc_virtual_servers": (VS,), "adc_vdoms": ("root",),
-                               "adc_health_checks": ("HC_HTTP_APP",),
+                               "adc_health_checks": ("HC_HTTP_APP",), "addresses": ("192.0.2.11", "192.0.2.12"),
                                "diagnostic_recipes": ("ping", "health_check_verify"), **inventory_changes}
 
     def require_tcp_port(self, port):
@@ -198,7 +198,10 @@ class Auth:
 class Device:
     def __init__(self, configs=None, queries=None, status=STATUS):
         self.configs = {"load-balance virtual-server " + VS: vs_config(), "load-balance pool " + POOL: pool_config(),
-                        "system health-check HC_HTTP_APP": HC, **(configs or {})}
+                        "system health-check HC_HTTP_APP": HC,
+                        **{"load-balance real-server RS_%d" % i:
+                           "config load-balance real-server\n edit RS_%d\n set ip 192.0.2.%d\n next\nend\n" % (i, 10 + i)
+                           for i in (1, 2)}, **(configs or {})}
         self.queries = {"slb_vs_stat": VS_STAT, "slb_load": SLB_LOAD, "system_performance": PERF, **(queries or {})}
         self.status = status
         self.calls = []
@@ -217,6 +220,10 @@ class Device:
         return {"untrusted_device_output": value, "content_sha256": sha(value), "next_offset": None}
 
     def ssh_read(self, auth, platform, query, parameters, offset, max_bytes):
+        # This rule-test adapter models an attempted device read, including timeouts.
+        attempt = engine._TRIAGE_READ_ATTEMPT.get()
+        if attempt is not None:
+            attempt[0] = True
         self.calls.append(("ssh_read", query, parameters))
         value = self.queries[query]
         if isinstance(value, dict):
@@ -326,6 +333,10 @@ def test_synthetic_member_down_is_a_sourced_runtime_fault_with_next_steps():
     assert [step["arguments"]["recipe"] for step in result["next_steps"]] == ["health_check_verify", "ping"]
     assert result["next_steps"][0]["arguments"]["health_check"] == "HC_HTTP_APP"
     assert "RS_2" in result["next_steps"][0]["why"]
+    for step in result["next_steps"]:
+        assert step["arguments"]["address"] == "192.0.2.12"
+        proxy.Proxy._validate_tool_arguments(step["tool"], step["arguments"])
+
     assert result["hypotheses"][0]["based_on"] == ["F-MEMBER-DOWN"]
 
 
@@ -409,7 +420,7 @@ def test_missing_required_step_keeps_findings_but_is_incomplete():
 def test_unreadable_vs_config_skips_pool_as_not_applicable():
     result = run(Device(configs={"load-balance virtual-server " + VS: ValueError("config access is not enabled")}))
     assert [(m["step"], m["reason"]) for m in result["missing"]] == [
-        ("vs_config", "unsupported"), ("pool_config", "not_applicable")]
+        ("vs_config", "local_refusal"), ("pool_config", "not_applicable")]
     assert result["verdict"] == "incomplete"
 
 
@@ -428,16 +439,33 @@ def test_unenrolled_health_checks_are_not_read():
                                   "detail": "health check is not enrolled in adc_health_checks"}]
 
 
-@pytest.mark.parametrize("status,message", [
-    ("Version: FortiADC-KVM v7.6.6,build0676,260522 (GA.M)\n", "config_platform_not_supported"),
-    ("Version: FortiGate-VM64-KVM v7.6.7,build3704,release\n", "config_platform_not_supported"),
-    (TimeoutError("timed out"), "identity-unverifiable"),
+@pytest.mark.parametrize("status,code,reason", [
+    ("Version: FortiADC-KVM v7.6.6,build0676,260522 (GA.M)\n", "config_platform_not_supported", "unsupported"),
+    ("Version: FortiGate-VM64-KVM v7.6.7,build3704,release\n", "config_platform_not_supported", "unsupported"),
+    ("not an identity\n", "product_identity", "unparsed"),
+    ("Version: FortiADC-KVM v7.6.7,build0676,260522 (GA.M)\n"
+     "Command fail. Return code is -284 (CLI parsing error.)\nHostname: lab\n", "device_cli_error", "device_cli_error"),
+    ("Command fail. Return code is -37 (permission denied)\n", "device_cli_error", "device_cli_error"),
+    # live 1.0.7: an unreachable SSH target ended as -32603 "Role operation failed" instead of a structured result
+    (TimeoutError("timed out synthetic-secret"), "timeout", "timeout"),
+    (OSError("SSH closed synthetic-secret"), "ssh_unavailable", "ssh_unavailable"),
+    (ConnectionRefusedError("synthetic-secret"), "connection_refused", "transport_error"),
 ])
-def test_other_identity_refuses_and_reads_nothing_else(status, message):
+def test_other_identity_or_transport_failure_is_structured_and_reads_nothing_else(status, code, reason):
     device = Device(status=status)
-    with pytest.raises(ValueError, match=message):
-        run(device)
+    result = run(device)
     assert device.calls == [("identity", "get system status")]
+    assert (result["ok"], result["error_code"], result["failed_step"], result["verdict"]) == (
+        False, code, "system_status", "incomplete")
+    advice = engine._TRANSPORT_ADVICE.get(code)
+    assert result["missing"] == [{"step": "system_status", "reason": reason, "error_code": code,
+                                  **({"error": advice} if advice else {})}]
+    if advice:
+        assert result["error"] == advice
+    assert (result["target"], result["virtual_server"], result["vdom"]) == (Auth().alias, VS, "root")
+    assert result["vantage"]["kind"] == "device_cli_read" and result["vantage"]["packets_sent"] is False
+    assert result["findings"] == [] and result["checked"] == []
+    assert "synthetic-secret" not in str(result)
 
 
 @pytest.mark.parametrize("auth,virtual_server,vdom", [
@@ -501,14 +529,16 @@ def test_rate_plan_is_reserved_whole_before_anything_runs(monkeypatch):
     gateway = proxy.Proxy()
     monkeypatch.setattr(proxy.time, "monotonic", lambda: 100.0)
     limit = {"requests": 30, "window_seconds": 60}
-    gateway.rate_history[ALIAS] = deque([50.0 + index for index in range(14)])
+    gateway.triage_history[ALIAS] = deque([50.0 + index for index in range(30 - rules.RATE_COST + 1)])
+    gateway.rate_history[ALIAS] = deque(gateway.triage_history[ALIAS])
     with pytest.raises(proxy.RateLimitError) as refused:
-        gateway._consume_rate_limit(ALIAS, limit, rules.RATE_COST)
-    assert len(gateway.rate_history[ALIAS]) == 14
+        gateway._consume_rate_limit(ALIAS, limit, rules.RATE_COST, triage=True)
+    assert len(gateway.triage_history[ALIAS]) == 30 - rules.RATE_COST + 1
     assert refused.value.data["retry_after_seconds"] == 10
+    gateway.triage_history[ALIAS].popleft()
     gateway.rate_history[ALIAS].popleft()
-    gateway._consume_rate_limit(ALIAS, limit, rules.RATE_COST)
-    assert len(gateway.rate_history[ALIAS]) == 30
+    gateway._consume_rate_limit(ALIAS, limit, rules.RATE_COST, triage=True)
+    assert len(gateway.triage_history[ALIAS]) == 30 and len(gateway.rate_history[ALIAS]) == 30
     assert proxy.TRIAGE_SLB_RATE_COST == rules.RATE_COST
 
 
@@ -517,12 +547,13 @@ def test_target_scope_shows_the_plan_until_its_window_passes(monkeypatch):
     limit = {"requests": 30, "window_seconds": 60}
     clock = [100.0]
     monkeypatch.setattr(proxy.time, "monotonic", lambda: clock[0])
-    gateway._consume_rate_limit(ALIAS, limit, proxy.TRIAGE_READS["triage_slb"])
-    assert gateway._rate_status(ALIAS, limit)["used"] == 17
+    gateway._consume_rate_limit(ALIAS, limit, proxy.TRIAGE_READS["triage_slb"], triage=True)
+    assert gateway._rate_status(ALIAS, limit, triage=True)["used"] == rules.RATE_COST
+    assert gateway._rate_status(ALIAS, limit)["used"] == rules.RATE_COST
     clock[0] = 159.0
-    assert gateway._rate_status(ALIAS, limit)["used"] == 17
+    assert gateway._rate_status(ALIAS, limit, triage=True)["used"] == rules.RATE_COST
     clock[0] = 161.0
-    assert gateway._rate_status(ALIAS, limit)["used"] == 0
+    assert gateway._rate_status(ALIAS, limit, triage=True)["used"] == 0
 
 
 def test_proxy_charges_the_whole_plan_and_keeps_the_capture_deadline():
@@ -536,5 +567,41 @@ def test_proxy_charges_the_whole_plan_and_keeps_the_capture_deadline():
         forwarded = relay.request(json.dumps({"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {
             "name": "triage_slb", "arguments": {"target": ALIAS, "virtual_server": VS}}}).encode())
     assert forwarded is not None
-    assert charged.call_args.args == (ALIAS, section.rate_limit, 17)
+    assert charged.call_args.args == (ALIAS, section.rate_limit, rules.RATE_COST)
     assert relay.pending_deadlines[1] - 100 == 670
+
+
+def test_result_states_its_vantage():
+    # live 1.0.7: tcp_probe said helper_host, a triage did not say where its facts come from
+    result = run(Device())
+    assert result["ok"] is True
+    assert result["vantage"] == {
+        "kind": "device_cli_read", "device": Auth().alias, "packets_sent": False,
+        "sees": "the configuration and runtime state the FortiADC reports for the virtual server, its pool, members, "
+                "health checks and profiles",
+        "does_not_see": "whether new client connections pass through the virtual server; test that from a client"}
+
+
+def test_down_followups_exclude_unenrolled_and_unread_addresses():
+    for device, auth in (
+        (Device(queries={"slb_vs_stat": vs_stat(("UP", "DOWN"))}), Auth(addresses=())),
+        (Device(configs={"load-balance real-server RS_2": TimeoutError()},
+                queries={"slb_vs_stat": vs_stat(("UP", "DOWN"))}), Auth()),
+    ):
+        result = run(device, auth)
+        assert "F-MEMBER-DOWN" in ids(result)
+        assert result["next_steps"] == []
+
+
+def test_down_server_reads_are_bounded_and_repeated_servers_share_a_read(monkeypatch):
+    monkeypatch.setattr(rules, "MAX_REAL_SERVERS", 1)
+    result = run(Device(queries={"slb_vs_stat": vs_stat(("DOWN", "DOWN"))}))
+    assert result["verdict"] == "incomplete"
+    assert {"step": "real_server_config:RS_2", "reason": "truncated"} in result["missing"]
+    assert {step["arguments"]["address"] for step in result["next_steps"]} == {"192.0.2.11"}
+    device = Device(configs={"load-balance pool " + POOL: pool_config().replace("RS_2", "RS_1")},
+                    queries={"slb_vs_stat": vs_stat(("DOWN", "DOWN"))})
+    result = run(device)
+    assert result["verdict"] == "fault_found"
+    assert len([call for call in device.calls if call[:2] == ("config_read", "load-balance real-server RS_1")]) == 1
+    assert {step["arguments"]["address"] for step in result["next_steps"]} == {"192.0.2.11"}

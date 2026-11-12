@@ -1,0 +1,323 @@
+
+VLAN Interface with name Default created by user
+    Admin State:	 Enabled     Tagging:	802.1Q Tag 1
+    Description:	 None
+    Virtual router:	 VR-Default
+    IP Anycast:		 Disabled
+    IPv4 Forwarding:	 Disabled
+    IPv4 MC Forwarding:  Disabled
+    IPv6 Forwarding:	 Disabled
+    IPv6 MC Forwarding:  Disabled
+    IPv6:                None
+    STPD:      		 s0(Enabled,Auto-bind)
+    Layer 2 Forwarding:  Enabled
+    Protocol:            Match all unfiltered protocols
+    Loopback:            Disabled
+    NetLogin:            Disabled
+    QosProfile:     	 None configured
+    Flood Rate Limit QosProfile:       None configured
+    Suppress ARP:        Disabled
+    Suppress ND:         Disabled
+    Proxy ARP:           Entry required
+    Ports:   0. 	  (Number of active ports=0)
+
+#
+
+#
+VLAN Interface with name host01 created by user
+    Admin State:	 Enabled     Tagging:	802.1Q Tag 30
+    Description:	 None
+    Virtual router:	 VR-Default
+    IP Anycast:		 Disabled
+    IPv4 Forwarding:	 Disabled
+    IPv4 MC Forwarding:  Disabled
+    IPv6 Forwarding:	 Disabled
+    IPv6 MC Forwarding:  Disabled
+    IPv6:                None
+    STPD:      		 None
+    Layer 2 Forwarding:  Enabled
+    Protocol:            Match all unfiltered protocols
+    Loopback:            Disabled
+    NetLogin:            Disabled
+    QosProfile:     	 None configured
+    Flood Rate Limit QosProfile:       None configured
+    Suppress ARP:        Disabled
+    Suppress ND:         Disabled
+    Proxy ARP:           Entry required
+    Ports:   3. 	  (Number of active ports=3)
+       Tag:   *2(port-desc-02),*3(port-desc-03),*13(port-desc-04)g
+
+	Flags:    (*) Active, (!) Disabled, (g) Load Sharing port
+                  (b) Port blocked on the vlan, (m) Mac-Based port
+                  (M) Mac-Based port with ingress filtering on
+                  (i) Port inactivated on the vlan due to VXLAN configuration
+                  (a) Egress traffic allowed for NetLogin
+                  (u) Egress traffic unallowed for NetLogin
+                  (t) Translate VLAN tag for Private-VLAN
+                  (s) Private-VLAN System Port, (L) Loopback port
+                  (x) VMAN Tag Translated port
+                  (A) Dynamically added by Auto-peering
+                  (F) Dynamically added by Fabric Attach
+                  (G) Multi-switch LAG Group port
+                  (H) Dynamically added by MVRP
+                  (I) Dynamically added by IDM
+                  (N) Dynamically added by Netlogin
+                  (S) Added by static MAC-based VLAN
+                  (U) Dynamically added uplink port
+                  (V) Dynamically added by VM Tracking
+
+#
+#
+VLAN Interface with name host02 created by user
+    Admin State:	 Enabled     Tagging:	802.1Q Tag 20
+
+    Description:	 None
+    Virtual router:	 VR-Default
+    IP Anycast:		 Disabled
+    IPv4 Forwarding:	 Disabled
+    IPv4 MC Forwarding:  Disabled
+    IPv6 Forwarding:	 Disabled
+    IPv6 MC Forwarding:  Disabled
+    IPv6:                None
+    STPD:      		 None
+    Layer 2 Forwarding:  Enabled
+    Protocol:            Match all unfiltered protocols
+    Loopback:            Disabled
+    NetLogin:            Disabled
+    QosProfile:     	 None configured
+    Flood Rate Limit QosProfile:       None configured
+    Suppress ARP:        Disabled
+    Suppress ND:         Disabled
+    Proxy ARP:           Entry required
+    Ports:   3. 	  (Number of active ports=3)
+       Tag:   *2(port-desc-02),*3(port-desc-03),*13(port-desc-04)g
+	Flags:    (*) Active, (!) Disabled, (g) Load Sharing port
+                  (b) Port blocked on the vlan, (m) Mac-Based port
+                  (M) Mac-Based port with ingress filtering on
+
+                  (i) Port inactivated on the vlan due to VXLAN configuration
+                  (a) Egress traffic allowed for NetLogin
+                  (u) Egress traffic unallowed for NetLogin
+                  (t) Translate VLAN tag for Private-VLAN
+                  (s) Private-VLAN System Port, (L) Loopback port
+                  (x) VMAN Tag Translated port
+                  (A) Dynamically added by Auto-peering
+                  (F) Dynamically added by Fabric Attach
+                  (G) Multi-switch LAG Group port
+                  (H) Dynamically added by MVRP
+                  (I) Dynamically added by IDM
+                  (N) Dynamically added by Netlogin
+                  (S) Added by static MAC-based VLAN
+                  (U) Dynamically added uplink port
+                  (V) Dynamically added by VM Tracking
+
+#
+#
+VLAN Interface with name host03 created by user
+    Admin State:	 Enabled     Tagging:	802.1Q Tag 40
+    Description:	 None
+    Virtual router:	 VR-Default
+    IP Anycast:		 Disabled
+
+    IPv4 Forwarding:	 Disabled
+    IPv4 MC Forwarding:  Disabled
+    IPv6 Forwarding:	 Disabled
+    IPv6 MC Forwarding:  Disabled
+    IPv6:                None
+    STPD:      		 None
+    Layer 2 Forwarding:  Enabled
+    Protocol:            Match all unfiltered protocols
+    Loopback:            Disabled
+    NetLogin:            Disabled
+    QosProfile:     	 None configured
+    Flood Rate Limit QosProfile:       None configured
+    Suppress ARP:        Disabled
+    Suppress ND:         Disabled
+    Proxy ARP:           Entry required
+    Ports:   6. 	  (Number of active ports=6)
+       Untag: *5(port-desc-05),*7(port-desc-06),*8(port-desc-07),*9(port-desc-08)
+       Tag:   *2(port-desc-02),*13(port-desc-04)g
+	Flags:    (*) Active, (!) Disabled, (g) Load Sharing port
+                  (b) Port blocked on the vlan, (m) Mac-Based port
+                  (M) Mac-Based port with ingress filtering on
+                  (i) Port inactivated on the vlan due to VXLAN configuration
+                  (a) Egress traffic allowed for NetLogin
+
+                  (u) Egress traffic unallowed for NetLogin
+                  (t) Translate VLAN tag for Private-VLAN
+                  (s) Private-VLAN System Port, (L) Loopback port
+                  (x) VMAN Tag Translated port
+                  (A) Dynamically added by Auto-peering
+                  (F) Dynamically added by Fabric Attach
+                  (G) Multi-switch LAG Group port
+                  (H) Dynamically added by MVRP
+                  (I) Dynamically added by IDM
+                  (N) Dynamically added by Netlogin
+                  (S) Added by static MAC-based VLAN
+                  (U) Dynamically added uplink port
+                  (V) Dynamically added by VM Tracking
+
+#
+#
+VLAN Interface with name host04 created by user
+    Admin State:	 Enabled     Tagging:	802.1Q Tag 50
+    Description:	 None
+    Virtual router:	 VR-Default
+    IP Anycast:		 Disabled
+    IPv4 Forwarding:	 Disabled
+    IPv4 MC Forwarding:  Disabled
+
+    IPv6 Forwarding:	 Disabled
+    IPv6 MC Forwarding:  Disabled
+    IPv6:                None
+    STPD:      		 None
+    Layer 2 Forwarding:  Enabled
+    Protocol:            Match all unfiltered protocols
+    Loopback:            Disabled
+    NetLogin:            Disabled
+    QosProfile:     	 None configured
+    Flood Rate Limit QosProfile:       None configured
+    Suppress ARP:        Disabled
+    Suppress ND:         Disabled
+    Proxy ARP:           Entry required
+    Ports:   2. 	  (Number of active ports=2)
+       Tag:   *2(port-desc-02),*13(port-desc-04)g
+	Flags:    (*) Active, (!) Disabled, (g) Load Sharing port
+                  (b) Port blocked on the vlan, (m) Mac-Based port
+                  (M) Mac-Based port with ingress filtering on
+                  (i) Port inactivated on the vlan due to VXLAN configuration
+                  (a) Egress traffic allowed for NetLogin
+                  (u) Egress traffic unallowed for NetLogin
+                  (t) Translate VLAN tag for Private-VLAN
+                  (s) Private-VLAN System Port, (L) Loopback port
+
+                  (x) VMAN Tag Translated port
+                  (A) Dynamically added by Auto-peering
+                  (F) Dynamically added by Fabric Attach
+                  (G) Multi-switch LAG Group port
+                  (H) Dynamically added by MVRP
+                  (I) Dynamically added by IDM
+                  (N) Dynamically added by Netlogin
+                  (S) Added by static MAC-based VLAN
+                  (U) Dynamically added uplink port
+                  (V) Dynamically added by VM Tracking
+
+#
+#
+VLAN Interface with name host05 created by user
+    Admin State:	 Enabled     Tagging:	802.1Q Tag 10
+    Description:	 None
+    Virtual router:	 VR-Default
+    IP Anycast:		 Disabled
+    IPv4 Forwarding:	 Disabled
+    IPv4 MC Forwarding:  Disabled
+    Primary IP:		 192.0.2.2/24
+    IPv6 Forwarding:	 Disabled
+    IPv6 MC Forwarding:  Disabled
+
+    IPv6:                None
+    STPD:      		 None
+    Layer 2 Forwarding:  Enabled
+    Protocol:            Match all unfiltered protocols
+    Loopback:            Disabled
+    NetLogin:            Disabled
+    QosProfile:     	 None configured
+    Flood Rate Limit QosProfile:       None configured
+    Suppress ARP:        Disabled
+    Suppress ND:         Disabled
+    Proxy ARP:           Entry required
+    Ports:   9. 	  (Number of active ports=6)
+       Untag: *1(port-desc-09),*2(port-desc-02),*3(port-desc-03),      4,*6(port-desc-10),     10,*11(port-desc-11),
+                  !12,*13(port-desc-04)g
+	Flags:    (*) Active, (!) Disabled, (g) Load Sharing port
+                  (b) Port blocked on the vlan, (m) Mac-Based port
+                  (M) Mac-Based port with ingress filtering on
+                  (i) Port inactivated on the vlan due to VXLAN configuration
+                  (a) Egress traffic allowed for NetLogin
+                  (u) Egress traffic unallowed for NetLogin
+                  (t) Translate VLAN tag for Private-VLAN
+                  (s) Private-VLAN System Port, (L) Loopback port
+                  (x) VMAN Tag Translated port
+
+                  (A) Dynamically added by Auto-peering
+                  (F) Dynamically added by Fabric Attach
+                  (G) Multi-switch LAG Group port
+                  (H) Dynamically added by MVRP
+                  (I) Dynamically added by IDM
+                  (N) Dynamically added by Netlogin
+                  (S) Added by static MAC-based VLAN
+                  (U) Dynamically added uplink port
+                  (V) Dynamically added by VM Tracking
+
+#
+#
+VLAN Interface with name Mgmt created by user
+    Admin State:	 Enabled     Tagging:	802.1Q Tag 4095
+    Description:	 Management VLAN
+    Virtual router:	 VR-Mgmt
+    IP Anycast:		 Disabled
+    IPv4 Forwarding:	 Disabled
+    IPv4 MC Forwarding:  Disabled
+    IPv6 Forwarding:	 Disabled
+    IPv6 MC Forwarding:  Disabled
+    IPv6:                None
+    STPD:      		 None
+
+    Layer 2 Forwarding:  Enabled
+    Protocol:            Match all unfiltered protocols
+    Loopback:            Disabled
+    NetLogin:            Disabled
+    QosProfile:     	 None configured
+    Flood Rate Limit QosProfile:       None configured
+    Suppress ARP:        Disabled
+    Suppress ND:         Disabled
+    Proxy ARP:           Entry required
+    Ports:   1. 	  (Number of active ports=0)
+     Untag: Mgmt-port on Mgmt is down
+
+
+#
+#
+VLAN Interface with name host06  created by user
+    Admin State:	 Enabled     Tagging:	802.1Q Tag 100
+    Description:	 None
+    Virtual router:	 VR-Default
+    IP Anycast:		 Disabled
+    IPv4 Forwarding:	 Disabled
+    IPv4 MC Forwarding:  Disabled
+    Primary IP:		 198.51.100.2/24
+
+    IPv6 Forwarding:	 Disabled
+    IPv6 MC Forwarding:  Disabled
+    IPv6:                None
+    STPD:      		 None
+    Layer 2 Forwarding:  Enabled
+    Protocol:            Match all unfiltered protocols
+    Loopback:            Disabled
+    NetLogin:            Disabled
+    QosProfile:     	 None configured
+    Flood Rate Limit QosProfile:       None configured
+    Suppress ARP:        Disabled
+    Suppress ND:         Disabled
+    Proxy ARP:           Entry required
+    Ports:   1. 	  (Number of active ports=1)
+       Tag:   *13(port-desc-04)g
+	Flags:    (*) Active, (!) Disabled, (g) Load Sharing port
+                  (b) Port blocked on the vlan, (m) Mac-Based port
+                  (M) Mac-Based port with ingress filtering on
+                  (i) Port inactivated on the vlan due to VXLAN configuration
+                  (a) Egress traffic allowed for NetLogin
+                  (u) Egress traffic unallowed for NetLogin
+                  (t) Translate VLAN tag for Private-VLAN
+                  (s) Private-VLAN System Port, (L) Loopback port
+
+                  (x) VMAN Tag Translated port
+                  (A) Dynamically added by Auto-peering
+                  (F) Dynamically added by Fabric Attach
+                  (G) Multi-switch LAG Group port
+                  (H) Dynamically added by MVRP
+                  (I) Dynamically added by IDM
+                  (N) Dynamically added by Netlogin
+                  (S) Added by static MAC-based VLAN
+                  (U) Dynamically added uplink port
+                  (V) Dynamically added by VM Tracking

@@ -13,6 +13,8 @@ from netops_helper.query_catalog.model import Query
 # forwarding, and VLAN tables, scoped ARP and FDB tables, and global LAG, LACP,
 # and STP instance lists can need continuation. Single-port details stay False.
 EXPECTED = {
+    "lag_summary": ("show sharing", (), True),
+    'vlan_detail': ('show vlan detail', (), True),
     'vlan_details': ('show vlan {vlan}', (('vlan', 'vlans', 'vlan_name'),), True),
     'dhcp_snooping_entries': ('show ip-security dhcp-snooping entries vlan {vlan}', (('vlan', 'vlans', 'vlan_name'),), True),
 
@@ -114,13 +116,32 @@ EXPECTED = {
     "mcast_cache_summary": ("show mcast cache summary", (), False),
     "mirror": ("show mirror", (), False),
     "edp_neighbors": ("show edp", (), True),
+    "ports_description": ("show ports description", (), True),
+    "ports_rx_errors": ("show ports rxerrors no-refresh", (), True),
+    "ports_tx_errors": ("show ports txerrors no-refresh", (), True),
+    "ipconfig": ("show ipconfig", (), True),
+    "route_table": ("show iproute", (), True),
+    "ipv6_route_table": ("show iproute ipv6", (), True),
+    "lldp_neighbors_detail": ("show lldp neighbors detailed", (), True),
+    "stp_ports": ("show stpd s0 ports", (), True),
+    "mlag_peer": ("show mlag peer", (), False),
+    "mlag_ports": ("show mlag ports", (), True),
+    "inline_power_stats": ("show inline-power stats", (), False),
+    "ntp_association": ("show ntp association", (), False),
+    "log_messages": ("show log messages memory-buffer", (), True),
+    "log_warnings": ("show log messages memory-buffer severity warning", (), True),
+    "log_configuration": ("show log configuration", (), True),
 }
 
+LOG_TEMPLATES = (
+    "show log messages memory-buffer",
+    "show log messages memory-buffer severity warning",
+    "show log configuration",
+)
 CONTROL_OR_SHELL = re.compile(r"[\x00-\x1f\x7f;&|$<>\x60]")
 FORBIDDEN_TERMS = (
     "show configuration",
     "show config",
-    " log",
     "tech-support",
     "debug",
     "clear",
@@ -155,6 +176,29 @@ def test_commands_are_narrow_read_only_cli() -> None:
         assert "\\" not in command
         lowered = command.lower()
         assert not any(term in lowered for term in FORBIDDEN_TERMS)
+        if " log" in lowered:
+            assert command in LOG_TEMPLATES
+
+
+def test_only_the_fixed_log_templates_pass_the_show_family_policy() -> None:
+    from netops_helper import read_policy
+
+    for command in LOG_TEMPLATES:
+        read_policy._validate_query_command("extreme_exos", command)
+    for command in ("show log", "show log messages nvram", "show log messages memory-buffer match root",
+                    "show log messages memory-buffer severity warning starting date 11/01/2026",
+                    "show logging", "show log configuration target syslog", "show log events all"):
+        try:
+            read_policy._validate_query_command("extreme_exos", command)
+        except RuntimeError:
+            continue
+        raise AssertionError(command)
+    for platform in ("cisco_ios", "arista_eos", "juniper_junos_els"):
+        try:
+            read_policy._validate_query_command(platform, "show log messages memory-buffer")
+        except RuntimeError:
+            continue
+        raise AssertionError(platform)
 
 
 def test_vlan_summary_has_no_inventory_slot() -> None:

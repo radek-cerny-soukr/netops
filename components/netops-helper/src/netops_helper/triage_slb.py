@@ -2,17 +2,19 @@
 
 from __future__ import annotations
 
+import ipaddress
 import re
 import shlex
 from typing import Any
 
 MISSING_REASONS = frozenset((
     "timeout", "truncated", "empty", "unsupported", "permission_denied",
-    "device_cli_error", "unparsed", "not_applicable",
+    "device_cli_error", "transport_error", "local_refusal", "unparsed", "not_applicable",
 ))
 REQUIRED_STEPS = ("vs_config", "pool_config", "slb_vs_stat", "system_performance")
 MAX_HEALTH_CHECKS = 4
-RATE_COST = 17
+MAX_REAL_SERVERS = 4
+RATE_COST = 21
 FAULT_RULES = frozenset((
     "F-VS-DISABLED", "F-VS-AVAIL", "F-MEMBER-DOWN", "F-POOL-ALL-DOWN", "F-MISMATCH", "F-TLS-FAIL",
 ))
@@ -143,6 +145,18 @@ def pool_config(text: str, name: str) -> dict[str, Any]:
         "health_check": list(fields.get("health-check-list", [])) if control != "disable" else [],
         "members": members,
     }
+
+
+def real_server_address(text: str, name: str) -> str:
+    fields = parse_config_object(text, "load-balance real-server", name)["fields"]
+    value = _one(fields, "ip")
+    try:
+        address = ipaddress.IPv4Address(value)
+    except (ipaddress.AddressValueError, TypeError):
+        raise TriageParseError("real server has no IPv4 address") from None
+    if str(address) != value or address.is_unspecified or address.is_multicast or int(address) == 0xffffffff:
+        raise TriageParseError("real server address is not unicast IPv4")
+    return value
 
 
 def health_check_config(text: str, name: str) -> dict[str, Any]:
@@ -309,15 +323,19 @@ def evaluate(chain: dict[str, Any], sources: dict[str, dict[str, Any]], target: 
                             member["real_server"] or "-", state["hc_state"], state["last_state_change"],
                             ",".join(checks) or "-"),
                         [sources["pool_config"], sources["slb_vs_stat"]]))
+                    address = chain.get("real_servers", {}).get(member["real_server"])
+                    if address is None:
+                        continue
                     for check in checks[:1]:
                         steps.append({"tool": "fortios_diagnostics",
                                       "arguments": {"target": target, "recipe": "health_check_verify",
-                                                    "interface": "", "health_check": check},
-                                      "why": "repeat health check %s against real-server %s; address = its enrolled IPv4" % (
+                                                    "interface": "", "address": address, "health_check": check,
+                                                    "count": 3, "timeout": 20},
+                                      "why": "repeat health check %s against real-server %s" % (
                                           check, member["real_server"])})
                     steps.append({"tool": "fortios_diagnostics",
-                                  "arguments": {"target": target, "recipe": "ping", "interface": ""},
-                                  "why": "reachability of real-server %s; address = its enrolled IPv4" % member["real_server"]})
+                                  "arguments": {"target": target, "recipe": "ping", "interface": "", "address": address},
+                                  "why": "reachability of real-server %s" % member["real_server"]})
             if enabled and not any(runtime_members.get(m["id"], {}).get("hc_state") == "UP" for m in enabled):
                 findings.append(_finding("F-POOL-ALL-DOWN", "runtime", pool["name"],
                                          "no enabled member reports hc_state UP",

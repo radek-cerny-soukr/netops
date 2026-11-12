@@ -175,6 +175,33 @@ class FortiADCConfiguration(TestCase):
                 self.assertFalse(result['configuration_complete'])
                 self.assertIn('access-profile-unverified', result['visibility_limitations'])
 
+    def test_system_administrator_without_profile_sees_every_area(self):
+        # Live 7.6.7: `admin` carries `set is-system-admin yes` and no access-profile, also with defaults.
+        system = '  edit "netops-read"\n    set is-system-admin yes\n    set password ENC SECRET-FIXTURE\n  next\n'
+        for profiles in (profile_lines(), ''):
+            with self.subTest(profiles=bool(profiles)):
+                result = capture(live(config(profiles=profiles, admins=system)))[1]
+                self.assertEqual(result, {'config_scope': 'all', 'configuration_complete': True,
+                                          'visibility_limitations': []})
+        explicit = system.replace('yes\n', 'yes\n    set accprofile-override disable\n')
+        self.assertTrue(capture(live(config(admins=explicit)))[1]['configuration_complete'])
+        cases = {
+            'system administrator with a profile': system.replace('yes\n', 'yes\n    set access-profile "netops-read"\n'),
+            'system administrator twice': system.replace('yes\n', 'yes\n    set is-system-admin yes\n'),
+            'unexpected value': system.replace('set is-system-admin yes', 'set is-system-admin maybe'),
+            'override enabled': system.replace('yes\n', 'yes\n    set accprofile-override enable\n'),
+            'another account is the system administrator': admin_lines(profile='missing') + system.replace(
+                '"netops-read"', '"other"'),
+        }
+        for name, admins in cases.items():
+            with self.subTest(name):
+                result = capture(live(config(admins=admins)))[1]
+                self.assertFalse(result['configuration_complete'])
+                self.assertIn('access-profile-unverified', result['visibility_limitations'])
+        not_system = admin_lines(extra=('    set is-system-admin no\n',))
+        result = capture(live(config(profiles=profile_lines(rights=READ), admins=not_system)))[1]
+        self.assertTrue(result['configuration_complete'])
+
     def test_vdom_must_be_exactly_one(self):
         result = capture(live(config(vdom='')))[1]
         self.assertEqual((result['configuration_complete'], result['visibility_limitations']),
@@ -300,14 +327,14 @@ class FortiADCServerLoadBalancing(TestCase):
     def test_credentials_are_hidden_and_diagnostic_text_is_visible(self):
         content, _ = capture(live(config() + SLB))
         output = text(content)
-        for value in ('HC-SECRET', 'RADIUS-KEY', 'ADD-FIXTURE'):
+        for value in ('HC-SECRET', 'RADIUS-KEY', 'ADD-FIXTURE', 'SNMP-COMMUNITY-FIXTURE'):
             with self.subTest(value=value):
                 self.assertNotIn(value, output)
-        for field in ('password', 'secret-key'):
+        for field in ('password', 'secret-key', 'community'):
             with self.subTest(field=field):
                 self.assertRegex(output, 'edit HC-HTTP\n(?:    set .*\n)*    set %s %s\n' % (field, CREDENTIAL))
         self.assertRegex(output, '    set additional-string "Authorization: Basic %s"\n' % CREDENTIAL)
-        for line in ('set username hc-user-fixture', 'set community SNMP-COMMUNITY-FIXTURE', 'set bindDN "cn=bind-fixture"',
+        for line in ('set username hc-user-fixture', 'set bindDN "cn=bind-fixture"',
                      'set connect-string user/ORACLE-FIXTURE@db', 'set send-string "GET /health?token=SEND-FIXTURE"',
                      'edit oid-1', 'set name SNMP-NAME-FIXTURE', 'set pool_member_cookie COOKIE-FIXTURE',
                      'set comments "owner COMMENT-FIXTURE"', 'set error-msg ERROR-FIXTURE', 'set use-private-addr enable'):
@@ -334,8 +361,8 @@ class FortiADCServerLoadBalancing(TestCase):
     def test_public_secret_and_unverified_maps_are_disjoint(self):
         selected = f.policy_for(f.SUPPORTED)
         self.assertEqual((len(selected.secret_fields), len(selected.unverified_fields), len(selected.inline_header_fields)),
-                         (33, 3, 5))
-        self.assertGreaterEqual(len(selected.public_fields), 2071)
+                         (35, 3, 5))
+        self.assertGreaterEqual(len(selected.public_fields), 2069)
         self.assertFalse(selected.public_fields & selected.secret_fields)
         self.assertFalse(selected.public_fields & selected.unverified_fields)
         self.assertFalse(selected.secret_fields & selected.unverified_fields)

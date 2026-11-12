@@ -1,0 +1,8 @@
+{
+ "system_interfaces": {
+  "command": "get system interface",
+  "rc": 0,
+  "lines": 61,
+  "account": "user01"
+ }
+}

@@ -1,0 +1,236 @@
+Interface Ethernet1 detected 1 LLDP neighbors:
+
+  Neighbor 0000.5e00.5307/"Gi0/2", age 10 seconds
+  Discovered 0:53:19 ago; Last changed 0:53:19 ago
+  - Chassis ID type: MAC address (4)
+    Chassis ID     : 0000.5e00.5307
+  - Port ID type: Interface name(5)
+    Port ID     : "Gi0/2"
+  - Time To Live: 120 seconds
+  - Port Description: "GigabitEthernet0/2"
+  - System Name: "host02"
+  - System Description: "Cisco IOS Software, vios_l2 Software (vios_l2-ADVENTERPRISEK9-M), Experimental Version 15.2(20200924:215240) [sweickge-sep24-2020-l2iol-release 135]\x0aCopyright (c) 1986-2020 by Cisco Systems, Inc.\x0aCompiled Tue 29-Sep-20 11:53 by sweickge"
+  - System Capabilities : Bridge, Router
+    Enabled Capabilities: Router
+  - Management Address Subtype: ('IPv4 ',)
+    Management Address        : 192.0.2.2
+    Interface Number Subtype  : ifIndex (2)
+    Interface Number          : 6
+    OID String                : 
+
+Interface Ethernet2 detected 1 LLDP neighbors:
+
+  Neighbor 0000.5e00.530a/"1", age 30 seconds
+  Discovered 0:50:30 ago; Last changed 0:50:30 ago
+  - Chassis ID type: MAC address (4)
+    Chassis ID     : 0000.5e00.530a
+  - Port ID type: Interface name(5)
+    Port ID     : "1"
+  - Time To Live: 120 seconds
+  - System Name: "host05"
+  - System Description: "ExtremeXOS (EXOS-VM) version 33.6.1.14 by release-manager on Tue Mar 24 02:04:32 PM UTC 2026"
+
+Interface Ethernet3 detected 0 LLDP neighbors:
+
+Interface Ethernet4 detected 1 LLDP neighbors:
+
+  Neighbor 0000.5e00.5315/"521", age 16 seconds
+  Discovered 0:11:57 ago; Last changed 0:03:59 ago
+  - Chassis ID type: MAC address (4)
+    Chassis ID     : 0000.5e00.5315
+  - Port ID type: Locally assigned(7)
+    Port ID     : "521"
+  - Time To Live: 120 seconds
+  - Port Description: "ge-0/0/0"
+  - System Description: "Juniper Networks, Inc. ex9214 Ethernet Switch, kernel JUNOS 26.2R1.7, Build date: 2026-06-19 19:10:22 UTC Copyright (c) 1996-2026 Juniper Networks, Inc."
+  - System Capabilities : Bridge, Router
+    Enabled Capabilities: Bridge, Router
+  - Management Address Subtype: ('IPv4 ',)
+    Management Address        : 203.0.113.231
+    Interface Number Subtype  : ifIndex (2)
+    Interface Number          : 1
+    OID String                : 0.1.3.6.1.2.1.31.1.1.1.1.1
+  - IEEE802.1 Link Aggregation
+    Link Aggregation Status: Capable, Disabled (0x01)
+    Port ID                : 0
+  - IEEE802.3 Link Aggregation
+    Link Aggregation Status: Capable, Disabled (0x01)
+    Port ID                : 0
+  - IEEE802.3 MAC/PHY Configuration/Status
+    Auto-negotiation       : Not Supported
+                             10BASE-T (half-duplex)
+                             10BASE-T (full-duplex)
+                             100BASE-TX (half-duplex)
+                             100BASE-TX (full-duplex)
+                             1000BASE-X (half-duplex)
+                             1000BASE-X (full-duplex)
+                             1000BASE-T (full-duplex)
+    Operational MAU Type   : Unknown
+  - IEEE802.3 Maximum Frame Size: 1514 bytes
+  - LLDP-MED Capabilities:
+    'Capabilities' capable                 : True
+    'Network Policy' capable               : True
+    'Location Identification' capable      : True
+    'Extended Power via MDI - PSE' capable : True
+    'Extended Power via MDI - PD' capable  : False
+    'Inventory' capable                    : False
+    Device type                            : Network connectivity
+  - Unknown organizationally-defined TLV (OUI 00-90-69, subtype 1):
+      56 4d 36 41 46 30 46 42 33 39 45 36
+  - Unknown organizationally-defined TLV (OUI 00-90-69, subtype 12):
+      00 00 00 65 00 00 00 00
+
+Interface Ethernet5 detected 1 LLDP neighbors:
+
+  Neighbor 0000.5e00.5309/"Et0/1", age 20 seconds
+  Discovered 0:53:33 ago; Last changed 0:53:33 ago
+  - Chassis ID type: MAC address (4)
+    Chassis ID     : 0000.5e00.5309
+  - Port ID type: Interface name(5)
+    Port ID     : "Et0/1"
+  - Time To Live: 120 seconds
+  - Port Description: "Ethernet0/1"
+  - System Name: "host03"
+  - System Description: "Cisco IOS Software [IOSXE], Linux Software (X86_64BI_LINUX-ADVENTERPRISEK9-M), Version 17.18.2, RELEASE SOFTWARE (fc3)\x0aTechnical Support: http://www.cisco.com/techsupport\x0aCopyright (c) 1986-2025 by Cisco Systems, Inc.\x0aCompiled Fri 19-Dec-25 03:28 by mcpre"
+  - System Capabilities : Bridge, Router
+    Enabled Capabilities: Router
+  - Management Address Subtype: ('IPv4 ',)
+    Management Address        : 203.0.113.57
+    Interface Number Subtype  : System Port Number (3)
+    Interface Number          : 1
+    OID String                : 
+
+Interface Ethernet6 detected 0 LLDP neighbors:
+
+Interface Ethernet7 detected 0 LLDP neighbors:
+
+Interface Ethernet8 detected 0 LLDP neighbors:
+
+Interface Ethernet9 detected 0 LLDP neighbors:
+
+Interface Ethernet10 detected 0 LLDP neighbors:
+
+Interface Ethernet11 detected 0 LLDP neighbors:
+
+Interface Ethernet12 detected 0 LLDP neighbors:
+
+Interface Ethernet13 detected 0 LLDP neighbors:
+
+Interface Ethernet14 detected 0 LLDP neighbors:
+
+Interface Ethernet15 detected 0 LLDP neighbors:
+
+Interface Management0 detected 5 LLDP neighbors:
+
+  Neighbor 0000.5e00.5309/"Et0/0", age 18 seconds
+  Discovered 0:53:33 ago; Last changed 0:53:33 ago
+  - Chassis ID type: MAC address (4)
+    Chassis ID     : 0000.5e00.5309
+  - Port ID type: Interface name(5)
+    Port ID     : "Et0/0"
+  - Time To Live: 120 seconds
+  - Port Description: "Ethernet0/0"
+  - System Name: "host03"
+  - System Description: "Cisco IOS Software [IOSXE], Linux Software (X86_64BI_LINUX-ADVENTERPRISEK9-M), Version 17.18.2, RELEASE SOFTWARE (fc3)\x0aTechnical Support: http://www.cisco.com/techsupport\x0aCopyright (c) 1986-2025 by Cisco Systems, Inc.\x0aCompiled Fri 19-Dec-25 03:28 by mcpre"
+  - System Capabilities : Bridge, Router
+    Enabled Capabilities: Router
+  - Management Address Subtype: ('IPv4 ',)
+    Management Address        : 203.0.113.57
+    Interface Number Subtype  : System Port Number (3)
+    Interface Number          : 1
+    OID String                : 
+
+  Neighbor 0000.5e00.5306/"Gi0/0", age 3 seconds
+  Discovered 0:53:20 ago; Last changed 0:53:20 ago
+  - Chassis ID type: MAC address (4)
+    Chassis ID     : 0000.5e00.5306
+  - Port ID type: Interface name(5)
+    Port ID     : "Gi0/0"
+  - Time To Live: 120 seconds
+  - Port Description: "GigabitEthernet0/0"
+  - System Name: "host07"
+  - System Description: "Cisco IOS Software, IOSv Software (VIOS-ADVENTERPRISEK9-M), Version 15.9(3)M12, RELEASE SOFTWARE (fc1)\x0aTechnical Support: http://www.cisco.com/techsupport\x0aCopyright (c) 1986-2025 by Cisco Systems, Inc.\x0aCompiled Fri 19-Sep-25 07:49 by mcpre"
+  - System Capabilities : Bridge, Router
+    Enabled Capabilities: Router
+  - Management Address Subtype: ('IPv4 ',)
+    Management Address        : 203.0.113.51
+    Interface Number Subtype  : ifIndex (2)
+    Interface Number          : 1
+    OID String                : 
+
+  Neighbor 0000.5e00.5307/"Gi0/0", age 9 seconds
+  Discovered 0:53:19 ago; Last changed 0:45:13 ago
+  - Chassis ID type: MAC address (4)
+    Chassis ID     : 0000.5e00.5307
+  - Port ID type: Interface name(5)
+    Port ID     : "Gi0/0"
+  - Time To Live: 120 seconds
+  - Port Description: "GigabitEthernet0/0"
+  - System Name: "host02"
+  - System Description: "Cisco IOS Software, vios_l2 Software (vios_l2-ADVENTERPRISEK9-M), Experimental Version 15.2(20200924:215240) [sweickge-sep24-2020-l2iol-release 135]\x0aCopyright (c) 1986-2020 by Cisco Systems, Inc.\x0aCompiled Tue 29-Sep-20 11:53 by sweickge"
+  - System Capabilities : Bridge, Router
+    Enabled Capabilities: Router
+  - Management Address Subtype: ('IPv4 ',)
+    Management Address        : 192.0.2.2
+    Interface Number Subtype  : ifIndex (2)
+    Interface Number          : 6
+    OID String                : 
+  - LLDP-MED Capabilities:
+    'Capabilities' capable                 : True
+    'Network Policy' capable               : False
+    'Location Identification' capable      : False
+    'Extended Power via MDI - PSE' capable : False
+    'Extended Power via MDI - PD' capable  : False
+    'Inventory' capable                    : True
+    Device type                            : Network connectivity
+
+  Neighbor 0000.5e00.530a/"mgmt", age 1 seconds
+  Discovered 0:50:01 ago; Last changed 0:50:01 ago
+  - Chassis ID type: MAC address (4)
+    Chassis ID     : 0000.5e00.530a
+  - Port ID type: Interface name(5)
+    Port ID     : "mgmt"
+  - Time To Live: 120 seconds
+  - System Name: "host05"
+  - System Description: "ExtremeXOS (EXOS-VM) version 33.6.1.14 by release-manager on Tue Mar 24 02:04:32 PM UTC 2026"
+
+  Neighbor 0000.5e00.5308/"mgmt0", age 4 seconds
+  Discovered 0:45:14 ago; Last changed 0:45:10 ago
+  - Chassis ID type: MAC address (4)
+    Chassis ID     : 0000.5e00.5308
+  - Port ID type: Interface name(5)
+    Port ID     : "mgmt0"
+  - Time To Live: 120 seconds
+  - Port Description: "mgmt0"
+  - System Name: "host01"
+  - System Description: "Cisco Nexus Operating System (NX-OS) Software 9.3(12)\x0aTAC support: http://www.cisco.com/tac\x0aCopyright (c) 2002-2023, Cisco Systems, Inc. All rights reserved."
+  - System Capabilities : Bridge, Router
+    Enabled Capabilities: Bridge, Router
+  - Management Address Subtype: ('IPv4 ',)
+    Management Address        : 203.0.113.55
+    Interface Number Subtype  : ifIndex (2)
+    Interface Number          : 83886080
+    OID String                : 
+  - Management Address Subtype: ('Ethernet ',)
+    Management Address        : 0000.5e00.5308
+    Interface Number Subtype  : ifIndex (2)
+    Interface Number          : 83886080
+    OID String                : 
+  - LLDP-MED Capabilities:
+    'Capabilities' capable                 : True
+    'Network Policy' capable               : True
+    'Location Identification' capable      : False
+    'Extended Power via MDI - PSE' capable : False
+    'Extended Power via MDI - PD' capable  : False
+    'Inventory' capable                    : False
+    Device type                            : Network connectivity
+  - LLDP-MED Network policies:
+    - Application type: voice (1)
+      Unknown         : no
+      Tagged          : yes
+      VLAN ID         : 0
+      CoS             : 0
+      DSCP            : 0
+  - Unknown organizationally-defined TLV (OUI 00-01-42, subtype 1):
+      01
+

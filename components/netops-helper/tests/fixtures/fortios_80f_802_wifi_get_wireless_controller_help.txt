@@ -1,0 +1,37 @@
+access-control-list    Configure WiFi bridge access control list.
+ap-status              Configure access point status (rogue | accepted | suppressed).
+apcfg-profile          Configure AP local configuration profiles.
+arrp-profile           Configure WiFi Automatic Radio Resource Provisioning (ARRP) profiles.
+ble-profile            Configure Bluetooth Low Energy profile.
+bonjour-profile        Configure Bonjour profiles. Bonjour is Apple's zero configuration networking protocol. Bonjour profiles allow APs and FortiAPs to connect to networks using Bonjour.
+client-info            Wireless controller client-info. [Take 0-3 arg(s)]
+global                 Configure wireless controller global settings.
+hotspot20              Configure hotspot.
+inter-controller       Configure inter wireless controller operation.
+log                    Configure wireless controller event log filters.
+lw-profile             Configure LoRaWAN profile.
+mpsk-profile           Configure MPSK profile.
+nac-profile            Configure WiFi network access control (NAC) profiles.
+qos-profile            Configure WiFi quality of service (QoS) profiles.
+region                 Configure FortiAP regions (for floor plans and maps).
+rf-analysis            Wireless controller rf-analysis. [Take 0-1 arg(s)]
+scan                   Wireless controller scan result.
+setting                VDOM wireless controller configuration.
+snmp                   Configure SNMP.
+spectral-info          Wireless controller spectrum analysis. [Take 0-2 arg(s)]
+ssid-policy            Configure WiFi SSID policies.
+statistics             Wireless controller statistics.
+status                 Wireless controller status. [Take 0-1 arg(s)]
+syslog-profile         Configure Wireless Termination Points (WTP) system log server profile.
+timers                 Configure CAPWAP timers.
+vap                    Configure Virtual Access Points (VAPs).
+vap-group              Configure virtual Access Point (VAP) groups.
+vap-status             Wireless controller VAP-status. [Take 0-1 arg(s)]
+wag-profile            Configure wireless access gateway (WAG) profiles used for tunnels on AP.
+wids-profile           Configure wireless intrusion detection system (WIDS) profiles.
+wlchanlistlic          Get channel list according to the region code.
+wtp                    Configure Wireless Termination Points (WTPs), that is, FortiAPs or APs to be managed by FortiGate.
+wtp-group              Configure WTP groups.
+wtp-profile            Configure WTP profiles or FortiAP profiles that define radio settings for manageable FortiAP platforms.
+wtp-status             Wireless controller WTP-status. [Take 0-1 arg(s)]
+ 

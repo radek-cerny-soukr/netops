@@ -14,15 +14,20 @@ These first-party command-reference pages establish syntax and intended operatio
 
 All output is sensitive, untrusted device data. Interface descriptions, topology, addresses, MAC tables, VLAN names, chassis identity, process state, and hardware inventory can disclose operational details.
 
-## Unsupported: show sharing
+## Load sharing (`lag_summary`)
 
-NetOps excludes the former sharing query and every show sharing variant from automated diagnostics on virtual and physical EXOS platforms. Measurements on 7 October 2026 found the same mismatch on EXOS-VM 33.6.1.14 and an X440-G2 running 33.7.1.6: the command prints a complete Load Sharing Monitor table but sets native STATUS to -6 and sends SSH exit-status 250. Control queries returned STATUS/SSH pairs 0/0 for show lacp and -2/254 for an invalid command.
+The fixed `lag_summary` query reads `show sharing` for `switch_read table="lag"`.
+Earlier measurements on EXOS-VM 33.6.1.14 and physical 33.7.1.6 found complete
+Load Sharing Monitor output with native STATUS -6 and SSH exit status 250.
+The existing EXOS completion rule now accepts nonempty exit-250 output only
+without EXOS error markers and preserves `rc: 250` and `exit_status_250`.
+Other exit codes and empty/error output remain failures. The legacy query name
+`sharing` stays excluded; enroll `lag_summary` explicitly.
 
-This is an automation safety restriction: the complete table does not establish successful completion. The precise internal meaning of -6 and a vendor defect identifier remain unconfirmed. NetOps does not normalize 250 to zero. The query is absent from discovery and cannot be opted into; remove sharing from existing enabled_queries before upgrading. Validation refuses an inventory that still enrolls it.
-
-The lacp query remains available for LACP state; it is not a replacement for the full sharing table. NetOps Admin identifies LAG master/member ports from the configuration snapshot and continues to refuse VLAN membership changes on those ports without this diagnostic command.
-
-[EXOS STATUS documentation](https://documentation.extremenetworks.com/exos_30.2/GUID-73D712E2-C494-4E3F-9019-F82341FCDCEA.shtml) defines STATUS as the last command result. The dated catalogue measurements below remain historical evidence and do not re-enable this excluded query.
+The normalized group contains `name` (configured master port), `protocol`,
+`status` and `members` with per-port state. The supplied EXOS-VM capture verifies
+an empty table; populated group parser cases are synthetic and do not establish
+physical-device support. `aggregate` continues to use `show lacp`.
 
 ## Accepted Phase-1 queries
 
@@ -61,7 +66,9 @@ The fixed `no-refresh` token requests a one-shot display. It is part of the revi
 | `lldp_interface` | `show lldp port {interface} neighbors` | `interfaces.extreme_physical_port` | normal | E-LLDP |
 | `lldp_interface_details` | `show lldp port {interface} neighbors detailed` | `interfaces.extreme_physical_port` | normal | E-LLDP |
 | `vlan_summary` | `show vlan` | none | high-volume | E-VLAN |
+| `vlan_detail` | `show vlan detail` | none | high-volume | E-VLAN |
 | `lacp` | `show lacp` | none | high-volume | E-LACP |
+| `lag_summary` | `show sharing` | none | high-volume | E-INDEX |
 | `stp_summary` | `show stpd` | none | high-volume | E-STPD |
 | `stp_detail` | `show stpd detail` | none | high-volume | E-STPD |
 | `stacking` | `show stacking` | none | normal | E-INDEX |
@@ -78,6 +85,21 @@ The fixed `no-refresh` token requests a one-shot display. It is part of the revi
 | `mcast_cache_summary` | `show mcast cache summary` | none | normal | E-INDEX |
 | `mirror` | `show mirror` | none | normal | E-INDEX |
 | `edp_neighbors` | `show edp` | none | high-volume | E-INDEX |
+| `ports_description` | `show ports description` | none | high-volume | E-INDEX |
+| `ports_rx_errors` | `show ports rxerrors no-refresh` | none | high-volume | E-INDEX |
+| `ports_tx_errors` | `show ports txerrors no-refresh` | none | high-volume | E-INDEX |
+| `ipconfig` | `show ipconfig` | none | high-volume | E-INDEX |
+| `route_table` | `show iproute` | none | high-volume | E-INDEX |
+| `ipv6_route_table` | `show iproute ipv6` | none | high-volume | E-INDEX |
+| `lldp_neighbors_detail` | `show lldp neighbors detailed` | none | high-volume | E-INDEX |
+| `stp_ports` | `show stpd s0 ports` | none | high-volume | E-INDEX |
+| `mlag_peer` | `show mlag peer` | none | normal | E-INDEX |
+| `mlag_ports` | `show mlag ports` | none | high-volume | E-INDEX |
+| `inline_power_stats` | `show inline-power stats` | none | normal | E-INDEX |
+| `ntp_association` | `show ntp association` | none | normal | E-INDEX |
+| `log_messages` | `show log messages memory-buffer` | none | high-volume | E-INDEX |
+| `log_warnings` | `show log messages memory-buffer severity warning` | none | high-volume | E-INDEX |
+| `log_configuration` | `show log configuration` | none | high-volume | E-INDEX |
 
 ### Source-backed port syntax decisions
 
@@ -97,7 +119,7 @@ Each decimal component is canonical, non-zero, and bounded to three digits. Rang
 
 ### ExtremeXOS 33.7.1 query grammar
 
-The ExtremeXOS 33.7.1 read profile uses exact documented grammar for stacking, stacking_support, inline_power, access_list_counters, qos_profiles, licenses, ntp, sntp_client, sessions, elrp, mcast_cache_summary, mirror, edp_neighbors and stp_detail. Account permissions and feature availability must be validated for the enrolled build; catalogue presence is not an authorization grant.
+The ExtremeXOS 33.7.1 read profile uses exact documented grammar for stacking, stacking_support, inline_power, access_list_counters, qos_profiles, licenses, ntp, sntp_client, sessions, elrp, mcast_cache_summary, mirror, edp_neighbors and stp_detail. The NetOps 1.0.7 additions (`ports_description`, `ports_rx_errors`, `ports_tx_errors`, `ipconfig`, `route_table`, `ipv6_route_table`, `lldp_neighbors_detail`, `stp_ports`, `mlag_peer`, `mlag_ports`, `inline_power_stats`, `ntp_association`, `log_messages`, `log_warnings`, `log_configuration`) were run on four physical switches (X435-8P-4S and three X440G2-12p-10G4, all 33.7.1.6); their output is stored in `tests/fixtures/real/exos`. Account permissions and feature availability must be validated for the enrolled build; catalogue presence is not an authorization grant.
 
 `inline_power_port` follows `show inline-power info {detail} ports {port_list}` with one enrolled port. The `all` token is not an enrolled single-port value and is refused; verify the exact build and account permission for that slotted query.
 
@@ -106,9 +128,11 @@ Measured refusals from the same session, recorded as facts rather than candidate
 - `show stacking configuration` is answered with `%% Unrecognized command` on 33.7.1; only `show stacking` and `show stacking-support` exist there.
 - `show accounts` is refused for a user-level account. That is a property of the read-only boundary, not of the catalogue, and the command stays out.
 - `show ip-security dhcp-snooping entries` is answered with `%% Incomplete command`; the binding database can only be asked for one VLAN, and Phase 1 has no VLAN inventory type.
-- `show log configuration` is outside the boundary as configuration and log content, and was not run.
+- `show log configuration` was first left out as configuration and log content. NetOps 1.0.7 adds it and the two fixed buffer templates (see below); `show log` with a time window, `match`, `events`, `nvram` or any other variant stays refused by the show-family policy.
 
 ### EXOS-VM 33.6.1.14 compatibility
+
+Every catalogue template available at that time (slot values `1`, VLAN `Default`) was run on the EXOS-VM 33.6.1.14 of the GNS3 lab with a user-level account on 2026-11-08; the anonymised output is `tests/fixtures/real/exos/exosvm_33.6.1.14` (`vlan_details`, `interface_details`, `ipv6_route_summary`, `ipv6_neighbor_address` and `stacking` end with exit status 250, `stacking_support` and `qos_profiles` with 254).
 
 The virtual-switch profile is bounded to ExtremeXOS 33.6.1.14, its user-level account and explicit legacy SSH policy. Exit status and parser interpretation are separate from device feature availability; compatibility with an unlisted physical switch is not implied. See [compatibility boundaries](../../../../docs/compatibility-boundaries.md).
 
@@ -120,7 +144,7 @@ The ExtremeXOS 33.6.1.14 virtual-image profile differs from the 33.7.1 hardware 
 - Temperature, fan, power, diagnostics, and transceiver output depends on chassis and port hardware. Unsupported components can produce empty or unsupported results without making the command mutating.
 - IPv4/IPv6 routing, Neighbor Discovery, LLDP, VLAN, LAG/LACP, and STP queries depend on the corresponding features, protocols, and licenses being present and enabled.
 - Port identifiers are model-, topology-, channelization-, and configured-notation-dependent. Every port-bearing template uses the exact `interfaces` inventory; callers cannot synthesize a port discovered in output.
-- High-volume queries are `cpu_monitoring`, `processes`, `ports`, `ports_configuration`, `arp_table`, `arp_interface`, `ipv6_neighbors`, `mac_table`, `mac_interface`, `lldp_neighbors`, `vlan_summary`, `lacp`, `stp_summary`, `stp_detail`, `access_list_counters`, and `edp_neighbors`. Prefer a normal scoped variant where one exists and answers the question; the scoped ARP and FDB collections remain high-volume because one port can still contain many entries.
+- High-volume queries are `cpu_monitoring`, `processes`, `ports`, `ports_configuration`, `arp_table`, `arp_interface`, `ipv6_neighbors`, `mac_table`, `mac_interface`, `lldp_neighbors`, `vlan_summary`, `vlan_detail`, `lacp`, `stp_summary`, `stp_detail`, `access_list_counters`, `edp_neighbors`, `ports_description`, `ports_rx_errors`, `ports_tx_errors`, `ipconfig`, `route_table`, `ipv6_route_table`, `lldp_neighbors_detail`, `stp_ports`, `mlag_ports`, `log_messages`, `log_warnings` and `log_configuration`. Prefer a normal scoped variant where one exists and answers the question; the scoped ARP and FDB collections remain high-volume because one port can still contain many entries.
 - Output fields and table size are not a stable API contract. Consumers must handle the result as untrusted text.
 
 ## Explicitly excluded
@@ -138,7 +162,7 @@ The ExtremeXOS 33.6.1.14 virtual-image profile differs from the 33.7.1 hardware 
 
 No command in this section is callable. It records useful gaps that need exact 33.7.1 syntax review plus live read-only AAA and wire testing before a future whitelist change.
 
-- VLAN tags, lists and broad selectors remain excluded. The separately documented `vlan_details` addition accepts only an enrolled VLAN name.
+- VLAN tags, lists and broad selectors remain excluded. The separately documented `vlan_details` addition accepts only an enrolled VLAN name; fixed slot-free `vlan_detail` reads all VLANs without accepting a selector.
 - The stack summaries `show stacking` and `show stacking-support` are accepted since they were measured; the rest of the stack, fabric, and chassis detail stays deferred because command availability and output differ by model and deployment mode, and `show stacking configuration` does not exist on 33.7.1.
 - Broader DHCP-snooping queries remain excluded; `dhcp_snooping_entries` below is limited to one enrolled VLAN name.
 - Additional dynamic-routing detail is deferred until each protocol command has a bounded summary form, feature/license constraints, and read-only behavior verified on supported hardware.
@@ -178,7 +202,7 @@ All links are first-party Extreme Networks Switch Engine command-reference pages
 | E-ND6 | Switch Engine v33.7.1 Command References: `show neighbor-discovery cache ipv6` | `ipv6_neighbors`, `ipv6_neighbor_address` | https://documentation.extremenetworks.com/Switch%20Engine%20v33.7.1%20Command%20References/content/documents/Switch_Operating_Systems/Switch_Engine/Command_References/show_neighbor_discovery_cache_ipv6.shtml |
 | E-FDB | Switch Engine v33.7.1 Command References: `show fdb` | `mac_table`, `mac_interface` | https://documentation.extremenetworks.com/Switch%20Engine%20v33.7.1%20Command%20References/content/documents/Switch_Operating_Systems/Switch_Engine/Command_References/show_fdb.shtml |
 | E-LLDP | Switch Engine v33.7.1 Command References: `show lldp neighbors` | `lldp_neighbors`, `lldp_interface`, `lldp_interface_details` | https://documentation.extremenetworks.com/Switch%20Engine%20v33.7.1%20Command%20References/content/documents/Switch_Operating_Systems/Switch_Engine/Command_References/show_lldp_neighbors.shtml |
-| E-VLAN | Switch Engine v33.7.1 Command References: `show vlan` | `vlan_summary`, `vlan_details` | https://documentation.extremenetworks.com/Switch%20Engine%20v33.7.1%20Command%20References/content/documents/Switch_Operating_Systems/Switch_Engine/Command_References/show_vlan.shtml |
+| E-VLAN | Switch Engine v33.7.1 Command References: `show vlan` | `vlan_summary`, `vlan_details`, `vlan_detail` | https://documentation.extremenetworks.com/Switch%20Engine%20v33.7.1%20Command%20References/content/documents/Switch_Operating_Systems/Switch_Engine/Command_References/show_vlan.shtml |
 | E-LACP | Switch Engine v33.7.1 Command References: `show lacp` | `lacp` | https://documentation.extremenetworks.com/Switch%20Engine%20v33.7.1%20Command%20References/content/documents/Switch_Operating_Systems/Switch_Engine/Command_References/show_lacp.shtml |
 | E-STPD | Switch Engine v33.7.1 command set, Common EXOS/Switch Engine reference: `show stpd` | `stp_summary`, `stp_detail` | https://documentation.extremenetworks.com/Switch%20Engine%20v33.7.1%20Command%20References/content/documents/Switch_Operating_Systems/Common_EXOS_Switch_Engine/33.4.1/show_stpd.shtml |
 
@@ -199,3 +223,5 @@ Acceptance here describes the code whitelist only. The live-result limitations a
 | --- | --- | --- | --- | --- |
 | `vlan_details` | `show vlan {vlan}` | `vlans.vlan_name` | high-volume | E-VLAN |
 | `dhcp_snooping_entries` | `show ip-security dhcp-snooping entries vlan {vlan}` | `vlans.vlan_name` | high-volume | E-INDEX |
+
+The slot-free `vlan_detail` (`show vlan detail`) follow-up was captured read-only on 2026-11-09 on EXOS-VM 33.6.1.14, X435 31.7.3.37 and three X440G2 33.7.1.6 switches; see `tests/fixtures/real/extreme_exos/*_pty*`. It supplies Tag/Untag port membership for `port_vlan`, without terminal-setting changes or new privileges.

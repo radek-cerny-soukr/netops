@@ -1,0 +1,4 @@
+Enabled License Level:
+	Value Edge
+Enabled Feature Packs:
+	None

@@ -1,0 +1,6 @@
+Routing entry for 2001:DB8::/64
+  Known via "ospf 1", distance 110, metric 10, type intra area
+  Route count is 1/1, share count 0
+  Routing paths:
+    FE80::1, GigabitEthernet0/1
+      Last updated 00:03:07 ago

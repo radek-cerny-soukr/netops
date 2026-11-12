@@ -1308,7 +1308,7 @@ def _ctl(directory, answer, code=0):
     (folder / "answer.bin").write_bytes(answer if isinstance(answer, bytes) else answer.encode("utf-8"))
     script = folder / "syslog-ng-ctl"
     script.write_text("#!%s\nimport os, sys\nhere = os.path.dirname(os.path.abspath(__file__))\n"
-                      "sys.stdout.buffer.write(open(os.path.join(here, 'answer.bin'), 'rb').read())\n"
+                      "sys.stdout.buffer.write(__import__('pathlib').Path(os.path.join(here, 'answer.bin')).read_bytes())\n"
                       "sys.exit(%d)\n" % (sys.executable, code), encoding="utf-8")
     script.chmod(0o755)
     return str(script)

@@ -1,0 +1,3 @@
+Field Replaceable Units                                  Temp (C)   Status   Min  Normal   Max
+-------------------------------------------------------  ---------  -------  ---  -------  ---
+Switch                : X435-8P-4S                         86.37    Normal     0   10-100  110

@@ -1,0 +1,10 @@
+Port      Name               Status       Vlan       Duplex  Speed  Type
+Gi1/0/1   uplink-core        connected    trunk      a-full  a-1000 10/100/1000BaseTX
+Gi1/0/2                      connected    10         a-full  a-100  10/100/1000BaseTX
+Gi1/0/3   printer 2nd floor  notconnect   20         auto    auto   10/100/1000BaseTX
+Gi1/0/4                      disabled     1          auto    auto   10/100/1000BaseTX
+Gi1/0/5                      err-disabled 10         auto    auto   10/100/1000BaseTX
+Gi1/0/6                      connected    routed     a-full  a-1000 10/100/1000BaseTX
+Gi1/0/7                      connected    in Po1     a-full  a-1000 10/100/1000BaseTX
+Te1/1/1                      notconnect   1          full    10G    Not Present
+Po1       etherchannel       connected    trunk      a-full  a-1000

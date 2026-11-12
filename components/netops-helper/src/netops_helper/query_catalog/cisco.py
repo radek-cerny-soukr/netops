@@ -13,7 +13,38 @@ from .model import (
     IPV6_ADDRESS,
     NO_SLOTS,
     Query,
+    Slot,
 )
+
+VLAN_ID = {"vlan_id": Slot(None, "vlan_id")}
+
+
+def _campus_queries(physical_interface) -> dict[str, Query]:
+    """1.0.7 additions shared by IOS and IOS XE; the slotted ones take the profile's physical-port kind."""
+    return {
+        "interfaces_counters_errors": Query("show interfaces counters errors", NO_SLOTS, "Show cumulative error and discard counters of every interface (switch images only).", high_volume=True),
+        "interfaces_details": Query("show interfaces", NO_SLOTS, "Show operational details and cumulative error counters of every interface.", high_volume=True),
+        "route_table": Query("show ip route", NO_SLOTS, "Show the IPv4 routing table.", high_volume=True),
+        "ospf_interfaces": Query("show ip ospf interface brief", NO_SLOTS, "Summarize OSPF interfaces, areas, cost and neighbor counts.", high_volume=True),
+        "stp_tree": Query("show spanning-tree", NO_SLOTS, "Show spanning-tree state per VLAN with root and port roles.", high_volume=True),
+        "stp_root": Query("show spanning-tree root", NO_SLOTS, "Show the spanning-tree root bridge and root port per VLAN.", high_volume=True),
+        "stp_inconsistent": Query("show spanning-tree inconsistentports", NO_SLOTS, "Show ports blocked by spanning-tree guards (root, loop, BPDU or type inconsistency).", high_volume=True),
+        "stp_vlan": Query("show spanning-tree vlan {vlan_id}", VLAN_ID, "Show spanning-tree state for one VLAN."),
+        "err_disabled": Query("show interfaces status err-disabled", NO_SLOTS, "List err-disabled interfaces with the disabling reason.", high_volume=True),
+        "errdisable_recovery": Query("show errdisable recovery", NO_SLOTS, "Show which err-disable causes recover automatically and the interfaces waiting for it."),
+        "interfaces_description": Query("show interfaces description", NO_SLOTS, "Show interface state with configured descriptions.", high_volume=True),
+        "interfaces_trunk": Query("show interfaces trunk", NO_SLOTS, "Show trunk ports with allowed, active and forwarding VLANs.", high_volume=True),
+        "interface_switchport": Query("show interfaces {interface} switchport", physical_interface, "Show administrative and operational switchport mode, VLANs and voice VLAN for one enrolled interface."),
+        "interface_transceiver": Query("show interfaces {interface} transceiver detail", physical_interface, "Show transceiver diagnostics for one enrolled physical interface."),
+        "power_inline": Query("show power inline", NO_SLOTS, "Show PoE budget and per-port power state.", high_volume=True),
+        "vtp_status": Query("show vtp status", NO_SLOTS, "Show VTP mode, domain and revision."),
+        "vlan_details": Query("show vlan id {vlan_id}", VLAN_ID, "Show one VLAN with its member ports."),
+        "ntp_status": Query("show ntp status", NO_SLOTS, "Show NTP synchronization state."),
+        "ntp_associations": Query("show ntp associations", NO_SLOTS, "Show NTP peers with stratum, reachability, delay and offset."),
+        "stack_members": Query("show switch", NO_SLOTS, "Show stack members with role, priority and state."),
+        "stack_ports": Query("show switch stack-ports summary", NO_SLOTS, "Show stack port link state and neighbors."),
+        "log_messages": Query("show logging", NO_SLOTS, "Show the logging configuration summary and the in-memory log buffer (bounded by the configured buffer size).", high_volume=True),
+    }
 
 
 IOS_QUERIES: dict[str, Query] = {
@@ -44,6 +75,7 @@ IOS_QUERIES: dict[str, Query] = {
     "ospf_neighbors": Query("show ip ospf neighbor", NO_SLOTS, "Show OSPF neighbor state.", high_volume=True),
     "hsrp_summary": Query("show standby brief", NO_SLOTS, "Summarize HSRP state.", high_volume=True),
     "vrrp_summary": Query("show vrrp brief", NO_SLOTS, "Summarize VRRP state.", high_volume=True),
+    **_campus_queries(CISCO_IOS_PHYSICAL_INTERFACE),
 }
 
 
@@ -75,6 +107,8 @@ IOS_XE_QUERIES: dict[str, Query] = {
     "ospf_neighbors": Query("show ip ospf neighbor", NO_SLOTS, "Show OSPF neighbor state.", high_volume=True),
     "hsrp_summary": Query("show standby brief", NO_SLOTS, "Summarize HSRP state.", high_volume=True),
     "vrrp_summary": Query("show vrrp brief", NO_SLOTS, "Summarize VRRP state.", high_volume=True),
+    **_campus_queries(CISCO_XE_PHYSICAL_INTERFACE),
+    "platform_resources": Query("show platform resources", NO_SLOTS, "Show control-plane CPU, memory and resource state."),
 }
 
 
@@ -109,4 +143,36 @@ NXOS_QUERIES: dict[str, Query] = {
     "vpc_status": Query("show vpc brief", NO_SLOTS, "Summarize virtual port-channel state.", high_volume=True),
     "vpc_peer_keepalive": Query("show vpc peer-keepalive", NO_SLOTS, "Show virtual port-channel peer-keepalive status."),
     "vpc_role": Query("show vpc role", NO_SLOTS, "Show the virtual port-channel role."),
+    # 1.0.7: routes, OSPF/BGP tables, spanning tree, err-disable, trunks, switchports, NTP, resources, bounded log
+    "route_table": Query("show ip route", NO_SLOTS, "Show the IPv4 routing table of the default VRF.", high_volume=True),
+    "ospf_interfaces": Query("show ip ospf interface brief", NO_SLOTS, "Summarize OSPF interfaces, areas, cost, state and neighbor counts.", high_volume=True),
+    "bgp_summary": Query("show bgp ipv4 unicast summary", NO_SLOTS, "Summarize IPv4 unicast BGP peer state of the default VRF.", high_volume=True),
+    "stp_tree": Query("show spanning-tree", NO_SLOTS, "Show spanning-tree state per VLAN with root and port roles.", high_volume=True),
+    "stp_root": Query("show spanning-tree root", NO_SLOTS, "Show the spanning-tree root bridge and root port per VLAN.", high_volume=True),
+    "stp_blocked": Query("show spanning-tree blockedports", NO_SLOTS, "List the ports spanning-tree blocks per VLAN."),
+    "stp_inconsistent": Query("show spanning-tree inconsistentports", NO_SLOTS, "Show ports blocked by spanning-tree guards (root, loop, BPDU or type inconsistency)."),
+    "stp_vlan": Query("show spanning-tree vlan {vlan_id}", VLAN_ID, "Show spanning-tree state for one VLAN."),
+    "err_disabled": Query("show interface status err-disabled", NO_SLOTS, "List err-disabled interfaces with the disabling reason.", high_volume=True),
+    "errdisable_recovery": Query("show errdisable recovery", NO_SLOTS, "Show which err-disable causes recover automatically and the interfaces waiting for it."),
+    "interfaces_description": Query("show interface description", NO_SLOTS, "Show interface state with configured descriptions.", high_volume=True),
+    "interfaces_trunk": Query("show interface trunk", NO_SLOTS, "Show trunk ports with allowed, err-disabled and forwarding VLANs.", high_volume=True),
+    "interfaces_counters_errors": Query("show interface counters errors", NO_SLOTS, "Show error counters of every interface.", high_volume=True),
+    "interface_switchport": Query("show interface {interface} switchport", CISCO_NXOS_INTERFACE, "Show administrative and operational switchport mode and VLANs for one enrolled interface."),
+    "interface_transceiver": Query("show interface {interface} transceiver details", CISCO_NXOS_ERRORS_INTERFACE, "Show transceiver diagnostics for one enrolled physical interface."),
+    "vlan_details": Query("show vlan id {vlan_id}", VLAN_ID, "Show one VLAN with its member ports."),
+    "ntp_status": Query("show ntp status", NO_SLOTS, "Show NTP distribution state."),
+    "ntp_associations": Query("show ntp peer-status", NO_SLOTS, "Show NTP peers with stratum, reachability, delay and offset."),
+    "system_resources": Query("show system resources", NO_SLOTS, "Show load, CPU and memory use of the supervisor."),
+    "reset_reason": Query("show system reset-reason", NO_SLOTS, "Show why each module last reset."),
+    "modules": Query("show module", NO_SLOTS, "Show modules with type, model, status and serial numbers."),
+    "license_usage": Query("show license usage", NO_SLOTS, "Show license usage per feature."),
+    "redundancy_status": Query("show redundancy status", NO_SLOTS, "Show supervisor redundancy state."),
+    "features": Query("show feature", NO_SLOTS, "Show which features are enabled."),
+    "vrfs": Query("show vrf", NO_SLOTS, "List the VRFs with their state."),
+    "bfd_neighbors": Query("show bfd neighbors", NO_SLOTS, "Show BFD sessions."),
+    "vpc_consistency": Query("show vpc consistency-parameters global", NO_SLOTS, "Show the global virtual port-channel consistency parameters."),
+    "vpc_orphan_ports": Query("show vpc orphan-ports", NO_SLOTS, "Show the ports that are not part of a virtual port-channel."),
+    "dhcp_snooping_binding": Query("show ip dhcp snooping binding", NO_SLOTS, "Show the DHCP snooping bindings.", high_volume=True),
+    "access_lists": Query("show ip access-lists", NO_SLOTS, "Show IPv4 access lists with match counters.", high_volume=True),
+    "log_messages": Query("show logging last 200", NO_SLOTS, "Show the newest 200 lines of the logfile.", high_volume=True),
 }

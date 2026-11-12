@@ -351,6 +351,11 @@ def test_each_way_out_of_a_change_records_its_steps_and_its_reason(tmp_path, mon
     assert trail(record) == expected
     assert (record["result"], record["reason"]) == (result, reason)
     assert runtime.store.operation(record["change_id"])["steps"] == record["steps"]
+    if result == "rejected":
+        assert (record["reason_codes"], record["reason_details"]) == (["device_clock_unreadable"], [])
+        assert runtime.store.operation(record["change_id"])["reason_codes"] == ["device_clock_unreadable"]
+    else:
+        assert "reason_codes" not in record
     assert [(event["step"], event["detail"]) for event in audit_lines(tmp_path) if event["event"] == "step"] == expected
 
 
@@ -414,6 +419,7 @@ def test_a_rejected_enrollment_notification_names_its_reason_and_a_sent_one_is_a
     runtime.notifier = lambda record: "failed"
     record = enrollment.run(runtime, name, "192.0.2.254/32")
     assert (record["result"], record["reason"]) == ("rejected", "enrollment notification unavailable")
+    assert (record["reason_codes"], record["reason_details"]) == (["notification_unavailable"], [])
     assert trail(record) == [("foreign_sessions", "0 other sessions")]
     runtime, target, name = ready(tmp_path / "sent")
     record = enrollment.run(runtime, name, "192.0.2.254/32")
@@ -540,6 +546,8 @@ def test_recover_settles_every_interrupted_operation_with_its_steps_and_reason(t
     settled = execute.recover(runtime, "lab")
     assert [(record["result"], record["reason"]) for record in settled] == [outcome, outcome]
     assert [recovery_trail(record) for record in settled] == [expected, expected]
+    if outcome[0] == "rejected":
+        assert all(record["reason_codes"] == ["interrupted_before_mutation"] for record in settled)
     assert sorted(record["change_id"] for record in settled) == sorted(
         record["change_id"] for record in runtime.store.records())
     assert runtime.store.running("lab") == []
@@ -646,7 +654,7 @@ def test_preview_shows_the_plan_the_apply_will_run(tmp_path):
     record = execute.apply(runtime, "lab", request())
     plan = record["plan"]
     assert shown == {
-        "result": "ready", "reasons": [], "device": "lab", "platform": "fortios", "firmware": plan["firmware"],
+        "result": "ready", "reasons": [], "reason_codes": [], "reason_details": [], "device": "lab", "platform": "fortios", "firmware": plan["firmware"],
         "table": "firewall address", "op": "create", "key": "new-host", "predicted": plan["predicted"],
         "commands": plan["commands"], "inverse_commands": len(plan["inverse"]), "prechecks": plan["prechecks"],
         "rollback_evidence": plan["rollback_evidence"], "plan_sha256": plan["plan_sha256"],
@@ -821,7 +829,7 @@ def test_a_schema_transaction_is_previewed_against_the_budget_of_all_its_operati
     runtime.config = replace(runtime.config, limits=dict(DEFAULT_LIMITS, changes_per_device_per_hour=2))
     operations = [schema_op(changes={"comment": word}) for word in ("first", "second", "third")]
     shown = execute.preview(runtime, "lab", schema_request(operations))
-    assert shown == {"result": "rejected", "device": "lab", "reasons": [HOUR_EXHAUSTED]}
+    assert shown == {"result": "rejected", "device": "lab", "reasons": [HOUR_EXHAUSTED], "reason_codes": ["budget_exhausted"], "reason_details": [{"code": "budget_exhausted", "budget": "device_hour"}]}
     assert fake.applied_blocks == []
 
 
@@ -889,7 +897,7 @@ def test_the_switch_prechecks_read_the_prompt_of_the_snapshot_hostname(tmp_path)
 def test_preview_refuses_the_enrollment_namespace_like_apply(tmp_path):
     runtime, target, name = ready(tmp_path)
     shown = execute.preview(runtime, name, request(key="netops-enroll-example"))
-    assert shown == {"result": "rejected", "device": name, "reasons": ["the enrollment object namespace is reserved"]}
+    assert shown == {"result": "rejected", "device": name, "reasons": ["the enrollment object namespace is reserved"], "reason_codes": ["unspecified_refusal"], "reason_details": []}
 
 
 def transaction(operations, request_id):
@@ -999,3 +1007,14 @@ def test_recover_starts_the_step_list_of_a_journaled_operation_that_has_none(tmp
     [settled] = execute.recover(runtime, "lab")
     assert (settled["result"], settled["reason"]) == ("rejected", "interrupted before any mutation")
     assert trail(settled) == [("recovery_start", None)]
+
+
+def test_the_mcp_summary_of_a_rejected_record_carries_reason_codes_and_details():
+    from netops_admin import mcp_server
+    rejected = mcp_server.summary({"change_id": "c", "result": "rejected", "reason": "device clock",
+                                   "reason_codes": ["device_clock_unreadable"], "reason_details": []})
+    assert (rejected["reason_codes"], rejected["reason_details"]) == (["device_clock_unreadable"], [])
+    older = mcp_server.summary({"change_id": "c", "result": "rejected", "reason": "from an earlier release"})
+    assert (older["reason_codes"], older["reason_details"]) == (["unspecified_refusal"], [])
+    confirmed = mcp_server.summary({"change_id": "c", "result": "confirmed"})
+    assert "reason_codes" not in confirmed and "reason_details" not in confirmed

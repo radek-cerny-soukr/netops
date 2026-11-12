@@ -1,0 +1,49 @@
+
+-----------------------------------------------------------------------------
+LLDP Port 2 detected 1 neighbor
+  Neighbor: 00:00:5E:00:53:23/8, age 27 seconds
+    - Chassis ID type: MAC address (4)
+      Chassis ID     : 00:00:5E:00:53:23
+    - Port ID type: Locally assigned (7)
+      Port ID     : "8"
+    - Time To Live: 120 seconds
+    - IEEE802.3 Power via MDI
+      Port Class                : Power Sourcing Equipment (PSE)
+      MDI Power Support         : Supported
+      MDI Power State           : Enabled
+      Pairs Control Ability     : Not Controllable
+      Power Pair                : Signal (0x01)
+      Power Class               : Class4 (0x05)
+      Power Type                : Type 2 PSE
+      Power Source              : Primary power source
+      Power Priority            : Low
+      PD Requested Power Value  : 0.0 Watts
+      PSE Allocated Power Value : 31.2 Watts
+    - IEEE802.3 MAC/PHY Configuration/Status
+      Auto-negotiation       : Supported, Enabled (0x03)
+      Operational MAU Type   : 1000BaseTFD (30)
+    - Port Description: ""
+    - System Name: "host05"
+    - System Description: "host05"
+    - System Capabilities : "Bridge"
+      Enabled Capabilities: "Bridge"
+    - Management Address Subtype: IPv4 (1)
+      Management Address        : 192.0.2.4
+      Interface Number Subtype  : System Port Number (3)
+      Interface Number          : 0
+      Object ID String          : "null"
+    - IEEE802.1 Port VLAN Identifier: 10
+    - Unknown organizational specific TLV: Length=15 bytes, OUI=00A0C5
+      HEX Dump [000]: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 
+    - Unknown organizational specific TLV: Length=31 bytes, OUI=00A0C5
+      HEX Dump [000]: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 
+      HEX Dump [010]: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 
+    - Unknown organizational specific TLV: Length=22 bytes, OUI=00A0C5
+      HEX Dump [000]: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 
+      HEX Dump [010]: 00 00 00 00 00 00 
+    - Unknown organizational specific TLV: Length=25 bytes, OUI=00A0C5
+      HEX Dump [000]: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 
+      HEX Dump [010]: 00 00 00 00 00 00 00 00 00 
+    - Unknown organizational specific TLV: Length=11 bytes, OUI=00A0C5
+      HEX Dump [000]: 00 00 00 00 00 00 00 00 00 00 00 
+

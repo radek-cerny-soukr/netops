@@ -1,0 +1,50 @@
+{
+ "version": {
+  "command": "show version",
+  "rc": 0,
+  "lines": 19,
+  "account": "netops-ro"
+ },
+ "hostname": {
+  "command": "show hostname",
+  "rc": 0,
+  "lines": 2,
+  "account": "netops-ro"
+ },
+ "arp_table": {
+  "command": "show ip arp",
+  "rc": 0,
+  "lines": 11,
+  "account": "netops-ro"
+ },
+ "ipv6_neighbors": {
+  "command": "show ipv6 neighbors",
+  "rc": 0,
+  "lines": 4,
+  "account": "netops-ro"
+ },
+ "mac_table": {
+  "command": "show mac address-table",
+  "rc": 0,
+  "lines": 23,
+  "account": "netops-ro"
+ },
+ "lldp_neighbors_detail": {
+  "command": "show lldp neighbors detail",
+  "rc": 0,
+  "lines": 240,
+  "account": "netops-ro"
+ },
+ "interfaces": {
+  "command": "show interfaces status",
+  "rc": 0,
+  "lines": 18,
+  "account": "netops-ro"
+ },
+ "vlans": {
+  "command": "show vlan",
+  "rc": 0,
+  "lines": 7,
+  "account": "netops-ro"
+ }
+}

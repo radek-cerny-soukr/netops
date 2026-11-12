@@ -1,0 +1,32 @@
+{
+  "mac_table": {
+    "command": "show fdb",
+    "rc": 0,
+    "captured_at": "2026-11-10T17:46:11.808+00:00",
+    "lines": 60
+  },
+  "ipconfig": {
+    "command": "show ipconfig",
+    "rc": 0,
+    "captured_at": "2026-11-10T17:46:13.489+00:00",
+    "lines": 26
+  },
+  "arp_table": {
+    "command": "show iparp",
+    "rc": 0,
+    "captured_at": "2026-11-10T17:46:16.526+00:00",
+    "lines": 45
+  },
+  "lldp_neighbors_detail": {
+    "command": "show lldp neighbors detailed",
+    "rc": 0,
+    "captured_at": "2026-11-10T17:46:18.174+00:00",
+    "lines": 68
+  },
+  "lag_summary": {
+    "command": "show sharing",
+    "rc": 250,
+    "captured_at": "2026-11-10T17:21:29.294+00:00",
+    "lines": 20
+  }
+}

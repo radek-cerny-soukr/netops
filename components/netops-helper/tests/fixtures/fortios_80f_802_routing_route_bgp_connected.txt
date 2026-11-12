@@ -1,0 +1,10 @@
+Routing table for VRF=default(0)
+Routing entry for 198.51.100.0/24
+  Known via "bgp", distance 200, metric 0
+  Last update 01:23:58 ago
+    vrf default(0) 203.0.113.254 priority 1 (recursive via HUB-A1 tunnel 203.0.113.29)
+
+Routing entry for 198.51.100.0/24
+  Known via "connected", distance 0, metric 0, best
+  * is directly connected, wan1
+  * is directly connected, wan1

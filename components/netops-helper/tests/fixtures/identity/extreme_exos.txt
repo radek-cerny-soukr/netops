@@ -1,0 +1,2 @@
+Switch : 800630-00-11 LAB00000005 Rev 1.0 BootROM: 1.0.1.8 IMG: 21.1.2.6
+Image : ExtremeXOS version 21.1.2.6 by release-manager

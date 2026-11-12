@@ -106,6 +106,31 @@ class GatewayFormats(unittest.TestCase):
         self.assertNotIn("SH2synthEnc789", out)
         self.assertIn("set accprofile super_admin", out)
 
+    def test_cli_keywords_survive_but_entire_values_are_hidden(self):
+        for field in ('password', 'passwd', 'psksecret', 'secret', 'passphrase', 'auth-pwd', 'priv-pwd'):
+            for value in ('CANARY-one CANARY-two', 'ENC CANARY-one CANARY-two',
+                          '"CANARY-one CANARY-two"', "'CANARY-one CANARY-two'", 'ENC "CANARY-one CANARY-two"'):
+                for eol in ('\n', '\r\n'):
+                    with self.subTest(field=field, value=value, eol=repr(eol)):
+                        raw = '    set ' + field + ' ' + value + eol + 'next' + eol
+                        output = gateway_redact(raw)[0]
+                        self.assertEqual(output, '    set ' + field + ' [REDACTED]' + eol + 'next' + eol)
+                        self.assertNotIn('CANARY-', output)
+
+    def test_changed_json_still_redacts_keys_and_known_numeric_values(self):
+        raw = json.dumps({'output': 'set password CANARY-password', 'number': 735190246})
+        output = gateway_redact(raw, ('735190246',))[0]
+        decoded = json.loads(output)
+        self.assertNotIn('CANARY', output)
+        self.assertNotIn('735190246', output)
+        self.assertEqual(decoded['output'], 'set password [REDACTED]')
+        self.assertEqual(decoded['number'], '[REDACTED]')
+        keyed = json.dumps({'set password CANARY-key': 'safe', 'neighbor': 'CANARY-neighbor'})
+        hidden = gateway_redact(keyed)[0]
+        self.assertEqual(json.loads(hidden), '[REDACTED]')
+        self.assertNotIn('CANARY', hidden)
+        self.assertEqual(output, gateway_redact(output, ('735190246',))[0])
+
     def test_snmp_community_and_safe_fields_stay_visible(self):
         value = {"community": "public-ro", "user": "admin", "t": "set passwd-type plain"}
         self.assertEqual(gateway_redact(value), (value, []))

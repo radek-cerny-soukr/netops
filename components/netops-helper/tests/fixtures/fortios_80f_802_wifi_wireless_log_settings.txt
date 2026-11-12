@@ -1,0 +1,13 @@
+status              : enable 
+addrgrp-log         : notification 
+ble-log             : notification 
+clb-log             : notification 
+dhcp-starv-log      : notification 
+led-sched-log       : notification 
+radio-event-log     : notification 
+rogue-event-log     : notification 
+sta-event-log       : notification 
+sta-locate-log      : notification 
+wids-log            : notification 
+wtp-event-log       : notification 
+wtp-fips-event-log  : notification 

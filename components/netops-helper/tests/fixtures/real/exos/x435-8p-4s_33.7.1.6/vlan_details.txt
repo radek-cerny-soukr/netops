@@ -1,0 +1,43 @@
+VLAN Interface with name Default created by user
+    Admin State:	 Enabled     Tagging:	802.1Q Tag 1 
+    Description:	 None
+    Virtual router:	 VR-Default
+    IP Anycast:		 Disabled
+    IPv4 Forwarding:	 Disabled
+    IPv4 MC Forwarding:  Disabled
+    Primary IP:		 192.0.2.110/24
+    IPv6 Forwarding:	 Disabled
+    IPv6 MC Forwarding:  Disabled
+    IPv6:                None
+    STPD:      		 s0(Enabled,Auto-bind) 
+    Layer 2 Forwarding:  Enabled
+    Protocol:            Match all unfiltered protocols
+    Loopback:            Disabled
+    NetLogin:            Disabled
+    QosProfile:     	 None configured
+    Flood Rate Limit QosProfile:       None configured
+    Suppress ARP:        Disabled
+    Suppress ND:         Disabled
+    Proxy ARP:           Entry required
+    Ports:   12. 	  (Number of active ports=1)
+       Untag:      *1,     2b,     3b,     4b,     5b,     6b,     7b,
+                   8b,     9b,    10b,    11b,    12b
+	Flags:    (*) Active, (!) Disabled, (g) Load Sharing port
+                  (b) Port blocked on the vlan, (m) Mac-Based port
+                  (M) Mac-Based port with ingress filtering on
+                  (i) Port inactivated on the vlan due to VXLAN configuration
+                  (a) Egress traffic allowed for NetLogin
+                  (u) Egress traffic unallowed for NetLogin
+                  (t) Translate VLAN tag for Private-VLAN
+                  (s) Private-VLAN System Port, (L) Loopback port
+                  (x) VMAN Tag Translated port
+                  (A) Dynamically added by Auto-peering
+                  (F) Dynamically added by Fabric Attach
+                  (G) Multi-switch LAG Group port
+                  (H) Dynamically added by MVRP
+                  (I) Dynamically added by IDM
+                  (N) Dynamically added by Netlogin
+                  (S) Added by static MAC-based VLAN
+                  (U) Dynamically added uplink port
+                  (V) Dynamically added by VM Tracking
+

@@ -1,0 +1,34 @@
+
+SysName:          host05
+SysLocation:      
+SysContact:       https://www.extremenetworks.com/support/
+System MAC:       00:00:5E:00:53:0A
+System MAC Used:  Factory MAC
+System Type:      EXOS-VM
+
+SysHealth check:  Enabled (Normal)
+Recovery Mode:    All
+System Watchdog:  Enabled
+
+Current Time:     Sun Nov  8 23:04:30 2026
+Timezone:         [Auto DST Disabled] GMT Offset: 0 minutes, name is UTC.
+Boot Time:        Sun Nov  8 22:12:04 2026
+Boot Count:       1
+Next Reboot:      None scheduled
+System UpTime:    52 minutes 26 seconds
+
+Current State:    OPERATIONAL             
+Image Selected:   primary                 
+Image Booted:     primary                 
+Primary ver:      33.6.1.14               
+Secondary ver:    33.6.1.14   
+
+Config Selected:  primary.cfg                                          
+Config Booted:    primary.cfg                                          
+Config Automatic: NONE (Disabled)
+
+primary.cfg       Created by ExtremeXOS version 33.6.1.14
+                  256663 bytes saved on Sun Nov  8 22:08:59 2026
+
+
+LAA MAC:          Locally Administered MAC Address Disabled

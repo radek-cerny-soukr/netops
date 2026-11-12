@@ -71,7 +71,8 @@ def test_read_query_catalog_exposes_legacy_and_rich_metadata() -> None:
     assert payload["query_metadata"] == public_query_metadata()
     for profile, queries in payload["query_metadata"].items():
         for query_name, metadata in queries.items():
-            assert set(metadata) == {
+            extra = {"requires_device_permission", "read_only_account"} if READ_QUERIES[profile][query_name].read_only_account == "refused" else set()
+            assert set(metadata) == extra | {
                 "command_template",
                 "description",
                 "high_volume",
@@ -81,10 +82,13 @@ def test_read_query_catalog_exposes_legacy_and_rich_metadata() -> None:
                 metadata["command_template"]
                 == READ_QUERIES[profile][query_name].command
             )
+            if extra:
+                assert metadata["requires_device_permission"] == "wifi read-write"
+                assert metadata["read_only_account"] == "refused"
             assert isinstance(metadata["description"], str)
             assert isinstance(metadata["high_volume"], bool)
             for parameter in metadata["parameters"].values():
-                assert set(parameter) == {"inventory", "kind"}
+                assert set(parameter) in ({"inventory", "kind"}, {"inventory", "kind", "optional"})
     server_tree = ast.parse(
         (ROOT / "src/netops_helper/server.py").read_text(encoding="utf-8")
     )
@@ -103,6 +107,7 @@ def test_read_query_catalog_exposes_legacy_and_rich_metadata() -> None:
         "max_bytes",
         "content_sha256",
         "auth_context",
+        "redaction_context",
     ]
     assert "command_template" not in parameter_names
 

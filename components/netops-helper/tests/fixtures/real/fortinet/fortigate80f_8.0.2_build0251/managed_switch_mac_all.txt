@@ -1,0 +1,99 @@
+diagnose switch-controller switch-info mac-table
+
+Vdom: root
+
+Managed Switch : S000SSSS00000001 0
+
+flag bit pattern: 0x00000000
+flag bit Mask:    0x00000000
+vlan map: 0-4094
+port-id map: 0-29
+trunk-id map: 0-127
+
+MAC: 00:00:5e:00:53:01	VLAN: 4094 Trunk: host01(trunk-id 0)
+  Flags: 0x00000cc1 [ hit trunk dynamic src-hit dst-hit ]
+
+MAC: 00:00:5e:00:53:02	VLAN: 100 Port: port3(port-id 3)
+  Flags: 0x00010441 [ hit dynamic src-hit native ]
+
+MAC: 00:00:5e:00:53:03	VLAN: 4094 Trunk: host02(trunk-id 2)
+  Flags: 0x00000cc1 [ hit trunk dynamic src-hit dst-hit ]
+
+MAC: 00:00:5e:00:53:04	VLAN: 4094 Port: port23(port-id 23)
+  Flags: 0x00010441 [ hit dynamic src-hit native ]
+
+MAC: 00:00:5e:00:53:05	VLAN: 4092 Port: internal(port-id 29)
+  Flags: 0x00000030 [ static l3-lookup ]
+
+MAC: 00:00:5e:00:53:06	VLAN: 4094 Trunk: host02(trunk-id 2)
+  Flags: 0x000104c1 [ hit trunk dynamic src-hit native ]
+
+MAC: 00:00:5e:00:53:07	VLAN: 4094 Trunk: host02(trunk-id 2)
+  Flags: 0x000104c1 [ hit trunk dynamic src-hit native ]
+
+MAC: 00:00:5e:00:53:08	VLAN: 4092 Trunk: host01(trunk-id 0)
+  Flags: 0x00000cc1 [ hit trunk dynamic src-hit dst-hit ]
+
+MAC: 00:00:5e:00:53:05	VLAN: 4094 Port: internal(port-id 29)
+  Flags: 0x00010470 [ static hit l3-lookup src-hit native ]
+
+MAC: 00:00:5e:00:53:08	VLAN: 4094 Trunk: host01(trunk-id 0)
+  Flags: 0x00010cc1 [ hit trunk dynamic src-hit dst-hit native ]
+
+MAC: 00:00:5e:00:53:09	VLAN: 100 Trunk: host01(trunk-id 0)
+  Flags: 0x00010cc1 [ hit trunk dynamic src-hit dst-hit native ]
+
+MAC: 00:00:5e:00:53:06	VLAN: 100 Trunk: host02(trunk-id 2)
+  Flags: 0x000104c1 [ hit trunk dynamic src-hit native ]
+
+Total Displayed: 12
+
+
+Managed Switch : S000SSSS00000002 0
+
+flag bit pattern: 0x00000000
+flag bit Mask:    0x00000000
+vlan map: 0-4094
+port-id map: 0-29
+trunk-id map: 0-127
+
+MAC: 00:00:5e:00:53:01	VLAN: 4094 Port: port24(port-id 24)
+  Flags: 0x00010441 [ hit dynamic src-hit native ]
+
+MAC: 00:00:5e:00:53:02	VLAN: 100 Trunk: host01(trunk-id 0)
+  Flags: 0x00010cc1 [ hit trunk dynamic src-hit dst-hit native ]
+
+MAC: 00:00:5e:00:53:03	VLAN: 4094 Trunk: host02(trunk-id 2)
+  Flags: 0x000104c1 [ hit trunk dynamic src-hit native ]
+
+MAC: 00:00:5e:00:53:04	VLAN: 4094 Trunk: host01(trunk-id 0)
+  Flags: 0x00000cc1 [ hit trunk dynamic src-hit dst-hit ]
+
+MAC: 00:00:5e:00:53:05	VLAN: 4092 Trunk: host01(trunk-id 0)
+  Flags: 0x00000cc1 [ hit trunk dynamic src-hit dst-hit ]
+
+MAC: 00:00:5e:00:53:06	VLAN: 4094 Trunk: host02(trunk-id 2)
+  Flags: 0x00010cc1 [ hit trunk dynamic src-hit dst-hit native ]
+
+MAC: 00:00:5e:00:53:07	VLAN: 4094 Trunk: host02(trunk-id 2)
+  Flags: 0x00000cc1 [ hit trunk dynamic src-hit dst-hit ]
+
+MAC: 00:00:5e:00:53:08	VLAN: 4092 Port: internal(port-id 29)
+  Flags: 0x00000030 [ static l3-lookup ]
+
+MAC: 00:00:5e:00:53:05	VLAN: 4094 Trunk: host01(trunk-id 0)
+  Flags: 0x00010cc1 [ hit trunk dynamic src-hit dst-hit native ]
+
+MAC: 00:00:5e:00:53:08	VLAN: 4094 Port: internal(port-id 29)
+  Flags: 0x00010470 [ static hit l3-lookup src-hit native ]
+
+MAC: 00:00:5e:00:53:09	VLAN: 100 Port: port3(port-id 3)
+  Flags: 0x00010441 [ hit dynamic src-hit native ]
+
+MAC: 00:00:5e:00:53:06	VLAN: 100 Trunk: host02(trunk-id 2)
+  Flags: 0x00010cc1 [ hit trunk dynamic src-hit dst-hit native ]
+
+Total Displayed: 12
+
+
+host03(Primary) $ 

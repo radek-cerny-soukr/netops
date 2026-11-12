@@ -1,0 +1,45 @@
+diagnose switch-controller switch-info lldp neighbor s-summary S000SSSS00000002
+
+Vdom: root
+Managed Switch : S000SSSS00000002	0
+
+Capability codes:
+	R:Router, B:Bridge, T:Telephone, C:DOCSIS Cable Device
+	W:WLAN Access Point, P:Repeater, S:Station, O:Other
+MED type codes:
+	Generic:Generic Endpoint (Class 1), Media:Media Endpoint (Class 2)
+	Comms:Communications Endpoint (Class 3), Network:Network Connectivity Device
+
+  Portname    Status   Device-name                 TTL   Capability  MED-type  Port-ID
+  __________  _______  __________________________  ____  __________  ________  _______
+  port1       Up       host03                      120   BR          Network   b
+  port2       Down     -                           -     -           -         -
+  port3       Up       host06                      120   BRWS        -         00:00:5e:00:53:09
+  port4       Down     -                           -     -           -         -
+  port5       Down     -                           -     -           -         -
+  port6       Down     -                           -     -           -         -
+  port7       Down     -                           -     -           -         -
+  port8       Down     -                           -     -           -         -
+  port9       Down     -                           -     -           -         -
+  port10      Down     -                           -     -           -         -
+  port11      Down     -                           -     -           -         -
+  port12      Down     -                           -     -           -         -
+  port13      Up       S000SSSS00000001            120   BR          -         port13
+  port14      Up       S000SSSS00000001            120   BR          -         port14
+  port15      Down     -                           -     -           -         -
+  port16      Down     -                           -     -           -         -
+  port17      Down     -                           -     -           -         -
+  port18      Down     -                           -     -           -         -
+  port19      Down     -                           -     -           -         -
+  port20      Down     -                           -     -           -         -
+  port21      Down     -                           -     -           -         -
+  port22      Down     -                           -     -           -         -
+  port23      Down     -                           -     -           -         -
+  port24      Up       host05                      120   BR          Network   a
+  port25      Down     -                           -     -           -         -
+  port26      Down     -                           -     -           -         -
+  port27      Down     -                           -     -           -         -
+  port28      Down     -                           -     -           -         -
+
+
+host03(Primary) $ 

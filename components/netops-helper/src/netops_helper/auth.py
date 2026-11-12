@@ -17,7 +17,8 @@ from netops_core.platforms import PlatformError, normalize as normalize_canonica
 from netops_core.vault import PRIVATE_KEY_HEADER
 from netops_core.snmp import validate_snmp_usm
 
-from .inventory import unique_object
+from .inventory import INVENTORY_CATEGORIES, InventoryError, unique_object
+from .query_catalog.model import DEVICE_TYPES
 from .read_policy import (
     READ_QUERIES,
     normalize_platform,
@@ -74,9 +75,16 @@ _ENVELOPE_KEYS = {
     "snmp_usm",
     "ssh_platform",
     "enabled_queries",
+    "device_types",
     "legacy_ssh",
     "egress",
     "tls_ca_certificate",
+    "fortios_rest_port",
+    "fortios_rest_token",
+    "fortios_rest_certificate_sha256",
+    "fortios_rest_rate_limit",
+    "wifi_thresholds",
+    "locate_read_limit",
 }
 _EGRESS_KEYS = {
     "addresses",
@@ -269,7 +277,7 @@ def _normalize_egress(value: object) -> EgressPolicy:
 
 def _normalize_inventory(value: object) -> dict[str, tuple[str, ...]]:
     if not isinstance(value, dict) or any(
-        key not in {"interfaces", "services", "addresses", "switches", "vlans", "managed_switches", "managed_switch_ports", "managed_switch_trunks", "certificates", "firewall_addresses", "nat_pools", "wireless_clients", "flow_ports", "ip_protocols", "policy_types", "sdwan_members", "sdwan_rules", "sdwan_health_checks", "link_monitors", "schema_paths", "diagnostic_recipes", "diagnostic_vdoms", "config_access", "diagnostic_names", "diagnostic_http_endpoints", "adc_health_checks", "adc_vdoms", "adc_virtual_servers", "diagnostic_virtual_servers"}
+        key not in INVENTORY_CATEGORIES
         or not isinstance(values, list)
         or not all(isinstance(item, str) for item in values)
         for key, values in value.items()
@@ -336,6 +344,13 @@ def _normalize_ssh_policy(
     return normalized_platform, normalized_queries
 
 
+def _normalize_device_types(value: object) -> tuple[str, ...]:
+    items = _bounded_list(value, "device_types", len(DEVICE_TYPES))
+    if any(item not in DEVICE_TYPES for item in items) or len(set(items)) != len(items):
+        raise ValueError("device_types must be a unique subset of " + ", ".join(DEVICE_TYPES))
+    return tuple(items)
+
+
 def _normalize_legacy_ssh(value: object) -> str | None:
     return checked_legacy_ssh(value)
 
@@ -376,6 +391,14 @@ class TargetAuth:
     legacy_ssh: str | None = None
     configuration_limits: ConfigurationLimits = field(default_factory=ConfigurationLimits)
     tls_ca_certificate: str | None = None
+    fortios_rest_port: int = 443
+    fortios_rest_token: str | None = field(default=None, repr=False)
+    fortios_rest_certificate_sha256: str | None = None
+    locate_read_limit: int = 40
+    wifi_thresholds: dict = field(default_factory=dict)
+    fortios_rest_rate_limit: dict = field(default_factory=lambda: {"requests": 30, "window_seconds": 60})
+    output_secrets: tuple[str, ...] = field(default=(), repr=False)
+    device_types: tuple[str, ...] = ()
 
     @classmethod
     def decode(cls, expected_alias: str, context: str) -> "TargetAuth":
@@ -421,6 +444,12 @@ class TargetAuth:
             ssh_platform, enabled_queries = _normalize_ssh_policy(
                 data["ssh_platform"], data["enabled_queries"],
             )
+            device_types = _normalize_device_types(data.get("device_types", []))
+            if ssh_platform is not None and any(
+                READ_QUERIES[ssh_platform][query].group not in (None, *device_types)
+                for query in enabled_queries
+            ):
+                raise ValueError("enabled_queries need a device type the target does not declare")
             legacy_ssh = _normalize_legacy_ssh(data.get("legacy_ssh"))
             egress = _normalize_egress(data["egress"])
             read_inventory = _normalize_inventory(
@@ -463,6 +492,23 @@ class TargetAuth:
             ):
                 raise ValueError("tls_ca_certificate must be a canonical absolute path")
 
+            from .inventory import _checked_rate_limit, checked_rest_port
+            rest_port = checked_rest_port(data.get("fortios_rest_port", 443))
+            rest_token = data.get("fortios_rest_token")
+            rest_pin = data.get("fortios_rest_certificate_sha256")
+            if rest_token is not None or rest_pin is not None:
+                from .wifi_rest import checked_token, checked_pin as checked_rest_pin
+                rest_token = checked_token(rest_token)
+                rest_pin = checked_rest_pin(rest_pin)
+            rest_rate = _checked_rate_limit("FortiOS REST", data.get("fortios_rest_rate_limit", {
+                "requests": 30, "window_seconds": 60}))
+            if rest_token is not None and (ssh_platform != "fortinet" or (rest_pin is None and tls_ca is None)):
+                raise ValueError("FortiOS REST requires a FortiOS target and certificate pin or CA")
+            from .wifi_policy import thresholds
+            wifi_thresholds = thresholds(data.get("wifi_thresholds"))
+            locate_read_limit = data.get("locate_read_limit", 40)
+            if type(locate_read_limit) is not int or not 1 <= locate_read_limit <= 40:
+                raise ValueError("locate_read_limit must be a whole number from 1 to 40")
             result = cls(
                 alias=alias,
                 host=host,
@@ -483,10 +529,17 @@ class TargetAuth:
                 egress=egress,
                 legacy_ssh=legacy_ssh,
                 tls_ca_certificate=tls_ca,
+                fortios_rest_port=rest_port,
+                fortios_rest_token=rest_token,
+                fortios_rest_certificate_sha256=rest_pin,
+                fortios_rest_rate_limit=rest_rate,
+                wifi_thresholds=wifi_thresholds,
+                locate_read_limit=locate_read_limit,
+                device_types=device_types,
             )
         except (
             KeyError, TypeError, ValueError, UnicodeError, RecursionError,
-            HostKeyError, LegacySshError, PlatformError,
+            HostKeyError, LegacySshError, PlatformError, InventoryError,
         ) as exc:
             raise AuthenticationContextError("invalid ephemeral authentication context") from exc
 
@@ -570,10 +623,15 @@ class TargetAuth:
 
 
     @property
+    def redaction_secrets(self) -> tuple[str, ...]:
+        """Every value redacted from a paged result: the credentials plus the private handoff."""
+        return tuple(dict.fromkeys((*self.secrets, *self.output_secrets)))
+
+    @property
     def secrets(self) -> tuple[str, ...]:
         """Only credentials are secrets; diagnostic identifiers must remain observable."""
         usm = self.snmp_usm if isinstance(self.snmp_usm, dict) else {}
         return tuple(dict.fromkeys(
-            value for value in (self.secret, usm.get("auth_key"), usm.get("priv_key"))
+            value for value in (self.secret, self.fortios_rest_token, usm.get("auth_key"), usm.get("priv_key"))
             if isinstance(value, str) and value
         ))

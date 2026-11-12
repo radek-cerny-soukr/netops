@@ -1,0 +1,17 @@
+IP Route Table for VRF "default"
+Total number of routes: 22
+Total number of paths:  23
+
+Unicast paths:
+Best paths per protocol:      Backup paths per protocol:
+  am             : 5            None
+  local          : 3     
+  direct         : 3     
+  static         : 1     
+  broadcast      : 7     
+  ospf-29        : 4     
+
+Number of routes per mask-length:
+  /8 : 1       /24: 3       /32: 18      
+
+

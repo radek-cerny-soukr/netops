@@ -7,12 +7,14 @@ import shutil
 import signal
 import stat
 import subprocess
+import sys
 import tempfile
 import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from pathlib import Path
 
-from . import hostkey, legacy_ssh as legacy_module
+from . import askpass as askpass_module, hostkey, legacy_ssh as legacy_module
 
 SSH_BINARY = "ssh"
 CONFIG_FILE = "/dev/null"
@@ -30,7 +32,9 @@ OWNER_PENDING_NAME = ".owner-pending"
 IDENTITY_NAME = "identity"
 SECRET_NAME = "secret"
 ASKPASS_NAME = "askpass"
-ASKPASS_SCRIPT = '#!/bin/sh\ncat "$NETOPS_ASKPASS_FILE"\n'
+# The fallback and the installed noexec-compatible program enforce the same
+# prompt and one-attempt policy; the copy has no package-import dependency.
+ASKPASS_SCRIPT = Path(askpass_module.__file__).read_text(encoding="utf-8")
 ASKPASS_PROGRAM_ENV = "NETOPS_ASKPASS_PROGRAM"
 ASKPASS_REMEDY = (
     "; a deployment whose temporary directory is mounted noexec must ship an askpass program on an"
@@ -43,6 +47,7 @@ SAID_CHARS = 200
 NEGOTIATION_MARKER = "no matching"
 CLIENT_FAILURE_CODE = 255
 REASONS = (
+    ("ssh_auth_method_unsupported", "the device requested an unsupported non-password authentication prompt"),
     (NEGOTIATION_MARKER, "the client and the device share no algorithm the client accepts"),
     ("Permission denied", "the device refused the credential"),
     ("REMOTE HOST IDENTIFICATION HAS CHANGED", "the host key is not the pinned one"),
@@ -59,6 +64,7 @@ REASONS = (
     ("not found", "the remote path is not there"),
 )
 UNKNOWN_REASON = "the client reported a failure this transport does not recognize"
+ASKPASS_REFUSAL = b"netops-askpass: "
 CLIENT_PATH_MARKS = ("%", "$", '"', "'", "\\")
 OPTIONS = (
     "BatchMode=yes",
@@ -72,8 +78,9 @@ OPTIONS = (
 )
 GLOBAL_KNOWN_HOSTS_OPTION = "GlobalKnownHostsFile=/dev/null"
 PASSWORD_OPTIONS = ("BatchMode=no",) + OPTIONS[1:] + (
-    "PreferredAuthentications=password",
-    "KbdInteractiveAuthentication=no",
+    "PreferredAuthentications=password,keyboard-interactive",
+    "KbdInteractiveAuthentication=yes",
+    "PasswordAuthentication=yes",
     "NumberOfPasswordPrompts=1",
     "PubkeyAuthentication=no",
 )
@@ -85,10 +92,12 @@ LEGACY_REMEDY = (
 
 
 class SshError(Exception):
-    def __init__(self, message, rc=None, said=""):
+    def __init__(self, message, rc=None, said="", final=""):
         super().__init__(message)
         self.rc = rc
         self.said = said
+        # The client's own closing message (see final_said); a device banner printed before it cannot replace it.
+        self.final = final
 
 
 class OutputConsumerError(SshError):
@@ -237,6 +246,21 @@ def _said(result) -> str:
     if len(text) > SAID_CHARS:
         text = text[:SAID_CHARS] + "..."
     return text
+
+
+def final_said(data) -> str:
+    """The last line an ended client printed, behind the last refusal of the askpass program if there was one.
+
+    The client prints a device's pre-login banner before its own failure message, so the closing line is the
+    client's verdict. It stays local, for classification only.
+    """
+    if not isinstance(data, (bytes, bytearray)):
+        return ""
+    lines = [line.strip() for line in bytes(data).splitlines() if line.strip()]
+    if not lines:
+        return ""
+    kept = [line for line in lines[:-1] if line.startswith(ASKPASS_REFUSAL)][-1:] + lines[-1:]
+    return _said(subprocess.CompletedProcess((), None, b"", b" ".join(kept)))
 
 
 def reason(said) -> str:
@@ -502,12 +526,20 @@ def _named_askpass(named) -> str:
     return named
 
 
+def _askpass_source() -> str:
+    # Pin the interpreter and run it isolated: no PATH lookup, no PYTHON* variables, no cwd imports.
+    if not sys.executable or any(mark in sys.executable for mark in " \t\n"):
+        return ASKPASS_SCRIPT
+    _, _, body = ASKPASS_SCRIPT.partition("\n")
+    return "#!%s -I\n%s" % (sys.executable, body)
+
+
 def _askpass(workspace) -> str:
     named = os.environ.get(ASKPASS_PROGRAM_ENV)
     if named is not None:
         return _named_askpass(named)
     written = _written(
-        os.path.join(workspace, ASKPASS_NAME), ASKPASS_SCRIPT.encode("utf-8"), 0o700
+        os.path.join(workspace, ASKPASS_NAME), _askpass_source().encode("utf-8"), 0o700
     )
     if not os.access(written, os.X_OK):
         raise SshError(
@@ -670,20 +702,25 @@ def run_command(
                 " answer" % (name, -code),
                 code,
                 said,
+                final_said(err),
             )
         if (
             isinstance(code, bool)
             or not isinstance(code, int)
             or code == CLIENT_FAILURE_CODE
         ):
-            detail = "; %s" % reason(said) if said else ""
+            # The client's closing message names the reason; a device banner printed before it never does.
+            final = final_said(err)
+            verdict = final or said
+            detail = "; %s" % reason(verdict) if verdict else ""
             remedy = ""
-            if profile is None and NEGOTIATION_MARKER in said:
+            if profile is None and NEGOTIATION_MARKER in verdict:
                 remedy = LEGACY_REMEDY % (name, ", ".join(legacy_module.PROFILES))
             raise SshError(
                 "ssh to %s failed with exit code %s%s%s" % (name, code, detail, remedy),
                 code if isinstance(code, int) and not isinstance(code, bool) else None,
                 said,
+                final,
             )
         return Result(
             rc=code,

@@ -5,6 +5,9 @@ from __future__ import annotations
 from .model import IPV4_ADDRESS, IPV6_ADDRESS, NO_SLOTS, Query, Slot
 
 
+VLAN_ID = {"vlan_id": Slot(None, "vlan_id")}
+
+
 def _interface_slot(kind: str) -> dict[str, Slot]:
     return {"interface": Slot("interfaces", kind)}
 
@@ -43,4 +46,25 @@ QUERIES: dict[str, Query] = {
     "ospf_neighbors": Query("show ip ospf neighbor", NO_SLOTS, "Show OSPFv2 neighbor state.", high_volume=True),
     "ospf_neighbors_interface": Query("show ip ospf neighbor {interface}", _interface_slot("eos_ospf_interface"), "Show OSPFv2 neighbors for one enrolled interface."),
     "ospfv3_neighbors": Query("show ipv6 ospf neighbor", NO_SLOTS, "Show OSPFv3 neighbor state.", high_volume=True),
+    "route_table": Query("show ip route", NO_SLOTS, "Show the IPv4 routing table.", high_volume=True),
+    "ospf_interfaces": Query("show ip ospf interface brief", NO_SLOTS, "Summarize OSPFv2 interfaces, areas, cost and neighbor counts.", high_volume=True),
+    "stp_tree": Query("show spanning-tree", NO_SLOTS, "Show spanning-tree state per instance with root and port roles.", high_volume=True),
+    "stp_blocked": Query("show spanning-tree blockedports", NO_SLOTS, "List the ports spanning-tree blocks per instance."),
+    "stp_vlan": Query("show spanning-tree vlan {vlan_id}", VLAN_ID, "Show spanning-tree state for the instance of one VLAN."),
+    "interfaces_errdisabled": Query("show interfaces status errdisabled", NO_SLOTS, "List err-disabled interfaces with the disabling cause.", high_volume=True),
+    "interfaces_description": Query("show interfaces description", NO_SLOTS, "Show interface state with configured descriptions.", high_volume=True),
+    "interfaces_trunk": Query("show interfaces trunk", NO_SLOTS, "Show trunk ports with allowed and forwarding VLANs.", high_volume=True),
+    "interfaces_counters_errors": Query("show interfaces counters errors", NO_SLOTS, "Show error counters of every interface.", high_volume=True),
+    "interfaces_counters_discards": Query("show interfaces counters discards", NO_SLOTS, "Show inbound and outbound discard counters of every interface.", high_volume=True),
+    "interface_switchport": Query("show interfaces {interface} switchport", _interface_slot("eos_switchport_interface"), "Show switchport mode, VLANs and trunk groups for one enrolled interface."),
+    "interface_poe": Query("show poe interface {interface}", _interface_slot("eos_physical_interface"), "Show PoE state and power for one enrolled physical interface."),
+    "lldp_neighbors_detail": Query("show lldp neighbors detail", NO_SLOTS, "Show detailed LLDP neighbors with capabilities and management addresses.", high_volume=True),
+    "vlan_details": Query("show vlan id {vlan_id}", VLAN_ID, "Show one VLAN with its member ports."),
+    "mlag_detail": Query("show mlag detail", NO_SLOTS, "Show MLAG state, peer link and peer address."),
+    "mlag_config_sanity": Query("show mlag config-sanity", NO_SLOTS, "Show MLAG configuration consistency between the peers."),
+    "ntp_status": Query("show ntp status", NO_SLOTS, "Show NTP synchronization state."),
+    "ntp_associations": Query("show ntp associations", NO_SLOTS, "Show NTP peers with stratum, reachability, delay and offset."),
+    "cpu": Query("show processes top once", NO_SLOTS, "Show a one-shot process snapshot with CPU and memory use.", high_volume=True),
+    "reload_cause": Query("show reload cause", NO_SLOTS, "Show why the switch last reloaded."),
+    "log_messages": Query("show logging 200", NO_SLOTS, "Show the newest 200 lines of the log buffer.", high_volume=True),
 }

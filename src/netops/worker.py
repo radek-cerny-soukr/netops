@@ -12,6 +12,10 @@ from .bootstrap import role_environment
 from .state import AUDITOR_DEFAULTS, admin_devices, auditor_settings
 from .redaction import redact
 
+PROGRESS_TOOLS = frozenset({"triage_health", "triage_routing", "triage_vpn", "triage_slb"})
+
+def progress_line(done, total, text):
+    return json.dumps({"progress": {"progress": done, "total": total, "message": text}}, separators=(",", ":")).encode() + b"\n"
 MODULES = {"helper": "netops_helper.server", "auditor": "netops_auditor.mcp_server", "admin": "netops_admin.mcp_server"}
 
 async def _owned_thread(function, *args):
@@ -28,13 +32,104 @@ async def _owned_thread(function, *args):
         raise asyncio.CancelledError()
     return result
 
-def _redacted_result(result, secrets):
+def _redacted_result(result, secrets, metadata=None):
+    # Page metadata (hash, sizes, offsets, completion) is engine-computed, not device text; it is
+    # kept out of the redaction and put back unchanged.
+    restore = None
+    if metadata is not None:
+        from netops_helper.page_metadata import strip_page_metadata
+        result, restore = strip_page_metadata(result, metadata)
     cleaned, paths = redact(result, secrets)
+    if restore is not None:
+        cleaned = restore(cleaned)
     cleaned.setdefault("_meta", {})["netops/redactions"] = paths
     return cleaned
 
 def _encode_response(response):
     return json.dumps(response, separators=(",", ":")).encode() + b"\n"
+
+def _pagination_refusal(error):
+    """The engine's PaginationRefused anywhere in the __cause__/__context__ graph of error, else None.
+
+    The type decides. A fallback accepts only an exception whose whole text is one of the fixed
+    refusal messages (a wrapper that drops the cause); a longer or different text never matches.
+    """
+    from netops_helper.engine import PaginationRefused, _PAGINATION_CODES, _pagination_refused
+    pending, seen, exact = [error], set(), None
+    while pending:
+        current = pending.pop()
+        if current is None or id(current) in seen:
+            continue
+        seen.add(id(current))
+        if isinstance(current, PaginationRefused):
+            return current
+        if exact is None:
+            try:
+                text = str(current)
+            except Exception:
+                text = None
+            exact = text if text in _PAGINATION_CODES else None
+        pending += [current.__context__, current.__cause__]
+    return None if exact is None else _pagination_refused(exact)
+
+_CONFIGURATION_FAILURES = {
+    'configuration redaction-unverifiable; output withheld': (
+        'redaction-unverifiable', 'Configuration redaction could not be verified; output withheld',
+        'The configuration syntax could not be safely redacted; no snapshot or partial output was published.'),
+    'configuration capture-limit-exceeded; output withheld': (
+        'capture-limit-exceeded', 'Configuration capture exceeded its limit; output withheld',
+        'Request a narrower section or ask the operator to review configuration capture limits; no snapshot or partial output was published.'),
+    'configuration device-refused during capture; output withheld': (
+        'device-refused', 'Configuration capture was refused by the device; output withheld',
+        'Ask the operator to check device read permissions and command support; no snapshot or partial output was published.'),
+    'configuration read refused; output withheld': (
+        'read-refused', 'Configuration read was refused; output withheld',
+        'Ask the operator to check read permissions and command support for the requested section; no snapshot or partial output was published.'),
+}
+
+
+def _configuration_refusal(error):
+    """Accept only complete, fixed safe messages, including through MCP wrappers."""
+    pending, seen = [error], set()
+    while pending:
+        current = pending.pop()
+        if current is None or id(current) in seen:
+            continue
+        seen.add(id(current))
+        failure = _CONFIGURATION_FAILURES.get(str(current))
+        if failure is not None:
+            return failure
+        pending += [current.__cause__, current.__context__]
+    return None
+
+
+def _page_changes(result, page):
+    """Names of the page fields whose final value differs from the engine page, in either representation."""
+    def differing(document):
+        if not isinstance(document, dict):
+            return list(page)
+        return [name for name, value in page.items()
+                if name not in document or type(document[name]) is not type(value) or document[name] != value]
+    changed = differing(result.get("structuredContent"))
+    for item in result.get("content") or ():
+        if isinstance(item, dict) and item.get("type") == "text":
+            try:
+                decoded = json.loads(item.get("text"))
+            except (TypeError, ValueError):
+                decoded = None
+            changed += differing(decoded)
+    return sorted(set(changed))
+
+def _page_withheld_result(changed, size="max_bytes"):
+    payload = {"ok": False, "error_code": "page_changed_by_redaction", "restart_offset": 0, "changed_fields": changed,
+               "error": "Output redaction changed this page or its content_sha256, size, offset or completion fields after they were computed, so the page was withheld; restart at offset 0, with a different " + size + " if the page text changed"}
+    return {"content": [{"type": "text", "text": json.dumps(payload, separators=(",", ":"))}], "structuredContent": payload, "isError": True, "_meta": {}}
+
+def _pagination_refusal_result(refusal):
+    payload = {"ok": False, "error_code": refusal.code, "error": str(refusal)}
+    if refusal.restartable:
+        payload["restart_offset"] = 0
+    return {"content": [{"type": "text", "text": json.dumps(payload, separators=(",", ":"))}], "structuredContent": payload, "isError": True, "_meta": {}}
 
 class HelperBridge:
     def __init__(self):
@@ -53,32 +148,55 @@ class HelperBridge:
         self.proxy = LocalProxy()
 
     async def tools(self, server):
+        from netops_helper.proxy import PRIVATE_ARGUMENTS
         descriptors = [(tool.to_mcp_tool().model_dump(by_alias=True, exclude_none=True)) for tool in await server.list_tools()]
         for descriptor in descriptors:
             schema = descriptor["inputSchema"]
-            schema.get("properties", {}).pop("auth_context", None)
-            schema["required"] = [item for item in schema.get("required", []) if item != "auth_context"]
+            for private in PRIVATE_ARGUMENTS:
+                schema.get("properties", {}).pop(private, None)
+            schema["required"] = [item for item in schema.get("required", []) if item not in PRIVATE_ARGUMENTS]
         descriptors.append(self.proxy._target_scope_tool())
         return descriptors
 
-    async def call(self, server, name, arguments):
+    async def call(self, server, name, arguments, sink=None):
+        from netops_helper.page_metadata import page_metadata
         if name == "ftp_list":
             return {"content": [{"type": "text", "text": "unencrypted_protocol: FTP/FTPS is unavailable in the SSH/HTTPS-only default profile"}], "isError": True}
         request_id = uuid.uuid4().hex
         request = {"jsonrpc": "2.0", "id": request_id, "method": "tools/call", "params": {"name": name, "arguments": arguments}}
         self.proxy.emitted = None
+        page = None
         forwarded = self.proxy.request(json.dumps(request).encode())
         if forwarded is None:
             response = self.proxy.emitted or {"error": {"message": "Request refused"}}
         else:
             params = json.loads(forwarded)["params"]
+            from netops_helper import progress
+            reporting = progress.bind_transport(sink) if sink is not None else None
             try:
                 result = await server.call_tool(params["name"], params["arguments"])
+                structured = result.structured_content
+                metadata = page_metadata(structured, name) if not result.is_error else None
+                if metadata is not None and isinstance(structured.get("untrusted_device_output"), str):
+                    page = {**metadata, "untrusted_device_output": structured["untrusted_device_output"]}
                 payload = {"content": [item.model_dump(by_alias=True, exclude_none=True) for item in result.content], "structuredContent": result.structured_content, "isError": result.is_error, "_meta": result.meta or {}}
                 response = {"jsonrpc": "2.0", "id": request_id, "result": payload}
             except Exception as error:
-                print("Helper operation failed: " + type(error).__name__, file=sys.stderr, flush=True)
-                response = {"jsonrpc": "2.0", "id": request_id, "error": {"code": -32603, "message": "Role operation failed"}}
+                refusal = _pagination_refusal(error)
+                failure = _configuration_refusal(error) if name == "config_read" else None
+                if failure is not None:
+                    category, message, guidance = failure
+                    response = {"jsonrpc": "2.0", "id": request_id, "error": {
+                        "code": -32602, "message": message,
+                        "data": {"category": category, "reason": category, "guidance": guidance}}}
+                elif refusal is None:
+                    print("Helper operation failed: " + type(error).__name__, file=sys.stderr, flush=True)
+                    response = {"jsonrpc": "2.0", "id": request_id, "error": {"code": -32603, "message": "Role operation failed"}}
+                else:
+                    response = {"jsonrpc": "2.0", "id": request_id, "result": _pagination_refusal_result(refusal)}
+            finally:
+                if reporting is not None:
+                    progress.unbind_transport(reporting)
             transformed = self.proxy.response(json.dumps(response).encode())
             response = json.loads(transformed) if transformed else {"error": {"message": "Response refused"}}
         if "error" in response:
@@ -87,7 +205,13 @@ class HelperBridge:
         if name == "helper_status":
             payload = {"version": __version__, "transport": "HTTPS Streamable HTTP", **self.proxy._helper_status_payload()}
             result = {"content": [{"type": "text", "text": json.dumps(payload)}], "structuredContent": payload, "isError": False}
-        return await _owned_thread(_redacted_result, result, tuple(self.proxy.session_secrets))
+        metadata = page_metadata(result.get("structuredContent"), name) if not result.get("isError") else None
+        result = await _owned_thread(_redacted_result, result, (*self.proxy.session_secrets, *self.proxy.transport_secrets), metadata)
+        if page is not None:
+            changed = _page_changes(result, page)
+            if changed:
+                return _page_withheld_result(changed, "limit" if name in ("config_read", "config_diff") else "max_bytes")
+        return result
 
 def _admin_configuration_refusal(module):
     try:
@@ -144,7 +268,12 @@ async def run(role):
                     if not isinstance(name, str) or not isinstance(arguments, dict):
                         raise ValueError("Invalid tool request")
                     if bridge:
-                        result = await bridge.call(module.mcp, name, arguments)
+                        sink = None
+                        if message.get("progress") is True and name in PROGRESS_TOOLS:
+                            async def sink(done, total, text):
+                                writer.write(progress_line(done, total, text))
+                                await writer.drain()
+                        result = await bridge.call(module.mcp, name, arguments, sink)
                     else:
                         result = _admin_configuration_refusal(module) if role == "admin" else None
                         if result is None:

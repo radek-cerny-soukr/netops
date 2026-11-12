@@ -1,0 +1,10 @@
+{
+  "interfaces_trunk_refused": {
+    "command": "show interfaces trunk",
+    "rc": 0,
+    "captured_at": "2026-11-09T22:45:27Z",
+    "lines": 3,
+    "transport": "PTY; echo, prompt, pager and ANSI removed; no data lines omitted",
+    "outcome": "neexistuje"
+  }
+}

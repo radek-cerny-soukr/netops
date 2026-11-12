@@ -17,7 +17,7 @@ from netops_helper.query_catalog import READ_QUERIES  # noqa: E402
 
 
 @pytest.fixture(autouse=True)
-def _reset_connection_pacing(monkeypatch):
+def _reset_connection_pacing(monkeypatch, tmp_path):
     """Isolate each test's SSH connection lanes and host-key cache.
 
     `engine._CONNECTION_LANES` and `engine._HOST_KEY_LINE_CACHE` are module-level
@@ -31,6 +31,7 @@ def _reset_connection_pacing(monkeypatch):
     """
     import netops_helper.engine as engine
 
+    monkeypatch.setattr(engine, "_lane_directory", lambda: tmp_path / "ssh-lanes")
     engine._CONNECTION_LANES.clear()
     engine._HOST_KEY_LINE_CACHE.clear()
     monkeypatch.setattr(engine, "_sleep", lambda seconds: None)
@@ -53,6 +54,8 @@ IDENTITY_STATUS = {"fortinet": FORTIOS_STATUS, "fortiadc": FORTIADC_STATUS}
 RUCKUS_BANNER = "Welcome to the Ruckus Unleashed Network Command Line Interface"
 RUCKUS_OUTPUT = "Ruckus wire-test sysinfo marker"
 
+_WIRE_IDENTITY_FILE = None
+
 EXEC_CLIENT = '''#!/usr/bin/env python3
 import json, os, sys
 
@@ -64,20 +67,26 @@ record = {{
 askpass = os.environ.get("SSH_ASKPASS")
 if askpass:
     import hashlib, subprocess
-    answer = subprocess.run([askpass], capture_output=True, env=dict(os.environ)).stdout
+    answer = subprocess.run([askpass, "Password: "], capture_output=True, env=dict(os.environ)).stdout
     record["askpass_sha256"] = hashlib.sha256(answer.strip()).hexdigest()
     record["askpass_mode"] = oct(os.stat(os.environ["NETOPS_ASKPASS_FILE"]).st_mode & 0o777)
 identity = None
 if "-i" in sys.argv:
     identity = sys.argv[sys.argv.index("-i") + 1]
     import hashlib
-    record["identity_sha256"] = hashlib.sha256(open(identity, "rb").read()).hexdigest()
+    record["identity_sha256"] = hashlib.sha256(__import__('pathlib').Path(identity).read_bytes()).hexdigest()
     record["identity_mode"] = oct(os.stat(identity).st_mode & 0o777)
 for item in sys.argv:
     if item.startswith("UserKnownHostsFile="):
-        record["known_hosts"] = open(item.split("=", 1)[1]).read()
+        record["known_hosts"] = __import__('pathlib').Path(item.split("=", 1)[1]).read_text()
 with open({log!r}, "a") as handle:
     handle.write(json.dumps(record) + "\\n")
+identity_file = __import__('pathlib').Path({log!r}).with_suffix('.identity.json')
+if identity_file.exists():
+    plan = json.loads(identity_file.read_text())
+    if sys.argv[-1] == plan['command']:
+        sys.stdout.write(plan['output'])
+        sys.exit(0)
 sys.stdout.write({output!r})
 sys.exit({code})
 '''
@@ -100,7 +109,7 @@ import json, os, sys
 record = {{"argv": sys.argv[1:], "env": dict(os.environ), "stdin_isatty": sys.stdin.isatty()}}
 for item in sys.argv:
     if item.startswith("UserKnownHostsFile="):
-        record["known_hosts"] = open(item.split("=", 1)[1]).read()
+        record["known_hosts"] = __import__('pathlib').Path(item.split("=", 1)[1]).read_text()
 with open({log!r}, "a") as handle:
     handle.write(json.dumps(record) + "\\n")
 
@@ -143,6 +152,8 @@ def _write_client(directory: Path, name: str, body: str) -> None:
 def wire(tmp_path, monkeypatch):
     import netops_helper.engine as engine
 
+    global _WIRE_IDENTITY_FILE
+    _WIRE_IDENTITY_FILE = tmp_path / "calls.identity.json"
     binaries = tmp_path / "bin"
     binaries.mkdir()
     log = tmp_path / "calls.jsonl"
@@ -163,6 +174,7 @@ def wire(tmp_path, monkeypatch):
         "python": sys.executable,
     }
     engine._SSH_PAGE_CACHE.clear()
+    _WIRE_IDENTITY_FILE = None
 
 
 def _calls(wire) -> list[dict]:
@@ -185,6 +197,10 @@ def _target(
     host: str = LOOPBACK,
     sftp_roots: tuple[str, ...] = (),
 ) -> TargetAuth:
+    from netops_helper.normalization import IDENTITY_PROFILES
+    if _WIRE_IDENTITY_FILE is not None and platform in IDENTITY_PROFILES:
+        body = (COMPONENT / 'tests/fixtures/identity' / (platform + '.txt')).read_text()
+        _WIRE_IDENTITY_FILE.write_text(json.dumps({'command': READ_QUERIES[platform]['version'].command, 'output': body}))
     return TargetAuth(
         alias="wire-test",
         host=host,

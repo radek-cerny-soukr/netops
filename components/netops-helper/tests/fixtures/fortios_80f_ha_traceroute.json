@@ -29,5 +29,5 @@
    }
   }
  },
- "source": "FortiGate-80F v8.0.2 build0251 HA a-p cluster, account netops-test-ro, 2026-11-01T14:23Z; serial, hostname, MAC and lab addresses masked, all other bytes as received"
+ "source": "FortiGate-80F v8.0.2 build0251 HA a-p cluster, read-only account, 2026-11-01T14:23Z; serial, hostname, MAC and lab addresses masked, all other bytes as received"
 }

@@ -10,7 +10,7 @@ import re
 import stat
 import subprocess
 import tarfile
-import urllib.request
+import tempfile
 
 VERSION = "v1.3.2"
 ARCHIVES = {
@@ -137,8 +137,22 @@ def install(directory, arch, archive=None):
     directory.mkdir(mode=0o700)
     if archive is None:
         url = "https://github.com/FiloSottile/age/releases/download/" + VERSION + "/age-" + VERSION + "-linux-" + arch + ".tar.gz"
-        with urllib.request.urlopen(url, timeout=30) as source:
-            archive = source.read(32 * 1024 * 1024 + 1)
+        with tempfile.TemporaryDirectory(prefix="download-", dir=directory) as temporary:
+            downloaded = Path(temporary) / "age.tar.gz"
+            try:
+                subprocess.run(["curl", "-fsSL", "--proto", "=https", "--proto-redir", "=https",
+                                "--retry", "5", "--retry-all-errors", "--retry-delay", "10", "--retry-max-time", "300",
+                                "--connect-timeout", "20", "--max-time", "120",
+                                "--max-filesize", str(32 * 1024 * 1024), "-o", str(downloaded), url],
+                               check=True, timeout=330, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            except FileNotFoundError:
+                raise Refused("curl-missing") from None
+            except (OSError, subprocess.SubprocessError):
+                raise Refused("archive-download") from None
+            try:
+                archive = downloaded.read_bytes()
+            except OSError:
+                raise Refused("archive-download") from None
         require(len(archive) <= 32 * 1024 * 1024, "archive-size")
     binary = archive_binary(archive, arch)
     create(directory / "archive.tar.gz", archive)

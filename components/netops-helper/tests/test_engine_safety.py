@@ -128,6 +128,22 @@ def test_ssh_cache_key_binds_the_credential_and_audit_platform_is_canonical() ->
     assert engine._audit_fields({"platform": "not-a-platform"}, {})["platform"] == "<invalid>"
 
 
+def test_cached_result_is_served_after_unrelated_secrets_and_expires_for_a_related_one(monkeypatch) -> None:
+    monkeypatch.setattr(engine, "_SSH_PAGE_CACHE", {})
+    base = auth()
+    key = ("snapshot",)
+    text = "hostname fw-a\nset comment \"plain\"\nlast line with synthetic-related-value\n"
+    engine._store_cached_ssh_output(key, 0, text, base.redaction_secrets)
+    assert engine._load_continuation(key, base) == (0, text)
+    unrelated = replace(base, output_secrets=("synthetic-other-target-secret",))
+    assert engine._load_continuation(key, unrelated) == (0, text)
+    assert "synthetic-other-target-secret" in engine._SSH_PAGE_CACHE[key][3]  # verified once, remembered
+    related = replace(base, output_secrets=("synthetic-related-value",))
+    assert engine._load_continuation(key, related) is None
+    # A shorter set (a restarted session) needs no check; the text was redacted with more.
+    assert engine._load_continuation(key, base) == (0, text)
+
+
 def test_exec_read_scans_and_connects_to_the_resolved_address(monkeypatch) -> None:
     scanned: list = []
     captured: list = []
@@ -327,9 +343,12 @@ def test_a_continuation_reads_only_the_snapshot_named_by_its_content_sha256(monk
             auth(), "fortios", "interface_details", {"interface": "port3"}, offset, 1000, snapshot,
         )
 
+    codes = []
+
     def refused(offset: int, snapshot: object) -> str:
         with pytest.raises(ValueError) as caught:
             read(offset, snapshot)
+        codes.append(getattr(caught.value, "code", None))
         return str(caught.value)
 
     first_a = read(0)
@@ -348,6 +367,7 @@ def test_a_continuation_reads_only_the_snapshot_named_by_its_content_sha256(monk
         assert refused(page_a["next_offset"], snapshot) == unnamed
     expired = "SSH pagination state expired; restart at offset 0"
     assert refused(page_a["next_offset"], "0" * 64) == expired
+    assert codes == ["ssh_pagination_snapshot_required"] * 5 + ["ssh_pagination_expired"]
     assert len(calls) == 2 and len(events) == 8
     last_a = read(page_a["next_offset"], first_a["content_sha256"])
     assert last_a["complete"] is True and "B" not in last_a["untrusted_device_output"]
@@ -773,15 +793,15 @@ import hashlib, json, os, sys
 record = {{"argv": sys.argv[1:], "env": dict(os.environ), "batch": sys.stdin.read()}}
 for item in sys.argv:
     if item.startswith("UserKnownHostsFile="):
-        record["known_hosts"] = open(item.split("=", 1)[1]).read()
+        record["known_hosts"] = __import__('pathlib').Path(item.split("=", 1)[1]).read_text()
 askpass = os.environ.get("SSH_ASKPASS")
 if askpass:
     import subprocess
-    answer = subprocess.run([askpass], capture_output=True, env=dict(os.environ)).stdout
+    answer = subprocess.run([askpass, "Password: "], capture_output=True, env=dict(os.environ)).stdout
     record["askpass_sha256"] = hashlib.sha256(answer.strip()).hexdigest()
 if "-i" in sys.argv:
     identity = sys.argv[sys.argv.index("-i") + 1]
-    record["identity_sha256"] = hashlib.sha256(open(identity, "rb").read()).hexdigest()
+    record["identity_sha256"] = hashlib.sha256(__import__('pathlib').Path(identity).read_bytes()).hexdigest()
     record["identity_mode"] = oct(os.stat(identity).st_mode & 0o777)
 with open({log!r}, "a") as handle:
     handle.write(json.dumps(record) + "\\n")
@@ -1001,6 +1021,27 @@ def test_sftp_reports_a_closed_connection_without_inventing_a_cause(
     assert "192.0.2.20 port 22" not in result["error"]
 
 
+def test_sftp_banner_naming_no_matching_is_a_refused_login_not_a_legacy_profile(
+    tmp_path, monkeypatch,
+) -> None:
+    _fake_sftp(
+        tmp_path, monkeypatch, answer="", code=255,
+        said=("Authorized access only: no matching access request means permission denied.\r\n"
+              "reader@192.0.2.20: Permission denied (password).\r\nConnection closed\r\n"),
+    )
+    result = asyncio.run(engine.sftp_stat(auth(), "/safe/log"))
+    assert result["ok"] is False
+    assert LegacySshProfileRequired.__name__ not in result["error"]
+    assert "legacy_ssh" not in result["error"] and "share no algorithm" not in result["error"]
+    # The test password is "credential", so the reason reads redacted here.
+    assert "failed with exit code 255; the device refused the" in result["error"]
+    assert "Authorized access" not in result["error"]
+
+    _fake_sftp(tmp_path, monkeypatch, answer="", said=SFTP_NEGOTIATION + "Connection closed\r\n", code=255)
+    negotiation = asyncio.run(engine.sftp_stat(auth(), "/safe/log"))
+    assert LegacySshProfileRequired.__name__ in negotiation["error"]
+
+
 def test_written_audit_log_shows_an_enrolled_legacy_profile(tmp_path, monkeypatch) -> None:
     path = tmp_path / "audit.jsonl"
     assert engine.record is audit.record
@@ -1092,17 +1133,24 @@ def test_unavailable_host_key_probe_requires_reachability_before_any_transport_o
         raise engine.core_hostkey.HostKeyUnavailable(detail)
     def forbidden(*args, **kwargs):
         raise AssertionError("unavailable host-key probe must not open transport or use credentials")
+    probes = []
+    def silent_host(host, port, timeout_seconds, legacy=None):
+        probes.append((host, port, timeout_seconds, legacy))
+        return "ssh: connect to host %s port 22: Connection timed out" % host
     monkeypatch.setattr(engine.core_hostkey, "scan", unavailable_scan)
+    monkeypatch.setattr(engine.core_hostkey, "unavailable_said", silent_host)
     monkeypatch.setattr(engine.core_ssh, "run_command", forbidden)
     monkeypatch.setattr(engine.DeviceCredential, "use", forbidden)
     with pytest.raises(AuthenticationContextError) as failure:
         engine.read_from_device(auth(), "linux", "hostname")
     message = str(failure.value)
+    assert probes == [(TEST_ADDRESS, 22, engine._HOST_KEY_PROBE_TIMEOUT_SECONDS, None)]
+    assert failure.value.transport_error_code == "timeout"
     assert '"device-a"' in message
     assert "SSH host-key verification unavailable" in message
-    assert "check reachability, SSH port and key negotiation before changing the pinned key" in message
+    assert "reachable from the Helper" in message and "before changing the account or the pinned host key" in message
     assert "did not offer the pinned SSH host key" not in message
-    assert detail not in message
+    assert detail not in message and "Connection timed out" not in message
     assert HOST_KEY_BLOB not in message
 
 
@@ -1215,7 +1263,11 @@ def test_every_device_tool_answers_a_failed_name_resolution_with_ok_false(monkey
         result = call()
         assert result["ok"] is False, name
         assert result["target"] == "device-a", name
-        assert "gaierror" in result["error"], name
+        if name == "ssh_read":
+            # An SSH read names the transport class; the probes keep the redacted exception type.
+            assert (result["error_code"], result["error"]) == ("dns", engine._TRANSPORT_ADVICE["dns"]), name
+        else:
+            assert "gaierror" in result["error"], name
         assert "fixture-auth-key-91" not in json.dumps(result), name
         assert "fixture-privacy-key-82" not in json.dumps(result), name
         assert events == [(name, "started"), (name, "failed")], name
@@ -1254,3 +1306,33 @@ def test_audit_records_only_validated_platform_and_query_names(tmp_path, monkeyp
     assert engine._audit_fields({"platform": marker}, {}) == {"platform": "<invalid>"}
     assert engine.INVALID_AUDIT_VALUE not in engine.READ_QUERIES
     assert all(engine.INVALID_AUDIT_VALUE not in queries for queries in engine.READ_QUERIES.values())
+
+
+def test_ssh_output_is_canonical_before_paging_and_hashing() -> None:
+    import hashlib
+
+    from netops.redaction import redact as product_redact
+    from netops_helper.proxy_sanitize import sanitize_object
+
+    capability = "128-length passwd                 : enabled"
+    raw = ("Version: FortiGate-VM64-KVM v8.0.0,build0167,release\n" + "x" * 900 + "\n"
+           + capability + "\npassword: synthetic-fixture-only-value\n"
+           "set psksecret ENC synthetic-enc-value\n[REDACTED] <REDACTED>\n"
+           + "ž" * 900 + "\n")
+    cleaned = engine._redact_output(raw, auth())
+    assert "128-length [REDACTED]" in cleaned and "synthetic-" not in cleaned
+    assert "[REDACTED] <REDACTED>" in cleaned and "ž" * 900 in cleaned
+    # Later redaction layers (proxy, worker) leave the canonical text and its pages as they are.
+    assert product_redact(sanitize_object(cleaned, ()), ())[0] == cleaned
+    offset, joined = 0, b""
+    while True:
+        page = engine._page_text(cleaned, offset, 1000)
+        text = page["untrusted_device_output"]
+        assert product_redact(sanitize_object(text, ()), ())[0] == text
+        assert page["returned_bytes"] == len(text.encode("utf-8"))
+        joined += text.encode("utf-8")
+        if page["complete"]:
+            break
+        offset = page["next_offset"]
+    assert len(joined) == page["total_bytes"]
+    assert hashlib.sha256(joined).hexdigest() == page["content_sha256"]

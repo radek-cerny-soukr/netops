@@ -446,3 +446,13 @@ def test_confirmation_without_a_save_takes_no_check_after_it(tmp_path):
     record = execute.apply(make_runtime(tmp_path, device), "lab", request())
     assert record["result"] == "confirmed" and record["reason"] is None
     assert steps(record)[-2:] == ["check_identity_passed", "confirm_start"]
+
+
+def test_preview_preserves_corrupt_enrollment_reason_codes(tmp_path):
+    runtime = make_runtime(tmp_path, FakeFortiOS())
+    (runtime.store.enrollments / 'lab.json').write_text('{broken')
+    preview = execute.preview(runtime, 'lab', request())
+    with pytest.raises(Rejected) as caught:
+        execute.apply(runtime, 'lab', request())
+    assert preview['reason_codes'] == caught.value.reason_codes == ['state_unreadable']
+    assert preview['reason_details'] == caught.value.reason_details

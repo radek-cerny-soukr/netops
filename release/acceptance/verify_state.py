@@ -15,7 +15,7 @@ UNCHANGED = ("gateway/ca.pem", "gateway/ca.key", "gateway/server.key", "gateway/
 MAY_CHANGE = {"gateway/instance.lock", "gateway/server.pem", "gateway/config.json",
               "gateway/audit/rejections.json", "helper/operations.jsonl", "admin/operations.jsonl"}
 DYNAMIC_KEYS = {"time", "timestamp", "now", "uptime", "uptime_seconds", "started", "started_at",
-                "checked_at", "generated_at", "days_remaining", "expires_in_days"}
+                "checked_at", "generated_at", "days_remaining", "expires_in_days", "age_hours"}
 API_KINDS = ("added", "definition", "response")
 KEY_FIELDS = ("added_keys", "removed_keys", "changed_keys")
 VALUE_FIELDS = ("added_keys", "changed_keys")
@@ -24,8 +24,14 @@ CATALOG = "read_query_catalog"
 CATALOG_PAGE_LIMIT = 100
 CATALOG_MAX_PAGES = 64
 COMPARED = (("helper_status", "helper_status"), ("target_scope", "target_scope"),
-            ("read_query_catalog", "read_query_catalog"), ("ssh_read_not_enrolled", "ssh_read"))
+            ("read_query_catalog", "read_query_catalog"), ("ssh_read_not_enrolled", "ssh_read"),
+            ("audit_status", "audit_status"), ("admin_status", "admin_status"))
 MCP_FILES = ("from-mcp.json", "to-mcp.json", "rollback-mcp.json")
+# Prompts and the server capabilities are part of the compared API next to the tools: a prompt is the API
+# object "prompt:<name>", the capabilities of the initialize result are the object "mcp:capabilities".
+PROMPT_PREFIX = "prompt:"
+CAPABILITIES = "mcp:capabilities"
+PLACEHOLDER_REASON = re.compile(r"\bTODO\(")
 
 
 def post(url, body, token=None, session=None, context=None):
@@ -70,11 +76,14 @@ def mcp(args):
     status, headers, raw = post(args.url, init, token=token, context=context)
     result["probes"]["token"] = status
     if status == 200:
+        result["calls"]["initialize"] = {"http": status, "reply": decode(headers, raw)}
         session = headers.get("mcp-session-id")
         post(args.url, {"jsonrpc": "2.0", "method": "notifications/initialized"}, token=token, session=session, context=context)
-        calls = [("tools/list", "tools/list", {})] + [
+        calls = [("tools/list", "tools/list", {}), ("prompts/list", "prompts/list", {})] + [
             (name, "tools/call", {"name": tool, "arguments": arguments}) for name, tool, arguments in (
                 ("helper_status", "helper_status", {}),
+                ("audit_status", "audit_status", {}),
+                ("admin_status", "admin_status", {"request_id": "upgrade-check-request"}),
                 ("target_scope", "target_scope", {"target": args.target}),
                 ("read_query_catalog", "read_query_catalog", {}),
                 ("ssh_read_not_enrolled", "ssh_read", {"target": "not-enrolled.example.invalid", "platform": "linux", "query": "kernel"}))]
@@ -188,6 +197,9 @@ def load_api_changes(path, env):
         if item["kind"] not in API_KINDS:
             problems.append("change kind %r not allowed for %s" % (item["kind"], item["tool"]))
             continue
+        if PLACEHOLDER_REASON.search(item["reason"]):
+            problems.append("reason of %s %s is an unreviewed placeholder" % (item["tool"], item["kind"]))
+            continue
         allowed = {"tool", "kind", "reason", "breaking"} | (set(KEY_FIELDS) if item["kind"] != "added" else set())
         fields = {f: item.get(f, [] if f == "removed_keys" else {}) for f in KEY_FIELDS if f in allowed}
         if set(item) - allowed or not isinstance(item.get("breaking", False), bool) \
@@ -236,8 +248,16 @@ def expectation_ok(e, value):
 
 
 def tool_definitions(m):
-    reply = (m.get("calls", {}).get("tools/list") or {}).get("reply") or {}
-    return {t["name"]: t for t in reply.get("result", {}).get("tools", [])}
+    """Tools, prompts and server capabilities of one capture; a server without prompts lists none."""
+    calls = m.get("calls", {})
+    reply = (calls.get("tools/list") or {}).get("reply") or {}
+    found = {t["name"]: t for t in reply.get("result", {}).get("tools", [])}
+    prompts = ((calls.get("prompts/list") or {}).get("reply") or {}).get("result") or {}
+    found.update({PROMPT_PREFIX + p["name"]: p for p in prompts.get("prompts", []) if isinstance(p, dict) and "name" in p})
+    capabilities = (((calls.get("initialize") or {}).get("reply") or {}).get("result") or {}).get("capabilities")
+    if isinstance(capabilities, dict):
+        found[CAPABILITIES] = capabilities
+    return found
 
 
 def tool_names(m):
@@ -306,6 +326,9 @@ def compare_mcp(mf, mt, from_version, to_version, items, problems):
                 incomplete.append(name)
                 continue
         else:
+            if any(not (m.get("calls", {}).get(name) or {}).get("reply", {}).get("result") for m in (mf, mt)):
+                incomplete.append(name)
+                continue
             a = tool_payload((mf.get("calls", {}).get(name) or {}).get("reply"), from_version)
             b = tool_payload((mt.get("calls", {}).get(name) or {}).get("reply"), to_version)
         if (name != "ssh_read_not_enrolled" and b["isError"]) or a["isError"] != b["isError"]:
@@ -323,7 +346,7 @@ def compare_mcp(mf, mt, from_version, to_version, items, problems):
     decl_r = {k for k in declared if k[1] == "response"}
     breaking = sorted({i["tool"] for i in items if i.get("breaking")})
     tools_ok = not problems and bool(df) and bool(dt) and not removed and observed_t == decl_t and not wrong_t
-    tools_detail = "FROM %d, TO %d tools; declared: %d; undeclared: %s; removed: %s; stale declaration: %s; different value: %s; BREAKING: %s" % (
+    tools_detail = "FROM %d, TO %d tools, prompts and capabilities; declared: %d; undeclared: %s; removed: %s; stale declaration: %s; different value: %s; BREAKING: %s" % (
         len(df), len(dt), len(observed_t & decl_t), show(observed_t - decl_t), removed or "none",
         show(decl_t - observed_t), show(wrong_t), breaking or "none")
     resp_ok = not problems and bool(mt) and bool(mf) and observed_r == decl_r and not wrong_r and not errors and not incomplete
@@ -385,7 +408,8 @@ def report(args):
 
     problems = diff_manifest(m0, m1, MAY_CHANGE) if m0 and m1 else ["manifest missing"]
     roles = sorted(p for p in m0 if p.split("/")[0] in ("helper", "auditor", "admin") and m0[p][4] is not None)
-    check("role-data-unchanged", not problems and len(roles) > 0,
+    populated = all(any(p.startswith(role + "/") for p in roles) for role in ("helper", "auditor", "admin"))
+    check("role-data-unchanged", not problems and populated,
           "%d role files; %s" % (len(roles), "; ".join(problems) or "only allowed changes"))
 
     segments = sorted(p for p in before if p.startswith("gateway/audit/") and p.endswith(".jsonl"))
@@ -401,6 +425,26 @@ def report(args):
     mf, mt = load("from-mcp.json") or {}, load("to-mcp.json") or {}
     api_items, problems, api_info = load_api_changes(args.api_changes, env)
     tools_ok, tools_detail, resp_ok, resp_detail = compare_mcp(mf, mt, env["FROM_VERSION"], env["TO_VERSION"], api_items, problems)
+    def populated_roles(m, product):
+        auditor = tool_payload((m.get("calls", {}).get("audit_status") or {}).get("reply"), product)
+        admin = tool_payload((m.get("calls", {}).get("admin_status") or {}).get("reply"), product)
+        a, d = auditor["content"], admin["content"]
+        devices = a.get("devices", []) if isinstance(a, dict) else []
+        return (not auditor["isError"] and not admin["isError"] and
+                any(row.get("run_id") is not None and row.get("findings_total", 0) > 0 for row in devices) and
+                isinstance(d, dict) and d.get("request_id") == "upgrade-check-request" and
+                d.get("change_id") == "a" * 32 and d.get("status") == "finished" and d.get("result") == "confirmed")
+    check("nonempty-auditor-admin", all(populated_roles(m, product) for m, product in
+          ((mf, env["FROM_VERSION"]), (mt, env["TO_VERSION"]), (load("rollback-mcp.json") or {}, env["FROM_VERSION"]))),
+          "Auditor run with findings and completed Admin request resolve before/after/rollback")
+    def coverage_gaps(m, product):
+        auditor = tool_payload((m.get("calls", {}).get("audit_status") or {}).get("reply"), product)
+        rows = auditor["content"].get("devices", []) if isinstance(auditor["content"], dict) else []
+        coverage = next((row.get("coverage") for row in rows if row.get("device") == "upgrade-adc"), None) or {}
+        return ([gap.get("rule_id") for gap in coverage.get("inherent_gaps", [])] == ["fortiadc.tls.factory-certificate"]
+                and [gap.get("reason") for gap in coverage.get("actionable_gaps", [])] == ["visibility:networking"])
+    check("auditor-coverage-gaps-after-upgrade", coverage_gaps(mt, env["TO_VERSION"]),
+          "the seeded FortiADC run keeps one inherent and one actionable coverage gap in TO")
     tf = tool_names(mf)
     check("mcp-tools-list", tools_ok, tools_detail)
     check("mcp-role-responses", resp_ok, resp_detail)

@@ -19,6 +19,8 @@ NOT_DIRECTORY_HEAD = 'Can\'t change directory: "'
 NOT_DIRECTORY_TAIL = '" is not a directory'
 ECHO_PREFIX = "sftp> "
 PROGRESS_LINE = "Connected to %s."
+# What sftp prints itself once the ssh client under it has ended.
+CLOSED_LINE = b"Connection closed"
 LISTING_MAX_BYTES = 256 * 1024
 PATH_MAX_CHARS = 2_000
 FORBIDDEN_PATH_MARKS = ('"', "\\", "\n", "\r", "\x00")
@@ -233,6 +235,17 @@ def _reported(result, name) -> list:
     return lines
 
 
+def _final(result) -> str:
+    """The ssh client's closing message: the line sftp itself adds when its transport ends is not the verdict."""
+    data = getattr(result, "stderr", None)
+    if not isinstance(data, (bytes, bytearray)):
+        return ""
+    lines = [line.strip() for line in bytes(data).splitlines() if line.strip()]
+    if len(lines) > 1 and lines[-1].rstrip(b".") == CLOSED_LINE:
+        lines.pop()
+    return ssh_module.final_said(b"\n".join(lines))
+
+
 def stat(
     host,
     port,
@@ -306,9 +319,12 @@ def stat(
         said = ssh_module._said(result)
         code = getattr(result, "returncode", None)
         if isinstance(code, bool) or not isinstance(code, int) or code != 0:
-            detail = "; %s" % ssh_module.reason(said) if said else ""
+            # The ssh client's closing message names the reason; a device banner printed before it never does.
+            final = _final(result)
+            verdict = final or said
+            detail = "; %s" % ssh_module.reason(verdict) if verdict else ""
             remedy = ""
-            if profile is None and ssh_module.NEGOTIATION_MARKER in said:
+            if profile is None and ssh_module.NEGOTIATION_MARKER in verdict:
                 remedy = ssh_module.LEGACY_REMEDY % (
                     name, ", ".join(legacy_module.PROFILES),
                 )
@@ -316,6 +332,7 @@ def stat(
                 "sftp to %s failed with exit code %s%s%s" % (name, code, detail, remedy),
                 code if isinstance(code, int) and not isinstance(code, bool) else None,
                 said,
+                final,
             )
         lines = _listing(bytes(data))
         reported = _reported(result, name)
@@ -325,7 +342,7 @@ def stat(
         if not lines:
             if reported:
                 raise SftpError(
-                    "sftp on %s could not list the path; %s" % (name, ssh_module.reason(said)),
+                    "sftp on %s could not list the path; %s" % (name, ssh_module.reason("\n".join(reported))),
                     code,
                     said,
                 )

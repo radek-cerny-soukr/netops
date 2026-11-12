@@ -1,0 +1,2 @@
+Hostname: host06
+FQDN:     host06

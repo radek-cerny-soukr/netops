@@ -1,0 +1,5 @@
+config load-balance real-server
+    edit "RS_A"
+        set ip 192.0.2.11
+    next
+end

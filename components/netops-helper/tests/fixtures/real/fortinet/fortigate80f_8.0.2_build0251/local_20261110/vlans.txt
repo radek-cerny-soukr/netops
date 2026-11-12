@@ -1,0 +1,38 @@
+config system interface
+    edit "_default"
+        set interface "fortilink"
+        set vlanid 1
+    next
+    edit "quarantine"
+        set ip 192.0.2.1 255.255.255.0
+        set interface "fortilink"
+        set vlanid 4093
+    next
+    edit "voice"
+        set interface "fortilink"
+        set vlanid 4091
+    next
+    edit "video"
+        set interface "fortilink"
+        set vlanid 4090
+    next
+    edit "rspan"
+        set ip 192.0.2.2 255.255.255.0
+        set interface "fortilink"
+        set vlanid 4092
+    next
+    edit "onboarding"
+        set interface "fortilink"
+        set vlanid 4089
+    next
+    edit "nac_segment"
+        set ip 192.0.2.3 255.255.255.0
+        set interface "fortilink"
+        set vlanid 4088
+    next
+    edit "ap-mgmt"
+        set ip 192.0.2.4 255.255.255.0
+        set interface "fortilink"
+        set vlanid 100
+    next
+end

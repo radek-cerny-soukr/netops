@@ -23,8 +23,17 @@ PLANNED_READS = len(STEPS)
 REQUIRED = frozenset({"system_status", "conserve_state", "performance", "session_stats", "ha_status",
                       "ntp_status", "autoupdate_versions", "physical_interfaces"})
 REASONS = frozenset({"timeout", "truncated", "empty", "unsupported", "permission_denied",
-                     "device_cli_error", "unparsed", "not_applicable"})
+                     "device_cli_error", "transport_error", "unparsed", "not_applicable"})
 VERDICTS = frozenset({"fault_found", "no_fault_in_checked_data", "incomplete"})
+
+
+def missing_read(step, answer, reasons=REASONS):
+    """The missing entry of a failed read; a transport failure keeps its class and fixed advice."""
+    reason = answer.get("reason") if isinstance(answer, dict) else None
+    item = {"step": step, "reason": reason if reason in reasons else "device_cli_error"}
+    if reason in ("timeout", "transport_error") and isinstance(answer.get("error_code"), str):
+        item.update(error_code=answer["error_code"], error=answer.get("error"))
+    return item
 
 
 class UnsupportedPlatform(ValueError):
@@ -140,8 +149,8 @@ def ha_checksum(text):
 
 def ntp_status(text):
     found = _once(r"^synchronized: (yes|no), ntpsync: (enabled|disabled)\b", text)
-    servers = [{"server": name, "state": state} for name, state in
-               re.findall(r"(?m)^\s*ipv[46] server\(([^)\s]*)\)\s+\S+\s+--\s+([a-z]+)", text)]
+    servers = [{"server": name, "address": address, "state": state} for name, address, state in
+               re.findall(r"(?m)^[^\S\n]*ipv[46] server\(([^)\s]*)\)\s+([0-9A-Fa-f:.]+)\s+--\s+([a-z]+)", text)]
     return {"synchronized": found[0], "ntpsync": found[1], "servers": servers}
 
 
@@ -321,8 +330,7 @@ def run(read, clock):
         answer = read(query)
         captured[query] = moment
         if not answer.get("ok"):
-            reason = answer.get("reason")
-            missing.append({"step": query, "reason": reason if reason in REASONS else "device_cli_error"})
+            missing.append(missing_read(query, answer))
         elif not answer["text"].strip():
             missing.append({"step": query, "reason": "not_applicable" if query == "sdwan_health" else "empty"})
         elif query == "sdwan_health" and answer["text"].strip() in SDWAN_NOT_RUNNING:

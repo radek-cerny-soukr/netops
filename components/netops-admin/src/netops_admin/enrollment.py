@@ -30,7 +30,7 @@ def require(runtime, device, accounts, firmware):
     if not certificate or certificate.get("protocol") != PROTOCOL or certificate.get("binding") != binding(
         device, accounts, firmware, runtime.config
     ):
-        raise Rejected(["a successful enroll self-test is required for this device, build and configuration"])
+        raise Rejected(["a successful enroll self-test is required for this device, build and configuration"], reason_codes=["enrollment_required"])
 
 
 def run(runtime, device_name, probe):
