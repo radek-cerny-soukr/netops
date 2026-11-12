@@ -2,11 +2,15 @@
 import argparse
 import json
 import sys
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
+from urllib.parse import urlparse
+
+from assessment_check import load_assessments
 
 BLOCKING = {"Critical", "High"}
 SEVERITIES = {"Critical", "High", "Medium", "Low", "Negligible", "Unknown"}
 MAX_DB_AGE_HOURS = 48
+MAX_FIX_CHECK_AGE_DAYS = 14
 
 
 def db_built(report):
@@ -23,7 +27,7 @@ def parse_time(value):
     return datetime.fromisoformat(value.replace("Z", "+00:00"))
 
 
-def evaluate(report, now):
+def evaluate(report, now, assessments=()):
     if not isinstance(report, dict) or not isinstance(report.get("matches"), list):
         return {"status": "unknown", "reason": "report has no matches list"}
     built = db_built(report)
@@ -35,6 +39,36 @@ def evaluate(report, now):
         return {"status": "unknown", "reason": "database build time is not ISO 8601: " + built}
     if age > MAX_DB_AGE_HOURS or age < -1:
         return {"status": "unknown", "reason": "database age %.1f h is outside 0..%d h" % (age, MAX_DB_AGE_HOURS)}
+
+    def finding_identity(item):
+        return tuple(item.get(k) for k in ("id", "package", "version", "type"))
+
+    def unavailable_fix(assessment):
+        if not isinstance(assessment, dict):
+            return False
+        try:
+            checked = assessment.get("fix_unavailable_checked")
+            # Require the calendar-date ISO form, not a timestamp or compact date.
+            if not isinstance(checked, str) or date.fromisoformat(checked).isoformat() != checked:
+                return False
+            age_days = (now.date() - date.fromisoformat(checked)).days
+            url = urlparse(assessment.get("fix_unavailable_evidence", ""))
+            valid_url = (url.scheme == "https" and bool(url.hostname)
+                         and not any(c.isspace() for c in url.netloc))
+        except (TypeError, ValueError, AttributeError):
+            return False
+        versions = assessment.get("fix_unavailable_versions")
+        return (assessment.get("fixed_version_not_released") is True
+                and 0 <= age_days <= MAX_FIX_CHECK_AGE_DAYS
+                and valid_url
+                and isinstance(versions, list) and bool(versions)
+                and all(isinstance(v, str) and v.strip() for v in versions)
+                and assessment.get("exploitable") is False
+                and isinstance(assessment.get("reasoning"), str) and assessment["reasoning"].strip()
+                and isinstance(assessment.get("evidence"), str) and assessment["evidence"].strip())
+
+    unavailable = {finding_identity(a): a["fix_unavailable_versions"]
+                   for a in assessments if unavailable_fix(a)}
     fixable, unfixed, counts = [], [], {}
     for match in report["matches"]:
         vuln = match.get("vulnerability", {})
@@ -47,10 +81,12 @@ def evaluate(report, now):
         entry = {"id": vuln.get("id"), "severity": severity, "package": artifact.get("name"),
                  "version": artifact.get("version"), "type": artifact.get("type"),
                  "fix_state": fix.get("state"), "fix_versions": fix.get("versions", [])}
-        (fixable if severity in BLOCKING and fix.get("state") == "fixed" else unfixed).append(entry)
-    key = lambda e: (e["severity"], e["id"] or "", e["package"] or "")
+        (fixable if severity in BLOCKING and fix.get("state") == "fixed"
+         and not (finding_identity(entry) in unavailable
+                  and unavailable[finding_identity(entry)] == entry["fix_versions"]) else unfixed).append(entry)
+    sort_key = lambda e: (e["severity"], e["id"] or "", e["package"] or "")
     result = {"database_built": built, "database_age_hours": round(age, 1), "counts": counts,
-              "fixable_blocking": sorted(fixable, key=key), "assessment_required": sorted(unfixed, key=key)}
+              "fixable_blocking": sorted(fixable, key=sort_key), "assessment_required": sorted(unfixed, key=sort_key)}
     if fixable:
         result["status"] = "fail"
     elif unfixed:
@@ -83,11 +119,13 @@ def main():
     parser.add_argument("--name", required=True)
     parser.add_argument("--output", required=True)
     parser.add_argument("--summary")
+    parser.add_argument("--assessments", help="Optional release asset; repository assessments take precedence")
     args = parser.parse_args()
     try:
         with open(args.report, encoding="utf-8") as stream:
             report = json.load(stream)
-        result = evaluate(report, datetime.now(timezone.utc))
+        assessments = load_assessments(args.assessments)
+        result = evaluate(report, datetime.now(timezone.utc), assessments)
     except (OSError, ValueError) as error:
         result = {"status": "unknown", "reason": "%s: %s" % (type(error).__name__, error)}
     result["name"] = args.name
