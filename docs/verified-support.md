@@ -112,6 +112,8 @@ other firmware or hardware; device configuration was unchanged.
 
 ⁹ `ip_interface` (IPv4 address, prefix length, SVI VLAN, state) was added on 2026-11-09 and is parsed from the anonymised live outputs of `show ip interface brief` with `show ip route` (IOS, IOS XE, NX-OS), `show ip interface brief` (EOS), `show ipconfig` with `show vlan` (EXOS), `show interfaces terse` (Junos) and `get system interface` (FortiGate 80F, FortiOS 8.0.2 build0251, read-only account, 2026-11-09); FortiOS gives no link state, so `oper_status` stays null there. On the IOL XE router image the `interface` table comes from `show ip interface brief` (name, status, protocol) when the target declares `device_types: ["router"]` without `switch`; the IOSv router uses the same rule.
 
+IOS / IOS XE IPv4 route lookups use the authorized whole routing table as a fallback when the direct lookup is empty.
+
 Catalogue, triage, Wi-Fi, Auditor and Admin:
 
 | Platform | `ssh_read` templates 1.0.6 → 1.0.7 | Run live for 1.0.7¹⁰ | Triage and Wi-Fi | Auditor | Admin |
