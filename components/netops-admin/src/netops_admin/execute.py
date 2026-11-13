@@ -273,8 +273,10 @@ def _settle_after_expiry(runtime, access, record, plan, reason, due):
     return _finish(runtime, record, "revert-failed", reason, verdict["differences"])
 
 
-def _undelivered(runtime, device_name: str) -> list:
-    return sorted(record["change_id"] for record in runtime.store.records()
+def _undelivered(runtime, device_name: str, *, records=None) -> list:
+    if records is None:
+        records = runtime.store.records()
+    return sorted(record["change_id"] for record in records
                   if record.get("device") == device_name and record.get("status") == "finished"
                   and record.get("notification") in UNDELIVERED)
 
@@ -285,13 +287,14 @@ def _block_accounts(runtime, device) -> None:
                         reason_characters=0, change_id=None)
 
 
-def _budgets(runtime, device, changes=1) -> None:
+def _budgets(runtime, device, changes=1, *, records=None) -> None:
     if type(changes) is not int or not 1 <= changes <= 32:
         raise Rejected(["the transaction change count must be in 1..32"])
     limits, now = runtime.config.limits, runtime.store.budget_now()
     if runtime.store.rejections_since(now - HOUR) >= limits["rejections_per_hour"]:
         raise BudgetExhausted(["the budget of rejected requests for this hour is exhausted"], reason_details=[{"code": "budget_exhausted", "budget": "rejected_hour"}])
-    records = runtime.store.records()
+    if records is None:
+        records = runtime.store.records()
     if len(records) >= limits["journal_records"]:
         raise BudgetExhausted(["the journal holds its maximum number of operations; archive it before new changes"], reason_details=[{"code": "budget_exhausted", "budget": "journal_records"}])
     counted = [record for record in records if "safeguard" in record or record.get("status") == "running"]

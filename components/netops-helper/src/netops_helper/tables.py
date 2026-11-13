@@ -16,7 +16,7 @@ from . import port_vlan
 from . import switch_managed, fortiswitch_ports
 
 FIELDS = {
-    'interface': ('name', 'description', 'admin_status', 'oper_status', 'speed', 'vlan_id', 'trunk'),
+    'interface': ('name', 'description', 'admin_status', 'oper_status', 'speed', 'vlan_id', 'trunk', 'mac', 'mtu'),
     'vlan': ('vlan_id', 'name', 'ports'),
     'mac_entry': ('mac', 'vlan_id', 'port', 'type', 'vlan_name'),
     'neighbor_l3': ('ip', 'mac', 'interface', 'vlan_id', 'vrf', 'type'),
@@ -28,7 +28,7 @@ FIELDS = {
     'stp_port': ('instance', 'port', 'role', 'state', 'cost'),
     'aggregate': ('name', 'member_count'),
     'port_vlan': port_vlan.FIELDS,
-    'ip_interface': ('interface', 'ip', 'prefix_length', 'vlan_id', 'admin_status', 'oper_status', 'vrf'),
+    'ip_interface': ('interface', 'ip', 'prefix_length', 'vlan_id', 'admin_status', 'oper_status', 'vrf', 'mac', 'gateway'),
 }
 # Parser bindings reference catalogue names, never CLI strings or permissions.
 BINDINGS = {}
@@ -77,6 +77,10 @@ def literal(value):
 def request(profile, table, vlan_id=None, mac=None, ip=None, device_types=None, interface=None, managed_switch=None):
     if table not in FIELDS:
         raise ValueError('unknown normalized table')
+    if profile == 'linux' and table == 'interface' and interface is not None:
+        if any(value is not None for value in (vlan_id, mac, ip, managed_switch)):
+            raise ValueError('filter does not apply to this table')
+        return 'interface_link', {'interface': _validate_slot(interface, 'interface')}, {}
     from . import fortigate_tables
     if profile == 'fortinet' and managed_switch is None and table in fortigate_tables.QUERIES:
         return fortigate_tables.request(table, vlan_id, mac, ip, interface)
@@ -92,10 +96,12 @@ def request(profile, table, vlan_id=None, mac=None, ip=None, device_types=None, 
     filters = {}
     if interface is not None and table == 'port_vlan':
         if not isinstance(interface, str):
-            raise ValueError('interface only filters port_vlan, ip_interface and interface_errors')
+            raise ValueError('interface only filters interface, port_vlan, ip_interface and interface_errors')
         filters['port'] = port(interface)
     elif interface is not None:
-        filters['interface'] = ip_interfaces.name(_validate_slot(interface, 'interface'))
+        from . import linux_tables
+        validate_name = linux_tables.name if profile == 'linux' else ip_interfaces.name
+        filters['name' if table == 'interface' else 'interface'] = validate_name(_validate_slot(interface, 'interface'))
     if vlan_id is not None:
         filters['vlan_id'] = int(_validate_slot(vlan_id, 'vlan_id'))
     if mac is not None:
@@ -105,7 +111,7 @@ def request(profile, table, vlan_id=None, mac=None, ip=None, device_types=None, 
     if (mac is not None and table not in ('mac_entry', 'neighbor_l3')
             or ip is not None and table not in ('neighbor_l3', 'route')
             or vlan_id is not None and table not in ('interface', 'vlan', 'mac_entry', 'neighbor_l3')
-            or interface is not None and table not in ('port_vlan', 'ip_interface')):
+            or interface is not None and table not in ('interface', 'port_vlan', 'ip_interface')):
         raise ValueError('filter does not apply to this table')
     key = 'neighbor_l3_v6' if table == 'neighbor_l3' and ip and ':' in ip else table
     if table == 'route':
@@ -183,7 +189,7 @@ def parse(profile, table, query, text, *, rc=0, status=None, filters=None, comma
     # A field counts as missing when the catalogue output never supplies it; a value that is
     # absent in some rows (no description on a port, no speed on a down link) is normal.
     missing = sorted(field for field in (FIELDS[table] if rows else ())
-                     if field not in OPTIONAL_FIELDS.get(table, ()) and all(row.get(field) is None for row in rows))
+                     if field not in optional_fields(profile, table) and all(row.get(field) is None for row in rows))
     result = response_envelope(profile, state, [source_record(query, text, state)] if query else [])
     result.update(ok=state in ('ok', 'empty'), table=table, records=[row for row in rows if all(row.get(k) == v for k, v in (filters or {}).items())],
                   unparsed=unknown)
@@ -531,7 +537,17 @@ SYSTEM_PORTS = re.compile(r'(?:CPU|Cpu|Router|Switch|[Ss]up-eth\d+|Vl\d+|Vlan\d+
 OPTIONAL_FIELDS = {'mac_entry': {'vlan_name'}, 'neighbor_l3': {'vrf', 'type'}, 'ospf_neighbor': {'role', 'vrf'}, 'bgp_peer': {'prefixes', 'vrf'},
                    'port_vlan': {'access_vlan', 'native_vlan'},
                    'lag': {'protocol'}, 'stp_port': {'cost'}, 'route': {'next_hop', 'interface', 'vrf'},
-                   'interface': {'description', 'speed', 'admin_status'}, 'ip_interface': {'vlan_id', 'vrf'}}
+                   'interface': {'description', 'speed', 'admin_status', 'mac', 'mtu'}, 'ip_interface': {'vlan_id', 'vrf', 'mac', 'gateway'}}
+
+
+# Only catalogue fields unavailable on this profile; other platforms keep their coverage.
+PROFILE_OPTIONAL_FIELDS = {'linux': {'interface': {'vlan_id', 'trunk'},
+                                    'ip_interface': {'admin_status'},
+                                    'neighbor_l3': {'vlan_id'}}}
+
+
+def optional_fields(profile, table):
+    return set(OPTIONAL_FIELDS.get(table, ())) | PROFILE_OPTIONAL_FIELDS.get(profile, {}).get(table, set())
 
 
 def scan(text, handle):
@@ -1893,3 +1909,9 @@ for _profile in ip_interfaces.ROUTER_INTERFACES:
 # Registration only: parsers and multi-source reads live in their own module.
 from . import port_errors as _port_errors
 _port_errors.register(FIELDS, OPTIONAL_FIELDS, BINDINGS, TABLE_PARSERS)
+
+from . import cdp as _cdp
+_cdp.register(FIELDS, OPTIONAL_FIELDS, BINDINGS, QUERY_PARSERS)
+
+from . import linux_tables as _linux_tables
+_linux_tables.register(BINDINGS, PARSERS, QUERY_PARSERS)

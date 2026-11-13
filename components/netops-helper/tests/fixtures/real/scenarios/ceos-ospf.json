@@ -1,0 +1,44 @@
+{
+  "schema": "netops-replay/1",
+  "scenario": "ceos-ospf-live-4.36.1F",
+  "expected_source": "Manual transcription of the three printed neighbor rows in the existing anonymized ceos_4.36.1F/ospf_neighbors.txt capture; no parser used.",
+  "captures": [
+    {
+      "platform": "arista_eos",
+      "firmware": "4.36.1F",
+      "query": "ospf_neighbors",
+      "table": "ospf_neighbor",
+      "command": "show ip ospf neighbor",
+      "rc": 0,
+      "stdout": "Neighbor ID     Instance VRF      Pri State                  Dead Time   Address         Interface\n203.0.113.133   29       default  1   FULL/DROTHER           00:00:37    192.0.2.5       Vlan10\n203.0.113.135   29       default  1   FULL/DR                00:00:36    192.0.2.7       Vlan10\n203.0.113.129   29       default  1   FULL/DROTHER           00:00:35    192.0.2.1       Vlan10\n",
+      "expected": {
+        "status": "ok",
+        "record_count": 3,
+        "unparsed_count": 0,
+        "records": [
+          {
+            "neighbor_id": "203.0.113.133",
+            "state": "full",
+            "address": "192.0.2.5",
+            "interface": "Vlan10",
+            "role": "DROTHER"
+          },
+          {
+            "neighbor_id": "203.0.113.135",
+            "state": "full",
+            "address": "192.0.2.7",
+            "interface": "Vlan10",
+            "role": "DR"
+          },
+          {
+            "neighbor_id": "203.0.113.129",
+            "state": "full",
+            "address": "192.0.2.1",
+            "interface": "Vlan10",
+            "role": "DROTHER"
+          }
+        ]
+      }
+    }
+  ]
+}

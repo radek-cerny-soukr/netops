@@ -1,4 +1,4 @@
-# Shared identity and normalization (1.0.7)
+# Shared identity and normalization (1.0.8)
 
 Every fresh SSH catalogue read on EXOS, IOS, IOS XE, NX-OS, EOS and Junos first
 runs the existing `version` template (`show version`, with the fixed `| no-more`
@@ -8,9 +8,9 @@ IOS XE are distinct. Model, serial number and uptime are read as data; the hardw
 model never decides whether a device may be read, so there are no model-family
 tables. A model that cannot be read stays null with a warning.
 
-There is exactly one profile per OS (`cisco_ios`, `cisco_xe`, `cisco_nxos`,
-`arista_eos`, `juniper_junos`, `juniper_junos_els`, `extreme_exos`), identical on a
-switch, a router or a firewall. EOS is EOS and Junos is Junos on any box. The device
+The OS profiles (`cisco_ios`, `cisco_xe`, `cisco_nxos`, `arista_eos`,
+`juniper_junos`, `juniper_junos_els`, `extreme_exos`, `linux`) apply equally to a
+switch, router or firewall; Junos has common and ELS catalogues. EOS is EOS and Junos is Junos on any box. The device
 type is a per-target inventory attribute instead: `helper.device_types`, a unique list
 drawn from `switch`, `router`, `firewall` (default empty). A catalogue template may
 carry a `group` naming one of these types; it can then be listed in `enabled_queries`
@@ -18,7 +18,8 @@ only for a target that declares that type, and the inventory is rejected otherwi
 Templates without a group suit every device type; no catalogue template has a group
 in this release. The attribute enables template groups
 and is never checked against the model. A command a particular box does not know
-returns the result state `unsupported`; it never rejects the target.
+returns `unsupported` or `permission_denied`, according to the platform response;
+this does not reject the target.
 The `*_router` profile names of the earlier draft were never released: use the OS
 profile and `"device_types": ["router"]` instead (no migration of stored inventories
 is needed, because the router names were not accepted by any release).
@@ -120,8 +121,7 @@ capture is `truncated`, including one appended to the final data line without a
 newline, as in `1fad86c`. A standalone final prompt may have trailing blank lines. An appended marker followed by a newline, or any marker followed by later data, is not a terminal pager. The historical classifier matrix covers 1023 texts (1012 earlier texts plus five live OSPF, four FortiGate-local and two NX-OS port VLAN captures):
 all real captures, FortiGate-80F files and HA responses, FortiADC export, Ruckus
 transcript, identity, documentation and table fixtures. It checks all 11 profiles
-plus no profile at rc 0/1/250, with three `command` variants. Linux has no native
-capture; every text is nevertheless classified under that profile.
+plus no profile at rc 0/1/250, with three `command` variants. Linux network captures and manual expectations are now included in the unified replay collection.
 
 Refusal detection matches `1fad86c` on every capture. The retained pager rule
 necessarily changes two complete Junos ELS logs (`log_messages` and
@@ -150,7 +150,7 @@ and check real refusal shapes on every profile.
 `status` is also returned at the top level. Legacy `ok` describes the existing
 SSH operation; consumers of structured data must inspect normalized status and
 coverage. Reads in these OS profiles that have no normalized table adapter stay raw
-text. FortiOS, FortiADC, Linux and Ruckus preserve their existing response
+text. FortiOS, FortiADC and Ruckus preserve their existing response
 contracts. A parsed identity may be complete while its raw version text is paginated;
 its envelope describes the complete capture. `not_applicable` is reserved for
 adapters with positive evidence; an empty result does not imply it.
@@ -204,8 +204,8 @@ without a known equivalent can pass through as described below.
 | LAG member `state` | `bundled`, `down`, `standalone`, `hot-standby`, `suspended`, `waiting`, `unsuitable`, `default`, `min-links`, `failed`, `not-in-use`, `incompatible`, `transmit-disabled`, `in-use`, `bfd-wait`, `module-removed`, `unknown` |
 | STP `role` | `designated`, `root`, `alternate`, `backup`, `master`, `disabled`, `boundary` |
 | STP `state` | `forwarding`, `blocking`, `learning`, `listening`, `discarding`, `disabled`, `broken` |
-| Interface `oper_status` | `up`, `down` |
-| IP interface (`ip_interface`) fields | `interface`: the name as printed, through the shared port normalizer where it is a port (`Gi0/1.10` → `GigabitEthernet0/1.10`; an EXOS VLAN or FortiOS interface name stays as printed); `ip`: one IPv4 address per record; `prefix_length`: integer 0–32, null when the output gives no mask (IOS, IOS XE, NX-OS without the connected route of the interface, Junos address without `/n`); `vlan_id`: the VLAN of an SVI (`Vlan10`, `irb.10`) or, on EXOS, the tag of the VLAN of the same name, null for a subinterface or a FortiOS VLAN interface; `admin_status`, `oper_status`: `up`/`down` (IOS `administratively down`, EOS `admin down`, NX-OS `admin-down`, EXOS without flag `E` → admin `down`; Protocol, `protocol-` or EXOS flag `U` → oper), FortiOS `status` is the configured state and its `oper_status` is null; `vrf`: NX-OS VRF heading only, null elsewhere |
+| Interface `oper_status` | `up`, `down`; Linux also preserves `unknown`, `dormant`, `lowerlayerdown`, `notpresent` and `testing` |
+| IP interface (`ip_interface`) fields | `interface`: shared port normalizer (`Gi0/1.10` → `GigabitEthernet0/1.10`); Linux, EXOS VLAN and FortiOS names retain their spelling. `ip`: one IPv4 address per record, or IPv4/IPv6 on Linux; `prefix_length`: 0–32 (0–128 for IPv6), null without a mask (IOS/IOS XE/NX-OS without the connected interface route; Junos without `/n`); `vlan_id`: SVI VLAN (`Vlan10`, `irb.10`) or EXOS tag of the same-named VLAN, null for subinterfaces, FortiOS VLAN interfaces and Linux; `admin_status`, `oper_status`: `up`/`down`, plus the Linux operational states above (IOS `administratively down`, EOS `admin down`, NX-OS `admin-down`, EXOS without flag `E` → admin `down`; Protocol, `protocol-` or EXOS flag `U` → oper). FortiOS `status` is configured state; `oper_status` is null. `vrf`: NX-OS VRF heading only, null elsewhere |
 
 Unknown-value handling depends on the accepted command layout:
 
@@ -349,3 +349,16 @@ identity. Source text and hashes keep the original spelling.
 Failed normalized transport reads carry an allowlisted `error_code` (`unreachable`, `timeout`, `dns`, `connection_refused`, `host_key_unavailable`, `host_key_mismatch`, `negotiation`, `auth`, `auth_method_unsupported`, `disconnected`, `output_limit`, `exit_status` or `transport_failure`) and the fixed advice of that class in `error`, in the result and in locate `missing`, with the same class in per-read audit `detail`, without exception or device text; a host key that cannot be read is followed by one credential-free SSH probe, so a host that does not answer is `unreachable`, `timeout` or `connection_refused` and only a host that answered without a usable key is `host_key_unavailable`; an enrolled LLDP neighbor matched by alias, verified sysName/hostname or enrolled management address yields `endpoint_not_seen_on_neighbor_target` instead of `edge_beyond_enrolled_targets` when no endpoint edge is observed.
 
 Device output drops ANSI escape sequences and C0 controls except newline and tab before hashing, paging and client delivery; other text is preserved subject to existing secret redaction.
+
+## Linux network normalization
+
+Linux is an identity profile verified from the existing `uname -a` command
+(internal `version` lookup aliases `kernel`; it is not a public query). The normalized network tables and their catalogue
+sources, optional MAC/MTU fields, IPv6 address/ND handling and measured coverage
+are described in [Linux normalized network tables](tools.md#linux-normalized-network-tables).
+A missing field remains null and is reported by the shared coverage rules;
+Linux does not invent VLAN/trunk membership or administrative state from
+`ip -brief address` output. In the same `switch_read`, IP and prefix come from
+`addresses`, enabled `links` adds MAC and administrative state, and enabled
+`routes` adds the IPv4 default gateway. The public query catalogue preserves
+the 1.0.7 commands and descriptions.

@@ -17,7 +17,7 @@ All output is sensitive, untrusted device data. Interface descriptions, topology
 ## Load sharing (`lag_summary`)
 
 The fixed `lag_summary` query reads `show sharing` for `switch_read table="lag"`.
-Earlier measurements on EXOS-VM 33.6.1.14 and physical 33.7.1.6 found complete
+Earlier measurements on physical 33.7.1.6 switches found complete
 Load Sharing Monitor output with native STATUS -6 and SSH exit status 250.
 The existing EXOS completion rule now accepts nonempty exit-250 output only
 without EXOS error markers and preserves `rc: 250` and `exit_status_250`.
@@ -25,9 +25,9 @@ Other exit codes and empty/error output remain failures. The legacy query name
 `sharing` stays excluded; enroll `lag_summary` explicitly.
 
 The normalized group contains `name` (configured master port), `protocol`,
-`status` and `members` with per-port state. The supplied EXOS-VM capture verifies
-an empty table; populated group parser cases are synthetic and do not establish
-physical-device support. `aggregate` continues to use `show lacp`.
+`status` and `members` with per-port state. No EXOS-VM `show sharing` output was captured; the empty case replays the empty output of the physical X435 with the EXOS-VM identity.
+A populated physical X440G2 33.7.1.6 sharing group with members was captured on 2026-11-10 and is replayed by the engine tests.
+`aggregate` continues to use `show lacp`.
 
 ## Accepted Phase-1 queries
 

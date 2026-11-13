@@ -19,13 +19,13 @@ $RequiredRows = New-Object System.Collections.ArrayList
 foreach ($arch in $Arches) { foreach ($suite in $Suites) { [void]$RequiredRows.Add("actions-$arch-$suite") } }
 foreach ($arch in $Arches) { foreach ($role in @("core", "helper", "auditor", "admin")) { [void]$RequiredRows.Add("actions-$arch-engine-$role") } }
 $RequiredChecks = New-Object System.Collections.Hashtable ([StringComparer]::Ordinal)
-$MinimumVersion = [version]"1.0.7"
+$MinimumVersion = [version]"1.0.8"
 $BlindInstallChecks = @("cosign-verify-blob", "sha256sum-check", "container-healthy", "health-ready", "version-is-candidate", "unauthenticated-401", "mcp-tools-list", "audit-without-token")
 $BlindUpgradeChecks = @("upgrade-steps-from-docs", "health-ready", "version-is-candidate", "data-preserved", "token-preserved", "ca-preserved")
 $BlindRows = @("blind-install-fedora-amd64", "blind-install-debian-amd64", "blind-upgrade-amd64")
 $UpgradeRow = "blind-upgrade-amd64"
-$UpgradeFromVersion = "1.0.6"
-$UpgradeFromImage = "ghcr.io/radek-cerny-soukr/netops@sha256:20085d06a43ea4f0a57053f2dd35ce69709b43bfefd9d2a3cd8b1783c1e435fe"
+$UpgradeFromVersion = "1.0.7"
+$UpgradeFromImage = "ghcr.io/radek-cerny-soukr/netops@sha256:e04b19091819897e1bb4dec11416253b1dd598c18d5567325583b7e7e5fb8dfc"
 foreach ($row in $BlindRows) {
     [void]$RequiredRows.Add($row)
     if ($row -clike "blind-install-*") { $RequiredChecks[$row] = $BlindInstallChecks } else { $RequiredChecks[$row] = $BlindUpgradeChecks }
@@ -292,13 +292,50 @@ function Test-Registry($Manifest) {
     Add-Row "registry" "PASS" ("public index " + $digest + " binds amd64 and arm64")
 }
 
+function Test-UnavailableFix($Assessment, $Finding) {
+    $identity = @{ id = $Finding.vulnerability.id; package = $Finding.artifact.name; version = $Finding.artifact.version; type = $Finding.artifact.type }
+    foreach ($name in @("id", "package", "version", "type")) {
+        if (-not (Has-Property $Assessment $name) -or $Assessment.$name -isnot [string] -or $identity[$name] -isnot [string] -or $Assessment.$name -cne $identity[$name]) { return $false }
+    }
+    $Fix = $Finding.vulnerability.fix
+    foreach ($name in @("fixed_version_not_released", "fix_unavailable_checked", "fix_unavailable_evidence", "fix_unavailable_versions", "exploitable", "reasoning", "evidence")) {
+        if (-not (Has-Property $Assessment $name)) { return $false }
+    }
+    if ($Assessment.fixed_version_not_released -isnot [bool] -or -not $Assessment.fixed_version_not_released -or
+        $Assessment.exploitable -isnot [bool] -or $Assessment.exploitable -or
+        $Assessment.reasoning -isnot [string] -or [string]::IsNullOrWhiteSpace($Assessment.reasoning) -or
+        $Assessment.evidence -isnot [string] -or [string]::IsNullOrWhiteSpace($Assessment.evidence)) { return $false }
+    $checked = [datetime]::MinValue
+    if ($Assessment.fix_unavailable_checked -isnot [string] -or
+        -not [datetime]::TryParseExact($Assessment.fix_unavailable_checked, "yyyy-MM-dd", [Globalization.CultureInfo]::InvariantCulture, [Globalization.DateTimeStyles]::None, [ref]$checked)) { return $false }
+    $ageDays = ([datetime]::UtcNow.Date - $checked.Date).Days
+    if ($ageDays -lt 0 -or $ageDays -gt 14) { return $false }
+    $url = $null
+    $evidence = $Assessment.fix_unavailable_evidence
+    if ($evidence -isnot [string]) { return $false }
+    # HTTPS scheme is case-insensitive, matching scan_gate's urlparse normalization.
+    $authority = [regex]::Match($evidence, '^(?i:https)://([^/?#]+)')
+    if (-not $authority.Success -or $authority.Groups[1].Value -match '\s' -or
+        -not [uri]::TryCreate($evidence, [UriKind]::Absolute, [ref]$url) -or $url.Scheme -cne "https" -or [string]::IsNullOrWhiteSpace($url.Host)) { return $false }
+    $versions = $Assessment.fix_unavailable_versions
+    if ($versions -isnot [System.Array] -or $versions.Count -eq 0 -or -not (Has-Property $Fix "versions") -or
+        $Fix.versions -isnot [System.Array] -or $versions.Count -ne $Fix.versions.Count) { return $false }
+    for ($i = 0; $i -lt $versions.Count; $i++) {
+        if ($versions[$i] -isnot [string] -or [string]::IsNullOrWhiteSpace($versions[$i]) -or
+            $Fix.versions[$i] -isnot [string] -or $versions[$i] -cne $Fix.versions[$i]) { return $false }
+    }
+    return $true
+}
+
 function Test-Vulnerabilities([string]$Dir, $Manifest, $Listed) {
     $assessmentName = "netops-" + $Manifest.version + "-vulnerability-assessments.json"
     $assessed = New-Object System.Collections.Hashtable ([StringComparer]::Ordinal)
     if ($Listed.ContainsKey($assessmentName)) {
         foreach ($item in (Read-Json (Join-Path $Dir $assessmentName))) {
             if ((Has-Property $item "exploitable") -and ($item.exploitable -is [bool]) -and (-not $item.exploitable) -and (Has-Property $item "reasoning") -and ($item.reasoning -is [string]) -and (-not [string]::IsNullOrWhiteSpace($item.reasoning)) -and (Has-Property $item "evidence") -and ($item.evidence -is [string]) -and (-not [string]::IsNullOrWhiteSpace($item.evidence))) {
-                $assessed[[string]::Join("|", @($item.id, $item.package, $item.version, $item.type))] = $true
+                $key = [string]::Join("|", @($item.id, $item.package, $item.version, $item.type))
+                if (-not $assessed.ContainsKey($key)) { $assessed[$key] = New-Object System.Collections.ArrayList }
+                [void]$assessed[$key].Add($item)
             }
         }
     }
@@ -343,6 +380,7 @@ function Test-Vulnerabilities([string]$Dir, $Manifest, $Listed) {
         }
         $fixable = New-Object System.Collections.ArrayList
         $missing = New-Object System.Collections.ArrayList
+        $exceptions = New-Object System.Collections.ArrayList
         $count = 0
         $malformed = $false
         foreach ($match in $scan.matches) {
@@ -350,13 +388,25 @@ function Test-Vulnerabilities([string]$Dir, $Manifest, $Listed) {
             if ($KnownSeverities -cnotcontains $severity -or -not $match.vulnerability.id -or -not $match.artifact.name -or -not $match.artifact.version -or -not $match.artifact.type) { $malformed = $true; break }
             $count++
             $key = [string]::Join("|", @($match.vulnerability.id, $match.artifact.name, $match.artifact.version, $match.artifact.type))
-            if ($BlockingSeverities -ccontains $severity -and $match.vulnerability.fix.state -ceq "fixed") { if (-not $fixable.Contains($key)) { [void]$fixable.Add($key) }; continue }
+            if ($BlockingSeverities -ccontains $severity -and $match.vulnerability.fix.state -ceq "fixed") {
+                $exception = $null
+                if ($assessed.ContainsKey($key)) {
+                    foreach ($assessment in $assessed[$key]) {
+                        if (Test-UnavailableFix $assessment $match) { $exception = $assessment; break }
+                    }
+                }
+                if ($null -eq $exception) {
+                    if (-not $fixable.Contains($key)) { [void]$fixable.Add($key) }; continue
+                }
+                [void]$exceptions.Add(($exception.id + " " + $exception.package + "@" + $exception.version +
+                    " fix_unavailable_checked=" + $exception.fix_unavailable_checked + " " + $exception.fix_unavailable_evidence))
+            }
             if (-not $assessed.ContainsKey($key) -and -not $missing.Contains($key)) { [void]$missing.Add($key) }
         }
         if ($malformed) { Add-Row ("vulnerabilities " + $arch) "FAIL" "raw scan has a finding with unknown severity or missing id, package, version or type" }
         elseif ($fixable.Count -gt 0) { Add-Row ("vulnerabilities " + $arch) "FAIL" ("fixable High/Critical: " + ($fixable -join ", ")) }
         elseif ($missing.Count -gt 0) { Add-Row ("vulnerabilities " + $arch) "FAIL" ("not assessed for this exact package version: " + ($missing -join ", ")) }
-        else { Add-Row ("vulnerabilities " + $arch) "PASS" ([string]$count + " findings in the raw scan of " + $platform.digest + " (database " + $built + "), each with a non-exploitability assessment for its exact version") }
+        else { Add-Row ("vulnerabilities " + $arch) "PASS" ([string]$count + " findings in the raw scan of " + $platform.digest + " (database " + $built + "), each with a non-exploitability assessment for its exact version; fix not yet released exceptions: " + $exceptions.Count + $(if ($exceptions.Count -gt 0) { "; " + ($exceptions -join "; ") })) }
     }
 }
 

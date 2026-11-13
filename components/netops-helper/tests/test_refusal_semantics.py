@@ -106,11 +106,12 @@ def test_lldp_data_rows_survive_refusal_lines_in_all_table_entrypoints(monkeypat
 @pytest.mark.parametrize('profile,notice,state', REFUSALS)
 @pytest.mark.parametrize('rc', [0, 1, 250])
 def test_real_refusal_shapes_return_no_rows(monkeypatch, profile, notice, state, rc):
-    if profile in {'linux', 'ruckus_unleashed'}:
-        # These profiles have no table parser; the raw output classifier remains covered.
+    if profile == 'ruckus_unleashed':
+        # This profile has no table parser; the raw output classifier remains covered.
         assert not tables.parse(profile, 'lldp_neighbor', 'fixture', notice)['records']
         return
-    query = tables.BINDINGS.get(profile, {}).get('lldp_neighbor', 'system_performance')
+    table = 'interface' if profile == 'linux' else 'lldp_neighbor'
+    query = tables.BINDINGS.get(profile, {}).get(table, 'system_performance')
     target = _target(profile, query)
     if profile in {'fortinet', 'fortiadc'}:
         identity = FORTIOS_STATUS if profile == 'fortinet' else FORTIADC_STATUS
@@ -122,7 +123,7 @@ def test_real_refusal_shapes_return_no_rows(monkeypatch, profile, notice, state,
     monkeypatch.setattr(engine, '_ssh_read_state', lambda *a: (profile, 'read table', {}))
     monkeypatch.setattr(engine, 'read_from_device', lambda auth, platform, command:
                         (0, identity) if command == identity_command else (rc, 'heading\n' + notice + '\nremaining output'))
-    result = engine.normalized_query(target, profile, query, 'lldp_neighbor')
+    result = engine.normalized_query(target, profile, query, table)
     expected = state
     if state == 'permission_denied' and profile in {'fortinet', 'fortiadc'} and rc != 0:
         expected = 'transport_error'  # retain the historical rc priority

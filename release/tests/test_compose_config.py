@@ -51,6 +51,14 @@ class ComposeStateIdentity(unittest.TestCase):
         self.assertNotEqual(first["volumes"]["netops-state"]["name"],
                             second["volumes"]["netops-state"]["name"])
 
+    def test_cpu_default_and_single_cpu_host_override(self):
+        default = self.resolve(self.base / "default-cpus")
+        self.assertEqual(float(default["services"]["netops"]["cpus"]), 2)
+        single = self.resolve(self.base / "single-cpu", env={**self.env, "NETOPS_CPUS": "1"})
+        self.assertEqual(float(single["services"]["netops"]["cpus"]), 1)
+        example = (ROOT / "env.example").read_text()
+        self.assertIn("# NETOPS_CPUS=1", example)
+
     def test_no_implicit_bind_address(self):
         env = dict(self.env)
         del env["NETOPS_BIND_IP"]

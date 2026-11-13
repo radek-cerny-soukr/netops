@@ -338,6 +338,25 @@ class RedactionFloor106(unittest.TestCase):
                 self.assertEqual(OLD_REDACT(redact(value)[0])[0], OLD_REDACT(value)[0])
                 self.assertNotIn("CANARY", redact(value)[0])
 
+    def test_unset_password_floor_through_helper_proxy_and_worker(self):
+        # A real FortiADC export contains the value-less command followed by
+        # another unset. Keep that public syntax through the complete chain.
+        export = (FIXTURES / "fortiadc_7_6_7_full_export.conf").read_text()
+        start = export.index("    unset password\n")
+        captured = "\n".join(export[start:].splitlines()[:3]) + "\n"
+        auth = SimpleNamespace(redaction_secrets=())
+        for raw in (captured, "    unset password\n    next\n", "    unset passwd\nend\n"):
+            with self.subTest(raw=raw):
+                helper = engine._redact_output(raw, auth)
+                self.assertEqual(helper, raw)
+                for _, document in representations(helper):
+                    self.assertEqual(new_chain(document, True), document)
+        for raw in ("unset password CNRY0000001Q\n", "unset passwd CNRY0000001Q\n"):
+            helper = engine._redact_output(raw, auth)
+            for _, document in representations(helper):
+                with self.subTest(raw=raw, document=document):
+                    self.assertNotIn("CNRY0000001Q", shown(new_chain(document, True)))
+
     def test_the_unset_exception_is_only_for_the_standalone_word(self):
         for value in ("sunset password\nCANARY\n", "xunset passwd\rCANARY\n", "unUNSET password\nCANARY\n",
                       "sunset password\r\nCANARY\n", "xunset password\x0bCANARY\n", "sunset passwd\x0cCANARY\n",

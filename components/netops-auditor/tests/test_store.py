@@ -1204,3 +1204,124 @@ def test_migration_needs_a_store_that_holds_the_schema(tmp_path):
     empty.touch()
     with pytest.raises(StoreError, match="holds no audit schema"):
         migrate(empty)
+
+
+@pytest.mark.parametrize("name", ["runs", "findings", "baseline", "channel_events", "rule_status", "findings_run_id"])
+@pytest.mark.parametrize("mode", ["open", "readonly", "migrate"])
+def test_schema_rejects_wrong_object_type_without_changing_data(tmp_path, name, mode):
+    path = tmp_path / "audit.db"
+    with Store(path) as store:
+        record(store, (make_finding(),))
+    con = sqlite3.connect(path)
+    if name == "findings_run_id":
+        con.execute("DROP INDEX findings_run_id")
+    else:
+        con.execute("ALTER TABLE %s RENAME TO saved_%s" % (name, name))
+    con.execute("CREATE VIEW %s AS SELECT 1 AS harmless" % name)
+    if mode == "migrate":
+        con.execute("PRAGMA user_version = 1")
+    con.commit()
+    before = tuple(con.iterdump())
+    con.close()
+    with pytest.raises((StoreError, sqlite3.DatabaseError), match=rf"{name}.*expected.*(table|index).*(view)"):
+        if mode == "open":
+            Store(path).close()
+        elif mode == "migrate":
+            migrate(path)
+        else:
+            with sqlite3.connect(path.as_uri() + "?mode=ro", uri=True) as ro:
+                schema_version(ro)
+    con = sqlite3.connect(path)
+    assert tuple(con.iterdump()) == before
+    con.close()
+
+
+def test_readonly_refuses_missing_object_and_open_restores_missing_index(tmp_path):
+    path = tmp_path / "audit.db"
+    with Store(path) as store:
+        run_id = record(store, (make_finding(),))
+    with sqlite3.connect(path) as con:
+        con.execute("DROP INDEX findings_run_id")
+    with sqlite3.connect(path.as_uri() + "?mode=ro", uri=True) as ro:
+        with pytest.raises((StoreError, sqlite3.DatabaseError), match="findings_run_id.*missing.*open writable.*auditor run/import-snapshot"):
+            schema_version(ro)
+    with Store(path) as store:
+        assert store.last_run(TENANT, DEVICE)["id"] == run_id
+        assert schema_version(store._connection) == SCHEMA_VERSION
+
+
+@pytest.mark.parametrize("name", ["runs", "findings", "baseline", "channel_events", "rule_status"])
+def test_readonly_server_opens_valid_store_and_reports_wrong_object(tmp_path, name):
+    from netops_auditor.mcp_server import ConfigurationError, ReadOnlyStore
+
+    path = tmp_path / "audit.db"
+    with Store(path) as store:
+        run_id = record(store, (make_finding(),))
+    with ReadOnlyStore(path) as store:
+        assert store.last_run(TENANT, DEVICE)["id"] == run_id
+    with sqlite3.connect(path) as con:
+        con.execute("ALTER TABLE %s RENAME TO saved_%s" % (name, name))
+        con.execute("CREATE VIEW %s AS SELECT 1 AS harmless" % name)
+    before = path.read_bytes()
+    with pytest.raises(ConfigurationError, match=rf"{name}.*expected table.*view"):
+        ReadOnlyStore(path)
+    assert path.read_bytes() == before
+
+
+def test_migration_of_incomplete_version_one_store(tmp_path):
+    path = version_one_store(tmp_path)
+    with sqlite3.connect(path) as con:
+        con.execute("DROP TABLE rule_status")
+        con.execute("DROP TABLE channel_events")
+        con.execute("DROP INDEX baseline_tenant_device_fingerprint")
+        con.execute("PRAGMA user_version = 1")
+    assert migrate(path) == {"findings": 4, "baseline": 4}
+    with Store(path) as store:
+        for tenant in (TENANT, OTHER_TENANT):
+            run = store.last_run(tenant, DEVICE)
+            findings = store.findings_for_run(tenant, run["id"])
+            assert len(findings) == 2
+            assert store.baseline_fingerprints(tenant, DEVICE) == frozenset(item["fingerprint"] for item in findings)
+        assert schema_version(store._connection) == SCHEMA_VERSION
+
+
+def test_readonly_missing_object_offers_writable_repair(tmp_path):
+    from netops_auditor.mcp_server import ConfigurationError, ReadOnlyStore
+
+    path = tmp_path / "audit.db"
+    with Store(path):
+        pass
+    with sqlite3.connect(path) as con:
+        con.execute("DROP TABLE rule_status")
+    before = path.read_bytes()
+    with pytest.raises(ConfigurationError, match="rule_status.*missing.*open writable.*auditor run/import-snapshot"):
+        ReadOnlyStore(path)
+    assert path.read_bytes() == before
+
+
+# Frozen SCHEMA from store.py in v1.0.6 (0b2ea90e) and v1.0.7 (d803ddea).
+LEGACY_SCHEMA = ('CREATE TABLE IF NOT EXISTS runs (\n        id INTEGER PRIMARY KEY,\n        tenant TEXT NOT NULL,\n        device TEXT NOT NULL,\n        started_at TEXT NOT NULL,\n        snapshot_sha256 TEXT NOT NULL,\n        snapshot_source TEXT NOT NULL,\n        rules_version TEXT NOT NULL\n    )', 'CREATE TABLE IF NOT EXISTS findings (\n        id INTEGER PRIMARY KEY,\n        run_id INTEGER NOT NULL REFERENCES runs(id),\n        fingerprint TEXT NOT NULL,\n        rule_id TEXT NOT NULL,\n        rule_version INTEGER NOT NULL,\n        device TEXT NOT NULL,\n        object_key TEXT NOT NULL,\n        severity TEXT NOT NULL,\n        "class" TEXT NOT NULL,\n        section TEXT NOT NULL,\n        line INTEGER NOT NULL,\n        evidence TEXT NOT NULL\n    )', 'CREATE INDEX IF NOT EXISTS findings_run_id ON findings(run_id)', 'CREATE INDEX IF NOT EXISTS findings_fingerprint ON findings(fingerprint)', 'CREATE TABLE IF NOT EXISTS baseline (\n        id INTEGER PRIMARY KEY,\n        tenant TEXT NOT NULL,\n        device TEXT NOT NULL,\n        fingerprint TEXT NOT NULL,\n        rule_id TEXT NOT NULL,\n        object_key TEXT NOT NULL,\n        accepted_at TEXT NOT NULL,\n        accepted_by TEXT NOT NULL,\n        note TEXT NOT NULL,\n        run_id INTEGER NOT NULL REFERENCES runs(id)\n    )', 'CREATE UNIQUE INDEX IF NOT EXISTS baseline_tenant_device_fingerprint ON baseline(tenant, device, fingerprint)', 'CREATE INDEX IF NOT EXISTS baseline_tenant_device ON baseline(tenant, device)', 'CREATE TABLE IF NOT EXISTS channel_events (\n        id INTEGER PRIMARY KEY,\n        tenant TEXT NOT NULL,\n        device TEXT NOT NULL,\n        run_id INTEGER REFERENCES runs(id),\n        channel TEXT NOT NULL,\n        request TEXT NOT NULL,\n        response_sha256 TEXT NOT NULL,\n        response_bytes INTEGER NOT NULL,\n        started_at TEXT NOT NULL,\n        finished_at TEXT NOT NULL,\n        outcome TEXT NOT NULL\n    )', 'CREATE INDEX IF NOT EXISTS channel_events_tenant_device ON channel_events(tenant, device)', 'CREATE INDEX IF NOT EXISTS channel_events_run_id ON channel_events(run_id)', 'CREATE TABLE IF NOT EXISTS rule_status (\n        run_id INTEGER NOT NULL REFERENCES runs(id),\n        rule_id TEXT NOT NULL,\n        status TEXT NOT NULL,\n        reason TEXT NOT NULL,\n        required INTEGER NOT NULL,\n        PRIMARY KEY (run_id, rule_id)\n    )')
+
+
+def test_nonempty_v106_v107_store_is_compatible(tmp_path):
+    from netops_auditor.mcp_server import ReadOnlyStore
+
+    path = tmp_path / "legacy.db"
+    with sqlite3.connect(path) as con:
+        for statement in LEGACY_SCHEMA:
+            con.execute(statement)
+        con.execute("PRAGMA user_version = 2")
+        con.execute("INSERT INTO runs VALUES (?, ?, ?, ?, ?, ?, ?)",
+                    (1, TENANT, DEVICE, "2026-09-12T05:00:00Z", SNAPSHOT, SOURCE, RULES_VERSION))
+        con.execute(INSERT_FINDING, (1, fingerprint_of("L1-001", 1, TENANT, DEVICE, "firewall policy/1"),
+                    "L1-001", 1, DEVICE, "firewall policy/1", "high", "fakt", "firewall policy", 12, "[]"))
+    with sqlite3.connect(path) as con:
+        before = tuple(con.iterdump())
+    with Store(path) as store:
+        assert store.last_run(TENANT, DEVICE)["id"] == 1
+        assert len(store.findings_for_run(TENANT, 1)) == 1
+    with ReadOnlyStore(path) as store:
+        assert store.last_run(TENANT, DEVICE)["id"] == 1
+        assert len(store.findings_for_run(TENANT, 1)) == 1
+    with sqlite3.connect(path) as con:
+        assert tuple(con.iterdump()) == before

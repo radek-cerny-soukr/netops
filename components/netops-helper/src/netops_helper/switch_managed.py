@@ -97,20 +97,19 @@ def routes(table, text, *, lookup=False):
     rows, unknown, prefix, protocol = [], [], None, None
     codes = {'K': 'kernel', 'C': 'connected', 'S': 'static', 'R': 'rip', 'B': 'bgp',
              'O': 'ospf', 'i': 'isis', 'V': 'bgp', 'E': 'bgp', 'L': 'leaked', 'D': 'leaked'}
-    headings = (r'Codes: K - kernel, C - connected, S - static, R - RIP, B - BGP',
-                r'O - OSPF, IA - OSPF inter area',
-                r'N1 - OSPF NSSA external type 1, N2 - OSPF NSSA external type 2',
-                r'E1 - OSPF external type 1, E2 - OSPF external type 2',
-                r'i - IS-IS, L1 - IS-IS level-1, L2 - IS-IS level-2, ia - IS-IS inter area',
-                r'V - BGP VPNv4, E - BGP EVPN, L - Leaked, D - Directly leaked', r'\* - candidate default',
-                r'Routing table for VRF=\S+')
+    headings = (r'Routing table for VRF=\S+',)
+    # FortiOS versions wrap and extend the code legend differently. Match
+    # comma-separated code/description items instead of whole fixed lines.
+    legend_item = r'(?:[A-Za-z][A-Za-z0-9]*|\*) - [A-Za-z][A-Za-z0-9 /-]*'
     for number, raw in numbered:
         value = raw.strip()
         vrf_heading = re.fullmatch(r'Routing table for VRF=(\S+)', value)
         if vrf_heading:
             vrf = vrf_heading[1].split('(')[0]
             vrf = 'default' if vrf == '0' else vrf
-        if not value or any(re.fullmatch(h, value) for h in headings):
+        legend = value.removeprefix('Codes: ')
+        if (not value or any(re.fullmatch(h, value) for h in headings)
+                or all(re.fullmatch(legend_item, item.strip()) for item in legend.split(','))):
             continue
         head = re.fullmatch(r'([KCSRBOVELDi](?:\*| [A-Za-z0-9]+)?)\s+(\d+(?:\.\d+){3}/\d+)\s+(.+)', value)
         if head:
@@ -127,10 +126,14 @@ def routes(table, text, *, lookup=False):
             continue
         connected = re.fullmatch(r'is directly connected, ([^,\s]+)(?:, .*)?', rest)
         hop = re.fullmatch(r'\[\d+/\d+\] via (\d+(?:\.\d+){3}), ([^,\s]+)(?:, .*)?', rest)
+        recursive = re.fullmatch(r'\[\d+/\d+\] via (\d+(?:\.\d+){3}) '
+                                 r'\(recursive is directly connected, ([^,\s()]+)\)(?:, .*)?', rest)
+        summary = re.fullmatch(r'\[\d+/\d+\] is a summary, (Null|blackhole)(?:, .*)?', rest)
         tunnel = re.fullmatch(r'\[\d+/\d+\] via ([^,\s]+) tunnel (\d+(?:\.\d+){3})(?:, .*)?', rest)
         try:
-            gateway = str(ipaddress.IPv4Address(hop[1] if hop else tunnel[2])) if hop or tunnel else None
-            interface = connected[1] if connected else hop[2] if hop else tunnel[1] if tunnel else None
+            gateway = str(ipaddress.IPv4Address(hop[1] if hop else recursive[1] if recursive else tunnel[2])) if hop or recursive or tunnel else None
+            interface = (connected[1] if connected else hop[2] if hop else recursive[2] if recursive
+                         else summary[1] if summary else tunnel[1] if tunnel else None)
             if prefix is None or interface is None:
                 raise ValueError()
         except ValueError:

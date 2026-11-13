@@ -5,6 +5,7 @@ from pathlib import Path
 from netops_helper import engine, endpoint_worker, proxy as p
 import test_proxy_contracts as c
 from conftest import KNOWN_HOSTS_LINE
+from support.virtual_clock import Clock, install, worker_source
 
 
 def device(alias, profile, queries, **inventory):
@@ -28,12 +29,9 @@ def configure(tmp_path, monkeypatch, devices, outputs, *, virtual=False, late=Fa
     from netops_helper import audit as audit_module
     from netops_core.audit import Recorder
     monkeypatch.setattr(audit_module, '_RECORDER', Recorder(audit, 'helper'))
+    clock = Clock(clock_start, tmp_path / 'virtual-clock') if virtual else None
     if virtual:
-        # The request deadline and child Budget must use the same clock domain.
-        # Replace only this module's clock, never the process-wide time module:
-        # selectors still provide the real subprocess watchdog.
-        from types import SimpleNamespace
-        monkeypatch.setattr(endpoint_worker, 'time', SimpleNamespace(monotonic=lambda: clock_start))
+        install(monkeypatch, clock)
     code = '''
 import json, threading, time
 from pathlib import Path
@@ -42,18 +40,16 @@ from netops_helper import engine, locate
 outputs, wire = %r, %r
 engine.host_key_line = lambda *args: %r
 engine._lane_directory = lambda: Path(%r)
-clock = [%r]
+clock_bootstrap = %r
 capture_seconds = %r
 clock_trace = Path(wire).with_suffix(".clock.jsonl")
 if %r:
-    engine._now = lambda: clock[0]
+    exec(clock_bootstrap)
     def pause(seconds):
         with clock_trace.open('a') as handle:
-            handle.write(json.dumps({'started': clock[0], 'seconds': seconds}) + '\\n')
-        clock[0] += seconds
+            handle.write(json.dumps({'started': clock(), 'seconds': seconds}) + '\\n')
+        clock.advance(seconds)
     engine._sleep = pause
-    original_budget = locate.Budget
-    locate.Budget = lambda: original_budget(lambda: clock[0])
 mac_seen = threading.Event()
 correlated = threading.Event()
 if %r:
@@ -72,7 +68,8 @@ def transport(address, port, login, credential, hostkey, command, **kwargs):
     started = engine._now()
     text = outputs[address][command]
     spent = min(capture_seconds, engine._read_timeout(capture_seconds)) if %r else 0
-    clock[0] += spent
+    if %r:
+        clock.advance(spent)
     with open(wire, 'a') as handle:
         handle.write(json.dumps({'host': address, 'command': command, 'started': started, 'capture_seconds': spent}) + '\\n')
     if command == 'show mac address-table':
@@ -84,7 +81,7 @@ def transport(address, port, login, credential, hostkey, command, **kwargs):
     return SimpleNamespace(rc=0, stdout=text.encode())
 engine.core_ssh.run_command = transport
 ''' % ({item['address']: outputs[item['name']] for item in devices}, str(wire), KNOWN_HOSTS_LINE,
-       str(tmp_path / 'lanes'), clock_start, capture_seconds, virtual, late, late, virtual, virtual)
+       str(tmp_path / 'lanes'), worker_source(clock) if virtual else '', capture_seconds, virtual, late, late, virtual, virtual, virtual)
     bootstrap = endpoint_worker.command()
     roots = bootstrap[-1].split('; from netops_helper.endpoint_worker import main; main()')[0]
     monkeypatch.setattr(endpoint_worker, 'command', lambda: bootstrap[:-1] + [

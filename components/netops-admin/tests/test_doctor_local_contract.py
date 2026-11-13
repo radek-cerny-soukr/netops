@@ -136,3 +136,27 @@ class DoctorIntegrationTest(unittest.TestCase):
                     self.assertFalse(result['ready'])
                     self.assertEqual(result['operations'], {})
                     self.assertIn('journal and audit log writable', [c['check'] for c in result['checks']])
+
+    def test_journal_is_read_once_per_doctor_and_rechecked_next_time(self):
+        import tempfile
+        from pathlib import Path
+        from fake_fortios import FakeFortiOS
+        from test_execute import make_runtime
+
+        with tempfile.TemporaryDirectory() as directory:
+            runtime = make_runtime(Path(directory), FakeFortiOS())
+            runtime.store.save({'change_id': 'a' * 32, 'request_id': 'req-running-1', 'device': 'lab',
+                                'status': 'running', 'created_at_epoch': 1.0})
+            runtime.access_factory = lambda device: self.fail('remote access')
+            with patch.object(runtime.store, '_operation', wraps=runtime.store._operation) as read:
+                report = readiness.doctor(runtime, 'lab', local=True)
+                self.assertEqual(read.call_count, 1)
+            checks = {item['check']: item for item in report['checks']}
+            self.assertEqual(checks['device state']['reason_codes'], ['operation_unfinished'])
+            self.assertEqual(checks['budgets']['status'], readiness.OK)
+            (runtime.store.operations / ('a' * 32 + '.json')).write_text('{broken')
+            report = readiness.doctor(runtime, 'lab', local=True)
+            checks = {item['check']: item for item in report['checks']}
+            for name in ('device state', 'budgets'):
+                self.assertEqual(checks[name]['status'], readiness.REFUSED)
+                self.assertEqual(checks[name]['reason_codes'], ['state_unreadable'])

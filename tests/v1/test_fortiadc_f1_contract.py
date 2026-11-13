@@ -380,8 +380,11 @@ class FortiAdcF1Wire(unittest.TestCase):
         self.assertEqual(second["pagination_source"], "cached")
 
     def test_f1_wire_other_platforms_are_not_probed(self):
-        result = self.read("linux", "hostname", {"hostname": (0, "host\n")})
-        self.assertEqual(self.reads, [("linux", "hostname")])
+        result = self.read("linux", "hostname", {
+            "uname -a": (0, "Linux host 6.8.0-generic #1 SMP x86_64 GNU/Linux\n"),
+            "hostname": (0, "host\n"),
+        })
+        self.assertEqual(self.reads, [("linux", "uname -a"), ("linux", "hostname")])
         self.assertTrue(result["ok"])
 
     def test_f1_wire_refusal_is_audited_failed_and_never_cached(self):

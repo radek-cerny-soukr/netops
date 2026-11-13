@@ -24,7 +24,7 @@ class SelftestManifestContract(unittest.IsolatedAsyncioTestCase):
         with contextlib.redirect_stdout(output):
             self.assertEqual(await cli.selftest(), 0)
         value = json.loads(output.getvalue())
-        self.assertEqual(value["version"], "1.0.7")
+        self.assertEqual(value["version"], "1.0.8")
         roles = value["roles"]
         self.assertEqual(set(roles), {"helper", "auditor", "admin"})
         self.assertEqual(set(roles["helper"]["names"]), HELPER_TOOLS)

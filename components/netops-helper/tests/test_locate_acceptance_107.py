@@ -56,12 +56,7 @@ SERIALS = ('S000SSSS00000001', 'S000SSSS00000002')
 AP_IP, AP_MAC, SWITCH2_MAC = '203.0.113.250', '00:00:5e:00:53:02', '00:00:5e:00:53:08'
 
 
-class Clock:
-    def __init__(self, start=0.0):
-        self.value = start
-
-    def __call__(self):
-        return self.value
+from support.virtual_clock import Clock, install
 
 
 def lab_outputs(name):
@@ -75,12 +70,11 @@ def lab_outputs(name):
     return result
 
 
-@pytest.fixture
-def lab(monkeypatch):
+@pytest.fixture(params=[0.0, 10_000_000.0])
+def lab(monkeypatch, request):
     monkeypatch.setattr(engine, 'record', lambda *a, **kw: None)
-    clock = Clock()
-    original = locate.Budget
-    monkeypatch.setattr(locate, 'Budget', lambda: original(clock))
+    clock = Clock(request.param)
+    install(monkeypatch, clock)
     outputs = {name: lab_outputs(name) for name in SEVEN}
     calls, unknown = [], []
 
@@ -128,7 +122,7 @@ def test_an_svi_address_of_any_enrolled_profile_is_its_own_interface(lab, alias,
     # IOS lists its own addresses, any other cache that holds the IP learned it from the wire.
     assert sorted(address_reads(calls)) == sorted(others)
     assert r['reads'] == len(calls) < locate.MAX_READS
-    assert clock.value < locate.MAX_SECONDS
+    assert clock.value - clock.start < locate.MAX_SECONDS
 
 
 def test_the_vjunos_mac_is_its_own_interface_through_the_arp_caches(lab):
@@ -142,7 +136,7 @@ def test_the_vjunos_mac_is_its_own_interface_through_the_arp_caches(lab):
     assert all(f['role'] == 'transit' for f in r['findings'])
     assert not any(m['reason'] == 'edge_beyond_enrolled_targets' for m in r['missing'])
     assert address_reads(calls) == ['vjunos']             # EXOS-VM holds the MAC in ARP for VLAN 20
-    assert r['reads'] == len(calls) < locate.MAX_READS and clock.value < locate.MAX_SECONDS
+    assert r['reads'] == len(calls) < locate.MAX_READS and clock.value - clock.start < locate.MAX_SECONDS
 
 
 @pytest.mark.parametrize('alias,ip,interface', [('iosv', '192.0.2.1', 'GigabitEthernet0/1.10'),
@@ -154,7 +148,7 @@ def test_ios_ownership_still_comes_from_arp_without_address_reads(lab, alias, ip
     assert r['verdict'] == 'own_interface_of_target'
     assert [(o['target'], o['interface'], o['source']) for o in r['own_interfaces']] == [(alias, interface, 'neighbor_l3')]
     assert address_reads(calls) == []
-    assert clock.value < locate.MAX_SECONDS
+    assert clock.value - clock.start < locate.MAX_SECONDS
 
 
 def test_an_unknown_address_stays_incomplete_after_the_owner_check(lab):
@@ -193,12 +187,11 @@ def forti_outputs():
     return result
 
 
-@pytest.fixture
-def kufr(monkeypatch):
+@pytest.fixture(params=[0.0, 10_000_000.0])
+def kufr(monkeypatch, request):
     monkeypatch.setattr(engine, 'record', lambda *a, **kw: None)
-    clock = Clock()
-    original = locate.Budget
-    monkeypatch.setattr(locate, 'Budget', lambda: original(clock))
+    clock = Clock(request.param)
+    install(monkeypatch, clock)
     outputs = forti_outputs()
     calls = []
 
@@ -216,7 +209,7 @@ def kufr(monkeypatch):
 
 def seconds(clock):
     """What a client measures: worker start plus the reads."""
-    return 4.5 + clock.value
+    return 4.5 + clock.value - clock.start
 
 
 def test_the_fortiap_is_located_behind_its_port_in_eight_reads(kufr):

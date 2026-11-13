@@ -3,7 +3,7 @@ name: CI
 on:
   push:
     branches-ignore:
-      - "release/1.0.7-candidate"
+      - "release/1.0.8-candidate"
     tags:
       - "**"
   pull_request:
@@ -14,7 +14,7 @@ permissions:
 jobs:
   tests:
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    timeout-minutes: 75
     steps:
       - name: Check out source
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -33,26 +33,65 @@ jobs:
         run: 'python3 -m pip install --only-binary=:all: --require-hashes -r release/requirements-sbom.lock'
 
       - name: Run the repository tests
-        run: python3 -B -m unittest discover -s tests
+        run: |
+          set -euo pipefail
+          mkdir -p test-logs
+          python3 -B -m unittest discover -s tests -v 2>&1 | tee test-logs/root.log
 
       - name: Test the release and acceptance tooling
         env:
           NETOPS_SIGN_TEST_WORKERS: "2"
         run: |
           set -euo pipefail
+          mkdir -p test-logs
+          {
           for test in release/tests/test_*.py release/acceptance/tests/test_*.py release/sign/tests/test_*.py; do
             python -B "$test"
           done
+          } 2>&1 | tee test-logs/release.log
 
       - name: Build the native product image from locked dependencies
         run: |
           set -euo pipefail
-          docker build --pull --build-arg SOURCE_DATE_EPOCH="$(git log -1 --format=%ct)" --iidfile "$RUNNER_TEMP/netops-ci-unit.iid" .
+          docker build --pull --build-arg SOURCE_DATE_EPOCH="$(git log -1 --format=%ct)" --iidfile "$RUNNER_TEMP/netops-ci-unit.iid" -t "netops-ci-product:$GITHUB_SHA" .
+          test "$(docker image inspect -f '{{.Id}}' "netops-ci-product:$GITHUB_SHA")" = "$(cat "$RUNNER_TEMP/netops-ci-unit.iid")"
 
       - name: Run the installed product unit tests
         run: |
           set -euo pipefail
           ref="$(cat "$RUNNER_TEMP/netops-ci-unit.iid")"
           [[ "$ref" =~ ^sha256:[0-9a-f]{64}$ ]]
+          mkdir -p test-logs
+          docker run --rm --network none --read-only --cap-drop ALL --security-opt no-new-privileges --user 51000:51000 "$ref" selftest 2>&1 | tee test-logs/selftest.log
           docker run --rm --network none --read-only --tmpfs /tmp:rw,nosuid,nodev,noexec,size=64m --cap-drop ALL \
-            --security-opt no-new-privileges --user 51000:51000 --entrypoint python "$ref" -B -m unittest discover -s /opt/netops/tests -v
+            --security-opt no-new-privileges --user 51000:51000 --entrypoint python "$ref" -B -m unittest discover -s /opt/netops/tests -v 2>&1 | tee test-logs/unit.log
+
+      - name: Run all four installed engine suites
+        run: |
+          set -euo pipefail
+          ref="$(cat "$RUNNER_TEMP/netops-ci-unit.iid")"
+          product="netops-ci-product:$GITHUB_SHA"
+          test "$(docker image inspect -f '{{.Id}}' "$product")" = "$ref"
+          docker build --build-arg NETOPS_TEST_IMAGE="$product" -f release/engine-regression.Dockerfile -t netops-ci-engine-tests .
+          status=0
+          for role in core helper auditor admin; do
+            mkdir -p "qualification/$role"
+            chmod 0777 "qualification/$role"
+            docker run --rm --network none --read-only --cap-drop ALL --security-opt no-new-privileges --memory 2g --cpus 2 \
+              --tmpfs /tmp:rw,nosuid,nodev,exec,size=512m,mode=1777 --tmpfs /pytmp:rw,nosuid,nodev,exec,size=512m,mode=1777 \
+              --mount "type=bind,source=$PWD/qualification/$role,target=/reports" netops-ci-engine-tests \
+              --role "$role" --candidate-commit "$GITHUB_SHA" --candidate-image "$ref" --output /reports/engine-report.json \
+              2>&1 | tee "test-logs/engine-$role.log" || status=1
+          done
+          exit "$status"
+
+      - name: Keep complete test logs and engine reports
+        if: ${{ always() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ci-test-logs
+          path: |
+            test-logs/
+            qualification/
+          if-no-files-found: warn
+          retention-days: 30

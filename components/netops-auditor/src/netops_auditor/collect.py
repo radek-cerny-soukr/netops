@@ -3,8 +3,10 @@ from __future__ import annotations
 import hashlib
 import http.client
 import io
+import re
 import ssl
 import time
+import types
 from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
 
@@ -291,6 +293,8 @@ class _RestConnection:
         self._bound_receive(deadline)
         response = self._bounded(deadline, self._connection.getresponse)
         try:
+            if isinstance(response, http.client.HTTPResponse) and response.chunked:
+                response._read_next_chunk_size = types.MethodType(_read_chunk_size, response)
             if response.status != 200:
                 self._bounded(deadline, response.read, REST_ERROR_HEAD_BYTES)
                 return response.status, b""
@@ -348,6 +352,17 @@ def _open(host, port, timeout, pinned):
     connection = http.client.HTTPSConnection(host, port, timeout=timeout, context=context)
     connection.connect()
     return _RestConnection(connection, timeout)
+
+
+def _read_chunk_size(response):
+    line = response.fp.readline(http.client._MAXLINE + 1)
+    if len(line) > http.client._MAXLINE:
+        raise http.client.LineTooLong("chunk size")
+    size = line.removesuffix(b"\r\n").split(b";", 1)[0]
+    if not line.endswith(b"\r\n") or not re.fullmatch(b"[0-9A-Fa-f]+", size):
+        response._close_conn()
+        raise ValueError("invalid chunk size")
+    return int(size, 16)
 
 
 def _checked_framing(response) -> None:

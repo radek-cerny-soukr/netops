@@ -83,7 +83,7 @@ def test_fortios_lists_addressed_interfaces_with_the_configured_status():
     result = read('fortinet', 'fortinet/fortigate80f_8.0.2')
     rows = {row['interface']: row for row in result['records']}
     assert rows['wan1'] == {'interface': 'wan1', 'ip': '192.0.2.206', 'prefix_length': 24, 'vlan_id': None,
-                            'admin_status': 'up', 'oper_status': None, 'vrf': None}
+                            'admin_status': 'up', 'oper_status': None, 'vrf': None, 'mac': None, 'gateway': None}
     assert rows['fortilink']['prefix_length'] == 24 and 'internal1' not in rows and 'modem' not in rows     # 0.0.0.0: no address
     assert len(rows) == 15 and result['coverage']['missing_fields'] == ['oper_status']
 
@@ -100,15 +100,16 @@ def test_ios_router_interface_table_comes_from_ip_interface_brief():
     assert (rows['Serial2/0']['admin_status'], rows['Serial2/0']['oper_status']) == ('down', 'down')
 
 
-def test_interface_filter_is_validated_canonical_and_only_for_ip_interface():
+def test_interface_filter_is_validated_canonical_for_interface_tables():
     assert t.request('cisco_ios', 'ip_interface', interface='Gi0/1.10') == (
         'ip_interfaces', {}, {'interface': 'GigabitEthernet0/1.10'})
     assert t.request('extreme_exos', 'ip_interface', interface='V10')[2] == {'interface': 'V10'}
     for value in ('Gi0/1;reload', '', 'a b'):
         with pytest.raises(ValueError):
             t.request('cisco_ios', 'ip_interface', interface=value)
+    assert t.request('cisco_ios', 'interface', interface='Gi0/1')[2] == {'name': 'GigabitEthernet0/1'}
     with pytest.raises(ValueError):
-        t.request('cisco_ios', 'interface', interface='Gi0/1')
+        t.request('cisco_ios', 'vlan', interface='Gi0/1')
 
 
 def test_a_failed_second_read_is_reported_in_the_same_envelope():
@@ -141,7 +142,7 @@ def test_switch_read_joins_the_route_table_and_filters_by_interface(monkeypatch)
     result = engine.switch_read(auth, 'ip_interface', interface='Gi0/1.10')
     assert result['ok'] and result['status'] == 'ok'
     assert result['records'] == [{'interface': 'GigabitEthernet0/1.10', 'ip': '192.0.2.1', 'prefix_length': 24, 'vlan_id': None,
-                                  'admin_status': 'up', 'oper_status': 'up', 'vrf': None}]
+                                  'admin_status': 'up', 'oper_status': 'up', 'vrf': None, 'mac': None, 'gateway': None}]
     assert [command for command in calls if command != 'show version'] == ['show ip interface brief', 'show ip route']
 
 

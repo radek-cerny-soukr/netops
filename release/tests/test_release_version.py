@@ -22,8 +22,8 @@ class ReleaseVersion(unittest.TestCase):
 
     def test_signing_gate_requires_the_current_predecessor(self):
         tool = (ROOT / 'release/sign/netops-release-sign.ps1').read_text()
-        self.assertIn('$MinimumVersion = [version]"1.0.7"', tool)
-        self.assertIn('$UpgradeFromVersion = "1.0.6"', tool)
+        self.assertIn('$MinimumVersion = [version]"1.0.8"', tool)
+        self.assertIn('$UpgradeFromVersion = "1.0.7"', tool)
         image = re.search(r'(?m)^FROM_IMAGE=(.+)$', (ROOT / 'release/acceptance/release.env').read_text())[1]
         self.assertIn(f'$UpgradeFromImage = "{image}"', tool)
 
@@ -32,17 +32,17 @@ class ReleaseVersion(unittest.TestCase):
         spec = importlib.util.spec_from_file_location('release_verify_version', here / 'verify_state.py')
         verify = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(verify)
-        path = here / 'api-changes-1.0.6-1.0.7.json'
-        items, problems, info = verify.load_api_changes(path, {'FROM_VERSION': '1.0.6', 'TO_VERSION': '1.0.7'})
+        path = here / 'api-changes-1.0.7-1.0.8.json'
+        items, problems, info = verify.load_api_changes(path, {'FROM_VERSION': '1.0.7', 'TO_VERSION': '1.0.8'})
         self.assertEqual(problems, [])
-        self.assertEqual({i['tool'] for i in items if i['kind'] == 'added'},
-                         {'switch_read', 'locate_endpoint', 'triage_flow', 'wifi_clients', 'wifi_aps_live', 'wifi_rogue', 'wifi_triage'}
-                         | {'prompt:' + name for name in ('internet_or_vpn', 'everything_slow', 'fortiadc_backend_down',
-                                                          'tls_certificate_error', 'wifi_client_connectivity')})
-        self.assertTrue(any(i['tool'] == 'audit_status' and i['kind'] == 'response' for i in items))
+        # The runtime change declares no API change; the Helper adds the cdp_neighbor table value to the switch_read
+        # argument. Existing Linux catalogue commands and descriptions stay unchanged.
+        self.assertEqual(sorted((item['tool'], item['kind']) for item in items),
+                         [('switch_read', 'definition')])
+        self.assertEqual(info['file'], path.name)
         env = (here / 'release.env').read_text()
-        self.assertIn('TO_IMAGE=netops-candidate:1.0.7', env)
-        self.assertIn('FROM_IMAGE=ghcr.io/radek-cerny-soukr/netops@sha256:20085d06a43ea4f0a57053f2dd35ce69709b43bfefd9d2a3cd8b1783c1e435fe', env)
+        self.assertIn('TO_IMAGE=netops-candidate:1.0.8', env)
+        self.assertIn('FROM_IMAGE=ghcr.io/radek-cerny-soukr/netops@sha256:e04b19091819897e1bb4dec11416253b1dd598c18d5567325583b7e7e5fb8dfc', env)
 
 
 if __name__ == '__main__':

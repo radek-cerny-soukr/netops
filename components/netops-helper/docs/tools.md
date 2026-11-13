@@ -82,11 +82,13 @@ no target, credential or device connection and grants no query authorization.
 
 ## SSH read pages (`ssh_read`, `schema_read`)
 
-Every fresh `ssh_read` on FortiOS/FortiADC verifies the live product identity with `get system status`; confirmed identities are never cached. A query other than `system_status` therefore uses two SSH connections, with five-second spacing that protects the device (measured FortiOS latency: 8–10 s). `system_status` itself is the live probe.
+Every fresh `ssh_read` on FortiOS/FortiADC verifies the live product identity with `get system status`; confirmed identities are never cached. A query other than `system_status` uses separate identity and requested-query connections, with starts spaced by at least five seconds; latency depends on the target and queue. `system_status` itself is the live probe.
 
-The first call (`offset=0`, `content_sha256` omitted or `null`) reads the device once and returns one page with `total_bytes`, `returned_bytes`, `offset`, `next_offset` (`null` after the last page), `complete` and `content_sha256`. To read the next page repeat the same call with `offset=<next_offset>` and the `content_sha256` of the first page; it is served from the stored result, contacts no device and is not counted by the rate limit. The stored result lives 120 seconds in process memory and is dropped on restart or upgrade.
+For Linux targets, fresh `ssh_read` calls also verify identity with `uname -a` before the requested query (one extra SSH connection, except for the `kernel` query, whose `uname -a` is the probe itself). An invalid Linux identity is refused with `product_identity`; responses include `normalized` and `status`. The identity probe is not charged separately to the per-target rate limit: a fresh `ssh_read` costs one slot; cached continuation pages cost none. Identity validation requires a recognizable Linux `uname -a` line with a hostname and kernel version, not just a `Linux` prefix.
 
-FortiOS exec reads and the exec reads of the normalized EXOS, IOS/IOS XE, NX-OS, EOS and Junos profiles (`ssh_read`, `switch_read`, `locate_endpoint`) replace only known secret literals, longest first, before and after converting `\r\n` to `\n`; the literals include original, LF and carriage-return-free forms. This preserves configuration syntax for `schema_read`, which parses the result and redacts its structured values. `ssh_read`, triage, `switch_read` and `locate_endpoint` then apply the full redaction rules in their callers before hashing and paging. Full output redaction always includes original, LF and carriage-return-free forms of known secrets, protecting PTY, prompt and sequence reads too. Thus `content_sha256`, the byte counts and offsets describe the returned text. FortiADC, Linux and the other platforms keep the line ends the device prints. This compatible change only affects a result fetched after the upgrade (a stored snapshot lives 120 s and is not shared with an older Helper); a lone `\r` that is not followed by a line feed stays as the device printed it.
+The first call (`offset=0`, `content_sha256` omitted or `null`) fetches a fresh capture with the identity verification described above and returns one page with `total_bytes`, `returned_bytes`, `offset`, `next_offset` (`null` after the last page), `complete` and `content_sha256`. To read the next page repeat the same call with `offset=<next_offset>` and the `content_sha256` of the first page; it is served from the stored result, contacts no device and is not counted by the rate limit. The stored result lives 120 seconds in process memory and is dropped on restart or upgrade.
+
+FortiOS exec reads and the exec reads of the normalized EXOS, IOS/IOS XE, NX-OS, EOS, Junos and Linux profiles (`ssh_read`, `switch_read`, `locate_endpoint`) replace only known secret literals, longest first, before and after converting `\r\n` to `\n`; the literals include original, LF and carriage-return-free forms. This preserves configuration syntax for `schema_read`, which parses the result and redacts its structured values. `ssh_read`, triage, `switch_read` and `locate_endpoint` then apply the full redaction rules in their callers before hashing and paging. Full output redaction always includes original, LF and carriage-return-free forms of known secrets, protecting PTY, prompt and sequence reads too. Thus `content_sha256`, the byte counts and offsets describe the returned text. FortiADC exec reads do not use this CRLF conversion; PTY reads remove carriage returns. The change applies to newly fetched captures; snapshots are process-local and expire after 120 seconds. Canonical output cleanup also removes lone `\r` characters before hashing and delivery.
 
 A continuation (`offset` > 0) is refused before any device contact, as a tool error (`isError: true`, not a JSON-RPC `-32603`), with a structured result `{"ok": false, "error_code": ..., "error": ..., "restart_offset": 0}` (`schema_redaction_unverified` is the one refusal that omits `restart_offset`):
 
@@ -477,14 +479,18 @@ The result of each of these `ssh_read` calls carries the usual text and, beside 
 
 `wifi_triage(target, mac)`, `wifi_triage(target, ip)` or `wifi_triage(target, name=…)` follows one Wi-Fi client through the reads above and returns what the controller shows, the rules that fired and what no read-only path can show. Give exactly one selector: `mac` in lower-case `aa:bb:cc:dd:ee:ff` form or `ip` as a canonical IPv4 address, or an exact case-insensitive hostname `name`. An IP can be resolved through `arp_table` or a unique REST match; the canonical station MAC is sent as an exact REST history filter before the 200-row bound (SSH filters its returned batch locally). The target must use the `fortinet` platform with `system_status` enabled; `wifi_events` is optional; `arp_table` (for `ip`), `wifi_ap_status`, `wifi_vap_status`, `wifi_rf_analysis` and `wifi_neighbors` complete the chain, and a read that is not enabled or fails becomes a `missing` step (`permission_denied` and the other usual reasons). The first read is the device identity; any model or build other than FortiGate-80F 8.0.2 build 0251 is refused with `config_platform_not_supported`. The call reserves seven reads of the target's rate limit, plus eight when REST is enrolled (client/AP/identity once, two station-only snapshots, one station-filtered history GET and rogue/interfering GETs).
 
-Calls on one target are serialized: a Wi-Fi triage taking about 25–30 seconds
-blocks subsequent reads of that target until it completes; transport delays and
-three signal snapshots can extend this. Schedule other polling after triage.
+Requests in the shared Helper worker are serialized, so a Wi-Fi triage taking about
+25–30 seconds in the lab delays subsequent reads in that worker; device latency,
+queueing and signal sampling can extend it. Schedule other polling after triage.
 With REST enrollment and a resolved MAC, triage takes three client snapshots with
 starts about three seconds apart (slow reads can lengthen the gap), within its
 15-read reservation: seven possible CLI reads plus eight REST GETs (client/AP/identity once, station-only samples 2 and 3, one log GET and rogue/interfering GETs). Both views show `chain.signal_samples` with RSSI/SNR
 minimum, maximum and last value, actual fetch times, AP/radio context and gaps.
 The minimum triggers weak-signal/SNR heuristics even if the final read fails; a weak-signal fault requires minimum and final RSSI below the severe threshold, otherwise warning. Every sampling gap remains visible and the finding states whether the last RSSI is weak, recovered or unavailable. No sample from another MAC is included.
+
+A failed or empty last sample never erases the earlier ones, and never revives an old error. Its `chain.signal_samples.samples` entry has `status: unavailable` (REST read failed; the reason is in `error_code`) or `not_associated` (the station is not in the table), `rssi_dbm.last` and `snr_db.last` are null while `min`/`max` keep the earlier samples, and `missing` gains `client_rssi` with `rest_unavailable` (or `not_listed`). Current RSSI/SNR are null; association is `unknown` after failure or `not_associated` after a successful read without the client. `chain.association.last_observed_status` stays `associated` from the earlier sample. Failure leaves `rf_verdict` incomplete, but other faults can set `verdict: fault_found`; successful absence sets `client_not_associated`. A weak minimum RSSI is then at most a warning: its text says `last snapshot unavailable or client absent`, because a fault needs a last value below the severe threshold. An old `F-WIFI-CLIENT-ERROR` stays a historical notice when the last successful observation was authenticated and associated after it.
+
+The proxy reserves the triage plan against the target `rate_limit`, shared with manual reads; the REST worker separately counts actual GETs under that policy (default 30 reads per 60 seconds). Each REST-enrolled triage reserves 15 reads: under the default limit, two fit per window and a third is refused with `rate_limit` and `retry_after_seconds` until reservations expire. Manual reads consume capacity without shortening the window. A signal sample refused by the REST limiter is unavailable with `error_code: rate_limited`; it supplies no retry delay. A proxy-level `rate_limit` refusal supplies `retry_after_seconds` to wait before retrying.
 
 `chain.client_state` describes this client's signal/link. `chain.radio_context`
 describes utilization/retries shared by all clients on its radio; radio findings
@@ -499,23 +505,23 @@ when none is found, qualified by the retained history coverage.
 
 | Chain part | Query | What is taken from it |
 |---|---|---|
-| client address | `arp_table` | with `ip` only: the one MAC of that IP and the interface it was learned on; none or several MACs end the chain with a `missing` step |
+| client address | `arp_table` or enrolled REST station read | Resolve one client MAC; a unique REST match can resolve an IP absent or ambiguous in ARP. |
 | events | `wifi_events` (200 lines, `mac_literal` set to the client) | the client's records; the newest one gives the access point, radio, SSID, channel and last logged signal |
-| access point, radio | `wifi_ap_status` | state of that access point, and of the radio the event names: channel, utilisation, TX retries, interfering and rogue counters |
-| SSID | `wifi_vap_status` | state and client counts of the SSID named in the event |
+| access point, radio | `wifi_ap_status` and enrolled REST station/AP reads | State and RF context of the current or last observed client AP/radio, falling back to retained events. |
+| SSID | `wifi_vap_status` | State and client counts of the selected client VAP/SSID; exact VAP identity is preferred and ambiguous matches remain missing evidence. |
 | RF | `wifi_rf_analysis` (with that access point's id, listed by the previous read) | the row for the radio's operating channel |
-| neighbours | `wifi_neighbors` | scan entries on that channel and the strongest signal (controller-wide, not per access point) |
+| neighbours | `wifi_neighbors` and enrolled REST rogue/interfering reads | CLI scans provide context; findings require a matching detecting AP, compatible band/channel overlap and that observer's signal. |
 
-Every finding carries a `severity`. The rules of severity `fault` decide the verdict:
+Every finding carries a `severity`. Fault findings decide the verdict unless the final REST read establishes `not_associated` (`client_not_associated`). Numeric thresholds are overridable `wifi_thresholds` defaults:
 
 | Rule | Severity | Fires when |
 |---|---|---|
-| F-WIFI-CLIENT-ERROR | fault or historical notice | the newest event is an error; downgraded if older than the current successful association |
+| F-WIFI-CLIENT-ERROR | fault or historical notice | The newest event is an error, unless the last successful station observation has `authentication: pass` and a later association time. Errors before that authenticated association become historical notices, even if the newest event is no longer an error, a later sample failed or the client was absent. |
 | F-WIFI-WEAK-SIGNAL | warning / fault | minimum RSSI below −70; fault only if minimum and last are both below −75 dBm |
 | F-WIFI-LOW-SNR | warning | SNR below 20 dB |
-| F-WIFI-AP-NOT-CONNECTED | fault | the access point of the newest event is not in connection-state `Connected` |
-| F-WIFI-RADIO-NOT-OPERATING | fault | the radio of the event reports `oper-chan` 0 |
-| F-WIFI-VAP-DOWN | fault | the SSID of the event is not `up` |
+| F-WIFI-AP-NOT-CONNECTED | fault | the selected client access point is not in connection-state `Connected` |
+| F-WIFI-RADIO-NOT-OPERATING | fault | the selected client radio reports `oper-chan` 0 |
+| F-WIFI-VAP-DOWN | fault | the selected client VAP is not `up` |
 | F-WIFI-CLIENT-DISCONNECTED | notice | the newest event of the client is a disconnect |
 | F-WIFI-RADIO-BUSY | notice | channel utilisation of the radio is 70% or more |
 | F-WIFI-RADIO-RETRIES | notice | TX retries of the radio are 20% or more |
@@ -746,11 +752,12 @@ table response; no identity fields are inferred from unrelated output.
 
 | table | Record fields |
 |---|---|
-| interface | name, description, admin_status, oper_status, speed, vlan_id, trunk |
+| interface | name, description, admin_status, oper_status, speed, vlan_id, trunk, mac, mtu |
 | port_vlan | port, mode, access_vlan, native_vlan, tagged_vlans (integer list), oper_status |
 | vlan | vlan_id, name, ports |
 | mac_entry | mac, vlan_id, port, type, vlan_name |
-| neighbor_l3 | ip, mac, interface, vlan_id, vrf |
+| neighbor_l3 | ip, mac, interface, vlan_id, vrf, type |
+| cdp_neighbor | local_port, neighbor (full Device ID), neighbor_port, management_ip, platform, capabilities (CDP text) |
 | lldp_neighbor | local_port, neighbor, neighbor_port, management_ip, capabilities |
 | route | prefix, next_hop, interface, protocol, vrf |
 | ospf_neighbor | neighbor_id, address, interface, state, role, vrf |
@@ -758,7 +765,7 @@ table response; no identity fields are inferred from unrelated output.
 | lag | name, protocol, status, members (`[{port, state}]`) |
 | stp_port | instance, port, role, state, cost |
 | aggregate | name, member_count |
-| ip_interface | interface, ip, prefix_length, vlan_id, admin_status, oper_status, vrf |
+| ip_interface | interface, ip, prefix_length, vlan_id, admin_status, oper_status, vrf, mac, gateway |
 
 `port_vlan` accepts an optional local `interface` filter (short and canonical port
 names compare equally). IOS/IOS XE/NX-OS/EOS combine `interfaces_trunk` with
@@ -826,8 +833,7 @@ capture is `truncated`, including one appended to the final data line without a
 newline, as in `1fad86c`. A standalone final prompt may have trailing blank lines. An appended marker followed by a newline, or any marker followed by later data, is not a terminal pager. The historical classifier matrix covers 1023 texts (1012 earlier texts plus five live OSPF, four FortiGate-local and two NX-OS port VLAN captures):
 all real captures, FortiGate-80F files and HA responses, FortiADC export, Ruckus
 transcript, identity, documentation and table fixtures. It checks all 11 profiles
-plus no profile at rc 0/1/250, with three `command` variants. Linux has no native
-capture; every text is nevertheless classified under that profile.
+plus no profile at rc 0/1/250, with three `command` variants. Linux network captures and their manual expectations are now included in the unified replay collection.
 
 Refusal detection matches `1fad86c` on every capture. The retained pager rule
 necessarily changes two complete Junos ELS logs (`log_messages` and
@@ -843,15 +849,16 @@ and check real refusal shapes on every profile.
 
 | Profile | Interface | VLAN / MAC | ARP / ND | LLDP | Route |
 |---|---|---|---|---|---|
+| Linux | `links` (state, flags, MAC); enrolled `interface_link` with `interface` adds MTU | no VLAN table; `bridge_fdb` including multicast/local rows | `neighbors` for ARP and ND; NUD state in `type` | unsupported | `routes` (IPv4 whole table, optional local longest-prefix lookup); IPv6 routes unsupported |
 | EXOS | `ports` (display string as description, speed, `trunk` = more than one VLAN); VLAN tag absent | summary VLAN lacks ports (tag 4095 of `Mgmt` included); FDB with VLAN name and tag | yes, with VR | `lldp_neighbors_detail`: capabilities and management address when the neighbour sends them | `route_table` (whole table); `ip` narrows it locally to the longest prefix; IPv6 unsupported |
 | IOS / IOS XE | status, name, speed, VLAN/trunk; admin may be absent | yes; CPU and SVI rows are not hosts | yes | detail | `route_table` (whole table without `ip`); `route_lookup` with `ip`, with whole-table fallback on empty IPv4 lookup |
 | NX-OS | status | yes (`Legend:`, vPC peer-link) | yes | detail (`lldp_neighbors`) | existing address lookup, or the whole default-VRF table (`route_table`) |
 | EOS | status | yes (Cpu is no port, PEt is the MLAG peer) | yes | `lldp_neighbors_detail`: capabilities and management address when the neighbour sends them | `route_table` (whole table without `ip`); `route_lookup` with `ip` |
 | Junos (common catalogue) | terse incl. pseudo interfaces; description/speed/VLAN absent | unsupported by common catalogue | yes (`no-resolve` layout, flags such as `permanent published`) | detail (`lldp_neighbors_detail`: capabilities, management address) | existing address lookup (`detail` layout) or every routing table (`route_table`, VRF = routing instance) |
 | Junos ELS | terse | yes (any release layout: Age, GBP Tag, NH Index columns); MAC VLAN name may lack numeric tag | yes | detail | as the common catalogue |
-| FortiOS | FortiSwitch `managed_switch_port_stats` (serial required) | FortiSwitch MAC via `managed_switch_mac`; VLAN table unsupported | `arp_table` (`get system arp`), `ipv6_neighbors` | FortiSwitch summary via `managed_switch_lldp` (no management IP) | `route_lookup` with enrolled IPv4 `ip`, `routing_table` without `ip` |
+| FortiOS | FortiGate `physical_interfaces`, or FortiSwitch `managed_switch_port_stats` (serial required) | FortiGate VLANs via `interface_vlan_ids`; FortiSwitch MAC via `managed_switch_mac` | `arp_table` (`get system arp`), `ipv6_neighbors` | FortiGate `lldp_summary` or FortiSwitch `managed_switch_lldp` (no management IP) | `route_lookup` with enrolled IPv4 `ip`, `routing_table` without `ip` |
 
-For FortiOS `mac_entry`, `lldp_neighbor`, `interface`, `interface_errors` and `port_vlan`, supply `managed_switch`, for example
+For FortiLink-managed `mac_entry`, `lldp_neighbor`, `interface`, `interface_errors` and `port_vlan`, supply `managed_switch`, for example
 
 ```python
 switch_read(target="gateway", table="mac_entry", managed_switch="S000SSSS00000001", vlan_id="100")
@@ -862,7 +869,7 @@ must enable `managed_switch_mac` or `managed_switch_lldp`, respectively. Both th
 proxy and worker enforce the existing catalogue slot and inventory policy, as for
 `locate_endpoint`. The MAC/LLDP queries retain their existing permissions. The response echoes the
 selected `managed_switch`; each page reads only that serial with the fixed catalogue
-command. Missing serials and selectors on other tables/profiles are invalid arguments;
+command. For these managed reads, missing serials and selectors on other tables/profiles are invalid arguments;
 unlisted serials and disabled queries are refused before any device read.
 MAC/VLAN filters and pagination work as for other profiles.
 
@@ -889,10 +896,10 @@ codes (`B,W,R,S`); the summary has no management address, so `management_ip` is 
 and coverage reports that missing field. FortiSwitch firmware was not captured.
 
 
-`ip_interface` has one record per IPv4 address an interface carries (an interface without an address is no record;
-its state is in `interface`). `prefix_length` is a number, `vlan_id` the VLAN of an SVI (`Vlan10`, Junos `irb.10`,
+`ip_interface` has one record per IPv4 address on existing switch adapters or per IPv4/IPv6 address on Linux
+(an interface without an address emits no record; its state is in `interface`). `prefix_length` is a number, `vlan_id` the VLAN of an SVI (`Vlan10`, Junos `irb.10`,
 the EXOS VLAN), never derived from a subinterface number such as `Gi0/1.10`, whose dot1Q tag the output does not
-print. `admin_status` and `oper_status` are `up`/`down`; a value the output does not print stays null.
+print. `admin_status` is `up`/`down`; `oper_status` is `up`/`down` on existing switch adapters, while Linux preserves its additional printed states. Unprinted values stay null.
 
 | Profile | Source of `ip_interface` | What it gives |
 |---|---|---|
@@ -903,14 +910,13 @@ print. `admin_status` and `oper_status` are `up`/`down`; a value the output does
 | Junos, Junos ELS | `interfaces` (`show interfaces terse`) | every `inet` address of a logical interface, continuation lines included; an address printed without a mask (`lo0.0`) keeps `prefix_length` null; `inet6` is not part of this table |
 | FortiOS | `system_interfaces` (`get system interface`) | every interface with an address other than `0.0.0.0`, mask as prefix length; `status` is the configured state (`admin_status`), the output has no link state and no VLAN ID, so `oper_status` and `vlan_id` stay null |
 
-The optional `interface` argument filters `ip_interface` by interface name (one name of letters, digits and
-`_.:/-`, compared after the shared port normalization, so `Gi0/1.10` selects `GigabitEthernet0/1.10`); it applies to
-no other table. The second read (`route_table`, `vlan_summary`) runs only when it is in the target's
-`enabled_queries`; its source, a failure, unknown lines and warnings appear in the same envelope, as for the
-Junos ELS MAC/VLAN join. An IOS or IOS XE target that declares `device_types` `router` without `switch` reads the
+The `interface` filter also applies to `interface`, `port_vlan` and supported `interface_errors` reads (FortiGate-local tables reject it).
+It uses the profile normalizer (`Gi0/1.10` → `GigabitEthernet0/1.10`; Linux preserves names). Enabled auxiliary reads are `route_table` (IOS/IOS XE/NX-OS), `vlan_summary` (EXOS), and Linux `links`/`routes`.
+Sources and failures share the envelope; partial Linux route joins retain recognized gateways and report
+unknown defaults as `routes_partial`, keeping raw unknown route lines in `route`. An IOS or IOS XE target that declares `device_types` `router` without `switch` reads the
 `interface` table from `ip_interfaces` instead of `show interfaces status`, which a router image refuses: name,
-`admin_status` and `oper_status` only (`speed`, `vlan_id` and `trunk` stay null and are listed in
-`coverage.missing_fields`).
+`admin_status` and `oper_status` only (`speed`, `vlan_id` and `trunk` stay null; only `vlan_id` and `trunk`
+are listed in `coverage.missing_fields`).
 
 `aggregate` exists for EXOS only (`lacp`: `show lacp`): the LAG master ports, which the EXOS FDB prints like
 physical ports. `locate_endpoint` prefers enabled `lag_summary` (`show sharing`) on EXOS vantages,
@@ -918,10 +924,10 @@ which identifies both LACP and static master ports as transit. Without that perm
 `aggregate` to identify LACP transit ports, but cannot rule out static aggregation: an edge is not
 promised (`aggregation_not_verified`). A failed or unparsed sharing read also leaves the edge unverified.
 
-`capabilities` is one canonical string of the IEEE 802.1AB letters `O P B W R T C S`
-("B,W" = bridge and WLAN AP), whatever spelling the OS prints. `coverage.missing_fields`
-lists a field only when no row supplies it; a value that is empty in some rows (a port without
-description, a link-down speed) is normal.
+LLDP `capabilities` is one canonical string of the IEEE 802.1AB letters `O P B W R T C S`
+("B,W" = bridge and WLAN AP), whatever spelling the OS prints; CDP `capabilities` stay as advertised text. `coverage.missing_fields` normally
+lists a required field only when no row supplies it; empty values in some rows are normal.
+The ELS MAC/VLAN join instead reports fields null in any returned row.
 
 The rows are OS profiles; a switch, router or firewall running the same OS uses
 the same row, and a table or command the box does not provide is reported as
@@ -936,10 +942,10 @@ layouts offline. Other layouts are retained in `unparsed` rather than discarded.
 `vlan_id` is a decimal string 1–4094, `mac` is a strict MAC literal and `ip` is an
 IPv4/IPv6 literal (no hostname, prefix, zone, whitespace or CLI metacharacters).
 Filters run locally over the classified full capture. `neighbor_l3` selects
-ARP by default, ND when `ip` is IPv6. `route` with `ip` uses the catalogue lookup (that address must
-also be enrolled under `addresses` because the lookup slot requires it) or, on EXOS, narrows the
-whole table locally; `route` without `ip` returns the whole routing table where the profile has a plain
-table template (`route_table` on IOS, IOS XE, NX-OS, EOS, Junos and EXOS; `routing_table` on FortiOS). Elsewhere a missing `ip` returns a tool error result containing `code: -32602` with `data.field: "ip"`.
+ARP by default, ND when `ip` is IPv6; Linux `neighbors` returns both families without an IP filter. `route` with `ip` uses the catalogue lookup (the address must
+also be enrolled under `addresses`) or, on EXOS and Linux, narrows the whole IPv4 table locally;
+`route` without `ip` returns the whole table where supported (`route_table` on IOS, IOS XE,
+NX-OS, EOS, Junos and EXOS; `routing_table` on FortiOS; `routes` on Linux). Elsewhere a missing `ip` returns a tool error result containing `code: -32602` with `data.field: "ip"`.
 `ospf_neighbor`, `bgp_peer`, `lag` and `stp_port` exist for IOS, IOS XE, NX-OS and EOS (`ospf_neighbors`,
 `bgp_summary`, `lag_summary`/`port-channel dense`, `stp_tree`) and for Junos (`ospf_neighbors`, `bgp_summary`,
 `lacp_interfaces`; `stp_interfaces` on ELS only; the Junos spanning-tree `instance` is the instance number, `0` for RSTP/CIST); a
@@ -961,8 +967,11 @@ the OS abbreviates.
 The shared [value names](normalization.md#operational-value-names) also apply to route protocols, BGP states and LACP protocols.
 A route filter selects its containing route, not a fictitious per-record IP field.
 For ELS MAC records, an enabled `vlans` query joins observed names to numeric tags; this additional source and any failure appear in the same envelope. No arbitrary query name or command is accepted by this interface.
-One call consumes one request of the target `rate_limit`, two for an ELS `mac_entry` with the `vlans` join and for an
-`ip_interface` whose second read (`route_table` or `vlan_summary`) is enabled.
+The proxy reserves the read plan against the target `rate_limit`, including enabled joins, fallbacks and error adapters;
+a simple read costs one, a joined ELS MAC or IOS/IOS XE/NX-OS/EXOS IP-interface read two.
+Linux `ip_interface` consumes three reads when both `links` and `routes` are enabled
+(`addresses` + `links` + `routes`). With `rate_limit.requests` below 3, this call is
+always refused with `RateLimitError`; waiting for the rate window does not help.
 
 ## Endpoint location (locate_endpoint)
 
@@ -982,6 +991,14 @@ starts without a cache lookup. It reads every enabled MAC table (`mac_table`) fr
 targets declaring `switch`. If a MAC has no confirmed edge and only transit findings
 (or no switch reader), it then checks enabled IPv4 ARP caches for an enrolled
 interface owner within the same budget.
+Linux uses its existing `neighbors` query for either IP family on a `router` or
+`firewall` target and `bridge_fdb` on a `switch` target. A host neighbor observation
+provides IP, MAC and the host interface in `neighbors_l3`; it does not prove an edge.
+When the host has the endpoint as a neighbor but no matching bridge port, the result
+stays `incomplete` with `bridge_port_not_observed` (without any switch reader
+`no_enrolled_switch_reader`) unless another enrolled switch independently locates the endpoint. A matching FDB row supplies the bridge port in `findings`, with the same
+auxiliary evidence requirements as other profiles; missing LLDP evidence leaves it
+`unverified`. No bridge, traffic or additional catalogue query is created.
 A layer-3 switch declares `["switch", "router"]`. The proxy refuses the whole call with
 `policy_scope` when any named target is no reader at all (no declared type, or none of
 its types has the matching enabled query); the error data carries `target`, the alias that
@@ -1003,15 +1020,14 @@ read only to turn a VLAN name of the MAC table into its tag (Junos ELS), joined 
 unambiguous. On FortiLink-managed switches a MAC on a FortiLink/ICL trunk is transit without further
 reads, the switch's own MAC on its `internal` port is `own_interface_of_target`, port state is read only
 on a switch with an edge candidate and the configured VLAN membership only once, for a confirmed edge
-port; at about 5 s per FortiOS read (connection spacing), an AP behind one of two FortiSwitches takes
-8 reads and about 45 of the 60 seconds. Every physical CLI read, including the
+port. Completion time depends on the selected switches, reads and latency. Every physical CLI read, including the
 once-per-alias identity check, consumes the shared read budget. With all seven GNS3 lab
 nodes enrolled (IOSv, IOSvL2, cEOS, EXOS-VM, NX-OS, vJunos, IOL XE; every switch also a
 router, every locate query enabled), the offline replay of their read-only output needs
 28 reads for either the router VLAN interface address or its MAC
 (`own_interface_of_target`) and 25–28 for a host behind the NX-OS or vJunos access port (`located`);
 the earlier read order stopped at 40 reads (`read_limit`). Each read keeps its
-existing catalogue authorization and mandatory audit. Endpoint location reserves `min(40, helper.rate_limit.requests, 7 + exos + vlan_reads + managed_reads * managed_switches)` reads per alias. `exos` is 1 on EXOS, otherwise 0; `vlan_reads` is 1 when the profile's port-VLAN query is enabled, plus 1 on campus profiles (IOS/IOS XE/NX-OS/EOS) or EXOS for its join. `managed_reads` is 2 (MAC/LLDP), plus 1 with FortiOS `managed_switch_port_stats`, plus 2 when both `managed_switch_port_vlans` and `interface_vlan_ids` are enabled. The worker caps actual reads per alias at that reservation, including identity and joins; exhaustion returns incomplete coverage with `target_read_limit`. The reservation permits a call to start under the default 30-request limit, but does not guarantee completion. FortiOS connection starts on one FortiGate are at least 5 seconds apart; at the observed roughly 5.6 seconds per read, about ten reads fit the 59.5-second deadline. An IP lookup with all edge queries needs at least N + 6 reads for N managed switches when only one switch needs edge details: roughly four switches can complete under these conditions. Larger sites, including twelve or thirty switches, return partial findings with incomplete coverage when the deadline or read limit is reached; startup time, latency and additional matched switches can reduce this capacity. Unused reservations are not refunded: a reservation of 30 blocks subsequent calls to that alias for the rest of its 60-second rate window, even if fewer reads run. Each alias uses its own total `rate_limit`, without the triage sublimit; if any alias lacks the reservation the whole call is refused with `rate_limit` and no alias is charged.
+existing catalogue authorization and mandatory audit. Endpoint location reserves `min(40, helper.rate_limit.requests, 7 + exos + vlan_reads + managed_reads * managed_switches)` reads per alias. `exos` is 1 on EXOS, otherwise 0; `vlan_reads` is 1 when the profile's port-VLAN query is enabled, plus 1 on campus profiles (IOS/IOS XE/NX-OS/EOS) or EXOS for its join. `managed_reads` is 2 (MAC/LLDP), plus 1 with FortiOS `managed_switch_port_stats`, plus 2 when both `managed_switch_port_vlans` and `interface_vlan_ids` are enabled. The worker caps actual reads per alias at that reservation, including identity and joins; exhaustion returns incomplete coverage with `target_read_limit`. The reservation permits a call to start under the default 30-request limit, but does not guarantee completion. FortiOS connection starts on one FortiGate are at least five seconds apart; the number of reads completed within the 59.5-second deadline depends on transport latency and queueing. An IP lookup needs ARP, per-switch MAC reads and auxiliary evidence for edge candidates; the practical switch count depends on enabled queries, transport latency and the deadline. Larger sites, including twelve or thirty switches, return partial findings with incomplete coverage when the deadline or read limit is reached; startup time, latency and additional matched switches can reduce this capacity. Unused reservations are not refunded: a reservation of 30 blocks subsequent calls to that alias for the rest of its 60-second rate window, even if fewer reads run. Each alias uses its own total `rate_limit`, without the triage sublimit; if any alias lacks the reservation the whole call is refused with `rate_limit` and no alias is charged.
 
 An LLDP neighbour is a *switch* when it is an enrolled target (alias or management
 address) or advertises bridge/router capability. A neighbour that advertises no capabilities
@@ -1071,6 +1087,15 @@ worker; on expiration the last completed evidence is returned and SIGTERM
 unwinds SSH cleanup (up to two seconds for cleanup, then forced termination).
 No device reads continue in a background thread.
 
+FortiGate Wi-Fi clients: with an SSID in tunnel mode (the default), traffic
+travels inside CAPWAP from the access point to the FortiGate, so the client MAC
+is expected not to be learned on the switches between them. The lab returned
+`not_found_in_checked_data` for the client, consistent with this expectation,
+but did not record the SSID mode or establish why its MAC was absent.
+Use `wifi_clients` with the client MAC or `wifi_triage` to find the access point
+and radio, then `locate_endpoint` or LLDP for the access point to find its
+switch port. With a locally bridged SSID (`local-bridging enable`), the client
+MAC is expected on the access point's switch port; this case was not tested.
 
 ## Bounded table and REST results
 
@@ -1208,8 +1233,8 @@ Without REST, `neighbors.relevance_status` is `observer_unavailable` and
 Full triage history uses `history_limit` (default 100, 1–500) and
 `history_offset` (default 0, 0–8 000 000), returning `truncated`, `page`, `next`.
 Its complete structured result is limited to 48 000 bytes; compact timeline
-records add `source_sha256`. Each continuation rereads sources and costs the
-normal 15-read reservation (seven CLI + eight REST) and takes about 30 seconds. The default rate limit of 30 reads per 60 seconds permits two pages per window; prefer `summary=true` when full history is unnecessary.
+records add `source_sha256`. Each continuation rereads sources and reserves
+seven target reads plus eight when REST is enrolled; duration depends on latency, sampling and queueing. With REST enrolled, the default rate limit of 30 reads per 60 seconds permits two pages per window; prefer `summary=true` when full history is unnecessary.
 
 IOS / IOS XE IPv4 route lookups that return empty read the enabled `route_table` and select its longest matching prefix. The result has `source: longest_prefix_from_table` and retains both reads in `sources`; a missing permission or failed table read is reported instead of asserting that no route exists.
 
@@ -1218,3 +1243,77 @@ Failed normalized transport reads carry an allowlisted `error_code` (`unreachabl
 Device output drops ANSI escape sequences and C0 controls except newline and tab before hashing, paging and client delivery; other text is preserved subject to existing secret redaction.
 
 FortiSwitch configured membership preserves `allowed-vlans-all enable`: it expands only VLANs whose interface configuration establishes the same FortiLink parent as the native VLAN. Missing parent context leaves membership unknown with `allowed_vlans_all_context_missing`. NX-OS direct and local routes have no IP next hop. Junos route detail and whole-table reads both return only the active route entry, retaining all its next hops.
+
+### Linux normalized network tables
+
+Linux uses the existing `switch_read` tool for `interface`, `ip_interface`,
+`route`, `neighbor_l3` and `mac_entry`. A fresh `uname -a` verifies Linux before
+every read; an internal `version` lookup aliases the preserved `kernel` query.
+It adds no public query: enrollment, rendering and the proxy retain the original
+16 Linux query names; a client request for `version` is refused.
+The identity parser reads kernel version and hostname; hardware model, serial and uptime
+remain null. Query permissions and inventory-bound interface slots still apply.
+
+`links` supplies administrative UP from flags, operational state (including
+`unknown`) and MAC. It does not print MTU. Use this call with `interface_link` enabled and `eno1` enrolled in `read_inventory.interfaces` to read
+MTU, MAC and states from `ip -details link show dev eno1`. The adapter recognizes
+IPv4 GSO/GRO limits, bridge-port metadata, VLAN protocol/id and `permaddr`:
+
+
+```python
+switch_read(target="linux-lab", table="interface", interface="eno1")
+```
+
+The shared `interface` selector also supports a local name filter on existing
+summary reads, so Linux detail passes the unchanged proxy argument validation.
+It does not add a device command or query permission on other profiles.
+The new shared
+`interface.mac` and `interface.mtu` fields are optional and null on adapters that
+do not supply them. Linux interface names retain their spelling; display-only
+`@peer` suffixes are removed.
+
+`addresses` keeps its 1.0.7 command and description (`ip -brief address`) and
+emits one `ip_interface` record per IPv4 or IPv6 address, retaining the printed
+prefix length and operational state; unaddressed links emit no address record.
+Secondary IPv4 addresses are included in the same brief row. With `links` enabled,
+the same `switch_read` joins MAC and administrative state from `ip -brief link`
+by the Linux interface name. Without this permission those fields remain null
+and the result reports `links_join_not_enabled`; no link read runs. WireGuard/tun
+links without a hardware address retain `mac: null`. VLAN and VRF are not inferred.
+With `routes` enabled, the same call adds the IPv4 default `gateway` via the same
+interface. Missing or ambiguous defaults and IPv6 gateways remain null; without
+permission it reports `routes_join_not_enabled` and makes no route read. Shared `ip_interface.mac` and `gateway` are optional and null on other
+profiles, preserving their coverage. Linux-only unavailable switch fields do not
+make coverage incomplete. `routes` retains IPv4 default, network and host routes,
+next hop, device and explicit protocol; absent values remain null. Multipath,
+blackhole and other unimplemented route forms remain `unparsed` in the `route`
+table; recognized default gateways are retained.
+`routes_partial` warns that an unrecognized `default` route may hide a primary gateway;
+`ip_interface` coverage becomes incomplete only for an affected IPv4 interface without a
+recognized gateway (a default without a printed device may affect any IPv4 interface). Transport failures in an auxiliary read remain failures.
+`neighbors` retains unresolved entries with null MAC and exposes the printed
+NUD state in `type`. `bridge_fdb` retains every printed entry, including multicast,
+self and duplicate MAC/port entries with different VLAN contexts; permanent/static
+entries have type `static`, explicitly dynamic entries `dynamic`. Unprinted type
+and VLAN remain null. Unknown tokens/lines make coverage incomplete.
+
+Read-only CLI captures collected on 2026-11-13 cover Ubuntu 24.04.5
+(kernel 6.8.0-147-generic), a clean Debian 13.7 cloud VM
+(kernel 6.12.111+deb13-cloud-amd64), and a Proxmox VE host running Debian 13.7
+(kernel 7.0.14-28-pve). The three `linux_*_batch_b.json` scenarios in
+`tests/fixtures/real/scenarios` contain 23 captures and 168 independently
+transcribed records. Their replays exercise the real proxy request/response
+paths and engine, including one joined address read per host (26 tests).
+The Proxmox captures include a bridge and bridge-port metadata. No VLAN or bond
+was present there; VLAN metadata and bond interface names are covered by unit tests. The clean
+Debian VM had no `bridge` executable: its FDB capture preserves rc 127 and the
+expected `transport_error`, rather than claiming FDB coverage. No package was
+installed for the capture. These new captures do not record an iproute2 version.
+
+The earlier Ubuntu capture (kernel 6.8.0-147-generic, iproute2 6.1.0)
+is retained in `linux_ubuntu_24.04.5.json`: eight captures and 45 independently
+transcribed records in `netops-replay/1` format. The new
+scenarios use the project importer and preserve address/link/route relationships
+while mapping all IP and MAC addresses to documentation ranges; Docker prefixes
+are mapped consistently to documentation /24s. These are captured-output
+replays, not qualification of a rebuilt release image.

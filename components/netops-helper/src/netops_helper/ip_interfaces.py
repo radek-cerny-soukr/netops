@@ -187,8 +187,20 @@ def tags(rows, vlans):
             row['vlan_id'] = ids.pop()
 
 
+def gateways(rows, routes):
+    """Join an unambiguous IPv4 default gateway via the same interface."""
+    for row in rows:
+        if ipaddress.ip_address(row['ip']).version != 4:
+            continue
+        choices = {route['next_hop'] for route in routes
+                   if route['prefix'] == '0.0.0.0/0' and route['interface'] == row['interface']
+                   and route['next_hop'] is not None}
+        if len(choices) == 1:
+            row['gateway'] = choices.pop()
+
+
 # The second read that supplies what the main output lacks: (query, table, fill).
-JOINS = {'cisco_ios': ('route_table', 'route', masks), 'cisco_xe': ('route_table', 'route', masks),
+JOINS = {'linux': ('routes', 'route', gateways), 'cisco_ios': ('route_table', 'route', masks), 'cisco_xe': ('route_table', 'route', masks),
          'cisco_nxos': ('route_table', 'route', masks), 'extreme_exos': ('vlan_summary', 'vlan', tags)}
 
 
@@ -198,35 +210,73 @@ def join_query(profile, enabled_queries):
     return query if query in enabled_queries else None
 
 
-def join(profile, result, enabled_queries, read):
-    """Complete an ip_interface result with the profile's second read, `read(query, table)`.
+def link_addresses(rows, links):
+    """Join the printed MAC and administrative state by the Linux interface name."""
+    for row in rows:
+        matches = [link for link in links if link['name'] == row['interface']]
+        if len(matches) == 1:
+            row['mac'] = matches[0]['mac']
+            row['admin_status'] = matches[0]['admin_status']
 
-    The added source, its failure, unknown lines and warnings appear in the same envelope,
-    as for the Junos ELS MAC/VLAN join."""
+
+def join_queries(profile, enabled_queries):
+    """All enrolled auxiliary queries, also used to charge the proxy read budget."""
+    if profile == 'linux':
+        return tuple(query for query in ('links', 'routes') if query in enabled_queries)
+    query = join_query(profile, enabled_queries)
+    return (query,) if query else ()
+
+
+def join(profile, result, enabled_queries, read):
+    """Complete addresses within this read, using only enrolled catalogue queries."""
     if profile not in JOINS or not result['records']:
         return result
-    query, table, fill = JOINS[profile]
-    if query not in enabled_queries:
-        result['warnings'].append(query + '_join_not_enabled')
-        return result
-    other = read(query, table)
-    result['sources'].extend(other['sources'])
-    if other['status'] in ('ok', 'empty'):
-        fill(result['records'], other['records'])
-    elif result['status'] in ('ok', 'empty'):
-        result['status'] = other['status']
-    result['unparsed'].extend({**line, 'query': query} for line in other['unparsed'])
-    coverage = result['coverage']
-    coverage['unparsed_lines'] = len(result['unparsed'])
-    warnings = list(dict.fromkeys(coverage.get('warnings', []) + other['coverage'].get('warnings', [])))
-    if warnings:
-        coverage['warnings'] = warnings
-    coverage['missing_fields'] = sorted(field for field in t.FIELDS[TABLE] if field not in t.OPTIONAL_FIELDS[TABLE]
-                                        and all(row.get(field) is None for row in result['records']))
-    result['warnings'] = [warning for warning in dict.fromkeys(result['warnings'] + other['warnings'])
-                          if warning != 'fields_absent_in_catalogue_output' or coverage['missing_fields']]
-    coverage['complete'] = (result['status'] in ('ok', 'empty') and not coverage['missing_fields']
-                            and not result['unparsed'] and not coverage.get('warnings'))
+    joins = [('links', 'interface', link_addresses), JOINS[profile]] if profile == 'linux' else [JOINS[profile]]
+    for query, table, fill in joins:
+        if query not in enabled_queries:
+            result['warnings'].append(query + '_join_not_enabled')
+            continue
+        other = read(query, table)
+        result['sources'].extend(other['sources'])
+        # Keep recognized gateways even when other routes cannot be parsed.
+        # Only unknown defaults can affect the gateway join.
+        partial_routes = profile == 'linux' and query == 'routes' and other['status'] == 'unparsed'
+        if other['status'] in ('ok', 'empty') or partial_routes:
+            fill(result['records'], other['records'])
+            if partial_routes:
+                defaults = []
+                for line in other['unparsed']:
+                    value = line['text'].strip()
+                    if re.match(r'default(?:\s|$)', value):
+                        defaults.append([line])
+                    elif (defaults and value.startswith('nexthop ')
+                          and line['line'] == defaults[-1][-1]['line'] + 1):
+                        defaults[-1].append(line)
+                if defaults:
+                    result['warnings'].append('routes_partial')
+                    # A default without a printed device has unknown scope.
+                    devices = [set(re.findall(r'(?:^|\s)dev\s+(\S+)',
+                                              ' '.join(line['text'] for line in group)))
+                               for group in defaults]
+                    if any(ipaddress.ip_address(row['ip']).version == 4 and row['gateway'] is None
+                           and any(not names or row['interface'] in names for names in devices)
+                           for row in result['records']):
+                        result['coverage'].setdefault('warnings', []).append('routes_partial')
+        elif result['status'] in ('ok', 'empty'):
+            result['status'] = other['status']
+        if not partial_routes:
+            result['unparsed'].extend({**line, 'query': query} for line in other['unparsed'])
+        coverage = result['coverage']
+        coverage['unparsed_lines'] = len(result['unparsed'])
+        warnings = list(dict.fromkeys(coverage.get('warnings', []) + ([] if partial_routes else other['coverage'].get('warnings', []))))
+        if warnings:
+            coverage['warnings'] = warnings
+        coverage['missing_fields'] = sorted(field for field in t.FIELDS[TABLE] if field not in t.optional_fields(profile, TABLE)
+                                            and all(row.get(field) is None for row in result['records']))
+        result['warnings'] = [warning for warning in dict.fromkeys(result['warnings'] + ([] if partial_routes else other['warnings']))
+                              if warning != 'fields_absent_in_catalogue_output' or coverage['missing_fields']]
+        coverage['complete'] = (result['status'] in ('ok', 'empty') and not coverage['missing_fields']
+                                and not result['unparsed'] and not coverage.get('warnings'))
     return result
 
 

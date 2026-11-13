@@ -1,0 +1,16 @@
+{
+ "from": "1.0.7",
+ "to": "1.0.8",
+ "changes": [
+  {
+   "tool": "switch_read",
+   "kind": "definition",
+   "reason": "The table argument accepts the new table cdp_neighbor (CDP neighbours of Cisco IOS, IOS XE and NX-OS from the opt-in cdp_neighbors query). The records of the existing tables gain optional fields: interface.mac and interface.mtu, ip_interface.mac and ip_interface.gateway; they are null where a platform does not supply them. Linux now returns the interface, ip_interface, route, neighbor_l3 and mac_entry tables from its existing catalogue queries, which adds no table name.",
+   "changed_keys": {
+    "/inputSchema/properties/table/enum": {
+     "sha256": "6fb5f6e9bafa2990622a488cc9c2c15eb130d0b6f9995251b39810b014100365"
+    }
+   }
+  }
+ ]
+}

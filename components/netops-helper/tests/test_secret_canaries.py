@@ -192,6 +192,11 @@ if port == fixture["pty_port"]:
             break
         say(chr(13) + chr(10) + (chr(13) + chr(10)).join(device_lines(password)) + chr(13) + chr(10) + "ruckus# ")
     sys.exit(0)
+# Linux now verifies its OS before a raw catalogue read. Keep the canary-bearing
+# data reply unchanged and provide a valid identity for that separate probe.
+if argv[-1] == "uname -a":
+    sys.stdout.write("Linux canary-device 6.8.0-canary #1 SMP x86_64 GNU/Linux" + chr(10))
+    sys.exit(0)
 sys.stdout.write(chr(10).join(device_lines(received)) + chr(10))
 sys.exit(0)
 '''

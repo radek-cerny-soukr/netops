@@ -13,7 +13,7 @@ from netops.gateway import HEALTH_PENDING_SECONDS, AuditBoundary
 
 TOKEN = 'synthetic-gateway-token-for-test-only-123456'
 ROLES = ('helper', 'auditor', 'admin')
-SCHEMA = {'status': {'ok', 'degraded', 'failed'}, 'version': {'1.0.7'}, 'uptime_s': int,
+SCHEMA = {'status': {'ok', 'degraded', 'failed'}, 'version': {'1.0.8'}, 'uptime_s': int,
           'audit': {'writable': bool, 'queue_pending': int, 'oldest_pending_s': float, 'syslog_delivery_errors': int},
           'roles': dict.fromkeys(ROLES, {'running', 'unavailable', 'disabled'}), 'admin_devices': {'not_available'}}
 

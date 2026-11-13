@@ -1,0 +1,236 @@
+{
+  "schema": "netops-replay/1",
+  "scenario": "linux_g2_locate",
+  "expected_source": "CDP: manual.py independent CLI transcription. Linux: independent ip/bridge JSON references; neighbor aging compared by stable IP/MAC/interface. Source: ref/captures/g2-live-2-linux.json (neighbors, bridge_fdb, links); imported together with tests/support/add_capture.py.",
+  "captures": [
+    {
+      "platform": "linux",
+      "firmware": "Ubuntu 24.04.5 LTS host01   iproute2",
+      "query": "links",
+      "table": "interface",
+      "command": "ip -brief link",
+      "rc": 0,
+      "expected": {
+        "status": "ok",
+        "record_count": 3,
+        "unparsed_count": 0,
+        "records": [
+          {
+            "name": "lo",
+            "mac": "00:00:00:00:00:00",
+            "admin_status": "up",
+            "oper_status": "unknown"
+          },
+          {
+            "name": "eno1",
+            "mac": "00:00:5e:00:53:01",
+            "admin_status": "up",
+            "oper_status": "up"
+          },
+          {
+            "name": "docker0",
+            "mac": "00:00:5e:00:53:02",
+            "admin_status": "up",
+            "oper_status": "down"
+          }
+        ]
+      },
+      "stdout": "lo               UNKNOWN        00:00:00:00:00:00 <LOOPBACK,UP,LOWER_UP> \neno1             UP             00:00:5e:00:53:01 <BROADCAST,MULTICAST,UP,LOWER_UP> \ndocker0          DOWN           00:00:5e:00:53:02 <NO-CARRIER,BROADCAST,MULTICAST,UP> \n"
+    },
+    {
+      "platform": "linux",
+      "firmware": "Ubuntu 24.04.5 LTS host01   iproute2",
+      "query": "neighbors",
+      "table": "neighbor_l3",
+      "command": "ip neigh show",
+      "rc": 0,
+      "expected": {
+        "status": "ok",
+        "record_count": 17,
+        "unparsed_count": 0,
+        "records": [
+          {
+            "ip": "192.0.2.36",
+            "mac": "00:00:5e:00:53:03",
+            "interface": "eno1"
+          },
+          {
+            "ip": "192.0.2.1",
+            "mac": "00:00:5e:00:53:04",
+            "interface": "eno1"
+          },
+          {
+            "ip": "192.0.2.60",
+            "mac": "00:00:5e:00:53:05",
+            "interface": "eno1"
+          },
+          {
+            "ip": "192.0.2.206",
+            "mac": "00:00:5e:00:53:06",
+            "interface": "eno1"
+          },
+          {
+            "ip": "192.0.2.11",
+            "mac": "00:00:5e:00:53:07",
+            "interface": "eno1"
+          },
+          {
+            "ip": "192.0.2.111",
+            "mac": "00:00:5e:00:53:08",
+            "interface": "eno1"
+          },
+          {
+            "ip": "192.0.2.205",
+            "mac": "00:00:5e:00:53:09",
+            "interface": "eno1"
+          },
+          {
+            "ip": "192.0.2.64",
+            "mac": "00:00:5e:00:53:0a",
+            "interface": "eno1"
+          },
+          {
+            "ip": "192.0.2.63",
+            "mac": "00:00:5e:00:53:0b",
+            "interface": "eno1"
+          },
+          {
+            "ip": "192.0.2.3",
+            "mac": "00:00:5e:00:53:0c",
+            "interface": "eno1"
+          },
+          {
+            "ip": "192.0.2.204",
+            "mac": "00:00:5e:00:53:06",
+            "interface": "eno1"
+          },
+          {
+            "ip": "192.0.2.34",
+            "mac": "00:00:5e:00:53:0d",
+            "interface": "eno1"
+          },
+          {
+            "ip": "192.0.2.88",
+            "mac": "00:00:5e:00:53:0e",
+            "interface": "eno1"
+          },
+          {
+            "ip": "192.0.2.31",
+            "mac": "00:00:5e:00:53:0f",
+            "interface": "eno1"
+          },
+          {
+            "ip": "192.0.2.2",
+            "mac": "00:00:5e:00:53:10",
+            "interface": "eno1"
+          },
+          {
+            "ip": "192.0.2.33",
+            "mac": "00:00:5e:00:53:11",
+            "interface": "eno1"
+          },
+          {
+            "ip": "fe80::10",
+            "mac": "00:00:5e:00:53:0b",
+            "interface": "eno1"
+          }
+        ]
+      },
+      "stdout": "192.0.2.36    dev eno1 lladdr 00:00:5e:00:53:03 REACHABLE \n192.0.2.1    dev eno1 lladdr 00:00:5e:00:53:04 STALE \n192.0.2.60    dev eno1 lladdr 00:00:5e:00:53:05 STALE \n192.0.2.206    dev eno1 lladdr 00:00:5e:00:53:06 STALE \n192.0.2.11    dev eno1 lladdr 00:00:5e:00:53:07 STALE \n192.0.2.111    dev eno1 lladdr 00:00:5e:00:53:08 STALE \n192.0.2.205    dev eno1 lladdr 00:00:5e:00:53:09 STALE \n192.0.2.64    dev eno1 lladdr 00:00:5e:00:53:0a STALE \n192.0.2.63    dev eno1 lladdr 00:00:5e:00:53:0b STALE \n192.0.2.3    dev eno1 lladdr 00:00:5e:00:53:0c STALE \n192.0.2.204    dev eno1 lladdr 00:00:5e:00:53:06 STALE \n192.0.2.34    dev eno1 lladdr 00:00:5e:00:53:0d DELAY \n192.0.2.88    dev eno1 lladdr 00:00:5e:00:53:0e DELAY \n192.0.2.31    dev eno1 lladdr 00:00:5e:00:53:0f STALE \n192.0.2.2    dev eno1 lladdr 00:00:5e:00:53:10 STALE \n192.0.2.33    dev eno1 lladdr 00:00:5e:00:53:11 STALE \nfe80::10                  dev eno1 lladdr 00:00:5e:00:53:0b STALE \n"
+    },
+    {
+      "platform": "linux",
+      "firmware": "Ubuntu 24.04.5 LTS host01   iproute2",
+      "query": "bridge_fdb",
+      "table": "mac_entry",
+      "command": "bridge fdb show",
+      "rc": 0,
+      "expected": {
+        "status": "ok",
+        "record_count": 13,
+        "unparsed_count": 0,
+        "records": [
+          {
+            "mac": "00:00:5e:00:53:80",
+            "port": "eno1",
+            "vlan_id": null,
+            "type": "static"
+          },
+          {
+            "mac": "00:00:5e:00:53:81",
+            "port": "eno1",
+            "vlan_id": null,
+            "type": "static"
+          },
+          {
+            "mac": "00:00:5e:00:53:82",
+            "port": "eno1",
+            "vlan_id": null,
+            "type": "static"
+          },
+          {
+            "mac": "00:00:5e:00:53:83",
+            "port": "eno1",
+            "vlan_id": null,
+            "type": "static"
+          },
+          {
+            "mac": "00:00:5e:00:53:84",
+            "port": "eno1",
+            "vlan_id": null,
+            "type": "static"
+          },
+          {
+            "mac": "00:00:5e:00:53:85",
+            "port": "eno1",
+            "vlan_id": null,
+            "type": "static"
+          },
+          {
+            "mac": "00:00:5e:00:53:80",
+            "port": "docker0",
+            "vlan_id": null,
+            "type": "static"
+          },
+          {
+            "mac": "00:00:5e:00:53:86",
+            "port": "docker0",
+            "vlan_id": null,
+            "type": "static"
+          },
+          {
+            "mac": "00:00:5e:00:53:87",
+            "port": "docker0",
+            "vlan_id": null,
+            "type": "static"
+          },
+          {
+            "mac": "00:00:5e:00:53:81",
+            "port": "docker0",
+            "vlan_id": null,
+            "type": "static"
+          },
+          {
+            "mac": "00:00:5e:00:53:88",
+            "port": "docker0",
+            "vlan_id": null,
+            "type": "static"
+          },
+          {
+            "mac": "00:00:5e:00:53:02",
+            "port": "docker0",
+            "vlan_id": 1,
+            "type": "static"
+          },
+          {
+            "mac": "00:00:5e:00:53:02",
+            "port": "docker0",
+            "vlan_id": null,
+            "type": "static"
+          }
+        ]
+      },
+      "stdout": "00:00:5e:00:53:80 dev eno1 self permanent\n00:00:5e:00:53:81 dev eno1 self permanent\n00:00:5e:00:53:82 dev eno1 self permanent\n00:00:5e:00:53:83 dev eno1 self permanent\n00:00:5e:00:53:84 dev eno1 self permanent\n00:00:5e:00:53:85 dev eno1 self permanent\n00:00:5e:00:53:80 dev docker0 self permanent\n00:00:5e:00:53:86 dev docker0 self permanent\n00:00:5e:00:53:87 dev docker0 self permanent\n00:00:5e:00:53:81 dev docker0 self permanent\n00:00:5e:00:53:88 dev docker0 self permanent\n00:00:5e:00:53:02 dev docker0 vlan 1 master docker0 permanent\n00:00:5e:00:53:02 dev docker0 master docker0 permanent\n"
+    }
+  ]
+}

@@ -50,7 +50,7 @@ def main():
     plugin = Results()
     os.environ.pop("NETOPS_ASKPASS_PROGRAM", None)
     os.chdir(distribution)
-    code = pytest.main(["-q", "-p", "no:cacheprovider", "tests", "--basetemp=/pytmp/pytest"], plugins=[plugin])
+    code = pytest.main(["-q", "--tb=long", "-p", "no:cacheprovider", "tests", "--basetemp=/pytmp/pytest"], plugins=[plugin])
     passed = complete_result(code, plugin)
     report = {"candidate_commit": args.candidate_commit, "candidate_image": args.candidate_image,
               "role": args.role, "counts": dict(plugin.counts), "conditional_skips": plugin.skips,

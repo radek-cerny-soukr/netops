@@ -81,7 +81,7 @@ def _entries(text, family):
         try:
             words = shlex.split(value)
             if words[:1] == ['config'] and len(words) >= 2:
-                stack.append(('config', ' '.join(words[1:]), None))
+                stack.append(('config', ' '.join(words[1:]), {}))
             elif words[:1] == ['edit'] and len(words) == 2:
                 fields = {}
                 configs = tuple(item[1] for item in stack if item[0] == 'config')
@@ -91,11 +91,11 @@ def _entries(text, family):
                     names.add(words[1])
                     entries.append((words[1], fields))
                 stack.append(('edit', words[1], fields))
-            elif words[:1] == ['set'] and len(words) >= 3 and stack and stack[-1][0] == 'edit':
+            elif words[:1] == ['set'] and len(words) >= 3 and stack and stack[-1][0] in ('config', 'edit'):
                 if words[1] in stack[-1][2]:
                     raise ValueError()
                 stack[-1][2][words[1]] = words[2:]
-            elif words[:1] == ['unset'] and len(words) == 2 and stack and stack[-1][0] == 'edit':
+            elif words[:1] == ['unset'] and len(words) == 2 and stack and stack[-1][0] in ('config', 'edit'):
                 stack[-1][2][words[1]] = []
             elif words == ['next'] and stack and stack[-1][0] == 'edit':
                 stack.pop()

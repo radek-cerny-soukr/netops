@@ -22,13 +22,13 @@ class DistributionReadmeTest(unittest.TestCase):
             self.assertEqual(set(downloads), {version})
             self.assertIn(f'netops-{version}-SHA256SUMS.sigstore.json', document)
             self.assertIn(f'netops-{version}-SHA256SUMS', document)
-        self.assertIn('a 1.0.6 instance', readme)
-        self.assertIn('"upgrade":{"from":"1.0.6","to":"1.0.7"}', guide)
+        self.assertIn('a 1.0.7 instance', readme)
+        self.assertIn('"upgrade":{"from":"1.0.7","to":"1.0.8"}', guide)
         self.assertIn('No inventory or credential changes are required', guide)
         self.assertIn('lookup_prefixes', guide)
         self.assertIn('keyboard-interactive', guide)
         self.assertIn('five-second', guide)
-        self.assertIn('netops-107', guide)
+        self.assertIn('netops-108', guide)
 
     def test_current_release_documents_page_boundary_security_fix(self):
         root = Path(__file__).resolve().parents[1]

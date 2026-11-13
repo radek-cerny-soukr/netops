@@ -146,10 +146,15 @@ def dumps(value, **kwargs):
         if isinstance(item, str):
             yield item
         elif isinstance(item, dict):
-            for key, child in item.items():
+            # Match the encoder order so each range follows its own token.
+            pairs = sorted(item.items()) if kwargs.get("sort_keys") else item.items()
+            for key, child in pairs:
+                if not isinstance(key, (str, int, float, bool)) and key is not None:
+                    # json.dumps has already rejected this key, or skipped it.
+                    continue
                 yield key
                 yield from strings(child)
-        elif isinstance(item, list):
+        elif isinstance(item, (list, tuple)):
             for child in item:
                 yield from strings(child)
     items = list(strings(value))

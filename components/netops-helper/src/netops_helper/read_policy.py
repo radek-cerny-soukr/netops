@@ -1126,10 +1126,11 @@ def render_read_query(
         )
     ):
         raise ValueError("query parameters must be a bounded string mapping")
-    try:
-        query = READ_QUERIES[normalized][query_name]
-    except KeyError as exc:
-        raise ValueError(f"unknown read query for platform: {normalized}") from exc
+    queries = READ_QUERIES[normalized]
+    # Internal identity aliases are not enrolled/renderable public queries.
+    if query_name not in queries:
+        raise ValueError(f"unknown read query for platform: {normalized}")
+    query = queries[query_name]
     if isinstance(query, SequenceQuery):
         raise ValueError("query is a command sequence; use render_read_sequence")
     rendered = _render_slots(query, parameters, inventory)

@@ -44,36 +44,17 @@ from conftest import (
 import netops_helper.engine as engine
 
 
-class FakeClock:
-    """A monotonic clock that only moves when told to, `sleep` included.
-
-    Real `_sleep` blocks; this one just records the requested duration and
-    advances `now` by it, so a test can assert both "did it wait" and "how
-    long did it ask to wait" without spending real seconds. Guarded by its
-    own lock so several threads can call `sleep`/`monotonic` safely, even
-    though the connection lane's own lock already serializes every call that
-    matters for one device.
-    """
-
-    def __init__(self, start: float = 1_000.0) -> None:
-        self._lock = threading.Lock()
-        self.now = start
-        self.sleeps: list[float] = []
-
-    def monotonic(self) -> float:
-        with self._lock:
-            return self.now
-
-    def sleep(self, seconds: float) -> None:
-        with self._lock:
-            self.sleeps.append(seconds)
-            self.now += seconds
+from support.virtual_clock import Clock as FakeClock, install
 
 
-def _install_clock(monkeypatch) -> FakeClock:
-    clock = FakeClock()
-    monkeypatch.setattr(engine, "_now", clock.monotonic)
-    monkeypatch.setattr(engine, "_sleep", clock.sleep)
+@pytest.fixture(autouse=True, params=[0.0, 10_000_000.0])
+def clock_start(request):
+    return request.param
+
+
+def _install_clock(monkeypatch, clock_start) -> FakeClock:
+    clock = FakeClock(clock_start)
+    install(monkeypatch, clock)
     return clock
 
 
@@ -100,8 +81,8 @@ def _fortios_wire(wire) -> None:
     )
 
 
-def test_fortinet_and_fortiadc_reads_are_spaced_five_seconds_apart(wire, monkeypatch) -> None:
-    clock = _install_clock(monkeypatch)
+def test_fortinet_and_fortiadc_reads_are_spaced_five_seconds_apart(wire, monkeypatch, clock_start) -> None:
+    clock = _install_clock(monkeypatch, clock_start)
     _warm_host_key_cache(clock)
     query_name = "system_status"
     _fortios_wire(wire)
@@ -138,9 +119,9 @@ def test_fortinet_and_fortiadc_reads_are_spaced_five_seconds_apart(wire, monkeyp
 
 
 def test_a_fortinet_query_other_than_system_status_takes_a_second_connection_after_five_seconds(
-    wire, monkeypatch,
+    wire, monkeypatch, clock_start,
 ) -> None:
-    clock = _install_clock(monkeypatch)
+    clock = _install_clock(monkeypatch, clock_start)
     _warm_host_key_cache(clock)
     _fortios_wire(wire)
     query_name, command = next(
@@ -160,8 +141,8 @@ def _two_plain_fortinet_queries():
             if not item.slots and item.command != engine._IDENTITY_COMMAND][:2]
 
 
-def test_fortinet_identity_is_checked_before_every_fresh_read(wire, monkeypatch) -> None:
-    clock = _install_clock(monkeypatch)
+def test_fortinet_identity_is_checked_before_every_fresh_read(wire, monkeypatch, clock_start) -> None:
+    clock = _install_clock(monkeypatch, clock_start)
     _warm_host_key_cache(clock)
     _fortios_wire(wire)
     (first, first_command), (second, second_command) = _two_plain_fortinet_queries()
@@ -229,9 +210,9 @@ def test_fortiadc_identity_is_probed_before_every_fresh_query(monkeypatch) -> No
 
 
 def test_the_fortinet_system_status_query_is_one_connection_without_a_wait(
-    wire, monkeypatch,
+    wire, monkeypatch, clock_start,
 ) -> None:
-    clock = _install_clock(monkeypatch)
+    clock = _install_clock(monkeypatch, clock_start)
     _warm_host_key_cache(clock)
     _fortios_wire(wire)
     target = _target("fortinet", "system_status")
@@ -242,8 +223,8 @@ def test_the_fortinet_system_status_query_is_one_connection_without_a_wait(
     assert clock.sleeps == []
 
 
-def test_extreme_exos_reads_never_wait(wire, monkeypatch) -> None:
-    clock = _install_clock(monkeypatch)
+def test_extreme_exos_reads_never_wait(wire, monkeypatch, clock_start) -> None:
+    clock = _install_clock(monkeypatch, clock_start)
     query_name, _ = _plain_query("extreme_exos")
     target = _target("extreme_exos", query_name)
 
@@ -253,8 +234,8 @@ def test_extreme_exos_reads_never_wait(wire, monkeypatch) -> None:
     assert clock.sleeps == []
 
 
-def test_two_different_fortinet_devices_do_not_wait_on_each_other(wire, monkeypatch) -> None:
-    clock = _install_clock(monkeypatch)
+def test_two_different_fortinet_devices_do_not_wait_on_each_other(wire, monkeypatch, clock_start) -> None:
+    clock = _install_clock(monkeypatch, clock_start)
     query_name = "system_status"
     _fortios_wire(wire)
     first_target = _target("fortinet", query_name, host="127.0.0.2")
@@ -268,9 +249,9 @@ def test_two_different_fortinet_devices_do_not_wait_on_each_other(wire, monkeypa
 
 
 def test_three_threads_on_one_fortinet_device_serialize_with_spacing(
-    wire, monkeypatch,
+    wire, monkeypatch, clock_start,
 ) -> None:
-    clock = _install_clock(monkeypatch)
+    clock = _install_clock(monkeypatch, clock_start)
     _warm_host_key_cache(clock)
     query_name = "system_status"
     target = _target("fortinet", query_name)
@@ -331,9 +312,9 @@ def test_three_threads_on_one_fortinet_device_serialize_with_spacing(
 
 
 def test_host_key_cache_hits_expires_and_forgets_after_a_client_failure(
-    wire, monkeypatch,
+    wire, monkeypatch, clock_start,
 ) -> None:
-    clock = _install_clock(monkeypatch)
+    clock = _install_clock(monkeypatch, clock_start)
     target = _target("linux", "hostname")
 
     assert engine.ssh_read(target, "linux", "hostname", {}, 0, 16_000)["ok"] is True
@@ -358,8 +339,8 @@ def test_host_key_cache_hits_expires_and_forgets_after_a_client_failure(
     assert len(_keyscans(wire)) == 3
 
 
-def test_sftp_and_pty_reads_are_paced_through_the_lane(wire, monkeypatch) -> None:
-    clock = _install_clock(monkeypatch)
+def test_sftp_and_pty_reads_are_paced_through_the_lane(wire, monkeypatch, clock_start) -> None:
+    clock = _install_clock(monkeypatch, clock_start)
 
     query_name, _ = _plain_query("fortinet")
     sftp_target = _target(
@@ -410,9 +391,9 @@ def test_sftp_and_pty_reads_are_paced_through_the_lane(wire, monkeypatch) -> Non
 
 
 def test_the_first_keyscan_of_a_device_is_paced_like_any_other_connection(
-    wire, monkeypatch,
+    wire, monkeypatch, clock_start,
 ) -> None:
-    clock = _install_clock(monkeypatch)
+    clock = _install_clock(monkeypatch, clock_start)
     query_name = "system_status"
     _fortios_wire(wire)
     target = _target("fortinet", query_name)
@@ -424,8 +405,8 @@ def test_the_first_keyscan_of_a_device_is_paced_like_any_other_connection(
     assert clock.sleeps[0] == pytest.approx(5.0)
 
 
-def test_a_populated_platform_preamble_is_paced_like_the_query_itself(wire, monkeypatch) -> None:
-    clock = _install_clock(monkeypatch)
+def test_a_populated_platform_preamble_is_paced_like_the_query_itself(wire, monkeypatch, clock_start) -> None:
+    clock = _install_clock(monkeypatch, clock_start)
     monkeypatch.setattr(
         engine, "_CONNECTION_SPACING_SECONDS",
         {**engine._CONNECTION_SPACING_SECONDS, "extreme_exos": 5.0},

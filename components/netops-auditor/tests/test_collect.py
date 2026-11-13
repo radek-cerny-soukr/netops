@@ -2199,3 +2199,52 @@ def test_rest_real_http_content_length_with_transfer_encoding_is_refused(real_ht
         assert "HTTPException" in str(error)
         assert error.event.outcome == "failed"
         assert CANARY not in str(error)
+
+
+def chunk_wire(size_field, body):
+    return size_field + b"\r\n" + body + b"\r\n0\r\n\r\n"
+
+
+def chunked_headers():
+    return framed_headers(b"Transfer-Encoding: chunked")
+
+
+def _spelled_hex(size, variant):
+    digits = b"%x" % size
+    assert len(digits) >= 2
+    if variant == "plus":
+        return b"+" + digits
+    if variant == "underscore":
+        return digits[:1] + b"_" + digits[1:]
+    return digits
+
+
+def test_rest_real_http_valid_chunk_and_exact_byte_budget_pass(real_http_peer):
+    body = config_text().encode()
+    with real_http_peer(chunked_headers(), chunk_wire(_spelled_hex(len(body), "plain"), body)) as connection:
+        snapshot, event = rest_call(lambda *args: connection, fingerprint=None, max_response_bytes=len(body))
+    assert snapshot.text.encode() == body
+    assert event.outcome == "ok"
+    assert event.response_bytes == len(body)
+
+
+def test_rest_real_http_valid_chunk_over_the_byte_budget_is_refused(real_http_peer):
+    body = config_text(canary=True).encode()
+    with real_http_peer(chunked_headers(), chunk_wire(_spelled_hex(len(body), "plain"), body)) as connection:
+        error = rest_failure(lambda *args: connection, fingerprint=None, max_response_bytes=len(body) - 1)
+    assert error.event.outcome == "failed"
+    assert CANARY not in str(error)
+    assert CANARY not in repr(error.event)
+
+
+# Chunk sizes must not use the sign or digit separators accepted by int(..., 16).
+@pytest.mark.parametrize("variant", ("plus", "underscore"))
+def test_rest_real_http_malformed_chunk_size_never_becomes_a_snapshot(real_http_peer, variant):
+    body = config_text(canary=True).encode()
+    wire = chunk_wire(_spelled_hex(len(body), variant), body)
+    with real_http_peer(chunked_headers(), wire) as connection:
+        error = rest_failure(lambda *args: connection, fingerprint=None)
+    assert error.event.outcome == "failed"
+    assert error.event.response_bytes == 0
+    assert CANARY not in str(error)
+    assert CANARY not in repr(error.event)

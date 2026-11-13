@@ -77,16 +77,19 @@ def _local(report, runtime, device):
         report.add("notification", MISSING, "enroll and every change need a configured notification")
     else:
         report.add("notification", OK, "configured; doctor sends nothing")
+    records = None
     try:
         blocked = runtime.store.blocked(device.name)
-        undelivered = execute._undelivered(runtime, device.name)
-        running = runtime.store.running(device.name)
+        records = runtime.store.records()
+        undelivered = execute._undelivered(runtime, device.name, records=records)
+        running = [record for record in records
+                   if record.get("device") == device.name and record.get("status") == "running"]
     except Rejected as exc:
         report.add("device state", REFUSED, "; ".join(exc.reasons))
         report.checks[-1]["reason_codes"] = list(exc.reason_codes)
     else:
         _device_state(report, blocked, undelivered, running)
-    report.attempt("budgets", lambda: execute._budgets(runtime, device))
+    report.attempt("budgets", lambda: execute._budgets(runtime, device, records=records))
 
 
 def _device_state(report, blocked, undelivered, running):

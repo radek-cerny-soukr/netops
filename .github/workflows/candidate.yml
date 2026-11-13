@@ -3,7 +3,7 @@ name: Release candidate
 on:
   push:
     branches:
-      - release/1.0.7-candidate
+      - release/1.0.8-candidate
   workflow_dispatch:
 
 permissions:
@@ -15,7 +15,7 @@ concurrency:
 
 env:
   IMAGE: ghcr.io/radek-cerny-soukr/netops
-  VERSION: 1.0.7
+  VERSION: 1.0.8
   BUILDKIT_IMAGE: moby/buildkit:v0.34.0@sha256:b059f8d7226d0b326bc871af489a5dddf65e36af4d20d14251b072974d9ee87c
   SYFT_VERSION: 1.54.1
   GRYPE_VERSION: 0.120.1
@@ -26,6 +26,7 @@ jobs:
       fail-fast: false
       matrix:
         test_dir:
+          - tests
           - release/tests
           - release/acceptance/tests
           - release/sign/tests
@@ -57,7 +58,11 @@ jobs:
           TEST_DIRECTORY: ${{ matrix.test_dir }}
         run: |
           set -euo pipefail
-          if [ "$TEST_DIRECTORY" = release/sign/tests ]; then
+          mkdir -p test-logs
+          {
+          if [ "$TEST_DIRECTORY" = tests ]; then
+            python3 -B -m unittest discover -s tests -v
+          elif [ "$TEST_DIRECTORY" = release/sign/tests ]; then
             for test in "$TEST_DIRECTORY"/test_*.py; do
               python3 -B "$test"
             done
@@ -71,6 +76,16 @@ jobs:
               fi
             ' _
           fi
+          } 2>&1 | tee test-logs/tooling.log
+
+      - name: Keep complete tooling test logs
+        if: ${{ always() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: tooling-test-logs-${{ strategy.job-index }}
+          path: test-logs/
+          if-no-files-found: error
+          retention-days: 30
 
   build:
     needs: tooling
@@ -148,9 +163,9 @@ jobs:
         run: |
           set -euo pipefail
           ref="$IMAGE@$(cat "out/digest-$ARCH.txt")"
-          docker run --rm --network none --read-only --cap-drop ALL --security-opt no-new-privileges --user 51000:51000 "$ref" selftest
+          docker run --rm --network none --read-only --cap-drop ALL --security-opt no-new-privileges --user 51000:51000 "$ref" selftest 2>&1 | tee "out/selftest-$ARCH.log"
           docker run --rm --network none --read-only --tmpfs /tmp:rw,nosuid,nodev,noexec,size=64m --cap-drop ALL \
-            --security-opt no-new-privileges --user 51000:51000 --entrypoint python "$ref" -B -m unittest discover -s /opt/netops/tests -v
+            --security-opt no-new-privileges --user 51000:51000 --entrypoint python "$ref" -B -m unittest discover -s /opt/netops/tests -v 2>&1 | tee "out/unit-$ARCH.log"
 
       - name: Generate the SBOM and scan the pushed digest
         env:
@@ -166,12 +181,26 @@ jobs:
           python3 -B release/scan_gate.py "out/grype-$ARCH.json" --name "linux/$ARCH" --output "out/gate-$ARCH.json" --summary "$GITHUB_STEP_SUMMARY"
           python3 -B release/assessment_check.py "out/gate-$ARCH.json" --assessments release/vulnerability-assessments.json
 
+      - name: Keep image test logs
+        if: ${{ always() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: image-test-logs-${{ matrix.arch }}
+          path: |
+            out/selftest-*.log
+            out/unit-*.log
+          if-no-files-found: warn
+          retention-days: 30
+
       - name: Keep the build outputs
         if: ${{ always() }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: image-${{ matrix.arch }}
-          path: out/
+          path: |
+            out/
+            !out/selftest-*.log
+            !out/unit-*.log
           if-no-files-found: error
           retention-days: 30
 
@@ -396,7 +425,7 @@ jobs:
           chmod 0777 "qualification/$ROLE"
           status=0
           docker run --rm --network none --read-only --cap-drop ALL --security-opt no-new-privileges --memory 2g --cpus 2 --tmpfs /tmp:rw,nosuid,nodev,exec,size=512m,mode=1777 --tmpfs /pytmp:rw,nosuid,nodev,exec,size=512m,mode=1777 --mount "type=bind,source=$PWD/qualification/$ROLE,target=/reports" netops-engine-tests --role "$ROLE" --candidate-commit "$CANDIDATE_COMMIT" --candidate-image "${NETOPS_IMAGE#*@}" --output /reports/engine-report.json > "qualification/$ROLE.log" 2>&1 || status=$?
-          tail -n 5 "qualification/$ROLE.log"
+          cat "qualification/$ROLE.log"
           cp "qualification/$ROLE/engine-report.json" "reports/acceptance-actions-$ARCH-engine-$ROLE.json"
           python3 -B release/report_gate.py reports
           test "$status" -eq 0
@@ -406,6 +435,8 @@ jobs:
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: acceptance-actions-${{ matrix.arch }}-engine-${{ matrix.role }}
-          path: reports/
+          path: |
+            reports/
+            qualification/
           if-no-files-found: error
           retention-days: 30

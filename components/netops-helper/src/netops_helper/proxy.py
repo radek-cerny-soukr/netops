@@ -2925,11 +2925,11 @@ class Proxy:
                 return read_cost(profile, args.get("interface"), section.enabled_queries)
             # A Junos ELS MAC table is joined with a second read of the VLAN table, an ip_interface
             # table with the route table (IOS, IOS XE, NX-OS) or the VLAN table (EXOS).
-            from netops_helper.ip_interfaces import join_query
+            from netops_helper.ip_interfaces import join_queries
             return 1 + (section.catalog_platform() == "juniper_junos_els" and args.get("table") == "mac_entry"
                         and "vlans" in section.enabled_queries) + (
-                args.get("table") == "ip_interface"
-                and join_query(section.catalog_platform(), section.enabled_queries) is not None)
+                len(join_queries(section.catalog_platform(), section.enabled_queries))
+                if args.get("table") == "ip_interface" else 0)
         return TRIAGE_READS.get(tool, 1) + (8 if tool == "wifi_triage" and rest_token else 0)
 
     def _consume_rate_limit(self, alias: str, limit: dict[str, int], cost: int = 1, *, triage: bool = False) -> None:

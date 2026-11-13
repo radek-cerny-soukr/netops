@@ -93,13 +93,14 @@ class ArgumentGuidance(unittest.IsolatedAsyncioTestCase):
         self.assertEqual((targets["minItems"], targets["maxItems"], targets["uniqueItems"]), (1, 64, True))
 
     async def test_a_value_outside_a_published_limit_names_the_field_and_the_limit_without_dispatch(self):
+        from netops_helper.tables import FIELDS
         cases = [
             ("ssh_read", {"target": "fixture-device", "platform": "fortios", "query": "system_status", "max_bytes": 300},
              "max_bytes", "max_bytes is at least 1000, as shown by tools/list"),
             ("ssh_read", {"target": "fixture-device", "platform": "fortios", "query": "system_status", "max_bytes": 48001},
              "max_bytes", "max_bytes is at most 48000, as shown by tools/list"),
             ("switch_read", {"target": "fixture-device", "table": "synthetic-table"}, "table",
-             "table is one of interface, vlan, mac_entry, neighbor_l3, lldp_neighbor, route, ospf_neighbor, bgp_peer, lag, stp_port, aggregate, port_vlan, ip_interface, interface_errors, as shown by tools/list"),
+             "table is one of " + ", ".join(FIELDS) + ", as shown by tools/list"),
             ("locate_endpoint", {"targets": ["t%d" % index for index in range(65)], "endpoint": "192.0.2.1"}, "targets",
              "targets holds at most 64 items, as shown by tools/list"),
             ("locate_endpoint", {"targets": ["t1", "t1"], "endpoint": "192.0.2.1"}, "targets",

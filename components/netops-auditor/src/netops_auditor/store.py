@@ -80,9 +80,14 @@ SCHEMA = (
     )""",
 )
 
-SCHEMA_OBJECTS = tuple(re.search(r"IF NOT EXISTS (\w+)", statement).group(1) for statement in SCHEMA)
+SCHEMA_TYPES = {
+    match.group(2): match.group(1).lower()
+    for statement in SCHEMA
+    for match in (re.search(r"CREATE (?:UNIQUE )?(TABLE|INDEX|VIEW|TRIGGER) IF NOT EXISTS (\w+)", statement),)
+}
+SCHEMA_OBJECTS = tuple(SCHEMA_TYPES)
 
-_SELECT_SCHEMA_OBJECTS = "SELECT name FROM sqlite_master"
+_SELECT_SCHEMA_OBJECTS = "SELECT name, type FROM sqlite_master"
 
 RUN_COLUMNS = "id, tenant, device, started_at, snapshot_sha256, snapshot_source, rules_version"
 
@@ -186,21 +191,34 @@ class StoreError(Exception):
     pass
 
 
-def _has_schema(connection) -> bool:
-    row = connection.execute(
-        "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'runs'"
-    ).fetchone()
-    return row is not None
+class _SchemaObjectError(StoreError, sqlite3.DatabaseError):
+    """Also understood by the read-only server's SQLite error handler."""
 
 
-def schema_version(connection) -> int:
-    if not _has_schema(connection):
+def schema_version(connection, *, require_complete=True) -> int:
+    objects = {}
+    for row in connection.execute(_SELECT_SCHEMA_OBJECTS):
+        objects.setdefault(row[0].lower(), set()).add(row[1])
+    for name, expected in SCHEMA_TYPES.items():
+        actual = objects.get(name.lower(), set())
+        if actual and expected not in actual:
+            raise _SchemaObjectError(
+                "store schema object %s: expected %s, found %s"
+                % (name, expected, ", ".join(sorted(actual)))
+            )
+    if "runs" not in objects:
+        if require_complete and any(name.lower() in objects for name in SCHEMA_TYPES):
+            raise _SchemaObjectError("store schema object runs: expected table, missing; open writable (auditor run/import-snapshot)")
         return 0
+    if require_complete:
+        for name, expected in SCHEMA_TYPES.items():
+            if name.lower() not in objects:
+                raise _SchemaObjectError("store schema object %s: expected %s, missing; open writable (auditor run/import-snapshot)" % (name, expected))
     return int(connection.execute("PRAGMA user_version").fetchone()[0]) or PREVIOUS_SCHEMA_VERSION
 
 
 def checked_schema(connection) -> int:
-    version = schema_version(connection)
+    version = schema_version(connection, require_complete=False)
     if version in (0, SCHEMA_VERSION):
         return version
     raise StoreError(
@@ -218,7 +236,7 @@ def _rollback(connection) -> None:
 def _schema_current(connection) -> bool:
     if checked_schema(connection) != SCHEMA_VERSION:
         return False
-    present = {row[0] for row in connection.execute(_SELECT_SCHEMA_OBJECTS).fetchall()}
+    present = {row[0].lower() for row in connection.execute(_SELECT_SCHEMA_OBJECTS).fetchall()}
     return present.issuperset(SCHEMA_OBJECTS)
 
 
@@ -292,7 +310,7 @@ def _migrate(path) -> dict:
     connection = sqlite3.connect(str(path), isolation_level=None)
     connection.row_factory = sqlite3.Row
     try:
-        version = schema_version(connection)
+        version = schema_version(connection, require_complete=False)
         if version == 0:
             raise StoreError("store %s holds no audit schema" % path)
         if version == SCHEMA_VERSION:
@@ -304,6 +322,7 @@ def _migrate(path) -> dict:
             )
         connection.execute("BEGIN IMMEDIATE")
         try:
+            schema_version(connection, require_complete=False)
             mapping, findings = _migrated_findings(connection)
             baseline = _migrated_baseline(connection, mapping)
             connection.execute("PRAGMA user_version = %d" % SCHEMA_VERSION)

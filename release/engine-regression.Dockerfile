@@ -12,7 +12,7 @@ COPY components /repo/components
 COPY docs /repo/docs
 COPY scripts /repo/scripts
 COPY tests /repo/tests
-COPY release/engine_regression.py release/notes-1.0.7.md /repo/release/
+COPY release/engine_regression.py release/notes-*.md /repo/release/
 COPY README.md CHANGELOG.md SECURITY.md LICENSE pyproject.toml requirements.lock requirements.in /repo/
 RUN chmod -R a+rX,go-w /repo \
     && mkdir -p /opt/netops-test-fixtures \

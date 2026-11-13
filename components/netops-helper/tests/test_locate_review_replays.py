@@ -60,6 +60,7 @@ def test_fortilink_elapsed_ceiling_includes_the_real_pacing_path(
         tmp_path, monkeypatch, [gate], {'gate': outputs}, virtual=True,
         clock_start=clock_start, capture_seconds=capture_seconds)
     result = locate(proxy, AP_IP, ['gate'])
+    assert result.get('error_code') is None, result
     calls = [json.loads(line) for line in wire.read_text().splitlines()]
     # 1 s captures must actually sleep through the production connection lane;
     # 5.6 s captures already exceed its 5 s start spacing. Neither waits in real time.

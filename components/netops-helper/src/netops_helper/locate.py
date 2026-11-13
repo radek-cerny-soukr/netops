@@ -26,7 +26,8 @@ AP_NAME = re.compile(r'(?:fortiap|fap)(?![a-z])', re.IGNORECASE)
 
 # Readers are chosen by the inventory device type, never by the SSH profile:
 # ARP/ND caches come from router/firewall targets, MAC tables from switch targets
-# and FortiLink-managed switch tables from firewall targets. A target also needs
+# and FortiLink-managed switch tables from firewall targets. Linux uses its
+# catalogue equivalents (neighbors / bridge_fdb) with the same declared types. A target also needs
 # the matching query in enabled_queries.
 L3_TYPES = ('router', 'firewall')
 
@@ -39,11 +40,13 @@ def l3_queries(target):
     """ARP/ND catalogue queries this target may serve as an L3 reader."""
     if not set(L3_TYPES) & set(target.device_types):
         return ()
-    return tuple(q for q in ('arp_table', 'ipv6_neighbors') if q in target.enabled_queries)
+    queries = ('neighbors',) if profile_of(target) == 'linux' else ('arp_table', 'ipv6_neighbors')
+    return tuple(q for q in queries if q in target.enabled_queries)
 
 
 def mac_reader(target):
-    return 'switch' in target.device_types and 'mac_table' in target.enabled_queries
+    query = 'bridge_fdb' if profile_of(target) == 'linux' else 'mac_table'
+    return 'switch' in target.device_types and query in target.enabled_queries
 
 
 def profile_of(target):
@@ -306,7 +309,8 @@ def run(auths, endpoint, read, budget=None, progress=lambda result: None, identi
         for auth in auths:
             if not is_reader(auth) and auth.enabled_queries and not auth.device_types:
                 miss(auth.alias, 'device_type', 'device_type_not_declared')
-            query = 'ipv6_neighbors' if ':' in value else 'arp_table'
+            query = ('neighbors' if profile_of(auth) == 'linux' else
+                     'ipv6_neighbors' if ':' in value else 'arp_table')
             if kind == 'ip' and query in l3_queries(auth):
                 l3_auths.append(auth)
         l3_count = len(l3_auths)
@@ -496,17 +500,30 @@ def run(auths, endpoint, read, budget=None, progress=lambda result: None, identi
             miss(None, 'mac_entry', 'no_enrolled_switch_reader')
         # An unresolved MAC may be a router's own address. Only then consult
         # the enrolled IPv4 ARP readers, within the same transport/time budget.
+        # Linux hosts may have only self/static FDB rows: their neighbor cache
+        # still supplies IP/MAC and the host interface, without asserting an edge.
         # Ordinary MAC edge lookups keep their existing reads.
         if (kind == 'mac' and not own_interfaces
-                and (not switch_count or any(item['role'] == 'transit' for item in result['findings']))
                 and not any(item['edge'] for item in result['findings'])):
+            arp_fallback = not switch_count or any(item['role'] == 'transit' for item in result['findings'])
             def fallback(auth):
                 rows, complete = capture(auth, 'neighbor_l3')
                 with state_lock:
                     if complete:
                         arp_complete.add(auth.alias)
                     observations.extend({'vantage': auth.alias, **row} for row in rows if row.get('mac') == value)
-            parallel([a for a in auths if 'arp_table' in l3_queries(a)], fallback)
+            parallel([a for a in auths if (arp_fallback and 'arp_table' in l3_queries(a))
+                      or 'neighbors' in l3_queries(a)], fallback)
+        # A Linux neighbor cache names the host-facing interface, not a bridge
+        # egress port. A self/static-only FDB cannot turn that observation into
+        # proof that the endpoint is absent from the attached network. An edge
+        # established on another switch already supplies that missing location.
+        for auth in auths:
+            if (profile_of(auth) == 'linux' and mac_reader(auth)
+                    and not any(item['edge'] for item in result['findings'])
+                    and any(o['vantage'] == auth.alias and o.get('mac') in macs for o in observations)
+                    and not any(f['vantage'] == auth.alias for f in result['findings'])):
+                miss(auth.alias, 'edge', 'bridge_port_not_observed')
         # EOS, NX-OS, Junos, EXOS and FortiOS do not list their own addresses in ARP. Only when
         # nothing located the endpoint, the interface address table of each target that can
         # still own it is read once, within the same budget.

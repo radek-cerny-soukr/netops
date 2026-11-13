@@ -8107,5 +8107,53 @@
       {"profiles": ["arista_eos", "cisco_ios", "cisco_nxos", "cisco_xe", "fortiadc", "fortinet", "juniper_junos", "juniper_junos_els", "linux", "ruckus_unleashed", null], "status": ["ok", "transport_error", "transport_error"], "cli_refused": false, "permission_refused": false, "template_refused": false, "refusal_hint": null},
       {"profiles": ["extreme_exos"], "status": ["ok", "transport_error", "ok"], "cli_refused": false, "permission_refused": false, "template_refused": false, "refusal_hint": null}
     ]
+  },
+  "identity/linux.txt": {
+    "profile": "linux",
+    "rc": 0,
+    "matrix": [
+      {"profiles": ["arista_eos", "cisco_ios", "cisco_nxos", "cisco_xe", "fortiadc", "fortinet", "juniper_junos", "juniper_junos_els", "linux", "ruckus_unleashed", null], "status": ["ok", "transport_error", "transport_error"], "cli_refused": false, "permission_refused": false, "template_refused": false, "refusal_hint": null},
+      {"profiles": ["extreme_exos"], "status": ["ok", "transport_error", "ok"], "cli_refused": false, "permission_refused": false, "template_refused": false, "refusal_hint": null}
+    ]
+  },
+  "tables/linux.json#interface": {
+    "profile": "linux",
+    "rc": 0,
+    "matrix": [
+      {"profiles": ["arista_eos", "cisco_ios", "cisco_nxos", "cisco_xe", "fortiadc", "fortinet", "juniper_junos", "juniper_junos_els", "linux", "ruckus_unleashed", null], "status": ["ok", "transport_error", "transport_error"], "cli_refused": false, "permission_refused": false, "template_refused": false, "refusal_hint": null},
+      {"profiles": ["extreme_exos"], "status": ["ok", "transport_error", "ok"], "cli_refused": false, "permission_refused": false, "template_refused": false, "refusal_hint": null}
+    ]
+  },
+  "tables/linux.json#ip_interface": {
+    "profile": "linux",
+    "rc": 0,
+    "matrix": [
+      {"profiles": ["arista_eos", "cisco_ios", "cisco_nxos", "cisco_xe", "fortiadc", "fortinet", "juniper_junos", "juniper_junos_els", "linux", "ruckus_unleashed", null], "status": ["ok", "transport_error", "transport_error"], "cli_refused": false, "permission_refused": false, "template_refused": false, "refusal_hint": null},
+      {"profiles": ["extreme_exos"], "status": ["ok", "transport_error", "ok"], "cli_refused": false, "permission_refused": false, "template_refused": false, "refusal_hint": null}
+    ]
+  },
+  "tables/linux.json#mac_entry": {
+    "profile": "linux",
+    "rc": 0,
+    "matrix": [
+      {"profiles": ["arista_eos", "cisco_ios", "cisco_nxos", "cisco_xe", "fortiadc", "fortinet", "juniper_junos", "juniper_junos_els", "linux", "ruckus_unleashed", null], "status": ["ok", "transport_error", "transport_error"], "cli_refused": false, "permission_refused": false, "template_refused": false, "refusal_hint": null},
+      {"profiles": ["extreme_exos"], "status": ["ok", "transport_error", "ok"], "cli_refused": false, "permission_refused": false, "template_refused": false, "refusal_hint": null}
+    ]
+  },
+  "tables/linux.json#neighbor_l3": {
+    "profile": "linux",
+    "rc": 0,
+    "matrix": [
+      {"profiles": ["arista_eos", "cisco_ios", "cisco_nxos", "cisco_xe", "fortiadc", "fortinet", "juniper_junos", "juniper_junos_els", "linux", "ruckus_unleashed", null], "status": ["ok", "transport_error", "transport_error"], "cli_refused": false, "permission_refused": false, "template_refused": false, "refusal_hint": null},
+      {"profiles": ["extreme_exos"], "status": ["ok", "transport_error", "ok"], "cli_refused": false, "permission_refused": false, "template_refused": false, "refusal_hint": null}
+    ]
+  },
+  "tables/linux.json#route": {
+    "profile": "linux",
+    "rc": 0,
+    "matrix": [
+      {"profiles": ["arista_eos", "cisco_ios", "cisco_nxos", "cisco_xe", "fortiadc", "fortinet", "juniper_junos", "juniper_junos_els", "linux", "ruckus_unleashed", null], "status": ["ok", "transport_error", "transport_error"], "cli_refused": false, "permission_refused": false, "template_refused": false, "refusal_hint": null},
+      {"profiles": ["extreme_exos"], "status": ["ok", "transport_error", "ok"], "cli_refused": false, "permission_refused": false, "template_refused": false, "refusal_hint": null}
+    ]
   }
 }

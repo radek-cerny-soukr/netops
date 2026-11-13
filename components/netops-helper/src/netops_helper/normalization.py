@@ -7,7 +7,7 @@ import re
 # attribute that only enables template groups, never an identity check.
 IDENTITY_PROFILES = frozenset({
     "extreme_exos", "cisco_ios", "cisco_xe", "cisco_nxos", "arista_eos",
-    "juniper_junos", "juniper_junos_els",
+    "juniper_junos", "juniper_junos_els", "linux",
 })
 IDENTITY_FIELDS = ("hostname", "model", "serial_number", "os_version", "uptime")
 
@@ -56,7 +56,12 @@ def parse_identity(profile: str, output: str, warnings: list[str] | None = None)
     whether a device may be read; an unreadable model is reported by the caller.
     """
     record = dict.fromkeys(IDENTITY_FIELDS)
-    if profile in {"cisco_ios", "cisco_xe"}:
+    if profile == 'linux':
+        match = re.fullmatch(r'Linux[ \t]+(\S+)[ \t]+([0-9][A-Za-z0-9_.()+:~-]*)[ \t]+[^\r\n]+', output.strip())
+        if not match:
+            raise IdentityError('identity_os_mismatch')
+        record.update(hostname=match[1], os_version=match[2])
+    elif profile in {"cisco_ios", "cisco_xe"}:
         xe = re.search(r"(?mi)^Cisco IOS (?:XE Software|Software, IOS[ -]XE|Software \[IOSXE\],)", output)       # IOL (17.18) prints only the last form
         ios = re.search(r"(?mi)^Cisco IOS Software,", output)
         if not (xe if profile == "cisco_xe" else ios and not xe):
@@ -110,7 +115,8 @@ def parse_identity(profile: str, output: str, warnings: list[str] | None = None)
             raise IdentityError("identity_os_mismatch")
     else:
         raise IdentityError("identity_unsupported")
-    if not record["os_version"] or not re.fullmatch(r"[0-9][A-Za-z0-9_.()+:-]*", record["os_version"]):
+    version_pattern = r"[0-9][A-Za-z0-9_.()+:~-]*" if profile == 'linux' else r"[0-9][A-Za-z0-9_.()+:-]*"
+    if not record["os_version"] or not re.fullmatch(version_pattern, record["os_version"]):
         raise IdentityError("identity_unparsed")
     return record
 

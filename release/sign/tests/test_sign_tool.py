@@ -1,5 +1,6 @@
 import concurrent.futures
 import contextlib
+from datetime import datetime, timedelta, timezone
 import io
 import multiprocessing
 import sys
@@ -28,7 +29,7 @@ COMMIT = "a" * 40
 IMAGE = "ghcr.io/radek-cerny-soukr/netops"
 A = "sha256:" + "1" * 64
 B = "sha256:" + "2" * 64
-V = "1.0.7"
+V = "1.0.8"
 ARCHES = ("amd64", "arm64")
 SUITES = ("blackbox", "redteam", "failclosed", "syslog", "device", "token-output")
 BLIND_INSTALL_ROWS = ("blind-install-fedora-amd64", "blind-install-debian-amd64")
@@ -44,8 +45,8 @@ INSTALL_CHECKS = ("cosign-verify-blob", "sha256sum-check", "container-healthy", 
                   "unauthenticated-401", "mcp-tools-list", "audit-without-token")
 UPGRADE_CHECKS = ("upgrade-steps-from-docs", "health-ready", "version-is-candidate", "data-preserved", "token-preserved", "ca-preserved")
 UPGRADE_ROW = "blind-upgrade-amd64"
-FROM_VERSION = "1.0.6"
-FROM_IMAGE = IMAGE + "@sha256:20085d06a43ea4f0a57053f2dd35ce69709b43bfefd9d2a3cd8b1783c1e435fe"
+FROM_VERSION = "1.0.7"
+FROM_IMAGE = IMAGE + "@sha256:e04b19091819897e1bb4dec11416253b1dd598c18d5567325583b7e7e5fb8dfc"
 
 
 def release_docs():
@@ -155,6 +156,7 @@ class SignTool(unittest.TestCase):
         self.cosign_tamper = False
         self.cosign_race_bundle = False
         self.source = None
+        self.signing_date = None
 
     def patch(self, kind, content, arch=None):
         if kind in self.patches:
@@ -184,7 +186,7 @@ class SignTool(unittest.TestCase):
         self.write("env.example", "NETOPS_IMAGE=%s@%s\nNETOPS_PORT=8443\n" % (self.image, self.index_digest))
         platforms = {}
         for arch in ARCHES:
-            matches = [{"vulnerability": {"id": f["id"], "severity": f["severity"], "fix": {"state": f["state"]}},
+            matches = [{"vulnerability": {"id": f["id"], "severity": f["severity"], "fix": {"state": f["state"], "versions": f.get("fix_versions", [])}},
                         "artifact": {"name": f["package"], "version": f["version"], "type": f["type"]}} for f in self.findings[arch]]
             ref = "%s@%s" % (self.image, self.digests[arch])
             scan = self.patch("scan", {"descriptor": {"db": self.db_descriptor}, "source": {"type": "image", "target": {"userInput": ref, "repoDigests": [ref]}}, "matches": matches if self.matches_override is None else self.matches_override}, arch)
@@ -233,7 +235,7 @@ class SignTool(unittest.TestCase):
         snapdir = tempfile.mkdtemp(prefix="signtmp-")
         self.registry.snapdir = snapdir
         self.registry.seen = []
-        # Own, exact-byte copy of the tool outside both the candidate dir and the private
+        # Own tool copy outside both the candidate dir and the private
         # snapshot set (their contents are asserted exactly in test_check_only_uses_a_private_snapshot_that_is_removed
         # and must never include tool.ps1), and outside self.logdir (mounted rw at /log, which
         # would otherwise give a second, writable path to the same inode as the ro /tool.ps1 mount).
@@ -241,7 +243,17 @@ class SignTool(unittest.TestCase):
         # in the checkout is never touched.
         tooldir = tempfile.mkdtemp(prefix="signtool-")
         toolcopy = os.path.join(tooldir, "tool.ps1")
-        shutil.copyfile(TOOL, toolcopy)
+        if self.signing_date is None:
+            shutil.copyfile(TOOL, toolcopy)
+        else:
+            source = Path(TOOL).read_text()
+            # One date source for fixtures and PowerShell, even across UTC midnight.
+            # Keep the production CLI free of a caller-controlled freshness override.
+            clock = "[datetime]::UtcNow.Date"
+            self.assertEqual(source.count(clock), 1)
+            source = source.replace(clock, "[datetime]::new(%d, %d, %d)" % (
+                self.signing_date.year, self.signing_date.month, self.signing_date.day))
+            Path(toolcopy).write_text(source)
         os.chmod(toolcopy, 0o644)
         sourcedir = tempfile.mkdtemp(prefix="signsrc-")
         os.chmod(sourcedir, 0o755)
@@ -451,7 +463,7 @@ class SignTool(unittest.TestCase):
 
     def test_blind_report_must_name_the_candidate_version(self):
         for row in BLIND_ROWS:
-            for value in ("1.0.6", V + " ", "v" + V, 103, None, MISSING):
+            for value in ("1.0.7", V + " ", "v" + V, 103, None, MISSING):
                 with self.subTest(row=row, value=value):
                     report = default_report(row)
                     if value is MISSING:
@@ -465,8 +477,8 @@ class SignTool(unittest.TestCase):
                     self.assertRegex(out, r"(?m)^acceptance %s\s+FAIL\s+report does not name version %s" % (re.escape(row), re.escape(V)))
 
     def test_blind_upgrade_must_start_from_the_1_0_5_release_image(self):
-        cases = [("from_version", v) for v in ("1.0.7", "1.0.4", FROM_VERSION + " ", "v" + FROM_VERSION, 102, None, MISSING)]
-        cases += [("from_image", v) for v in (IMAGE + "@" + A, IMAGE + ":1.0.6", IMAGE + "@sha256:" + "0" * 64, FROM_IMAGE.split("@")[1],
+        cases = [("from_version", v) for v in ("1.0.8", "1.0.4", FROM_VERSION + " ", "v" + FROM_VERSION, 102, None, MISSING)]
+        cases += [("from_image", v) for v in (IMAGE + "@" + A, IMAGE + ":1.0.7", IMAGE + "@sha256:" + "0" * 64, FROM_IMAGE.split("@")[1],
                                               FROM_IMAGE.upper(), FROM_IMAGE + " ", None, MISSING)]
         for field, value in cases:
             with self.subTest(field=field, value=value):
@@ -504,14 +516,14 @@ class SignTool(unittest.TestCase):
         global V
         saved = V
         try:
-            for version, expected in (("1.0.6", 1), ("1.0.4", 1), ("0.9.9", 1), ("1.0.7", 0), ("1.0.10", 0), ("1.1.0", 0)):
+            for version, expected in (("1.0.7", 1), ("1.0.4", 1), ("0.9.9", 1), ("1.0.8", 0), ("1.0.10", 0), ("1.1.0", 0)):
                 with self.subTest(version=version):
                     V = version
                     self.reports = {row: default_report(row) for row in ROWS + list(OPTIONAL_ROWS)}
                     rc, out = self.run_tool()
                     self.assertEqual(rc, expected, out)
                     if expected:
-                        self.assertRegex(out, r"(?m)^manifest\s+FAIL\s+this signing tool signs netops 1\.0\.7 and later, not %s" % re.escape(version))
+                        self.assertRegex(out, r"(?m)^manifest\s+FAIL\s+this signing tool signs netops 1\.0\.8 and later, not %s" % re.escape(version))
                     else:
                         self.assertIn("OVERALL: PASS", out)
         finally:
@@ -554,17 +566,17 @@ class SignTool(unittest.TestCase):
     def test_null_matches_fail(self):
         self.build()
         for arch in ARCHES:
-            name = "netops-1.0.7-linux-%s-grype.json" % arch
+            name = "netops-1.0.8-linux-%s-grype.json" % arch
             scan = json.loads(Path(self.dir, name).read_text())
             scan["matches"] = None
             self.write(name, scan)
-        manifest = json.loads(Path(self.dir, "netops-1.0.7-manifest.json").read_text())
+        manifest = json.loads(Path(self.dir, "netops-1.0.8-manifest.json").read_text())
         for arch in ARCHES:
-            name = "netops-1.0.7-linux-%s-grype.json" % arch
+            name = "netops-1.0.8-linux-%s-grype.json" % arch
             manifest["image"]["platforms"][arch]["files"]["scan"]["sha256"] = sha(__import__('pathlib').Path(os.path.join(self.dir, name)).read_bytes())
-        self.write("netops-1.0.7-manifest.json", manifest)
-        lines = ["%s  %s" % (sha(__import__('pathlib').Path(os.path.join(self.dir, n)).read_bytes()), n) for n in sorted(os.listdir(self.dir)) if n != "netops-1.0.7-SHA256SUMS"]
-        self.write("netops-1.0.7-SHA256SUMS", "\n".join(lines) + "\n")
+        self.write("netops-1.0.8-manifest.json", manifest)
+        lines = ["%s  %s" % (sha(__import__('pathlib').Path(os.path.join(self.dir, n)).read_bytes()), n) for n in sorted(os.listdir(self.dir)) if n != "netops-1.0.8-SHA256SUMS"]
+        self.write("netops-1.0.8-SHA256SUMS", "\n".join(lines) + "\n")
         rc, out = self.run_tool(build=False)
         self.assertEqual(rc, 1, out)
         self.assertIn("matches is not a JSON array", out)
@@ -596,7 +608,7 @@ class SignTool(unittest.TestCase):
         self.assert_refused("not in the signed checksum list")
 
     def test_traversal_absolute_and_duplicate_lines_fail(self):
-        for line in ("%s  ../outside.json" % ("0" * 64), "%s  /etc/passwd" % ("0" * 64), "%s  netops-1.0.7-manifest.json" % ("0" * 64)):
+        for line in ("%s  ../outside.json" % ("0" * 64), "%s  /etc/passwd" % ("0" * 64), "%s  netops-1.0.8-manifest.json" % ("0" * 64)):
             self.extra_lines = [line]
             self.assert_refused("checksums")
 
@@ -616,13 +628,13 @@ class SignTool(unittest.TestCase):
     def test_bundle_name_link_fails(self):
         for target in ("compose.yaml", "missing-target"):
             self.build()
-            os.symlink(target, os.path.join(self.dir, "netops-1.0.7-SHA256SUMS.sigstore.json"))
+            os.symlink(target, os.path.join(self.dir, "netops-1.0.8-SHA256SUMS.sigstore.json"))
             rc, out = self.run_tool(build=False)
             self.assertEqual(rc, 1, out)
             self.assertIn("is a link or reparse point", out)
 
     def test_linked_sums_and_manifest_fail_before_reading(self):
-        for name in ("netops-1.0.7-SHA256SUMS", "netops-1.0.7-manifest.json"):
+        for name in ("netops-1.0.8-SHA256SUMS", "netops-1.0.8-manifest.json"):
             self.build()
             path = os.path.join(self.dir, name)
             os.rename(path, path + ".real")
@@ -633,7 +645,7 @@ class SignTool(unittest.TestCase):
 
     def test_directory_in_candidate_fails(self):
         self.build()
-        os.mkdir(os.path.join(self.dir, "netops-1.0.7-SHA256SUMS.sigstore.json"))
+        os.mkdir(os.path.join(self.dir, "netops-1.0.8-SHA256SUMS.sigstore.json"))
         rc, out = self.run_tool(build=False)
         self.assertEqual(rc, 1, out)
         self.assertIn("is a directory", out)
@@ -647,7 +659,7 @@ class SignTool(unittest.TestCase):
 
     def test_existing_bundle_passes_check_but_is_never_overwritten(self):
         self.build()
-        self.write("netops-1.0.7-SHA256SUMS.sigstore.json", "{}")
+        self.write("netops-1.0.8-SHA256SUMS.sigstore.json", "{}")
         rc, out = self.run_tool(build=False)
         self.assertEqual(rc, 0, out)
         rc, out = self.run_tool(check_only=False, stdin="SIGN\n", build=False)
@@ -657,7 +669,7 @@ class SignTool(unittest.TestCase):
 
     def test_manifest_version_with_path_fails(self):
         self.build()
-        path = os.path.join(self.dir, "netops-1.0.7-manifest.json")
+        path = os.path.join(self.dir, "netops-1.0.8-manifest.json")
         manifest = json.loads(Path(path).read_text())
         manifest["version"] = "../" + V
         with open(path, "w") as stream:
@@ -668,7 +680,7 @@ class SignTool(unittest.TestCase):
 
     def test_tampered_file_fails(self):
         self.build()
-        self.write("netops-1.0.7-linux-arm64.cdx.json", '{"x":1}')
+        self.write("netops-1.0.8-linux-arm64.cdx.json", '{"x":1}')
         rc, out = self.run_tool(build=False)
         self.assertEqual(rc, 1, out)
         self.assertIn("SHA-256 differs", out)
@@ -680,15 +692,15 @@ class SignTool(unittest.TestCase):
     def test_scan_of_other_digest_fails(self):
         self.digests = {"amd64": A, "arm64": B}
         self.build()
-        scan_name = "netops-1.0.7-linux-amd64-grype.json"
+        scan_name = "netops-1.0.8-linux-amd64-grype.json"
         scan = json.loads(Path(self.dir, scan_name).read_text())
         scan["source"]["target"]["userInput"] = IMAGE + "@" + B
         self.write(scan_name, scan)
-        manifest = json.loads(Path(self.dir, "netops-1.0.7-manifest.json").read_text())
+        manifest = json.loads(Path(self.dir, "netops-1.0.8-manifest.json").read_text())
         manifest["image"]["platforms"]["amd64"]["files"]["scan"]["sha256"] = sha(__import__('pathlib').Path(os.path.join(self.dir, scan_name)).read_bytes())
-        self.write("netops-1.0.7-manifest.json", manifest)
-        lines = ["%s  %s" % (sha(__import__('pathlib').Path(os.path.join(self.dir, n)).read_bytes()), n) for n in sorted(os.listdir(self.dir)) if n != "netops-1.0.7-SHA256SUMS"]
-        self.write("netops-1.0.7-SHA256SUMS", "\n".join(lines) + "\n")
+        self.write("netops-1.0.8-manifest.json", manifest)
+        lines = ["%s  %s" % (sha(__import__('pathlib').Path(os.path.join(self.dir, n)).read_bytes()), n) for n in sorted(os.listdir(self.dir)) if n != "netops-1.0.8-SHA256SUMS"]
+        self.write("netops-1.0.8-SHA256SUMS", "\n".join(lines) + "\n")
         rc, out = self.run_tool(build=False)
         self.assertEqual(rc, 1, out)
         self.assertIn("raw scan is not of", out)
@@ -696,6 +708,102 @@ class SignTool(unittest.TestCase):
     def test_fixable_high_in_raw_scan_fails_even_if_gate_says_pass(self):
         self.gate_status = "pass"
         self.findings["arm64"] = [dict(FINDING, severity="High", state="fixed")]
+        self.assert_refused("fixable High/Critical")
+
+    def unavailable_fix(self, age_days=0):
+        self.signing_date = datetime(2026, 11, 13, tzinfo=timezone.utc).date()
+        self.findings = {a: [dict(FINDING, severity="High" if a == "amd64" else "Critical", state="fixed", fix_versions=["2.0"])] for a in ARCHES}
+        self.assessments = [dict(FINDING, exploitable=False, reasoning="unreachable", evidence="not imported",
+                                 fixed_version_not_released=True, fix_unavailable_versions=["2.0"],
+                                 fix_unavailable_checked=(self.signing_date - timedelta(days=age_days)).isoformat(),
+                                 fix_unavailable_evidence="https://example.net/releases/2.0")]
+
+    def test_fixed_unavailable_valid_exception_passes(self):
+        self.unavailable_fix()
+        rc, out = self.run_tool()
+        self.assertEqual(rc, 0, out)
+        self.assertIn("OVERALL: PASS", out)
+        for arch in ARCHES:
+            self.assertRegex(out, r"(?m)^vulnerabilities %s\s+PASS" % arch)
+        detail = re.sub(r"\s+", " ", out)
+        self.assertEqual(detail.count("fix not yet released exceptions: 1"), 2)
+        self.assertEqual(detail.count("CVE-1 libx@1.0 fix_unavailable_checked=2026-11-13 https://example.net/releases/2.0"), 2)
+
+    def test_fixed_unavailable_duplicate_valid_first_expired_last_passes(self):
+        self.unavailable_fix()
+        self.assessments.append(dict(self.assessments[0], fix_unavailable_checked="2026-10-29"))
+        rc, out = self.run_tool()
+        self.assertEqual(rc, 0, out)
+        self.assertNotIn("fix_unavailable_checked=2026-10-29", out)
+
+    def test_fixed_unavailable_duplicate_expired_first_valid_last_passes(self):
+        self.unavailable_fix()
+        self.assessments.insert(0, dict(self.assessments[0], fix_unavailable_checked="2026-10-29"))
+        rc, out = self.run_tool()
+        self.assertEqual(rc, 0, out)
+
+    def test_fixed_medium_with_exception_uses_ordinary_assessment(self):
+        self.unavailable_fix(age_days=15)
+        for findings in self.findings.values():
+            findings[0]["severity"] = "Medium"
+        rc, out = self.run_tool()
+        self.assertEqual(rc, 0, out)
+        self.assertEqual(out.count("fix not yet released exceptions: 0"), 2)
+        self.assertNotIn("fix_unavailable_checked=", out)
+
+    def test_fixed_unavailable_uppercase_https_passes_like_scan_gate(self):
+        self.unavailable_fix()
+        self.assessments[0]["fix_unavailable_evidence"] = "HTTPS://example.net/releases/2.0"
+        rc, out = self.run_tool()
+        self.assertEqual(rc, 0, out)
+        self.assertIn("HTTPS://example.net/releases/2.0", out)
+
+    def test_fixed_unavailable_14_days_passes(self):
+        self.unavailable_fix(age_days=14)
+        rc, out = self.run_tool()
+        self.assertEqual(rc, 0, out)
+
+    def test_fixed_unavailable_15_days_fails(self):
+        self.unavailable_fix(age_days=15)
+        self.assert_refused("fixable High/Critical")
+
+    def test_fixed_unavailable_other_fix_version_fails(self):
+        self.unavailable_fix()
+        self.assessments[0]["fix_unavailable_versions"] = ["2.1"]
+        self.assert_refused("fixable High/Critical")
+
+    def test_fixed_unavailable_released_fix_fails(self):
+        self.unavailable_fix()
+        self.assessments[0]["fixed_version_not_released"] = False
+        self.assert_refused("fixable High/Critical")
+
+    def test_fixed_unavailable_other_identity_fails(self):
+        for field in ("id", "package", "version", "type"):
+            with self.subTest(field=field):
+                self.unavailable_fix()
+                self.assessments[0][field] += "-other"
+                self.assert_refused("fixable High/Critical")
+
+    def test_fixed_unavailable_malformed_exception_fails(self):
+        cases = {"fixed_version_not_released": ("true", 1, None, MISSING),
+                 "exploitable": (0, "false", True, None, MISSING),
+                 "reasoning": ("", "   ", 5, None, MISSING),
+                 "evidence": ("", "   ", 5, None, MISSING),
+                 "fix_unavailable_checked": ("2026-02-30", "20261113", "2026-11-13T00:00:00Z", None, MISSING),
+                 "fix_unavailable_evidence": ("http://example.net/fix", "https://", "https:// example.net/fix", None, MISSING),
+                 "fix_unavailable_versions": ([], "2.0", ["2.0", "2.1"], None, MISSING)}
+        for field, values in cases.items():
+            for value in values:
+                with self.subTest(field=field, value=value):
+                    self.unavailable_fix()
+                    if value is MISSING:
+                        del self.assessments[0][field]
+                    else:
+                        self.assessments[0][field] = value
+                    self.assert_refused("fixable High/Critical")
+
+    def test_fixed_unavailable_future_check_fails(self):
+        self.unavailable_fix(age_days=-1)
         self.assert_refused("fixable High/Critical")
 
     def test_assessment_for_other_version_does_not_cover(self):
@@ -751,11 +859,11 @@ class SignTool(unittest.TestCase):
     def test_unpinned_env_fails(self):
         self.build()
         self.write("env.example", "NETOPS_IMAGE=%s:latest\n" % IMAGE)
-        manifest = json.loads(Path(self.dir, "netops-1.0.7-manifest.json").read_text())
+        manifest = json.loads(Path(self.dir, "netops-1.0.8-manifest.json").read_text())
         manifest["release_files"]["env.example"] = sha(__import__('pathlib').Path(os.path.join(self.dir, "env.example")).read_bytes())
-        self.write("netops-1.0.7-manifest.json", manifest)
-        lines = ["%s  %s" % (sha(__import__('pathlib').Path(os.path.join(self.dir, n)).read_bytes()), n) for n in sorted(os.listdir(self.dir)) if n != "netops-1.0.7-SHA256SUMS"]
-        self.write("netops-1.0.7-SHA256SUMS", "\n".join(lines) + "\n")
+        self.write("netops-1.0.8-manifest.json", manifest)
+        lines = ["%s  %s" % (sha(__import__('pathlib').Path(os.path.join(self.dir, n)).read_bytes()), n) for n in sorted(os.listdir(self.dir)) if n != "netops-1.0.8-SHA256SUMS"]
+        self.write("netops-1.0.8-SHA256SUMS", "\n".join(lines) + "\n")
         rc, out = self.run_tool(build=False)
         self.assertEqual(rc, 1, out)
         self.assertIn("does not pin", out)

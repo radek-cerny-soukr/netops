@@ -339,7 +339,7 @@ def render_document(
         "",
         f"It records {total} exact named query templates across {len(PROFILE_ORDER)} canonical profiles. Parameters are accepted only through the listed inventory-bound type. `high-volume: yes` is a maintainer advisory that the fixed command returns a variable collection or history known or conservatively expected to require continuation pages. It does not change authorization, opt-in, rate accounting, timeout, snapshot or cache behavior, or the 2,000,000-byte capture cap. `high-volume: no` is not a promise that output is small, cheap, or bounded.",
         "",
-        "The Phase-1 catalog intentionally excludes running, startup, full, backup, and exported configuration; arbitrary CLI; logs except the bounded Linux service query; debug activation or modification; support bundles; packet capture; file display; shells; and every write or lifecycle action.",
+        "The Phase-1 catalog intentionally excludes running, startup, full, backup, and exported configuration (a few templates read one fixed configuration section); arbitrary CLI; log following or export beyond the fixed log-view templates listed below; debug activation or modification; support bundles; packet capture; file display; shells; and every write or lifecycle action.",
         "",
         "Source links establish reviewed syntax and purpose. They do not prove support, output shape, read-only AAA behavior, or transmitted bytes on a particular target. A source named without a link is a vendor guide that is only reachable behind a vendor login; its row carries the date the syntax was run on a device instead. See the [vendor audit index](vendor-cli-references.md) for limitations and exclusions.",
         "",

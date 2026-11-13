@@ -17,6 +17,7 @@ import socket
 import ssl
 import threading
 import time
+import types
 import unicodedata
 from urllib.parse import quote, unquote
 
@@ -54,6 +55,24 @@ def _allowed_path(path):
     return path in PATHS or _log_mac(path) is not None
 MAX_BYTES = 2 * 1024 * 1024
 TIMEOUT = 10
+_CHUNK_SIZE = re.compile(rb"[0-9A-Fa-f]+")
+
+
+def _read_chunk_size(response):
+    """Chunk-size line as RFC 9112 defines it: hex digits, optional `;ext`, CRLF.
+
+    http.client feeds the line to int(..., 16), which also accepts `+61`, `6_1`,
+    `0x61`, surrounding blanks and `-0` (CVE-2026-103995). Same rule as the Auditor collector.
+    """
+    line = response.fp.readline(http.client._MAXLINE + 1)
+    if len(line) > http.client._MAXLINE:
+        raise http.client.LineTooLong("chunk size")
+    size = line.removesuffix(b"\r\n").split(b";", 1)[0]
+    if not line.endswith(b"\r\n") or _CHUNK_SIZE.fullmatch(size) is None:
+        response._close_conn()
+        raise ValueError("invalid chunk size")
+    return int(size, 16)
+
 _rate_lock = threading.Lock()
 _rates = {}
 
@@ -238,6 +257,8 @@ def get(auth, path, *, method="GET", addresses=None):
         peer.settimeout(remaining())
         connection.request("GET", path, headers={"Authorization": "Bearer " + token, "Accept": "application/json"})
         response = connection.getresponse()
+        if isinstance(response, http.client.HTTPResponse) and response.chunked:
+            response._read_next_chunk_size = types.MethodType(_read_chunk_size, response)
         if response.status != 200:
             code = ("authentication_failed" if response.status == 401 else
                     "authorization_failed" if response.status == 403 else

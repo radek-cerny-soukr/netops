@@ -197,6 +197,23 @@ class ApiChanges(unittest.TestCase):
         self.assertEqual(result, "FAIL")
         self.assertIn("ssh_read definition changed_keys /inputSchema/required", detail)
 
+    def test_default_timeout_and_description_need_independent_exact_declarations(self):
+        before = with_tool("ssh_read", **{"inputSchema.properties.timeout": {"type": "integer", "default": 5}})
+        after = with_tool("ssh_read", description="Timeout defaults to 10 seconds.",
+                          **{"inputSchema.properties.timeout": {"type": "integer", "default": 10}})
+        pointers = keys(description="Timeout defaults to 10 seconds.", inputSchema__properties__timeout__default=10)
+        change = [{"tool": "ssh_read", "kind": "definition", "changed_keys": pointers,
+                   "reason": "Reviewed timeout and description change"}]
+        for altered in (None, {"/description": pointers['/description']},
+                        {**pointers, '/inputSchema/properties/timeout/default': fp(5)},
+                        {**pointers, '/description': fp('obsolete text')}):
+            declaration = None if altered is None else [dict(change[0], changed_keys=altered)]
+            with self.subTest(declaration=declaration):
+                (result, _), _ = self.results(mcp(before), mcp(after), declaration)
+                self.assertEqual(result, "FAIL")
+        (result, detail), _ = self.results(mcp(before), mcp(after), change)
+        self.assertEqual(result, "OK", detail)
+
     def test_wrong_field_or_stale_pointer_fails(self):
         tools = with_tool("ssh_read", **{"inputSchema.properties.extra": {"type": "string"}})
         for change in ([{"tool": "ssh_read", "kind": "definition", "changed_keys": keys(inputSchema__properties__extra={"type": "string"}), "reason": "x"}],

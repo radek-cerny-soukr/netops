@@ -1,7 +1,10 @@
 """Real captures plus nonzero counters and authorized multi-source reads."""
 from dataclasses import replace
 from pathlib import Path
-from time import perf_counter
+import sys
+from pathlib import Path as _Path
+sys.path.insert(0, str(_Path(__file__).resolve().parents[3] / "tests/v1"))
+from parser_watchdog import measured_growth
 
 import pytest
 
@@ -87,8 +90,8 @@ def setup_reads(monkeypatch, profile, outputs, interfaces=()):
 
 
 @pytest.mark.parametrize('profile', ['juniper_junos', 'juniper_junos_els'])
-@pytest.mark.parametrize('payload', [('a: 1, ' * 1667)[:10000], 'a' * 10000])
-def test_junos_long_description_through_switch_read(monkeypatch, profile, payload):
+@pytest.mark.parametrize('unit', ['a: 1, ', 'a'])
+def test_junos_long_description_through_switch_read(monkeypatch, profile, unit):
     body = (REAL / 'juniper_junos_els/vjunosswitch_26.2R1.7/interface_details.txt').read_text()
     body = body.replace('Errors: 0, Drops: 0, Framing', 'Errors: 7, Drops: 3, Framing')
     body = body.replace('Carrier transitions: 1, Errors: 0, Drops: 0',
@@ -96,35 +99,52 @@ def test_junos_long_description_through_switch_read(monkeypatch, profile, payloa
     auth, _ = setup_reads(monkeypatch, profile, {'interface_details': body}, ('ge-0/0/0',))
     baseline = engine.switch_read(auth, 'interface_errors', interface='ge-0/0/0')
     # Logical descriptions follow Output errors in the real extensive layout.
-    body = body.replace('    Flags: Up SNMP-Traps',
-                        '    Description: ' + payload + '\n    Flags: Up SNMP-Traps')
-    auth, calls = setup_reads(monkeypatch, profile, {'interface_details': body}, ('ge-0/0/0',))
-    started = perf_counter()
-    result = engine.switch_read(auth, 'interface_errors', interface='ge-0/0/0')
-    elapsed = perf_counter() - started
-    assert elapsed < 0.5, elapsed
+    def run(size):
+        payload = (unit * (size // len(unit) + 1))[:size]
+        changed = body.replace('    Flags: Up SNMP-Traps',
+                               '    Description: ' + payload + '\n    Flags: Up SNMP-Traps')
+        _, calls = setup_reads(monkeypatch, profile, {'interface_details': changed}, ('ge-0/0/0',))
+        result = engine.switch_read(auth, 'interface_errors', interface='ge-0/0/0')
+        assert calls[-1] == 'show interfaces ge-0/0/0 extensive | no-more'
+        assert result['status'] == baseline['status'] == 'ok'
+        assert result['coverage']['complete'] and not result['unparsed']
+        assert result['records'] == baseline['records']
+        return result
+    result = measured_growth(lambda size: size, run)
     assert result['status'] == baseline['status'] == 'ok'
     assert result['coverage']['complete'] and not result['unparsed']
     assert result['records'] == baseline['records']
     assert (result['records'][0]['rx_errors'], result['records'][0]['tx_errors']) == (7, 9)
-    assert calls[-1] == 'show interfaces ge-0/0/0 extensive | no-more'
 
 
-@pytest.mark.parametrize('payload', ['a' * 10000, 'Errors: 1, ' * 1000 + 'invalid',
-                                    'Errors: 1, , Drops: 2'])
-def test_junos_malformed_counter_line_is_fast_and_preserves_coverage(monkeypatch, payload):
+@pytest.mark.parametrize('unit,suffix', [('a', ''), ('Errors: 1, ', 'invalid'), ('Errors: 1, , Drops: 2', '')])
+def test_junos_malformed_counter_line_is_fast_and_preserves_coverage(monkeypatch, unit, suffix):
     profile = 'juniper_junos_els'
     body = (REAL / 'juniper_junos_els/vjunosswitch_26.2R1.7/interface_details.txt').read_text()
     auth, _ = setup_reads(monkeypatch, profile, {'interface_details': body}, ('ge-0/0/0',))
     baseline = engine.switch_read(auth, 'interface_errors', interface='ge-0/0/0')
-    body = body.replace('  Active alarms', '    ' + payload + '\n  Active alarms', 1)
-    auth, _ = setup_reads(monkeypatch, profile, {'interface_details': body}, ('ge-0/0/0',))
-    started = perf_counter()
-    result = engine.switch_read(auth, 'interface_errors', interface='ge-0/0/0')
-    elapsed = perf_counter() - started
-    assert elapsed < 0.5, elapsed
+    def run(size):
+        payload = (unit * (size // len(unit) + 1))[:size] + suffix
+        changed = body.replace('  Active alarms', '    ' + payload + '\n  Active alarms', 1)
+        setup_reads(monkeypatch, profile, {'interface_details': changed}, ('ge-0/0/0',))
+        result = engine.switch_read(auth, 'interface_errors', interface='ge-0/0/0')
+        assert [line['text'].strip() for line in result['unparsed']] == [payload]
+        assert result['status'] == 'unparsed' and not result['coverage']['complete']
+        assert result['records'] == baseline['records']
+        return result
+    result = measured_growth(lambda size: size, run)
     assert result['status'] == 'unparsed' and not result['coverage']['complete']
     assert result['records'] == baseline['records']
+
+
+def test_junos_original_short_malformed_counter_reproduction():
+    profile = 'juniper_junos_els'
+    body = (REAL / 'juniper_junos_els/vjunosswitch_26.2R1.7/interface_details.txt').read_text()
+    payload = 'Errors: 1, , Drops: 2'
+    changed = body.replace('  Active alarms', '    ' + payload + '\n  Active alarms', 1)
+    result = measured_growth(lambda size: changed + '\n' * size,
+                             lambda text: tables.parse(profile, 'interface_errors', 'interface_details', text))
+    assert result['status'] == 'unparsed'
     assert [line['text'].strip() for line in result['unparsed']] == [payload]
 
 

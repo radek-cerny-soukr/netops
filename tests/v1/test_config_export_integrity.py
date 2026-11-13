@@ -161,6 +161,43 @@ class ConfigurationExportIntegrity(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(coverage["actionable_gaps"], [])
         self.assertEqual([gap["reason"] for gap in coverage["inherent_gaps"]], ["factory-provenance-unproven"])
 
+    async def test_real_60f_canaries_cross_proxy_worker_pages_and_audit(self):
+        inventory_path = self.state / "helper" / "inventory.json"
+        inventory = json.loads(inventory_path.read_text())
+        device = inventory["devices"][0]
+        device.update(name="fw-a", platform="fortios")
+        device["helper"]["ssh_platform"] = "fortios"
+        write_private(inventory_path, json.dumps(inventory).encode(), replace=True)
+        canaries = ("CNRY6000001Q", "CNRY6000002Q", "CNRY6000003Q")
+        raw = (Path(__file__).parent / "fixtures/fortios_60f_7_6_8_show.conf").read_text()
+        raw += ('\nconfig system snmp community\n edit 55\n set name "' + canaries[0] +
+                ' two words"\n next\nend\nconfig system admin\n edit "synthetic-reader"\n' +
+                ' set password "' + canaries[1] + '"\n set passwd "' + canaries[2] + '"\n next\nend\n')
+        status = 'Version: FortiGate-60F v7.6.8,build3744,260929 (GA.M)\nVirtual domain configuration: disable\n'
+        with patch(__name__ + ".STATUS", status):
+            for redaction in ("minimal", "full"):
+                for limit in (1000, 4096):
+                    with self.subTest(redaction=redaction, limit=limit):
+                        joined, pages = await self.pages("config_read", {
+                            "target": "fw-a", "platform": "fortios", "section": "all", "include_all": True,
+                            "redaction": redaction, "limit": limit}, raw)
+                        text = joined.decode()
+                        self.assertGreater(len(pages), 1)
+                        self.assertIn("config system replacemsg admin pre_admin-disclaimer-text", text)
+                        self.assertRegex(text, r"(?m)^\s*set password \S+")
+                        self.assertRegex(text, r"(?m)^\s*set passwd \S+")
+                        for canary in canaries:
+                            self.assertNotIn(canary, text)
+                            self.assertNotIn(canary, json.dumps(pages))
+        audit_text = (self.state / "helper" / "operations.jsonl").read_text()
+        for canary in canaries:
+            self.assertNotIn(canary, audit_text)
+        records = [json.loads(line) for line in audit_text.splitlines()]
+        starts = {row['operation_id'] for row in records if row['status'] == 'started'}
+        ends = {row['operation_id'] for row in records if row['status'] != 'started'}
+        self.assertTrue(starts)
+        self.assertEqual(starts, ends)
+
     async def test_a_page_that_a_later_layer_changes_is_withheld(self):
         arguments = {"target": "adc-a", "platform": "fortiadc", "section": "all", "include_all": True,
                      "redaction": "full", "limit": 48000}

@@ -6,12 +6,14 @@ import pytest
 
 from netops_helper import engine, endpoint_worker, locate, proxy as p
 import test_proxy_contracts as c
+from support.virtual_clock import Clock, install, worker_source
 
 MAC = '00:00:5e:00:53:81'
 
 
+@pytest.mark.parametrize('clock_start', [0.0, 10_000_000.0])
 @pytest.mark.parametrize('count,slow', [(7, False), (20, False), (20, True), (7, True)])
-def test_parallel_location_through_proxy_and_worker(tmp_path, monkeypatch, count, slow):
+def test_parallel_location_through_proxy_and_worker(tmp_path, monkeypatch, count, slow, clock_start):
     inventory, _, _, _ = c._configure(p, tmp_path)
     devices = []
     for index in range(count):
@@ -38,8 +40,8 @@ def test_parallel_location_through_proxy_and_worker(tmp_path, monkeypatch, count
     # identity checking, parsing, audit, budgets and subprocess protocol are real.
     version = (Path(__file__).parent / 'fixtures/identity/cisco_ios.txt').read_text()
     bootstrap = endpoint_worker.command()
-    from types import SimpleNamespace
-    monkeypatch.setattr(endpoint_worker, 'time', SimpleNamespace(monotonic=lambda: 0.0))
+    clock = Clock(clock_start, tmp_path / 'parallel-clock')
+    install(monkeypatch, clock)
     code = '''
 import json, threading
 from netops_helper import engine, locate
@@ -55,8 +57,7 @@ gated = set()
 healthy_done = threading.Event()
 slow_mac_waiting = threading.Event()
 count = %r
-original_budget = locate.Budget
-locate.Budget = lambda: original_budget(lambda: 0.0)
+exec(%r)
 original_run = locate.run
 def run(auths, endpoint, read, budget, progress, identify):
     def report(result):
@@ -115,7 +116,7 @@ def transport(auth, profile, command):
 engine.read_from_device = transport
 from netops_helper.endpoint_worker import main
 main()
-''' % (version, str(wire), slow, slow and count == 7, min(8, count - 1), count)
+''' % (version, str(wire), slow, slow and count == 7, min(8, count - 1), count, worker_source(clock))
     roots = bootstrap[-1].split('; from netops_helper.endpoint_worker import main; main()')[0]
     monkeypatch.setattr(endpoint_worker, 'command', lambda: bootstrap[:-1] + [roots + '\n' + code])
     result = engine.locate_endpoint(**args)
@@ -177,14 +178,16 @@ def test_shared_hostname_supplement_is_read_once_for_parallel_lldp_neighbors():
     assert all(m['reason'] == 'endpoint_not_seen_on_neighbor_target' for m in result['missing'])
 
 
+@pytest.mark.parametrize('clock_start', [0.0, 10_000_000.0])
 @pytest.mark.parametrize('count', [5, 12, 30])
 @pytest.mark.parametrize('edge_queries', [False, True])
-def test_fortilink_reservation_only_without_transport_timing_through_proxy_and_worker(tmp_path, monkeypatch, count, edge_queries):
+def test_fortilink_reservation_only_without_transport_timing_through_proxy_and_worker(tmp_path, monkeypatch, count, edge_queries, clock_start):
     # Reservation arithmetic only: test_review_replays models FortiOS connection timing.
     from test_locate_acceptance_107 import forti_outputs, SERIALS, AP_IP
     from types import SimpleNamespace
-    clock = [100.0]
-    monkeypatch.setattr(p, 'time', SimpleNamespace(monotonic=lambda: clock[0]))
+    clock = Clock(clock_start, tmp_path / 'reservation-clock')
+    install(monkeypatch, clock)
+    monkeypatch.setattr(p, 'time', SimpleNamespace(monotonic=clock.monotonic))
     inventory, _, _, _ = c._configure(p, tmp_path)
     section = c._section()
     queries = ['arp_table', 'managed_switch_mac', 'managed_switch_lldp']
@@ -226,6 +229,7 @@ engine.read_from_device = transport
 from netops_helper.endpoint_worker import main
 main()
 ''' % (outputs, str(wire))
+    code = worker_source(clock) + code
     monkeypatch.setattr(endpoint_worker, 'command', lambda: bootstrap[:-1] + [roots + '\n' + code])
     result = engine.locate_endpoint(**args)
     reads = [json.loads(line) for line in wire.read_text().splitlines()]
@@ -252,10 +256,10 @@ main()
     request = {'targets': ['device-a'], 'endpoint': AP_IP}
     assert proxy.request(c._request(2, 'locate_endpoint', request)) is None
     assert emitted[-1]['error']['data']['category'] == 'rate_limit'
-    clock[0] = 159.999
+    clock.value = clock_start + 59.999
     assert proxy.request(c._request(3, 'locate_endpoint', request)) is None
     assert len(proxy.rate_history['device-a']) == reservation
-    clock[0] = 160.0
+    clock.value = clock_start + 60.0
     assert proxy.request(c._request(4, 'locate_endpoint', request)) is not None
     assert len(proxy.rate_history['device-a']) == reservation
     print('FortiLink switches=%d edge_queries=%s reserved=%d reads=%d verdict=%s' % (

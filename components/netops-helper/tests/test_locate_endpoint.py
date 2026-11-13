@@ -91,12 +91,15 @@ def test_budget_counts_every_read_and_stops_at_40():
     assert any(m['reason'] == 'read_limit' for m in r['missing'])
 
 
-def test_deadline_and_target_limit():
-    now = [0]
-    b = locate.Budget(lambda: now[0])
+@pytest.mark.parametrize('clock_start', [0.0, 10_000_000.0])
+def test_deadline_and_target_limit(monkeypatch, clock_start):
+    from support.virtual_clock import Clock, install
+    clock = Clock(clock_start)
+    install(monkeypatch, clock)
+    b = locate.Budget()
     def slow(*args):
         b.take()
-        now[0] += 61
+        clock.advance(61)
         return envelope('neighbor_l3', [])
     r = locate.run([auth()], '192.0.2.10', slow, b)
     assert r['reads'] == 1 and any(m['reason'] == 'timeout' for m in r['missing'])
@@ -195,7 +198,8 @@ def test_endpoint_reads_are_charged_to_every_target_or_to_none(tmp_path, monkeyp
     assert len(proxy.rate_history['device-a']) == 7 and len(proxy.rate_history['device-b']) == 25
 
 
-def test_worker_scope_is_exact_and_timeout_stops_process(monkeypatch):
+@pytest.mark.parametrize('clock_start', [0.0, 10_000_000.0])
+def test_worker_scope_is_exact_and_timeout_stops_process(monkeypatch, clock_start):
     from netops_helper import endpoint_worker as w
     import subprocess
     import sys
@@ -209,9 +213,10 @@ def test_worker_scope_is_exact_and_timeout_stops_process(monkeypatch):
         children.append(process)
         return process
     monkeypatch.setattr(w.subprocess, 'Popen', child)
-    clock = [0.0]
+    from support.virtual_clock import Clock, install
+    clock = Clock(clock_start)
+    install(monkeypatch, clock)
     waits = []
-    monkeypatch.setattr(w, 'time', SimpleNamespace(monotonic=lambda: clock[0]))
     real_selector = w.selectors.DefaultSelector
     class ExpiredSelector:
         def __enter__(self):
@@ -223,13 +228,16 @@ def test_worker_scope_is_exact_and_timeout_stops_process(monkeypatch):
             return self.selector.register(*args)
         def select(self, timeout):
             waits.append(timeout)
-            clock[0] += timeout
+            # A real selector wakes at or after its timeout. Advance one ULP
+            # past the rounded sum so a large origin cannot leave it short.
+            import math
+            clock.value = math.nextafter(clock() + timeout, math.inf)
             return []
     monkeypatch.setattr(w.selectors, 'DefaultSelector', ExpiredSelector)
     r = w.call(['sw1'], MAC, '{}', seconds=0.1)
     assert r['verdict'] == 'incomplete' and r['missing'][-1]['reason'] == 'timeout'
-    assert waits == [0.1]
-    assert r["elapsed_seconds"] == 0.1
+    assert waits == pytest.approx([0.1])
+    assert r["elapsed_seconds"] == pytest.approx(0.1)
     assert children[0].poll() is not None
 
 

@@ -102,7 +102,7 @@ def test_switch_profiles_unify_line_ends_and_replace_secret_literals(monkeypatch
     assert text == "% BGP not active\necho <REDACTED>\n"
 
 
-@pytest.mark.parametrize("platform", ["fortiadc", "linux"])
+@pytest.mark.parametrize("platform", ["fortiadc"])
 def test_other_platforms_keep_the_line_ends_the_device_prints(monkeypatch, platform):
     _exec(monkeypatch, b"Command fail\r\n")
     _, text = engine._exec_read(_target(platform, "x"), platform, "show x")

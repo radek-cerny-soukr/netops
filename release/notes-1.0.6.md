@@ -22,7 +22,7 @@ Follow [Upgrade from the previous release](../docs/quickstart-1.0.md#upgrade-fro
 1. Check the 1.0.5 instance, stop it and create its backup and state manifest.
 2. Download and verify the 1.0.6 release files. Prepare a separate instance directory and a new Compose project with the same server name and port, and download the 1.0.6 image.
 3. Restore the backup into an empty target volume and compare it with the source manifest before the first start. Keep the original instance and backup.
-4. Start the new instance. The first start converts only the recorded product version from 1.0.5 to 1.0.6 under the instance lock and writes an `instance_start` audit record with `upgrade` from 1.0.5 to 1.0.6. A second start changes nothing. CA, keys, token, role data and connection details are unchanged.
+4. Start the new instance. The first start converts only the recorded product version from 1.0.5 to 1.0.6 under the instance lock and writes an `instance_start` audit record with `upgrade` from 1.0.5 to 1.0.6. A second start skips conversion. CA, keys, token, role data and connection details are unchanged.
 
 Do not run `init` on the restored state. State of any other product version is refused; there is no skipped-release upgrade (1.0.4 must first be upgraded to 1.0.5).
 

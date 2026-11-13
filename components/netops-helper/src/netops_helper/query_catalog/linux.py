@@ -5,10 +5,23 @@ from __future__ import annotations
 from .model import INTERFACE, NO_SLOTS, Query, SERVICE
 
 
+class _LinuxQueries(dict[str, Query]):
+    """Adapt the engine's internal identity key without adding a public query.
+
+    The identity reader indexes ['version']. Enrollment and query rendering use
+    membership/get/iteration, which retain only the existing catalogue names.
+    """
+
+    def __missing__(self, key):
+        if key == 'version':
+            return self['kernel']
+        raise KeyError(key)
+
+
 # high_volume is a scheduling advisory. Global interface, route, socket,
 # service, neighbor, FDB, and recent-log collections can require continuation;
 # single-object status and inventory-bound queries deliberately remain False.
-QUERIES: dict[str, Query] = {
+QUERIES: dict[str, Query] = _LinuxQueries({
     "hostname": Query("hostname", NO_SLOTS, "Show the system hostname."),
     "kernel": Query("uname -a", NO_SLOTS, "Show kernel and architecture details."),
     "uptime": Query("uptime", NO_SLOTS, "Show uptime and load averages."),
@@ -55,4 +68,4 @@ QUERIES: dict[str, Query] = {
     "bridge_fdb": Query(
         "bridge fdb show", NO_SLOTS, "Show the bridge forwarding database.", high_volume=True,
     ),
-}
+})

@@ -1,0 +1,461 @@
+{
+  "scenario": "fortios-g2-route-vlan",
+  "expected_source": "Manual independent G2 CLI transcription: FG80 32 routes, FG60 13 routes, FG60 9 VLANs. FG80 7 VLANs reconstructed from get system interface; nested IPv6 node synthetic because raw show config was not retained. All IPs anonymized with add_capture. Independent expected_prefix_inputs are normalized using ipaddress in test_fortios_g2, because default anonymization does not preserve CIDR host bits after three subnets.",
+  "captures": [
+    {
+      "platform": "fortinet",
+      "firmware": "FortiOS8.0.2 build0251",
+      "query": "routing_table",
+      "table": "route",
+      "command": "get router info routing-table all",
+      "rc": 0,
+      "captured_at": "2026-11-12T20:35:05.973813+00:00",
+      "expected": {
+        "status": "ok",
+        "record_count": 32,
+        "unparsed_count": 0,
+        "records": [
+          {
+            "next_hop": "192.0.2.233",
+            "interface": "wan1",
+            "protocol": "static"
+          },
+          {
+            "next_hop": "198.51.100.197",
+            "interface": "FEX-HOME-LTE",
+            "protocol": "static"
+          },
+          {
+            "next_hop": "203.0.113.1",
+            "interface": "KUFR-O1",
+            "protocol": "bgp"
+          },
+          {
+            "next_hop": null,
+            "interface": "wan1",
+            "protocol": "connected"
+          },
+          {
+            "next_hop": null,
+            "interface": "Null",
+            "protocol": "static"
+          },
+          {
+            "next_hop": null,
+            "interface": "Null",
+            "protocol": "static"
+          },
+          {
+            "next_hop": "203.0.113.253",
+            "interface": "VPS-SYSLOG",
+            "protocol": "static"
+          },
+          {
+            "next_hop": null,
+            "interface": "VPS-SYSLOG",
+            "protocol": "connected"
+          },
+          {
+            "next_hop": "203.0.113.253",
+            "interface": "VPS-SYSLOG",
+            "protocol": "static"
+          },
+          {
+            "next_hop": "203.0.113.252",
+            "interface": "VPS-LEMURES",
+            "protocol": "static"
+          },
+          {
+            "next_hop": null,
+            "interface": "VPS-LEMURES",
+            "protocol": "connected"
+          },
+          {
+            "next_hop": "203.0.113.252",
+            "interface": "VPS-LEMURES",
+            "protocol": "static"
+          },
+          {
+            "next_hop": null,
+            "interface": "KUFR-O1",
+            "protocol": "connected"
+          },
+          {
+            "next_hop": null,
+            "interface": "KUFR-O1",
+            "protocol": "connected"
+          },
+          {
+            "next_hop": null,
+            "interface": "KUFR-O2",
+            "protocol": "connected"
+          },
+          {
+            "next_hop": null,
+            "interface": "KUFR-O2",
+            "protocol": "connected"
+          },
+          {
+            "next_hop": null,
+            "interface": "KUFR-O3",
+            "protocol": "connected"
+          },
+          {
+            "next_hop": null,
+            "interface": "KUFR-O3",
+            "protocol": "connected"
+          },
+          {
+            "next_hop": "203.0.113.251",
+            "interface": "internal4",
+            "protocol": "static"
+          },
+          {
+            "next_hop": null,
+            "interface": "FEX-HOME-LTE",
+            "protocol": "connected"
+          },
+          {
+            "next_hop": null,
+            "interface": "ESXI-MGMT",
+            "protocol": "connected"
+          },
+          {
+            "next_hop": null,
+            "interface": "IoT",
+            "protocol": "connected"
+          },
+          {
+            "next_hop": null,
+            "interface": "GUEST",
+            "protocol": "connected"
+          },
+          {
+            "next_hop": null,
+            "interface": "KAMERY",
+            "protocol": "connected"
+          },
+          {
+            "next_hop": null,
+            "interface": "LAB",
+            "protocol": "connected"
+          },
+          {
+            "next_hop": null,
+            "interface": "internal1",
+            "protocol": "connected"
+          },
+          {
+            "next_hop": "203.0.113.251",
+            "interface": "internal4",
+            "protocol": "static"
+          },
+          {
+            "next_hop": null,
+            "interface": "internal4",
+            "protocol": "connected"
+          },
+          {
+            "next_hop": null,
+            "interface": "internal5",
+            "protocol": "connected"
+          },
+          {
+            "next_hop": null,
+            "interface": "FGT801-WAN-A",
+            "protocol": "connected"
+          },
+          {
+            "next_hop": null,
+            "interface": "FGT801-WAN-B",
+            "protocol": "connected"
+          },
+          {
+            "next_hop": null,
+            "interface": "wan2",
+            "protocol": "connected"
+          }
+        ]
+      },
+      "expected_prefix_inputs": [
+        "0.0.0.0/0",
+        "0.0.0.0/0",
+        "203.0.113.250/16",
+        "192.0.2.232/30",
+        "203.0.113.249/24",
+        "203.0.113.248/24",
+        "203.0.113.247/30",
+        "203.0.113.246/32",
+        "203.0.113.245/32",
+        "203.0.113.244/30",
+        "203.0.113.243/32",
+        "203.0.113.242/32",
+        "203.0.113.0/24",
+        "203.0.113.254/32",
+        "203.0.113.241/24",
+        "203.0.113.240/32",
+        "203.0.113.239/24",
+        "203.0.113.238/32",
+        "203.0.113.237/32",
+        "198.51.100.192/29",
+        "203.0.113.236/24",
+        "203.0.113.235/24",
+        "203.0.113.234/24",
+        "203.0.113.233/24",
+        "203.0.113.232/24",
+        "203.0.113.231/24",
+        "203.0.113.230/24",
+        "203.0.113.229/24",
+        "203.0.113.228/24",
+        "203.0.113.227/24",
+        "203.0.113.226/24",
+        "203.0.113.225/29"
+      ],
+      "stdout": "Codes: K - kernel, C - connected, S - static, R - RIP, B - BGP\n       O - OSPF, IA - OSPF inter area\n       N1 - OSPF NSSA external type 1, N2 - OSPF NSSA external type 2\n       E1 - OSPF external type 1, E2 - OSPF external type 2\n       i - IS-IS, L1 - IS-IS level-1, L2 - IS-IS level-2, ia - IS-IS inter area\n       V - BGP VPNv4, E - BGP EVPN, L - Leaked, D - Directly leaked\n       * - candidate default\n\nRouting table for VRF=default(0)\nS*      0.0.0.0/0 [10/0] via 192.0.2.233, wan1, 01:01:28, [1/0]\n                  [10/0] via 198.51.100.197, FEX-HOME-LTE, 01:01:28, [1/0]\nB       203.0.113.250/16 [200/0] via 203.0.113.1 (recursive is directly connected, KUFR-O1), 4d02h38m, [1/0]\nC       192.0.2.232/30 is directly connected, wan1, 02w6d22h\nS       203.0.113.249/24 [254/0] is a summary, Null, 02w6d22h, [1/0]\nS       203.0.113.248/24 [254/0] is a summary, Null, 02w6d22h, [1/0]\nS       203.0.113.247/30 [5/0] via VPS-SYSLOG tunnel 203.0.113.253, 02w6d22h, [1/0]\nC       203.0.113.246/32 is directly connected, VPS-SYSLOG, 02w6d22h\nS       203.0.113.245/32 [10/0] via VPS-SYSLOG tunnel 203.0.113.253, 02w6d22h, [1/0]\nS       203.0.113.244/30 [5/0] via VPS-LEMURES tunnel 203.0.113.252, 02w6d22h, [1/0]\nC       203.0.113.243/32 is directly connected, VPS-LEMURES, 02w6d22h\nS       203.0.113.242/32 [10/0] via VPS-LEMURES tunnel 203.0.113.252, 02w6d22h, [1/0]\nC       203.0.113.0/24 is directly connected, KUFR-O1, 02w6d07h\nC       203.0.113.254/32 is directly connected, KUFR-O1, 02w6d07h\nC       203.0.113.241/24 is directly connected, KUFR-O2, 02w6d07h\nC       203.0.113.240/32 is directly connected, KUFR-O2, 02w6d07h\nC       203.0.113.239/24 is directly connected, KUFR-O3, 02w6d07h\nC       203.0.113.238/32 is directly connected, KUFR-O3, 02w6d07h\nS       203.0.113.237/32 [10/0] via 203.0.113.251, internal4, 02w6d22h, [1/0]\nC       198.51.100.192/29 is directly connected, FEX-HOME-LTE, 01:01:32\nC       203.0.113.236/24 is directly connected, ESXI-MGMT, 01w4d22h\nC       203.0.113.235/24 is directly connected, IoT, 02w6d22h\nC       203.0.113.234/24 is directly connected, GUEST, 02w6d22h\nC       203.0.113.233/24 is directly connected, KAMERY, 02w6d22h\nC       203.0.113.232/24 is directly connected, LAB, 02w6d22h\nC       203.0.113.231/24 is directly connected, internal1, 02w6d22h\nS       203.0.113.230/24 [10/0] via 203.0.113.251, internal4, 02w6d22h, [1/0]\nC       203.0.113.229/24 is directly connected, internal4, 01w0d20h\nC       203.0.113.228/24 is directly connected, internal5, 01w0d20h\nC       203.0.113.227/24 is directly connected, FGT801-WAN-A, 02w6d22h\nC       203.0.113.226/24 is directly connected, FGT801-WAN-B, 02w6d22h\nC       203.0.113.225/29 is directly connected, wan2, 01w2d05h\n\n\n"
+    },
+    {
+      "platform": "fortinet",
+      "firmware": "FortiOS 7.6.8 build3744",
+      "query": "routing_table",
+      "table": "route",
+      "command": "get router info routing-table all",
+      "rc": 0,
+      "captured_at": "2026-11-12T20:22:50.951730+00:00",
+      "expected": {
+        "status": "ok",
+        "record_count": 13,
+        "unparsed_count": 0,
+        "records": [
+          {
+            "next_hop": "203.0.113.224",
+            "interface": "wan1",
+            "protocol": "static"
+          },
+          {
+            "next_hop": "203.0.113.223",
+            "interface": "wan2",
+            "protocol": "static"
+          },
+          {
+            "next_hop": null,
+            "interface": "224E-p11-open",
+            "protocol": "connected"
+          },
+          {
+            "next_hop": null,
+            "interface": "fortilink",
+            "protocol": "connected"
+          },
+          {
+            "next_hop": null,
+            "interface": "_default",
+            "protocol": "connected"
+          },
+          {
+            "next_hop": null,
+            "interface": "RaCE-Forti",
+            "protocol": "connected"
+          },
+          {
+            "next_hop": null,
+            "interface": "quarantine",
+            "protocol": "connected"
+          },
+          {
+            "next_hop": null,
+            "interface": "rspan",
+            "protocol": "connected"
+          },
+          {
+            "next_hop": null,
+            "interface": "nac_segment",
+            "protocol": "connected"
+          },
+          {
+            "next_hop": "203.0.113.224",
+            "interface": "wan1",
+            "protocol": "static"
+          },
+          {
+            "next_hop": null,
+            "interface": "PVE-MGMT",
+            "protocol": "connected"
+          },
+          {
+            "next_hop": null,
+            "interface": "wan1",
+            "protocol": "connected"
+          },
+          {
+            "next_hop": null,
+            "interface": "wan2",
+            "protocol": "connected"
+          }
+        ]
+      },
+      "expected_prefix_inputs": [
+        "0.0.0.0/0",
+        "0.0.0.0/0",
+        "203.0.113.222/24",
+        "203.0.113.221/24",
+        "203.0.113.220/24",
+        "203.0.113.219/24",
+        "203.0.113.218/24",
+        "203.0.113.217/24",
+        "203.0.113.216/24",
+        "203.0.113.231/24",
+        "203.0.113.230/24",
+        "203.0.113.229/24",
+        "203.0.113.228/24"
+      ],
+      "stdout": "Codes: K - kernel, C - connected, S - static, R - RIP, B - BGP\n       O - OSPF, IA - OSPF inter area\n       N1 - OSPF NSSA external type 1, N2 - OSPF NSSA external type 2\n       E1 - OSPF external type 1, E2 - OSPF external type 2\n       i - IS-IS, L1 - IS-IS level-1, L2 - IS-IS level-2, ia - IS-IS inter area\n       V - BGP VPNv4\n       * - candidate default\n\nRouting table for VRF=0\nS*      0.0.0.0/0 [5/0] via 203.0.113.224, wan1, [1/0]\n                  [5/0] via 203.0.113.223, wan2, [1/0]\nC       203.0.113.222/24 is directly connected, 224E-p11-open\nC       203.0.113.221/24 is directly connected, fortilink\nC       203.0.113.220/24 is directly connected, _default\nC       203.0.113.219/24 is directly connected, RaCE-Forti\nC       203.0.113.218/24 is directly connected, quarantine\nC       203.0.113.217/24 is directly connected, rspan\nC       203.0.113.216/24 is directly connected, nac_segment\nS       203.0.113.231/24 [10/0] via 203.0.113.224, wan1, [1/0]\nC       203.0.113.230/24 is directly connected, PVE-MGMT\nC       203.0.113.229/24 is directly connected, wan1\nC       203.0.113.228/24 is directly connected, wan2\n\n"
+    },
+    {
+      "platform": "fortinet",
+      "firmware": "FortiOS 7.6.8",
+      "query": "interface_vlan_ids",
+      "table": "vlan",
+      "command": "show system interface",
+      "rc": 0,
+      "evidence": "fg60",
+      "expected": {
+        "status": "ok",
+        "record_count": 9,
+        "unparsed_count": 0,
+        "records": [
+          {
+            "name": "_default",
+            "vlan_id": 1,
+            "interface": "fortilink",
+            "ip": "203.0.113.215",
+            "prefix_length": 24
+          },
+          {
+            "name": "quarantine",
+            "vlan_id": 4093,
+            "interface": "fortilink",
+            "ip": "203.0.113.214",
+            "prefix_length": 24
+          },
+          {
+            "name": "voice",
+            "vlan_id": 4091,
+            "interface": "fortilink",
+            "ip": null,
+            "prefix_length": null
+          },
+          {
+            "name": "video",
+            "vlan_id": 4090,
+            "interface": "fortilink",
+            "ip": null,
+            "prefix_length": null
+          },
+          {
+            "name": "rspan",
+            "vlan_id": 4092,
+            "interface": "fortilink",
+            "ip": "203.0.113.213",
+            "prefix_length": 24
+          },
+          {
+            "name": "onboarding",
+            "vlan_id": 4089,
+            "interface": "fortilink",
+            "ip": null,
+            "prefix_length": null
+          },
+          {
+            "name": "nac_segment",
+            "vlan_id": 4088,
+            "interface": "fortilink",
+            "ip": "203.0.113.212",
+            "prefix_length": 24
+          },
+          {
+            "name": "PVE-MGMT",
+            "vlan_id": 100,
+            "interface": "fortilink",
+            "ip": "203.0.113.211",
+            "prefix_length": 24
+          },
+          {
+            "name": "224E-p11-open",
+            "vlan_id": 211,
+            "interface": "fortilink",
+            "ip": "203.0.113.210",
+            "prefix_length": 24
+          }
+        ]
+      },
+      "stdout": "config system interface\n    edit \"wan1\"\n        set vdom \"root\"\n        set mode dhcp\n        set allowaccess ping https ssh\n        set type physical\n        set role wan\n        set snmp-index 1\n        config ipv6\n            set ip6-mode dhcp\n            set ip6-allowaccess ping\n        end\n    next\n    edit \"wan2\"\n        set vdom \"root\"\n        set mode dhcp\n        set allowaccess ping https ssh\n        set type physical\n        set role wan\n        set snmp-index 2\n        config ipv6\n            set ip6-mode dhcp\n            set ip6-allowaccess ping\n        end\n    next\n    edit \"dmz\"\n        set vdom \"root\"\n        set ip 203.0.113.209 255.255.255.0\n        set allowaccess ping https fabric\n        set type physical\n        set role dmz\n        set snmp-index 3\n    next\n    edit \"internal1\"\n        set vdom \"root\"\n        set type physical\n        set snmp-index 4\n    next\n    edit \"internal2\"\n        set vdom \"root\"\n        set type physical\n        set snmp-index 5\n    next\n    edit \"internal3\"\n        set vdom \"root\"\n        set type physical\n        set snmp-index 6\n    next\n    edit \"internal4\"\n        set vdom \"root\"\n        set type physical\n        set snmp-index 7\n    next\n    edit \"internal5\"\n        set vdom \"root\"\n        set type physical\n        set snmp-index 8\n    next\n    edit \"a\"\n        set vdom \"root\"\n        set type physical\n        set snmp-index 9\n    next\n    edit \"b\"\n        set vdom \"root\"\n        set type physical\n        set snmp-index 10\n    next\n    edit \"modem\"\n        set vdom \"root\"\n        set mode pppoe\n        set status down\n        set type physical\n        set snmp-index 11\n    next\n    edit \"naf.root\"\n        set vdom \"root\"\n        set type tunnel\n        set src-check disable\n        set snmp-index 12\n    next\n    edit \"l2t.root\"\n        set vdom \"root\"\n        set type tunnel\n        set snmp-index 13\n    next\n    edit \"ssl.root\"\n        set vdom \"root\"\n        set type tunnel\n        set alias \"Agentless VPN interface\"\n        set snmp-index 14\n    next\n    edit \"internal\"\n        set vdom \"root\"\n        set ip 203.0.113.208 255.255.255.0\n        set allowaccess ping https ssh fabric\n        set type hard-switch\n        set stp enable\n        set role lan\n        set snmp-index 15\n    next\n    edit \"default-mesh\"\n        set vdom \"root\"\n        set type vap-switch\n        set role lan\n        set snmp-index 16\n    next\n    edit \"fortilink\"\n        set vdom \"root\"\n        set fortilink enable\n        set ip 203.0.113.207 255.255.255.0\n        set allowaccess ping fabric\n        set type aggregate\n        set member \"a\" \"b\"\n        set lldp-reception enable\n        set lldp-transmission enable\n        set snmp-index 17\n        set switch-controller-nac \"fortilink\"\n        set switch-controller-dynamic \"fortilink\"\n    next\n    edit \"_default\"\n        set vdom \"root\"\n        set ip 203.0.113.215 255.255.255.0\n        set allowaccess ping fabric\n        set alias \"_default.fortilink\"\n        set snmp-index 18\n        set auto-auth-extension-device enable\n        set switch-controller-feature default-vlan\n        set interface \"fortilink\"\n        set vlanid 1\n    next\n    edit \"quarantine\"\n        set vdom \"root\"\n        set ip 203.0.113.214 255.255.255.0\n        set description \"Quarantine VLAN\"\n        set alias \"quarantine.fortilink\"\n        set security-mode captive-portal\n        set replacemsg-override-group \"auth-intf-quarantine\"\n        set device-identification enable\n        set snmp-index 19\n        set switch-controller-access-vlan enable\n        set switch-controller-feature quarantine\n        set color 6\n        set interface \"fortilink\"\n        set vlanid 4093\n    next\n    edit \"voice\"\n        set vdom \"root\"\n        set description \"Fortivoice VLAN\"\n        set alias \"voice.fortilink\"\n        set device-identification enable\n        set snmp-index 20\n        set switch-controller-feature voice\n        set interface \"fortilink\"\n        set vlanid 4091\n    next\n    edit \"video\"\n        set vdom \"root\"\n        set description \"Forticamera VLAN\"\n        set alias \"video.fortilink\"\n        set device-identification enable\n        set snmp-index 21\n        set switch-controller-feature video\n        set interface \"fortilink\"\n        set vlanid 4090\n    next\n    edit \"rspan\"\n        set vdom \"root\"\n        set ip 203.0.113.213 255.255.255.0\n        set description \"Sniffer VLAN\"\n        set alias \"rspan.fortilink\"\n        set snmp-index 22\n        set switch-controller-traffic-policy \"sniffer\"\n        set switch-controller-feature rspan\n        set interface \"fortilink\"\n        set vlanid 4092\n    next\n    edit \"onboarding\"\n        set vdom \"root\"\n        set description \"NAC Onboarding VLAN\"\n        set alias \"onboarding.fortilink\"\n        set security-mode captive-portal\n        set device-identification enable\n        set snmp-index 23\n        set switch-controller-access-vlan enable\n        set switch-controller-feature nac\n        set interface \"fortilink\"\n        set vlanid 4089\n    next\n    edit \"nac_segment\"\n        set vdom \"root\"\n        set ip 203.0.113.212 255.255.255.0\n        set description \"NAC Segment VLAN\"\n        set alias \"nac_segment.fortilink\"\n        set device-identification enable\n        set snmp-index 24\n        set switch-controller-feature nac-segment\n        set interface \"fortilink\"\n        set vlanid 4088\n    next\n    edit \"PVE-MGMT\"\n        set vdom \"root\"\n        set ip 203.0.113.211 255.255.255.0\n        set allowaccess ping https ssh\n        set description \"ProxmoxLAB mgmt (203.0.113.230/24)\"\n        set device-identification enable\n        set role lan\n        set snmp-index 25\n        set interface \"fortilink\"\n        set vlanid 100\n    next\n    edit \"RaCE-Forti\"\n        set vdom \"root\"\n        set ip 203.0.113.206 255.255.255.0\n        set allowaccess ping\n        set type vap-switch\n        set device-identification enable\n        set role lan\n        set snmp-index 26\n    next\n    edit \"224E-p11-open\"\n        set vdom \"root\"\n        set ip 203.0.113.210 255.255.255.0\n        set allowaccess ping\n        set description \"port11 open internet DHCP NAT lab\"\n        set device-identification enable\n        set role lan\n        set snmp-index 27\n        set interface \"fortilink\"\n        set vlanid 211\n    next\n    edit \"G2live26-p1\"\n        set vdom \"root\"\n        set type tunnel\n        set snmp-index 28\n        set interface \"internal\"\n    next\nend\n\n"
+    },
+    {
+      "platform": "fortinet",
+      "firmware": "FortiOS 8.0.2",
+      "query": "interface_vlan_ids",
+      "table": "vlan",
+      "command": "show system interface",
+      "rc": 0,
+      "evidence": "fg80-reconstructed",
+      "expected": {
+        "status": "ok",
+        "record_count": 7,
+        "unparsed_count": 0,
+        "records": [
+          {
+            "name": "GUEST",
+            "vlan_id": 30,
+            "interface": "internal1",
+            "ip": "203.0.113.205",
+            "prefix_length": 24
+          },
+          {
+            "name": "IoT",
+            "vlan_id": 20,
+            "interface": "internal1",
+            "ip": "203.0.113.204",
+            "prefix_length": 24
+          },
+          {
+            "name": "KAMERY",
+            "vlan_id": 40,
+            "interface": "internal1",
+            "ip": "203.0.113.203",
+            "prefix_length": 24
+          },
+          {
+            "name": "LAB",
+            "vlan_id": 50,
+            "interface": "internal1",
+            "ip": "203.0.113.202",
+            "prefix_length": 24
+          },
+          {
+            "name": "ESXI-MGMT",
+            "vlan_id": 60,
+            "interface": "internal2",
+            "ip": "203.0.113.201",
+            "prefix_length": 24
+          },
+          {
+            "name": "FGT801-WAN-A",
+            "vlan_id": 801,
+            "interface": "internal3",
+            "ip": "203.0.113.200",
+            "prefix_length": 24
+          },
+          {
+            "name": "FGT801-WAN-B",
+            "vlan_id": 802,
+            "interface": "internal3",
+            "ip": "203.0.113.199",
+            "prefix_length": 24
+          }
+        ]
+      },
+      "stdout": "config system interface\n    edit \"wan1\"\n        config ipv6\n            set ip6-mode dhcp\n            set ip6-allowaccess ping\n        end\n    next\n    edit \"GUEST\"\n        set vlanid 30\n        set interface \"internal1\"\n        set ip 203.0.113.205 255.255.255.0\n    next\n    edit \"IoT\"\n        set vlanid 20\n        set interface \"internal1\"\n        set ip 203.0.113.204 255.255.255.0\n    next\n    edit \"KAMERY\"\n        set vlanid 40\n        set interface \"internal1\"\n        set ip 203.0.113.203 255.255.255.0\n    next\n    edit \"LAB\"\n        set vlanid 50\n        set interface \"internal1\"\n        set ip 203.0.113.202 255.255.255.0\n    next\n    edit \"ESXI-MGMT\"\n        set vlanid 60\n        set interface \"internal2\"\n        set ip 203.0.113.201 255.255.255.0\n    next\n    edit \"FGT801-WAN-A\"\n        set vlanid 801\n        set interface \"internal3\"\n        set ip 203.0.113.200 255.255.255.0\n    next\n    edit \"FGT801-WAN-B\"\n        set vlanid 802\n        set interface \"internal3\"\n        set ip 203.0.113.199 255.255.255.0\n    next\nend\n"
+    }
+  ],
+  "schema": "netops-replay/1"
+}
