@@ -36,6 +36,7 @@ The profile key is `arista_eos`. It is a conservative common EOS profile. Availa
 | `interfaces_trunk`, `interface_switchport`, `vlan_details` | [EOS VLANs](https://www.arista.com/en/um-eos/eos-virtual-lans-vlans) |
 | `lldp_neighbors_detail` | [EOS LLDP](https://www.arista.com/en/um-eos/eos-link-layer-discovery-protocol) |
 | `mlag_detail`, `mlag_config_sanity` | [EOS Multi-Chassis Link Aggregation](https://www.arista.com/en/um-eos/eos-multi-chassis-link-aggregation) |
+| `mlag_interfaces` | [Arista ATD Lab Guides 2026.2 – Data Center VXLAN (MLAG verification)](https://labguides.testdrive.arista.com/2026.2/data_center/vxlan/) and [EOS Multi-Chassis Link Aggregation](https://www.arista.com/en/um-eos/eos-multi-chassis-link-aggregation); the ATD output is a lab guide 2026.2 documentation example, not a live measurement and not an EOS firmware or hardware qualification |
 | `ntp_status`, `ntp_associations`, `cpu`, `log_messages` | [EOS switch administration commands](https://www.arista.com/en/um-eos/eos-switch-administration-commands) |
 | `reload_cause` | [EOS Switch booting commands](https://www.arista.com/en/um-eos/eos-switch-booting-commands) |
 
@@ -136,6 +137,7 @@ Every template was run on the lab images with the read-only account; the stored 
 | `lldp_neighbors_detail` | `show lldp neighbors detail` | ok, 236 lines | live |
 | `vlan_details` | `show vlan id {vlan_id}` | ok, 4 lines | live |
 | `mlag_detail` | `show mlag detail` | ok, 54 lines | live |
+| `mlag_interfaces` | `show mlag interfaces` | - | docs-only |
 | `mlag_config_sanity` | `show mlag config-sanity` | ok, 2 lines | live |
 | `ntp_status` | `show ntp status` | ok, 1 line | live |
 | `ntp_associations` | `show ntp associations` | ok, 3 lines | live |

@@ -16,7 +16,7 @@ from netops_admin.request import parse_request
 SECRET = "SECRET-MARKER-4711"
 
 
-def make_runtime(tmp_path, device, export_status=None, limits=None, **device_fields):
+def make_runtime(tmp_path, device, export_status=None, limits=None, simulate_unmeasured_profiles=False, **device_fields):
     config = Config(
         state_dir=str(tmp_path / "state"), audit_file=str(tmp_path / "audit" / "audit.jsonl"),
         export_status_file=export_status, notify=None, limits=dict(limits or DEFAULT_LIMITS),
@@ -27,7 +27,8 @@ def make_runtime(tmp_path, device, export_status=None, limits=None, **device_fie
         ), **device_fields)},
     )
     from enrollment_helpers import certify
-    runtime = execute.Runtime(config, lambda _device: device, sleep=device.advance)
+    runtime = execute.Runtime(config, lambda _device: device, sleep=device.advance,
+                              simulate_unmeasured_profiles=simulate_unmeasured_profiles)
     return certify(runtime, device, "lab")
 
 
@@ -456,3 +457,130 @@ def test_preview_preserves_corrupt_enrollment_reason_codes(tmp_path):
         execute.apply(runtime, 'lab', request())
     assert preview['reason_codes'] == caught.value.reason_codes == ['state_unreadable']
     assert preview['reason_details'] == caught.value.reason_details
+
+
+# 109-15: optional binding of apply to the approved preview (expected_plan_sha256)
+
+def _rejections(runtime):
+    return runtime.store.rejections_since(runtime.store.budget_now() - execute.HOUR)
+
+
+def _starts(tmp_path):
+    path = tmp_path / "audit" / "audit.jsonl"
+    return [event for event in audit_lines(tmp_path) if event["event"] == "start"] if path.exists() else []
+
+
+def test_apply_with_the_previewed_plan_hash_is_confirmed(tmp_path):
+    device = FakeFortiOS()
+    runtime = make_runtime(tmp_path, device)
+    ahead = execute.preview(runtime, "lab", request(request_id="req-bound-0001"))
+    assert ahead["result"] == "ready" and len(ahead["plan_sha256"]) == 64
+    record = execute.apply(runtime, "lab", request(request_id="req-bound-0001"),
+                           expected_plan_sha256=ahead["plan_sha256"])
+    assert record["result"] == "confirmed"
+    assert record["plan"]["plan_sha256"] == ahead["plan_sha256"]
+    assert device.addresses["new-host"]["subnet"] == "192.0.2.30 255.255.255.255"
+
+
+def test_object_changed_after_the_preview_is_refused_with_plan_changed_before_any_write(tmp_path):
+    device = FakeFortiOS()
+    runtime = make_runtime(tmp_path, device)
+    approved = request(op="update", key="spare-host", changes={"comment": "approved"}, request_id="req-bound-0002")
+    ahead = execute.preview(runtime, "lab", approved)
+    assert ahead["result"] == "ready"
+    device.addresses["spare-host"]["comment"] = "someone else"
+    blocks, records, starts, refused = (len(device.applied_blocks), len(list(runtime.store.records())),
+                                        len(_starts(tmp_path)), _rejections(runtime))
+    with pytest.raises(Rejected) as caught:
+        execute.apply(runtime, "lab", approved, expected_plan_sha256=ahead["plan_sha256"])
+    assert caught.value.reasons == [execute.PLAN_CHANGED]
+    assert caught.value.reason_codes == ["plan_changed"]
+    [detail] = caught.value.reason_details
+    assert detail["code"] == "plan_changed" and detail["expected"] == ahead["plan_sha256"]
+    assert len(detail["actual"]) == 64 and detail["actual"] != ahead["plan_sha256"]
+    assert len(device.applied_blocks) == blocks and not device.stitches
+    assert device.addresses["spare-host"]["comment"] == "someone else"
+    assert len(list(runtime.store.records())) == records
+    assert runtime.store.request("req-bound-0002") is None
+    assert len(_starts(tmp_path)) == starts
+    assert _rejections(runtime) == refused + 1
+
+
+@pytest.mark.parametrize("value", ["A" * 64, "a" * 63, "a" * 65, "g" * 64, " " + "a" * 63, "", 7, ["a" * 64]])
+def test_malformed_plan_hash_is_rejected_before_the_device_is_read(tmp_path, value):
+    device = FakeFortiOS()
+    runtime = make_runtime(tmp_path, device)
+    refused = _rejections(runtime)
+    with pytest.raises(Rejected) as caught:
+        execute.apply(runtime, "lab", request(), expected_plan_sha256=value)
+    assert "64 lowercase hexadecimal" in caught.value.reasons[0]
+    assert device.applied_blocks == [] and "new-host" not in device.addresses
+    assert list(runtime.store.records()) == []
+    assert _rejections(runtime) == refused + 1
+
+
+def test_malformed_plan_hash_counts_against_the_rejection_budget(tmp_path):
+    from netops_admin.errors import BudgetExhausted
+    device = FakeFortiOS()
+    runtime = make_runtime(tmp_path, device, limits=dict(DEFAULT_LIMITS, rejections_per_hour=2))
+    for number in range(2):
+        with pytest.raises(Rejected) as caught:
+            execute.apply(runtime, "lab", request(request_id="req-hash-%04d" % number), expected_plan_sha256="A" * 64)
+        assert not isinstance(caught.value, BudgetExhausted)
+    assert _rejections(runtime) == 2
+    assert device.applied_blocks == [] and list(runtime.store.records()) == []
+    with pytest.raises(BudgetExhausted) as caught:
+        execute.apply(runtime, "lab", request())
+    assert "rejected requests" in caught.value.reasons[0]
+    assert "new-host" not in device.addresses
+
+
+def test_plan_changed_counts_against_the_rejection_budget(tmp_path):
+    from netops_admin.errors import BudgetExhausted
+    device = FakeFortiOS()
+    runtime = make_runtime(tmp_path, device, limits=dict(DEFAULT_LIMITS, rejections_per_hour=2))
+    approved = request(op="update", key="spare-host", changes={"comment": "approved"}, request_id="req-bound-0006")
+    ahead = execute.preview(runtime, "lab", approved)
+    assert ahead["result"] == "ready"
+    device.addresses["spare-host"]["comment"] = "someone else"
+    for _ in range(2):
+        with pytest.raises(Rejected) as caught:
+            execute.apply(runtime, "lab", approved, expected_plan_sha256=ahead["plan_sha256"])
+        assert caught.value.reason_codes == ["plan_changed"]
+    assert _rejections(runtime) == 2
+    assert device.applied_blocks == [] and list(runtime.store.records()) == []
+    with pytest.raises(BudgetExhausted) as caught:
+        execute.apply(runtime, "lab", request())
+    assert "rejected requests" in caught.value.reasons[0]
+    assert "new-host" not in device.addresses
+
+
+def test_apply_without_the_plan_hash_behaves_as_before(tmp_path):
+    device = FakeFortiOS()
+    runtime = make_runtime(tmp_path, device)
+    approved = request(op="update", key="spare-host", changes={"comment": "approved"}, request_id="req-bound-0004")
+    ahead = execute.preview(runtime, "lab", approved)
+    device.addresses["spare-host"]["comment"] = "someone else"
+    record = execute.apply(runtime, "lab", approved)
+    assert record["result"] == "confirmed"
+    assert record["plan"]["plan_sha256"] != ahead["plan_sha256"]
+    assert device.addresses["spare-host"]["comment"] == "approved"
+
+
+def test_repeated_request_id_returns_the_started_operation_whatever_plan_hash(tmp_path):
+    device = FakeFortiOS()
+    runtime = make_runtime(tmp_path, device)
+    ahead = execute.preview(runtime, "lab", request(request_id="req-bound-0005"))
+    first = execute.apply(runtime, "lab", request(request_id="req-bound-0005"), expected_plan_sha256=ahead["plan_sha256"])
+    assert first["result"] == "confirmed"
+    blocks = len(device.applied_blocks)
+    again = execute.apply(runtime, "lab", request(request_id="req-bound-0005"), expected_plan_sha256="0" * 64)
+    assert again["change_id"] == first["change_id"]
+    plain = execute.apply(runtime, "lab", request(request_id="req-bound-0005"))
+    assert plain["change_id"] == first["change_id"]
+    assert len(device.applied_blocks) == blocks
+
+
+def test_plan_hash_is_not_part_of_the_request_identity():
+    assert "expected_plan_sha256" not in json.dumps(request().__dict__)
+    assert request().fingerprint() == request().fingerprint()

@@ -27,8 +27,10 @@ ATTRIBUTE_FIELDS = frozenset((
 ))
 OPTIONAL_PROFILE_FIELDS = frozenset((
     "implicit_keys", "undo_ops", "exact_versions", "table_scoped_key", "create_values", "create_position",
-    "isolated_update", "provisional", "value_requires",
+    "isolated_update", "provisional", "value_requires", "measured", "action",
 ))
+# a table changed only by its own operation (never by admin_apply or admin_preview)
+ACTIONS = {"poe-cycle": "exos"}
 
 
 class ProfileError(Exception):
@@ -75,6 +77,8 @@ class Profile:
     isolated_update: tuple = ()
     provisional: bool = False
     value_requires: dict = None
+    measured: bool = True
+    action: str | None = None
 
 
 def _require(condition, message):
@@ -186,6 +190,12 @@ def parse_profile(data) -> Profile:
     provisional = data.get("provisional", False)
     _require(all(isinstance(flag, bool) for flag in (exact, scoped, provisional)),
              "exact_versions, table_scoped_key and provisional must be true or false")
+    measured = data.get("measured", True)
+    _require(isinstance(measured, bool), "measured must be true or false")
+    _require(measured or (provisional and exact), "a profile not measured on a device must be provisional with exact_versions")
+    action = data.get("action")
+    _require(action is None or (action in ACTIONS and ACTIONS[action] == data["platform"]),
+             "action must name an operation of the platform: %s" % sorted(ACTIONS))
     create_values = data.get("create_values")
     if create_values is not None:
         _require("create" in ops and isinstance(create_values, dict) and create_values
@@ -221,6 +231,7 @@ def parse_profile(data) -> Profile:
         create_position=position, isolated_update=isolated, provisional=provisional,
         value_requires={name: {value: tuple(needed) for value, needed in values.items()}
                         for name, values in requires.items()} or None,
+        measured=measured, action=action,
     )
 
 

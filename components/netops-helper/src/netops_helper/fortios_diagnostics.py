@@ -73,6 +73,46 @@ class RestoreUnverified(ValueError):
     pass
 
 
+class PermissionRefused(ValueError):
+    pass
+
+
+DIAGNOSE_REFUSED = ("the account profile has no diagnose commands in this VDOM (FortiOS answered 'Unknown action 0', "
+                    "as a read-only profile does); the sessions recipe needs an account whose profile permits diagnose")
+
+
+def enter_vdom(shell, vdom):
+    """Enter `config vdom` / `edit <vdom>` and answer the index of its verified `current vf=<vdom>:<index>` marker.
+
+    Measured on the 60F 7.6.8: in multi-VDOM a global administrator's session reads no per-VDOM data outside
+    this context, and `diagnose sys session list` inside it still lists every VDOM unless filtered by `vd`.
+    """
+    from .fortios_vdom import VdomRefused, context_index
+    try:
+        shell.navigate("config vdom")
+        return context_index(shell.navigate("edit " + vdom), vdom)
+    except (ValueError, VdomRefused):
+        raise ScopeRefused("the session could not enter the verified context of the requested VDOM") from None
+
+
+def leave_vdom(shell):
+    """Leave the VDOM context entered by enter_vdom; the session closes next, so a failure is not an answer."""
+    try:
+        shell.navigate("end")
+    except Exception:
+        pass
+
+
+def _diagnose(shell, command, context):
+    """A diagnose step; in a verified VDOM context `Unknown action 0` is the profile's refusal (measured)."""
+    try:
+        return shell.command(command)
+    except StepRefused as refusal:
+        if context is not None and refusal.output.strip() == "Unknown action 0":
+            raise PermissionRefused(DIAGNOSE_REFUSED) from None
+        raise
+
+
 class StepRefused(ValueError):
     def __init__(self, output):
         super().__init__("the device refused a diagnostic step")
@@ -434,6 +474,8 @@ def run(shell, recipe, address, interface, count, timeout, vdom=None, *, reconne
         raise UnsupportedPlatform("config_platform_not_supported: multi-VDOM diagnostics require an enrolled VDOM")
     if vdom is not None and vdom != domain:
         raise UnsupportedPlatform("config_platform_not_supported: the session is not scoped to the requested VDOM")
+    # Multi-VDOM sessions: read inside the verified VDOM context and filter by its index (measured, task 172).
+    context = enter_vdom(shell, domain) if mode == "multiple" and recipe == "sessions" else None
     try:
         interfaces=fortios.parse(shell.command('show full-configuration system interface "'+interface+'"')).section("system interface")
     except Exception:
@@ -445,7 +487,7 @@ def run(shell, recipe, address, interface, count, timeout, vdom=None, *, reconne
         raise ValueError("the interface owner cannot be verified")
     if owner!=domain:
         raise ScopeRefused("the enrolled interface belongs to another VDOM")
-    info = shell.command("diagnose netlink interface list " + interface)
+    info = _diagnose(shell, "diagnose netlink interface list " + interface, context)
     if not re.search(r"(?m)^if=" + re.escape(interface) + r"(?:\s|$)", info):
         raise ValueError("the enrolled interface is not visible in this session")
     cleanup = []
@@ -527,7 +569,7 @@ def run(shell, recipe, address, interface, count, timeout, vdom=None, *, reconne
                         "run and nothing was changed. Run 'diagnose debug console timestamp disable' if that "
                         "console setting is not needed, or run the trace on the device.")
             display = "diagnose sys session filter" if recipe == "sessions" else "diagnose debug flow filter"
-            baseline = shell.command(display)
+            baseline = _diagnose(shell, display, context)
             empty_filter(baseline, recipe)
             cleanup.append(display + " clear")
             if source_address is not None:
@@ -548,6 +590,8 @@ def run(shell, recipe, address, interface, count, timeout, vdom=None, *, reconne
                 shell.command(display + (" dst " if recipe == "sessions" else " addr ") + filter_operand(address))
                 shell.command(display + " proto 1")
             if recipe == "sessions":
+                if context is not None:
+                    shell.command(display + " vd " + str(context))
                 command = "diagnose sys session list"
             else:
                 cleanup[0:0] = ["diagnose debug disable", "diagnose debug flow trace stop"]
@@ -557,9 +601,15 @@ def run(shell, recipe, address, interface, count, timeout, vdom=None, *, reconne
         output, timed_out = _bounded(shell, command, timeout)
         if recipe == "logs":
             output = log_read(output, baseline, address, count, window, timed_out)
+        if context is not None:
+            from .fortios_vdom import sessions_in_vdom
+            if not sessions_in_vdom(output, context):
+                raise ScopeRefused("a listed session does not belong to the requested VDOM")
         return output, timed_out, identity, domain
     finally:
         restored = _restore(shell, cleanup, display, baseline, recipe)
+        if context is not None and restored:
+            leave_vdom(shell)
         if not restored:
             recovered = False
             if reconnect is not None and (cleanup or recipe == "logs"):
@@ -568,7 +618,8 @@ def run(shell, recipe, address, interface, count, timeout, vdom=None, *, reconne
                         repair_identity, repair_domain, repair_mode = status_identity(
                             repair.command("get system status")
                         )
-                        if repair_identity == identity and repair_domain == domain and repair_mode == mode:
+                        if repair_identity == identity and repair_domain == domain and repair_mode == mode and (
+                                context is None or enter_vdom(repair, domain) == context):
                             recovered = _restore(repair, cleanup, display, baseline, recipe)
                 except Exception:
                     recovered = False

@@ -446,3 +446,51 @@ def test_every_resolver_failure_of_the_target_name_is_dns(fake_openssh, monkeypa
     assert _failed_details(events(), "switch_read") == ["dns"]
     _private_free(result, events())
     assert text not in json.dumps([result, events()])
+
+
+def test_a_refused_login_of_a_multi_vdom_fortios_target_names_the_vdom_interface(fake_openssh):
+    # Task 212 (live check 197 S6): a per-VDOM administrator that logs in through an interface of another VDOM
+    # is refused like a wrong password; only a FortiOS target with diagnostic_vdoms gets the per-VDOM advice.
+    use, _, events = fake_openssh
+    use("auth")
+    plain = engine._TRANSPORT_ADVICE["auth"]
+    advice = plain + engine._FORTIOS_VDOM_AUTH_ADVICE
+    assert "interface that belongs to its own VDOM" in advice
+    inventory = {"diagnostic_recipes": ("ping",), "addresses": ("192.0.2.11",), "interfaces": ("port1",)}
+    vdom_auth = replace(fortios_auth(), read_inventory={**inventory, "diagnostic_vdoms": ("vdom1",)})
+    read = engine.ssh_read(vdom_auth, "fortinet", "system_status", None, 0, 16000)
+    assert (read["ok"], read["error_code"], read["error"]) == (False, "auth", advice)
+    triage = engine.triage_health(vdom_auth)
+    assert (triage["error_code"], triage["error"]) == ("auth", advice)
+    assert {"step": "system_status", "reason": "transport_error", "error_code": "auth", "error": advice} in \
+        triage["missing"]
+    diagnostic = engine.fortios_diagnostics(vdom_auth, "ping", "192.0.2.11", "port1")
+    assert diagnostic == {"ok": False, "target": "wire-test", "recipe": "ping", "error_code": "auth", "error": advice}
+    # The same FortiOS target without diagnostic_vdoms, and FortiADC with its own VDOMs, keep the plain advice.
+    single = engine.ssh_read(replace(fortios_auth(), read_inventory=inventory), "fortinet", "system_status",
+                             None, 0, 16000)
+    adc = engine.ssh_read(adc_auth(), "fortiadc", "system_status", None, 0, 16000)
+    assert (single["error_code"], single["error"]) == (adc["error_code"], adc["error"]) == ("auth", plain)
+    assert _failed_details(events(), "ssh_read") == ["auth"] * 3
+    _private_free(read, triage, diagnostic, single, adc, events())
+
+
+def test_a_refused_login_of_a_multi_vdom_fortios_table_read_names_the_vdom_interface(fake_openssh):
+    # Review 212-rv finding 1: switch_read goes through normalized_query and its transport branch, which must carry
+    # the target too, so the per-VDOM advice of a FortiOS target with diagnostic_vdoms is not lost there.
+    use, clients, events = fake_openssh
+    use("auth")
+    plain = engine._TRANSPORT_ADVICE["auth"]
+    advice = plain + engine._FORTIOS_VDOM_AUTH_ADVICE
+    table_auth = replace(_target("fortinet", "arp_table"), device_types=("firewall",), egress=_egress())
+    vdom_auth = replace(table_auth, read_inventory={"diagnostic_vdoms": ("vdom1",)})
+    result = engine.switch_read(vdom_auth, "neighbor_l3")
+    assert result["ok"] is False and result["records"] == [] and result["status"] == "transport_error"
+    assert (result["error_code"], result["error"]) == ("auth", advice)
+    assert clients() == _expected_clients("auth", ["exec"])
+    assert _failed_details(events(), "normalized_query") == ["auth"]
+    assert _failed_details(events(), "switch_read") == ["auth"]
+    # The same FortiOS table read without diagnostic_vdoms keeps the plain advice.
+    single = engine.switch_read(table_auth, "neighbor_l3")
+    assert (single["error_code"], single["error"]) == ("auth", plain)
+    _private_free(result, single, events())

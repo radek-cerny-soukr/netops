@@ -999,3 +999,29 @@ def test_client_history_audits_the_fixed_endpoint_in_both_operation_records(monk
 def test_audit_does_not_describe_an_untyped_rest_endpoint(endpoint):
     fields = engine._audit_fields({'endpoint': endpoint}, {})
     assert 'request' not in fields and 'channel' not in fields
+
+
+@pytest.mark.parametrize('budget,limit', [(None, r.TIMEOUT), (2.5, 2.5), (100.0, r.TIMEOUT)])
+def test_optional_shared_deadline_only_shortens_the_request(transport, monkeypatch, budget, limit):
+    timeouts = []
+    def connect(address, timeout=None):
+        timeouts.append(timeout)
+        return MagicMock()
+    monkeypatch.setattr(r.socket, 'create_connection', connect)
+    options = {} if budget is None else {'budget_seconds': budget}
+    r.get(auth(), r.MONITOR + 'client', addresses=('127.0.0.1',), **options)
+    assert len(timeouts) == 1 and limit - 1 < timeouts[0] <= limit
+
+
+@pytest.mark.parametrize('budget', [True, float('nan'), float('inf'), '5'])
+def test_invalid_shared_deadline_is_refused_before_connect(monkeypatch, budget):
+    monkeypatch.setattr(r.socket, 'create_connection', lambda *a, **k: pytest.fail('network used'))
+    with pytest.raises(ValueError):
+        r.get(auth(), r.MONITOR + 'client', addresses=('127.0.0.1',), budget_seconds=budget)
+
+
+def test_exhausted_shared_deadline_times_out_before_connect(monkeypatch):
+    monkeypatch.setattr(r.socket, 'create_connection', lambda *a, **k: pytest.fail('network used'))
+    with pytest.raises(r.RestError) as error:
+        r.get(auth(), r.MONITOR + 'client', addresses=('127.0.0.1',), budget_seconds=0)
+    assert error.value.code == 'timeout'

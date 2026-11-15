@@ -169,6 +169,24 @@ def test_names_serials_ssids_users_and_descriptions():
     assert not engine.residual(result)
 
 
+def test_fortios_serial_number_label_with_hyphen(tmp_path):
+    # FortiOS "get system status" spells the label "Serial-Number"; built at run time like the other site values.
+    serial = "FGT60F" + "TK" + "23094321"
+    text = f"Version: FortiGate-60F v7.6.8,build3600,250101 (GA.M)\nSerial-Number: {serial}\nBIOS version: 05000016\n"
+    result, engine = run(text)
+    assert serial not in result
+    assert re.search(r"^Serial-Number: SSS00SSS\d{8}$", result, re.M), result
+    assert not engine.residual(result)
+    # The command line check: the anonymised copy no longer holds the serial, and the explicit
+    # literal check still reports a raw copy that kept it.
+    source = tmp_path / "raw" / "status.txt"
+    source.parent.mkdir()
+    source.write_text(text)
+    assert anonymize.main([str(source), "--out", str(tmp_path / "out"), "--check"]) == 0
+    assert serial not in (tmp_path / "out" / "status.txt").read_text()
+    assert anonymize.Anonymizer(serials=[serial]).residual(text) == [f"serial {serial}"]
+
+
 def test_truncated_display_strings_are_mapped_consistently():
     text = "Uplink-S>VR-Default E A\n3 Uplink-SW3 x\n"
     result, _ = run(text, descriptions=["Uplink-SW3"])

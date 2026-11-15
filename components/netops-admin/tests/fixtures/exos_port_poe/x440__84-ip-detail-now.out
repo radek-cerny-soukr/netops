@@ -1,0 +1,19 @@
+
+Port 10   
+
+Configured Admin State: disabled
+Inline Power State    : searching
+MIB Detect Status     : searching      
+Label                 : 
+Operator Limit        : 30000 milliwatts
+PD Class              : 
+Max Allowed Power     : 0.0 W
+Measured Power        : 0.0 W
+Line Voltage          : 0.0 Volts
+Current               : 0 mA
+Fault Status          : None
+Detailed Status       : 
+Priority              : low
+Power Up Status       : 2-pair 15W
+Powered Channels      : 0
+Detection             : 802.3af-only

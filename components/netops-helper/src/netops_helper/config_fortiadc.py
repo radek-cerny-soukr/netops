@@ -153,7 +153,14 @@ OBJECT_SECTIONS = frozenset(('load-balance virtual-server', 'load-balance pool',
                              'load-balance real-server',
                              'system health-check', 'security waf profile',
                              'system certificate local_cert_group',
-                             'load-balance client-ssl-profile'))
+                             'load-balance client-ssl-profile',
+                             'load-balance schedule-pool', 'system schedule-group'))
+
+# Measured on FortiADC-KVM 7.6.7 build 0676 (VM220, 2026-11-14, task 173; show full-configuration system
+# schedule-group, CLI help of schedule-member): the schedule fields live in the member table, which the schema lists one level higher.
+SCHEDULE_MEMBER = ('system schedule-group', 'schedule-member')
+SCHEDULE_MEMBER_FIELDS = ('type', 'startdate', 'enddate', 'starttime-of-startdate', 'endtime-of-enddate',
+                          'day-of-week', 'day-of-month')
 
 
 def object_section(section):
@@ -219,7 +226,8 @@ def _policy():
     admin, profile = ('system admin',), ('system accprofile',)
     fields = {(tuple(path), field) for path, field in data['fields']}
     fields |= {(admin, 'access-profile'), (admin, 'accprofile-override')} | {(profile, right) for right in RIGHTS}
-    edits = {tuple(path) for path in data['edits']} | {admin, profile, ('system vdom',)}
+    fields |= {(SCHEDULE_MEMBER, field) for field in SCHEDULE_MEMBER_FIELDS}
+    edits = {tuple(path) for path in data['edits']} | {admin, profile, ('system vdom',), SCHEDULE_MEMBER}
     return FullConfigPolicy('fortiadc', frozenset(fields), frozenset(edits),
                             secret_fields=frozenset((tuple(path), field) for path, field in data['secret_fields']),
                             unverified_fields=frozenset((tuple(path), field) for path, field in data['unverified_fields']),

@@ -1,0 +1,8 @@
+FortiADC-KVM # config load-balance schedule-pool
+  edit "netops-173-sp-a"
+    set load-balance-pool netops-173-pool-a
+    set schedule netops-173-sg-now
+  next
+end
+
+FortiADC-KVM # 

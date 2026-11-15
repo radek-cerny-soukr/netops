@@ -6,13 +6,14 @@ from pathlib import Path
 import pytest
 
 from netops_helper import ip_interfaces, tables as t
+from support.capture_sets import complete_sets
 
 ROOT = Path(__file__).parent / 'fixtures'
 REAL = ROOT / 'real'
 DIRECTORIES = {'cisco_ios': ['cisco_ios/iosv_15.9.3M12', 'cisco_ios/iosvl2_15.2.20200924'],
                'cisco_xe': ['cisco_xe/iolxe_17.18.2'], 'cisco_nxos': ['cisco_nxos/nexus9300v_9.3.12'],
                'arista_eos': ['arista_eos/ceos_4.36.1F'], 'juniper_junos_els': ['juniper_junos_els/vjunosswitch_26.2R1.7'],
-               'extreme_exos': ['exos/' + path.name for path in sorted((REAL / 'exos').iterdir()) if path.is_dir()],
+               'extreme_exos': ['exos/' + path.name for path in complete_sets(REAL / 'exos')],
                'fortinet': ['fortinet/fortigate80f_8.0.2']}
 CASES = [(profile, directory) for profile, directories in DIRECTORIES.items() for directory in directories]
 

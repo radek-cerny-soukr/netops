@@ -267,7 +267,9 @@ def run(auths, endpoint, read, budget=None, progress=lambda result: None, identi
                 unavailable.add(auth.alias)
             result['vantage'].append({'target': vantage, 'profile': auth.ssh_platform, 'device_types': list(auth.device_types), 'table': table,
                                       'status': state, 'captured_at': found['captured_at'], 'sources': found['sources'],
-                                      'coverage': found['coverage'], 'warnings': list(found.get('warnings', ()))})
+                                      'coverage': found['coverage'], 'warnings': list(found.get('warnings', ())),
+                                      # FortiOS VDOM scope of this read (absent when the device names none).
+                                      **{key: found[key] for key in ('vdom_mode', 'vdom', 'data_scope') if key in found}})
             result['reads'] = budget.reads
             warning = 'refusal_like_line_in_data'
             refusal_data = warning in found['coverage'].get('warnings', ()) or warning in found.get('warnings', ())

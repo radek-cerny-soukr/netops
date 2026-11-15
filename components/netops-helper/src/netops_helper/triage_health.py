@@ -23,21 +23,66 @@ PLANNED_READS = len(STEPS)
 REQUIRED = frozenset({"system_status", "conserve_state", "performance", "session_stats", "ha_status",
                       "ntp_status", "autoupdate_versions", "physical_interfaces"})
 REASONS = frozenset({"timeout", "truncated", "empty", "unsupported", "permission_denied",
-                     "device_cli_error", "transport_error", "unparsed", "not_applicable"})
+                     "device_cli_error", "transport_error", "unparsed", "not_applicable", "vdom_unverified",
+                     "vdom_membership_unverified", "vdom_admin_global_scope_unavailable"})
 VERDICTS = frozenset({"fault_found", "no_fault_in_checked_data", "incomplete"})
 
 
 def missing_read(step, answer, reasons=REASONS):
-    """The missing entry of a failed read; a transport failure keeps its class and fixed advice."""
+    """The missing entry of a failed read; a transport failure and a read refused to a per-VDOM administrator
+    keep their class and fixed advice."""
     reason = answer.get("reason") if isinstance(answer, dict) else None
     item = {"step": step, "reason": reason if reason in reasons else "device_cli_error"}
-    if reason in ("timeout", "transport_error") and isinstance(answer.get("error_code"), str):
+    if reason in ("timeout", "transport_error", "vdom_admin_global_scope_unavailable") and \
+            isinstance(answer.get("error_code"), str):
         item.update(error_code=answer["error_code"], error=answer.get("error"))
     return item
 
 
 class UnsupportedPlatform(ValueError):
     pass
+
+
+def vdom_scope(text):
+    """The VDOM scope the status names: vdom_mode and vdom; an unverified status gives vdom None.
+
+    A status without exactly one VDOM mode and current VDOM line is unverified (never taken for no-VDOM).
+    """
+    from .fortios_vdom import VdomRefused, scope
+    try:
+        return scope(text)
+    except VdomRefused as refused:
+        return refused.scope or {"vdom_mode": "unverified", "vdom": None}
+
+
+def in_vdom(found, answer):
+    """A read counts only for a verified scope; in multi-VDOM only when read in the session VDOM context."""
+    if found is None or found.get("vdom") is None:
+        return False
+    return found["vdom_mode"] == "disable" or answer.get("vdom") == found["vdom"]
+
+
+def vdom_fields(found):
+    """Additive result fields: the VDOM mode and the VDOM the checked data belongs to (null when not known)."""
+    return {"vdom_mode": found["vdom_mode"] if found else None, "vdom": found["vdom"] if found else None}
+
+
+def multi_vdom(found):
+    return bool(found) and found.get("vdom_mode") == "multiple" and found.get("vdom") is not None
+
+
+def ports_of_vdom(ports, answer, vdom):
+    """The physical ports of one VDOM and the count of the others, owners from `show system interface`.
+
+    Measured (task 172): `get system interface physical` lists the ports of every VDOM in any VDOM context.
+    The engine reads `show system interface` (set vdom) in the same context and passes `interface_vdoms`;
+    without it, or for a port it does not name, None (the ports are not assigned to the VDOM).
+    """
+    owners = answer.get("interface_vdoms")
+    if not isinstance(owners, dict) or any(port["name"] not in owners for port in ports):
+        return None
+    kept = [port for port in ports if owners[port["name"]] == vdom]
+    return kept, len(ports) - len(kept)
 
 
 class Unparsed(ValueError):
@@ -182,6 +227,8 @@ def autoupdate_versions(text):
             if len(matches) > 1:
                 raise Unparsed()
             fields[key] = matches[0] if matches else None
+        if item["package"] == "FDS Address" and fields["version"] is None:
+            continue
         if fields["contract_expiry"] is not None:
             _expiry(fields["contract_expiry"])
         result.append({"package": item["package"], **fields})
@@ -317,11 +364,16 @@ def run(read, clock):
     if not first.get("ok"):
         raise UnsupportedPlatform("config_platform_not_supported: the identity read failed")
     ident = identity(first["text"])
+    scope = vdom_scope(first["text"])
+    multiple = multi_vdom(scope)
+    data_scopes = {}
+    other_vdom_ports = None
     ha_reason = None
     for area, query in STEPS[1:]:
         if query == "ha_checksum":
             if ha_reason is not None:
-                missing.append({"step": query, "reason": ha_reason})
+                # The refused ha_status's reason, with its error_code and error when it has them (review 206-rv).
+                missing.append({**ha_reason, "step": query})
                 continue
             if (parsed["ha_status"]["mode"] or "").lower() == "standalone":
                 missing.append({"step": query, "reason": "not_applicable"})
@@ -331,6 +383,8 @@ def run(read, clock):
         captured[query] = moment
         if not answer.get("ok"):
             missing.append(missing_read(query, answer))
+        elif not in_vdom(scope, answer):
+            missing.append({"step": query, "reason": "vdom_unverified"})
         elif not answer["text"].strip():
             missing.append({"step": query, "reason": "not_applicable" if query == "sdwan_health" else "empty"})
         elif query == "sdwan_health" and answer["text"].strip() in SDWAN_NOT_RUNNING:
@@ -343,10 +397,29 @@ def run(read, clock):
             except Unparsed:
                 missing.append({"step": query, "reason": "unparsed"})
             else:
+                from .fortios_vdom import DATA_SCOPES
+                data_scope = DATA_SCOPES.get(query, answer.get("data_scope", "vdom"))
+                if multiple and data_scope in ("all_vdoms", "unverified"):
+                    # A listing of every VDOM: only the ports assigned to this VDOM are its links.
+                    assigned = ports_of_vdom(parsed[query], answer, scope["vdom"]) \
+                        if query == "physical_interfaces" else None
+                    if assigned is None:
+                        del parsed[query]
+                        sources.pop(query, None)
+                        missing.append({"step": query, "reason": "vdom_membership_unverified"})
+                        continue
+                    parsed[query], other_vdom_ports = assigned
+                    data_scope = "vdom"
+                if multiple:
+                    data_scopes[query] = data_scope
                 checked.append(query)
         if query == "ha_status" and "ha_status" not in parsed:
-            ha_reason = missing[-1]["reason"]
+            ha_reason = {key: value for key, value in missing[-1].items() if key in ("reason", "error_code", "error")}
     findings = findings_for(parsed, sources, captured)
+    if multiple:
+        for item in findings:
+            # Each finding names the scope of the data it was found in (device-wide or this VDOM).
+            item["data_scope"] = data_scopes.get(item["sources"][0]["query"], "vdom")
     gaps = [item for item in missing if item["reason"] != "not_applicable"]
     absent = [query for query in REQUIRED - {"system_status"} if query not in parsed]
     if gaps or absent:
@@ -368,6 +441,12 @@ def run(read, clock):
         "updates": parsed.get("autoupdate_versions"),
         "links": {"physical": parsed.get("physical_interfaces"), "sdwan": parsed.get("sdwan_health")},
     }
+    if multiple:
+        # Multi-VDOM: every part names the scope of its data; device-wide counters are not data of the VDOM.
+        if chain["sessions"] is not None:
+            chain["sessions"] = {**chain["sessions"], "data_scope": data_scopes["session_stats"]}
+        if other_vdom_ports is not None:
+            chain["links"]["other_vdom_ports"] = other_vdom_ports
     next_steps = []
     for item in findings:
         step = _NEXT.get(item["id"])
@@ -377,6 +456,8 @@ def run(read, clock):
     return {
         "ok": True,
         "identity": ident,
+        **vdom_fields(scope),
+        **({"data_scopes": {"system_status": "device", **data_scopes}} if multiple else {}),
         "started_at": _utc(started),
         "finished_at": _utc(clock()),
         "chain": chain,

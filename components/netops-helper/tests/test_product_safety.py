@@ -4,6 +4,7 @@ import importlib.util
 import json
 from pathlib import Path
 import tomllib
+import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 PRODUCT = ROOT.parents[1]
@@ -62,6 +63,69 @@ def test_phase1_surface_rejects_forbidden_command_in_added_module(
     assert "show full-configuration" not in policy_path.read_text(
         encoding="utf-8"
     ).lower()
+
+def test_phase1_surface_ignores_catalog_comments_and_docstrings(tmp_path: Path) -> None:
+    gate = _load_release_module("check_public_release")
+    source = tmp_path / "src/netops_helper"
+    source.mkdir(parents=True)
+    (source / "server.py").write_text("", encoding="utf-8")
+    (source / "descriptions.py").write_text(
+        '\u0022\u0022\u0022show running-config\nshow startup-config\u0022\u0022\u0022\n'
+        '# show configuration\n'
+        'class Description:\n'
+        '    ("show full-configuration" " execute backup")\n'
+        '    def describe(self):\n'
+        '        """backup configuration"""\n'
+        '        return "safe"  # show running-config\n'
+        'async def describe_async():\n'
+        '    """configuration_backup"""\n',
+        encoding="utf-8",
+    )
+    assert gate._phase1_surface_errors(tmp_path) == []
+    (source / "vendor.py").write_text('COMMAND = "show running-config"\n', encoding="utf-8")
+    assert gate._phase1_surface_errors(tmp_path) == [
+        "phase-1 source contains configuration export pattern: "
+        "src/netops_helper/vendor.py: show running-config"
+    ]
+    # The implementation-pattern check must still include comments.
+    (source / "vendor.py").write_text("# config_mode\n", encoding="utf-8")
+    assert gate._phase1_surface_errors(tmp_path) == [
+        "phase-1 source contains a write implementation: src/netops_helper/vendor.py: config_mode"
+    ]
+
+
+@pytest.mark.parametrize("name, pattern, count", [
+    ("config_arista_eos_adapter.py", "show running-config", 1),
+    ("config_cisco_nxos_adapter.py", "show running-config", 1),
+    ("config_cisco_xe_adapter.py", "show running-config", 1),
+    ("config_indented.py", "show running-config", 1),
+    ("config_cisco_ios_adapter.py", "show running-config", 1),
+    ("config_exos_adapter.py", "show configuration", 1),
+    ("config_fortiadc.py", "show full-configuration", 2),
+    ("config_fortios.py", "show full-configuration", 1),
+])
+def test_phase1_config_read_allowances_are_exact(tmp_path: Path, name: str, pattern: str, count: int) -> None:
+    gate = _load_release_module("check_public_release")
+    source = tmp_path / "src/netops_helper"
+    source.mkdir(parents=True)
+    (source / "server.py").write_text("", encoding="utf-8")
+    allowed = source / name
+    original = (ROOT / "src/netops_helper" / name).read_text(encoding="utf-8")
+    allowed.write_text(original, encoding="utf-8")
+    assert gate._phase1_surface_errors(tmp_path) == []
+    message = "phase-1 source contains configuration export pattern: "
+    allowed.write_text(original + f'\nEXTRA = "{pattern}"\n', encoding="utf-8")
+    assert gate._phase1_surface_errors(tmp_path) == [f"{message}src/netops_helper/{name}: {pattern}"]
+    # A renamed copy receives no allowance; FortiADC also requires both occurrences.
+    allowed.unlink()
+    (source / "other.py").write_text(original, encoding="utf-8")
+    assert gate._phase1_surface_errors(tmp_path) == [f"{message}src/netops_helper/other.py: {pattern}"]
+    (source / "other.py").unlink()
+    if count > 1:
+        before, _, after = original.rpartition(pattern)
+        allowed.write_text(before + "show" + after, encoding="utf-8")
+        assert gate._phase1_surface_errors(tmp_path) == [f"{message}src/netops_helper/{name}: {pattern}"]
+
 
 def test_phase1_surface_rejects_removed_body_read_symbols_and_policy(
     tmp_path: Path,

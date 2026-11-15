@@ -24,11 +24,11 @@ class SelftestManifestContract(unittest.IsolatedAsyncioTestCase):
         with contextlib.redirect_stdout(output):
             self.assertEqual(await cli.selftest(), 0)
         value = json.loads(output.getvalue())
-        self.assertEqual(value["version"], "1.0.8")
+        self.assertEqual(value["version"], "1.0.9")
         roles = value["roles"]
         self.assertEqual(set(roles), {"helper", "auditor", "admin"})
         self.assertEqual(set(roles["helper"]["names"]), HELPER_TOOLS)
-        for role, count in (("helper", 26), ("auditor", 7), ("admin", 6)):
+        for role, count in (("helper", 26), ("auditor", 8), ("admin", 7)):
             self.assertEqual(roles[role]["tools"], count)
             self.assertEqual(len(roles[role]["names"]), count)
             self.assertEqual(len(set(roles[role]["names"])), count)

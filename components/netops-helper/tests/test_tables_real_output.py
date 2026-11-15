@@ -13,9 +13,10 @@ import pytest
 
 from netops_helper import normalization, tables as t
 from netops_helper.query_catalog import READ_QUERIES
+from support.capture_sets import complete_sets
 
 ROOT = Path(__file__).parent / 'fixtures'
-EXOS_DIRS = sorted(p for p in (ROOT / 'real/exos').iterdir() if p.is_dir() and not p.name.startswith('exosvm'))      # the lab VM: test_locate_lab.py
+EXOS_DIRS = [p for p in complete_sets(ROOT / 'real/exos') if not p.name.startswith('exosvm')]      # the lab VM: test_locate_lab.py
 TABLES = {'interface': 'interface', 'vlan': 'vlan', 'mac_entry': 'mac_entry', 'neighbor_l3': 'neighbor_l3',
           'lldp_neighbor': 'lldp_neighbor', 'route': 'route'}
 
@@ -146,7 +147,11 @@ def test_every_exos_lacp_output_is_recognized_and_names_the_lag_master_port(dire
 
 # ---- the other operating systems: vendor documentation outputs -----------------------------
 
-DOC_CASES = [(p.name, f.stem) for p in sorted((ROOT / 'docs').iterdir()) if p.is_dir() for f in sorted(p.glob('*.txt'))]
+# Documentation outputs that feed no normalized table: arista_eos/mlag_interfaces is summarized by
+# switch_mlag_eos_interfaces (tests/test_switch_mlag_eos_interfaces*.py), not by tables.parse.
+NO_TABLE_DOCS = {('arista_eos', 'mlag_interfaces')}
+DOC_CASES = [(p.name, f.stem) for p in sorted((ROOT / 'docs').iterdir()) if p.is_dir() for f in sorted(p.glob('*.txt'))
+             if (p.name, f.stem) not in NO_TABLE_DOCS]
 DOC_TABLE = {'interfaces': 'interface', 'vlans': 'vlan', 'mac_table': 'mac_entry', 'arp_table': 'neighbor_l3',
              'ipv6_neighbors': 'neighbor_l3', 'ipv6_route_lookup': 'route', 'lldp_neighbors': 'lldp_neighbor', 'lldp_neighbors_detail': 'lldp_neighbor', 'route_table': 'route', 'ospf_neighbors': 'ospf_neighbor',
              'lag_summary': 'lag', 'lacp_interfaces': 'lag', 'stp_tree': 'stp_port', 'bgp_summary': 'bgp_peer'}

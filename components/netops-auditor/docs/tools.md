@@ -1,6 +1,6 @@
 # Auditor tools in NetOps
 
-The HTTPS MCP endpoint exposes seven Auditor tools. They read the finished findings of the configured tenant from the private Auditor store, which they open read-only, and the rules of the configured catalog. They contact no device, start no collection and write nothing; findings come from `auditor run` and `auditor collect` in the [operator workflow](../../../docs/quickstart-1.0.md#auditor-operator-workflows).
+The HTTPS MCP endpoint exposes eight Auditor tools. They read the finished findings of the configured tenant from the private Auditor store, which they open read-only, and the rules of the configured catalog. They contact no device, start no collection and write nothing; findings come from `auditor run` and `auditor collect` in the [operator workflow](../../../docs/quickstart-1.0.md#auditor-operator-workflows).
 
 | Tool | Arguments | Current behavior |
 |---|---|---|
@@ -11,6 +11,7 @@ The HTTPS MCP endpoint exposes seven Auditor tools. They read the finished findi
 | finding_detail | `device`, `fingerprint` | One finding of the last run with its baseline and suppression record; a fingerprint that the run does not hold is an MCP error with `No finding matches the requested fingerprint for this device` |
 | compare | `device`, `first_run_id`, `second_run_id` (whole numbers) | `added`, `removed` and `kept` findings between two completely evaluated runs of the device |
 | schema_report | `device`, optional `view`, `offset`, `limit` | Reads an operator-pinned schema report manifest; NetOps 1.0 configures none, so the call is refused |
+| findings_summary | optional `device`, `severity`, `state`, `rule_id`, `limit` (whole number 1 to 200, default 50) | Brief findings of the last run of every device of the tenant, or of one `device`: `device`, `rule_id`, `severity`, `state`, `object_key` and `fingerprint` only, without evidence, section or line; see [Findings summary](#findings-summary) |
 
 `list_findings` accepts these values:
 
@@ -21,9 +22,31 @@ The HTTPS MCP endpoint exposes seven Auditor tools. They read the finished findi
 | `since` | a UTC time written exactly as `YYYY-MM-DDTHH:MM:SSZ`, for example `2026-10-16T00:00:00Z`; when the last run started earlier, the result is empty with `run_state` `before-since` |
 | `group_by` | `object` only; it adds `groups`, one per object key with count, worst severity, rule IDs, states and fingerprints |
 
-`run_state` is `present`, `never` for a device without a run, or `before-since`. Use a `run_id` from `audit_status` or `list_findings` for `compare`. Arguments that do not match the input schema of the tool from `tools/list`, such as a wrong type or a missing required argument, are refused by the gateway with `Tool arguments do not match tools/list inputSchema`, followed by the missing required fields when there are any. Any other value outside the accepted ones, an unknown `rule_id`, a run of another device, a run that is not completely evaluated in `compare` and every `schema_report` call are refused with the generic `Role operation failed; no automatic retry`, which does not name the argument. Some handled role errors also log a traceback; use the instance health and container state to check whether the service is running.
+`audit_status` and `list_findings` also return `suppressions_configured` (true when the reader has a suppression file); their other fields are unchanged.
 
-`compare` reads only the two requested runs by ID (checked against tenant and device). `list_findings`, `finding_detail` and `audit_status` read the earlier evaluated history once per request; the view is local to that request and is not a database snapshot, so an import finished meanwhile appears in the next request.
+`run_state` is `present`, `never` for a device without a run, or `before-since`. Use a `run_id` from `audit_status` or `list_findings` for `compare`. Arguments that do not match the input schema of the tool from `tools/list`, such as a wrong type or a missing required argument, are refused by the gateway with `Tool arguments do not match tools/list inputSchema`, followed by the missing required fields when there are any. Any other value outside the accepted ones, an unknown `rule_id` (in `rule_detail` and `findings_summary`), a `limit` outside 1 to 200, a run of another device, a run that is not completely evaluated in `compare` and every `schema_report` call are refused with the generic `Role operation failed; no automatic retry`, which does not name the argument. Some handled role errors also log a traceback; use the instance health and container state to check whether the service is running.
+
+`compare` reads only the two requested runs by ID (checked against tenant and device). `list_findings`, `finding_detail` and `audit_status` read the earlier evaluated history once per request (`findings_summary` once per device of the request); the view is local to that request, and all its queries run in one read transaction over one committed state of the store, so an import committed meanwhile appears in the next request.
+
+## Findings summary
+
+`findings_summary` answers questions such as "all new high findings across the devices, only rule and object" in one short response. It reads the last run of every device of the configured tenant (devices in name order), or only `device` when given, and classifies the findings exactly as `list_findings` does, so `severity` and `state` take the same values and mean the same: the entries include `gone` and `not-evaluated` ones, and a filter applies to them too. `rule_id` must name a rule of the configured catalog. There is no `since`, no grouping, no paging and no history or `gone` detail; use `list_findings` and `finding_detail` for one device.
+
+| Field | Meaning |
+|---|---|
+| `items` | At most `limit` matching entries, ordered by device, severity (high first), rule ID and object key |
+| `total_matching` | Number of entries that match every filter, before `limit` |
+| `returned` | Number of entries in `items` |
+| `truncated` | `true` when `total_matching` is larger than `returned`; narrow the filters or raise `limit` |
+| `counts_before_filter` | Entries of the selected devices per `state` (`new`, `open-known`, `suppressed`, `gone`, `not-evaluated`) and per `severity` (`high`, `medium`, `low`, `info`), regardless of `severity`, `state` and `rule_id` |
+| `counts_after_filter` | The same counts for the matching entries only, before `limit` |
+| `suppressions_configured` | Whether the reader has a suppression file |
+
+Every state and severity key is always present, also with the value 0. Without a `rule_id` filter, the sum of `total_matching` over the devices equals the sum of `total` of `list_findings` with the same `severity` and `state` for each device. NetOps 1.0 has no supported way to supply a suppression file, so `suppressions_configured` is `false` and `suppressed` is always 0; a 0 there does not mean that nothing would be suppressed.
+
+## Collection while NetOps is running
+
+Use `docker compose exec netops netops auditor collect --device example-device --json` against the running instance. `auditor run` and `auditor status` also support this path; a second container started with `docker compose run` cannot share the running instance. One private `auditor/store.lock` serializes writers, and each MCP read sees a committed store state. Collection uses the Auditor UID, inventory and vault, and writes operator preflight/result audit records. Configuration and imports still require the stopped instance. The command shares the running container resource limits; see the [operator workflow](../../../docs/quickstart-1.0.md#collect-while-netops-is-running) for lock refusals, audit failures and memory limits.
 
 ## FortiADC snapshots
 

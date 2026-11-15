@@ -267,6 +267,7 @@ READ_QUERY_NAMES = {
         "policy_routes_ipv4",
         "policy_routes_ipv6",
         "route_lookup",
+        "ipv6_route_lookup",
         "route_protocols",
         "routing_table",
         "sdwan_health",
@@ -566,6 +567,7 @@ READ_QUERY_NAMES = {
         "mac_table",
         "mlag_config_sanity",
         "mlag_detail",
+        "mlag_interfaces",
         "ntp_associations",
         "ntp_status",
         "ospf_interfaces",
@@ -853,6 +855,12 @@ READ_QUERY_SLOTS = {
             "address": {
                 "inventory": "addresses",
                 "kind": "ipv4_lookup",
+            },
+        },
+        "ipv6_route_lookup": {
+            "address": {
+                "inventory": "addresses",
+                "kind": "ipv6_lookup",
             },
         },
     },
@@ -1724,7 +1732,7 @@ TOOL_ARGUMENT_SCHEMAS = {
     "switch_read": (frozenset({"target", "table"}), frozenset({"vlan_id", "mac", "ip", "interface", "limit", "offset", "max_bytes", "managed_switch"})),
     "triage_health": (frozenset({"target"}), frozenset()),
     "triage_routing": (frozenset({"target", "address"}), frozenset()),
-    "triage_flow": (frozenset({"target", "src", "dst", "port", "proto"}), frozenset()),
+    "triage_flow": (frozenset({"target", "src", "dst", "port", "proto"}), frozenset({"source_port"})),
     "triage_vpn": (frozenset({"target", "tunnel"}), frozenset()),
     "wifi_triage": (frozenset({"target"}), frozenset({"mac", "ip", "name", "summary", "history_limit", "history_offset"})),
     "wifi_clients": (frozenset({"target"}), frozenset({"ssid", "ap", "mac", "name", "limit", "offset", "max_bytes"})),
@@ -1752,7 +1760,7 @@ LOOKUP_SLOT_KINDS = {"ipv4_lookup": 4, "ipv6_lookup": 6}
 
 
 def _lookup_network(value: object, version: int) -> Any:
-    """The network of a canonical CIDR prefix of this family, or None; /0 and host bits are refused."""
+    """A canonical CIDR network, or None; refuse /0, multicast, unspecified and limited broadcast."""
     if not isinstance(value, str) or value.count("/") != 1 or "%" in value:
         return None
     try:
@@ -1760,6 +1768,9 @@ def _lookup_network(value: object, version: int) -> Any:
     except ValueError:
         return None
     if str(network) != value or network.prefixlen == 0 or network.version != version:
+        return None
+    address = network.network_address
+    if address.is_multicast or address.is_unspecified or (network.version == 4 and int(address) == 4294967295):
         return None
     return network
 
@@ -2228,7 +2239,8 @@ class Proxy:
             "egress": dict(section.egress),
         }
         if tool == "locate_endpoint":
-            envelope["locate_read_limit"] = self._rate_cost(tool, None, section)
+            # The same plan the request reserves, including the REST reads of an injected token.
+            envelope["locate_read_limit"] = self._rate_cost(tool, rest_token, section)
         if usm is not None and tool in SNMP_ENVELOPE_TOOLS:
             envelope["snmp_usm"] = dict(usm)
         if getattr(section, "tls_ca_certificate", None) is not None:
@@ -2359,9 +2371,55 @@ class Proxy:
                 raise argument_error("snapshot_id", "Copy snapshot_id from the first page (cfg_ and 32 lower-case hexadecimal characters)")
             if tool == "config_read" and normalized.get("offset", 0) and not normalized.get("snapshot_id"):
                 raise argument_error("snapshot_id", "A continuation requires snapshot_id from the first page")
-            if normalized.get("platform") not in ("fortios", "fortinet", "fortiadc"):
+            if tool == "config_read" and normalized.get("platform") in ("extreme_exos", "cisco_ios", "cisco_xe", "cisco_nxos",
+                                                                       "arista_eos"):
+                # The single admitted EXOS, IOS, IOS XE, NX-OS or EOS option set; everything else is refused before any SSH.
+                # IOS/IOS XE/NX-OS/EOS: include_defaults true (show running-config all) is not admitted.
+                from . import configuration, config_exos_adapter, config_cisco_ios_adapter, config_cisco_xe_adapter
+                from . import config_arista_eos_adapter, config_cisco_nxos_adapter
+                name = normalized["platform"]
+                adapter = {"extreme_exos": config_exos_adapter, "cisco_ios": config_cisco_ios_adapter,
+                           "cisco_xe": config_cisco_xe_adapter, "cisco_nxos": config_cisco_nxos_adapter,
+                           "arista_eos": config_arista_eos_adapter}[name]
+                field, hint = "redaction", name + " requires redaction full explicitly"
+                try:
+                    if normalized.get("redaction", "minimal") != "full":
+                        raise ValueError()
+                    field, hint = "include_defaults", name + " supports only include_defaults false"
+                    if normalized.get("include_defaults", False) is not False:
+                        raise ValueError()
+                    field, hint = "include_all", name + " supports only section all with include_all true"
+                    if normalized.get("include_all", False) is not True:
+                        raise ValueError()
+                    field, hint = "section", name + " supports only section all with include_all true"
+                    adapter.read_command(normalized["section"], True, False)
+                    field, hint = "contains", "contains is 1 to 64 printable ASCII characters or null"
+                    configuration.filter_arguments(normalized.get("contains"))
+                    field, hint = "context", "context is a whole number from 0 to 10 and requires contains when nonzero"
+                    configuration.filter_arguments(normalized.get("contains"), normalized.get("context", 0))
+                    field, hint = "filter_sha256", "Copy filter_sha256 from the first filtered page: 64 lower-case hexadecimal characters"
+                    configuration.filter_arguments(normalized.get("contains"), normalized.get("context", 0),
+                                                   normalized.get("content_sha256"), normalized.get("filter_sha256"))
+                    if normalized.get("offset", 0) and (
+                            normalized.get("contains") is not None or normalized.get("filter_sha256") is not None):
+                        if normalized.get("content_sha256") is None:
+                            field, hint = "content_sha256", ARGUMENT_HINTS["content_sha256"]
+                            raise ValueError()
+                        if normalized.get("filter_sha256") is None:
+                            raise ValueError()
+                    field, hint = "snapshot_id", "Configuration fingerprints require snapshot_id from the first page"
+                    if not normalized.get("snapshot_id") and (
+                            normalized.get("content_sha256") is not None or normalized.get("filter_sha256") is not None):
+                        raise ValueError()
+                except ValueError:
+                    raise argument_error(field, hint) from None
+            elif tool == "config_diff" and normalized.get("platform") in ("extreme_exos", "cisco_ios", "cisco_xe",
+                                                                         "cisco_nxos", "arista_eos"):
+                # config_diff compares two stored snapshots (task 157); only the page and snapshot arguments below apply.
+                pass
+            elif normalized.get("platform") not in ("fortios", "fortinet", "fortiadc"):
                 raise argument_error("platform", "config_read/config_diff supports fortios, fortinet and fortiadc")
-            if tool == "config_read":
+            elif tool == "config_read":
                 from . import configuration, config_fortios, config_fortiadc
                 field, hint = "redaction", "Use minimal or full; FortiADC requires redaction full explicitly"
                 try:
@@ -2418,9 +2476,10 @@ class Proxy:
         if tool == "triage_flow":
             from . import triage_flow
             try:
-                triage_flow.validate(normalized["src"], normalized["dst"], normalized["port"], normalized["proto"])
+                triage_flow.validate(normalized["src"], normalized["dst"], normalized["port"], normalized["proto"],
+                                     normalized.get("source_port"))
             except ValueError:
-                raise argument_error('src/dst/port/proto', 'Provide canonical IPv4 src/dst, port 1..65535 and proto tcp, udp or icmp') from None
+                raise argument_error('src/dst/port/proto/source_port', 'Provide canonical IPv4 src/dst, port 1..65535, proto tcp, udp or icmp and, for tcp or udp, an optional source_port 1..65535 (omit it when unknown)') from None
 
         if tool == "triage_vpn" and (not isinstance(normalized["tunnel"], str) or not re.fullmatch(
                 r"[A-Za-z0-9][A-Za-z0-9_.-]{0,34}", normalized["tunnel"])):
@@ -2688,6 +2747,25 @@ class Proxy:
             return
         if tool in ("config_read", "config_diff"):
             permission = "read" if tool == "config_read" else "compare"
+            if tool == "config_read" and args.get("platform") == "extreme_exos":
+                require(section.catalog_platform() == "extreme_exos", "platform")
+                require("read" in listed("config_access"), "config_access")
+                require(cls._port_allowed(entry.port, egress, "tcp"), "egress")
+                return
+            if tool == "config_read" and args.get("platform") in ("cisco_ios", "cisco_xe", "cisco_nxos", "arista_eos"):
+                # Exact inventory platform (cisco_ios, cisco_xe, cisco_nxos or arista_eos, never each other); never the FortiOS/FortiADC branch below.
+                require(section.catalog_platform() == args.get("platform"), "platform")
+                require("read" in listed("config_access"), "config_access")
+                require(cls._port_allowed(entry.port, egress, "tcp"), "egress")
+                return
+            if tool == "config_diff" and args.get("platform") in ("extreme_exos", "cisco_ios", "cisco_xe", "cisco_nxos",
+                                                                  "arista_eos"):
+                # Task 157: exact inventory platform, compare only together with read; the diff reads no device,
+                # the egress check keeps the symmetry with the FortiOS/FortiADC branch.
+                require(section.catalog_platform() == args.get("platform"), "platform")
+                require("read" in listed("config_access") and "compare" in listed("config_access"), "config_access")
+                require(cls._port_allowed(entry.port, egress, "tcp"), "egress")
+                return
             expected = "fortiadc" if args.get("platform") == "fortiadc" else "fortinet"
             require(args.get("platform") in ("fortios", "fortinet", "fortiadc")
                     and section.catalog_platform() == expected, "platform")
@@ -2900,11 +2978,14 @@ class Proxy:
             from netops_helper.port_vlan import BINDINGS, CAMPUS
             profile = section.catalog_platform()
             vlan_reads = (1 + (profile in CAMPUS or profile == 'extreme_exos')) if BINDINGS.get(profile) in section.enabled_queries else 0
+            # A usable REST token adds the Wi-Fi step's three possible GETs (client,
+            # managed_ap, device query) under the same caps.
             return min(LOCATE_MAX_READS, section.rate_limit["requests"], 7 + (profile == "extreme_exos") + vlan_reads
                        + (2 + (profile == 'fortinet' and 'managed_switch_port_stats' in section.enabled_queries)
                             + 2 * (profile == 'fortinet' and all(q in section.enabled_queries for q in (
                                 'managed_switch_port_vlans', 'interface_vlan_ids'))))
-                       * len(section.read_inventory.get("managed_switches", ())))
+                       * len(section.read_inventory.get("managed_switches", ()))
+                       + (3 if rest_token else 0))
         if tool == "switch_read" and section is not None and args is not None:
             from netops_helper.port_vlan import CAMPUS
             profile, table = section.catalog_platform(), args.get('table')
@@ -2930,6 +3011,13 @@ class Proxy:
                         and "vlans" in section.enabled_queries) + (
                 len(join_queries(section.catalog_platform(), section.enabled_queries))
                 if args.get("table") == "ip_interface" else 0)
+        if tool == "config_read" and args is not None and args.get("platform") == "extreme_exos":
+            # Fresh capture: show version, show switch and show configuration; a cached page reads nothing.
+            return 0 if args.get("snapshot_id") else 3
+        if tool == "config_read" and args is not None and args.get("platform") in ("cisco_ios", "cisco_xe", "cisco_nxos",
+                                                                                   "arista_eos"):
+            # Fresh capture: show version and show running-config; a cached page reads nothing.
+            return 0 if args.get("snapshot_id") else 2
         return TRIAGE_READS.get(tool, 1) + (8 if tool == "wifi_triage" and rest_token else 0)
 
     def _consume_rate_limit(self, alias: str, limit: dict[str, int], cost: int = 1, *, triage: bool = False) -> None:
@@ -3256,6 +3344,10 @@ class Proxy:
                     self.control_payloads[request_id] = payload
             elif tool == "locate_endpoint":
                 contexts, materials, scopes = {}, [], []
+                from netops_helper.tables import literal
+                kind, value = literal(args['endpoint'])
+                # The worker's Wi-Fi step searches a station table by MAC or IPv4 only.
+                wifi_endpoint = kind == 'mac' or (kind == 'ip' and ':' not in value)
                 for alias in args['targets']:
                     entry, section, vault = self._target(alias)
                     try:
@@ -3264,10 +3356,22 @@ class Proxy:
                         exc.data.setdefault('target', alias)    # the whole call is refused: say which alias to check
                         raise
                     credential = self._credential(vault, entry.credential)
-                    context = self._auth_context(entry, section, credential, None, tool)
+                    rest_token = None
+                    if wifi_endpoint and section.catalog_platform() == "fortinet" and section.fortios_rest_credential:
+                        # The already enrolled REST credential, checked like the Wi-Fi tools do.
+                        rest_token = self._credential(vault, section.fortios_rest_credential).use()
+                        from .wifi_rest import checked_token
+                        try:
+                            checked_token(rest_token)
+                        except ValueError:
+                            raise AuthenticationMaterialError(data={
+                                "hint": "Replace the referenced api-token credential with a valid FortiOS REST token; see docs/fortios-wifi-rest.md",
+                            }) from None
+                    context = self._auth_context(entry, section, credential, None, tool, rest_token)
                     contexts[alias] = context
-                    materials.extend((*self._session_secrets(credential, None), context))
-                    scopes.append((alias, section.rate_limit, self._rate_cost(tool, None, section, args)))
+                    materials.extend((*self._session_secrets(credential, None), context,
+                                      *((rest_token,) if rest_token else ())))
+                    scopes.append((alias, section.rate_limit, self._rate_cost(tool, rest_token, section, args)))
                 # Every target is charged the reads planned on it, or no target is charged.
                 self._consume_rate_limits(scopes)
                 args[AUTH_FIELD] = json.dumps(contexts, separators=(',', ':'))
@@ -3321,9 +3425,15 @@ class Proxy:
             if has_id:
                 self._clear_pending(request_id)
             return None
-        if tool in PAGED_TOOLS:
+        if tool in PAGED_TOOLS or (tool in ("config_read", "config_diff") and args.get("platform") in (
+                "extreme_exos", "cisco_ios", "cisco_xe", "cisco_nxos", "arista_eos")):
             # Existing private proxy -> server handoff; never accepted from a client.
             # Separate from auth_context to avoid recursively growing session envelopes.
+            # EXOS config_read stores and hashes its text with the same session secrets that the
+            # final reply redacts (84-N1); its page metadata stays the configuration kind.
+            # Cisco IOS config_read takes the same private handoff (task 128), Cisco IOS XE too (task 140),
+            # Arista EOS too (task 143), Cisco NX-OS too (task 153); config_diff of these platforms too (task 157),
+            # whose engine applies the config_read snapshot guard to both snapshots.
             args[REDACTION_FIELD] = list(dict.fromkeys((*secrets, *self.session_secrets, *self.transport_secrets)))
         if has_id:
             self.response_secrets[request_id] = secrets

@@ -533,6 +533,7 @@ _FORTINET_COMMANDS = frozenset({
     "diagnose hardware deviceinfo nic {interface}",
     "get router info routing-table all",
     "get router info routing-table details {address}",
+    "get router info6 routing-table {address}",
     "get router info protocols",
     "get router info6 protocols",
     "get system arp",
@@ -759,7 +760,7 @@ LOOKUP_KINDS = {"ipv4_lookup": 4, "ipv6_lookup": 6}
 
 
 def canonical_prefix(value: object, version: int | None = None):
-    """Return the network of a canonical CIDR prefix: no host bits, no mask notation, not /0."""
+    """Return a canonical CIDR network; refuse /0, multicast, unspecified and limited broadcast."""
     if not isinstance(value, str) or value.count("/") != 1 or "%" in value:
         raise ValueError("invalid typed lookup prefix")
     try:
@@ -767,6 +768,9 @@ def canonical_prefix(value: object, version: int | None = None):
     except ValueError as exc:
         raise ValueError("invalid typed lookup prefix") from exc
     if str(network) != value or network.prefixlen == 0 or (version is not None and network.version != version):
+        raise ValueError("invalid typed lookup prefix")
+    address = network.network_address
+    if address.is_multicast or address.is_unspecified or (network.version == 4 and int(address) == 4294967295):
         raise ValueError("invalid typed lookup prefix")
     return network
 

@@ -83,6 +83,28 @@ LISTING_KEYS = (
     "groups",
 )
 
+SUMMARY_STATES = STATES + (STATE_NOT_EVALUATED,)
+
+SUMMARY_LIMIT_MIN = 1
+SUMMARY_LIMIT_MAX = 200
+SUMMARY_LIMIT_DEFAULT = 50
+
+SUMMARY_ITEM_KEYS = ("device", "rule_id", "severity", "state", "object_key", "fingerprint")
+
+SUMMARY_COUNT_KEYS = ("state", "severity")
+
+SUMMARY_KEYS = (
+    "tenant",
+    "device",
+    "items",
+    "total_matching",
+    "returned",
+    "truncated",
+    "counts_before_filter",
+    "counts_after_filter",
+    "suppressions_configured",
+)
+
 BASELINE_KEYS = ("accepted_at", "accepted_by", "note", "run_id")
 
 SUPPRESSION_KEYS = ("author", "reason", "expires", "active")
@@ -343,7 +365,14 @@ def _device_status(store, tenant, device, now, stale_after_hours) -> dict:
     }
 
 
-def audit_status(store, tenant, device=None, now=None, stale_after_hours=DEFAULT_STALE_AFTER_HOURS) -> dict:
+def audit_status(
+    store,
+    tenant,
+    device=None,
+    now=None,
+    stale_after_hours=DEFAULT_STALE_AFTER_HOURS,
+    suppressions_configured=None,
+) -> dict:
     _checked_text("tenant", tenant)
     moment = _checked_now(now)
     hours = _checked_hours(stale_after_hours)
@@ -357,13 +386,16 @@ def audit_status(store, tenant, device=None, now=None, stale_after_hours=DEFAULT
     totals = {"devices": len(devices), STATUS_FRESH: 0, STATUS_STALE: 0, STATUS_NEVER: 0}
     for item in devices:
         totals[item["state"]] = totals.get(item["state"], 0) + 1
-    return {
-        "tenant": tenant,
-        "stale_after_hours": hours,
-        "devices": devices,
-        "never_audited": tuple(item["device"] for item in devices if item["state"] == STATUS_NEVER),
-        "totals": totals,
-    }
+    return _with_suppressions_flag(
+        {
+            "tenant": tenant,
+            "stale_after_hours": hours,
+            "devices": devices,
+            "never_audited": tuple(item["device"] for item in devices if item["state"] == STATUS_NEVER),
+            "totals": totals,
+        },
+        suppressions_configured,
+    )
 
 
 def _rule_entry(rule) -> dict:
@@ -408,30 +440,18 @@ def _empty_listing(tenant, device, run_state) -> dict:
     }
 
 
-def list_findings(
-    store,
-    tenant,
-    device,
-    suppressions=(),
-    now=None,
-    severity=None,
-    state=None,
-    since=None,
-    group_by=None,
-) -> dict:
-    _checked_text("tenant", tenant)
-    _checked_text("device", device)
-    moment = _checked_now(now)
-    wanted_severity = _checked_choice("severity", severity, SEVERITIES)
-    wanted_state = _checked_choice("state", state, STATES + (STATE_NOT_EVALUATED,))
-    boundary = _checked_since(since)
-    grouping = _checked_choice("group_by", group_by, GROUP_BY)
+def _device_entries(store, tenant, device, suppressions, moment, boundary=None):
+    """Classify the last run of one device exactly as list_findings does.
+
+    Returns (run_state, last_run, findings, gone); the entries are unfiltered.
+    Shared by list_findings and findings_summary so that their filters mean the same.
+    """
     runs = _runs(store, tenant, device)
     if not runs:
-        return _empty_listing(tenant, device, RUN_NEVER)
+        return RUN_NEVER, None, (), ()
     last = runs[0]
     if boundary is not None and _moment(last["started_at"]) < boundary:
-        return _empty_listing(tenant, device, RUN_BEFORE_SINCE)
+        return RUN_BEFORE_SINCE, last, (), ()
     stored = store.findings_for_run(tenant, last["id"])
     statuses = stored_statuses(store, tenant, last["id"])
     history = _history(store, tenant, runs)
@@ -447,27 +467,168 @@ def list_findings(
         for item in historical
     )
     gone = tuple(_gone_entry(item) for item in result.gone)
-    if wanted_severity is not None:
-        findings = tuple(item for item in findings if item["severity"] == wanted_severity)
-        gone = tuple(item for item in gone if item["severity"] == wanted_severity)
-    if wanted_state is not None:
-        findings = tuple(item for item in findings if item["state"] == wanted_state)
-        gone = tuple(item for item in gone if item["state"] == wanted_state)
+    return RUN_PRESENT, last, findings, gone
+
+
+def _matches(item, severity=None, state=None, rule_id=None) -> bool:
+    if severity is not None and item["severity"] != severity:
+        return False
+    if state is not None and item["state"] != state:
+        return False
+    if rule_id is not None and item["rule_id"] != rule_id:
+        return False
+    return True
+
+
+def _filtered(entries, severity=None, state=None, rule_id=None) -> tuple:
+    return tuple(item for item in entries if _matches(item, severity, state, rule_id))
+
+
+def list_findings(
+    store,
+    tenant,
+    device,
+    suppressions=(),
+    now=None,
+    severity=None,
+    state=None,
+    since=None,
+    group_by=None,
+    suppressions_configured=None,
+) -> dict:
+    _checked_text("tenant", tenant)
+    _checked_text("device", device)
+    moment = _checked_now(now)
+    wanted_severity = _checked_choice("severity", severity, SEVERITIES)
+    wanted_state = _checked_choice("state", state, SUMMARY_STATES)
+    boundary = _checked_since(since)
+    grouping = _checked_choice("group_by", group_by, GROUP_BY)
+    run_state, last, findings, gone = _device_entries(store, tenant, device, suppressions, moment, boundary)
+    if run_state != RUN_PRESENT:
+        return _with_suppressions_flag(_empty_listing(tenant, device, run_state), suppressions_configured)
+    findings = _filtered(findings, wanted_severity, wanted_state)
+    gone = _filtered(gone, wanted_severity, wanted_state)
     entries = findings + gone
     counts = dict.fromkeys(STATES, 0)
     for item in entries:
         counts[item["state"]] = counts.get(item["state"], 0) + 1
+    return _with_suppressions_flag(
+        {
+            "tenant": tenant,
+            "device": device,
+            "run_state": RUN_PRESENT,
+            "run_id": last["id"],
+            "started_at": last["started_at"],
+            "total": len(entries),
+            "counts": counts,
+            "findings": findings,
+            "gone": gone,
+            "groups": _groups(entries) if grouping is not None else (),
+        },
+        suppressions_configured,
+    )
+
+
+def _with_suppressions_flag(report: dict, suppressions_configured) -> dict:
+    """Add the optional suppressions_configured key; None leaves the 1.0.8 shape untouched."""
+    if suppressions_configured is not None:
+        report["suppressions_configured"] = bool(suppressions_configured)
+    return report
+
+
+def _checked_limit(value) -> int:
+    if isinstance(value, bool) or not isinstance(value, int) or not SUMMARY_LIMIT_MIN <= value <= SUMMARY_LIMIT_MAX:
+        raise QueryError(
+            "limit must be a whole number from %d to %d, got %r" % (SUMMARY_LIMIT_MIN, SUMMARY_LIMIT_MAX, value)
+        )
+    return value
+
+
+def _checked_rule_id(rules, value):
+    if value is None:
+        return None
+    _checked_text("rule_id", value)
+    if value not in frozenset(rule.id for rule in rules):
+        raise QueryError("the catalog holds no rule %r" % (value,))
+    return value
+
+
+def _summary_counts(entries) -> dict:
+    states = dict.fromkeys(SUMMARY_STATES, 0)
+    severities = dict.fromkeys(SEVERITIES, 0)
+    for item in entries:
+        states[item["state"]] += 1
+        severities[_checked_severity(item["severity"])] += 1
+    return {"state": states, "severity": severities}
+
+
+def _summary_item(device, item) -> dict:
+    return {
+        "device": device,
+        "rule_id": item["rule_id"],
+        "severity": item["severity"],
+        "state": item["state"],
+        "object_key": item["object_key"],
+        "fingerprint": item["fingerprint"],
+    }
+
+
+def _summary_order(item):
+    return (
+        item["device"],
+        SEVERITIES.index(item["severity"]),
+        item["rule_id"],
+        item["object_key"],
+        item["fingerprint"],
+        item["state"],
+    )
+
+
+def findings_summary(
+    store,
+    tenant,
+    rules,
+    device=None,
+    suppressions=(),
+    now=None,
+    severity=None,
+    state=None,
+    rule_id=None,
+    limit=SUMMARY_LIMIT_DEFAULT,
+    suppressions_configured=False,
+) -> dict:
+    """Brief filtered findings of the last run of every device of the tenant (or one device).
+
+    Items carry no evidence, section or line. Severity and state mean the same as in
+    list_findings (including gone and not-evaluated entries); counts_before_filter covers
+    every entry of the selected devices, counts_after_filter only the matching ones.
+    """
+    _checked_text("tenant", tenant)
+    moment = _checked_now(now)
+    wanted_severity = _checked_choice("severity", severity, SEVERITIES)
+    wanted_state = _checked_choice("state", state, SUMMARY_STATES)
+    wanted_rule = _checked_rule_id(rules, rule_id)
+    bound = _checked_limit(limit)
+    if device is None:
+        names = _tenant_devices(store, tenant)
+    else:
+        names = (_checked_text("device", device),)
+    everything = []
+    for name in sorted(frozenset(names)):
+        findings, gone = _device_entries(store, tenant, name, suppressions, moment)[2:]
+        everything.extend(_summary_item(name, item) for item in findings + gone)
+    matching = sorted(_filtered(everything, wanted_severity, wanted_state, wanted_rule), key=_summary_order)
+    items = tuple(matching[:bound])
     return {
         "tenant": tenant,
         "device": device,
-        "run_state": RUN_PRESENT,
-        "run_id": last["id"],
-        "started_at": last["started_at"],
-        "total": len(entries),
-        "counts": counts,
-        "findings": findings,
-        "gone": gone,
-        "groups": _groups(entries) if grouping is not None else (),
+        "items": items,
+        "total_matching": len(matching),
+        "returned": len(items),
+        "truncated": len(matching) > len(items),
+        "counts_before_filter": _summary_counts(everything),
+        "counts_after_filter": _summary_counts(matching),
+        "suppressions_configured": bool(suppressions_configured),
     }
 
 

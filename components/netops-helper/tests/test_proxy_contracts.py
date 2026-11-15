@@ -754,12 +754,12 @@ def check_query_authority_and_typed_pre_auth(
     }
     expected_counts = {
         "linux": 16,
-        "fortinet": 119,
+        "fortinet": 120,
         "extreme_exos": 65,
         "cisco_ios": 49,
         "cisco_xe": 50,
         "cisco_nxos": 61,
-        "arista_eos": 54,
+        "arista_eos": 55,
         "juniper_junos": 41,
         "juniper_junos_els": 55,
         "ruckus_unleashed": 4,
@@ -776,9 +776,9 @@ def check_query_authority_and_typed_pre_auth(
         for name in sorted(names)
     )
     assert hashlib.sha256(name_contract.encode()).hexdigest() == (
-        "e97e3266009e97be6915dd606d5318416dc917c8ab4a0085011c30489bd29d89"
+        "976c844522dc3027e4b603bd669a0f5041984ea6d3f64a3754b30135739ff54b"
     )
-    assert sum(expected_counts.values()) == 547
+    assert sum(expected_counts.values()) == 549
 
     expected_kind_inventory = {
         "fortios_sdwan_health_check": "sdwan_health_checks",

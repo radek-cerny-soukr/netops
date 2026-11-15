@@ -1,4 +1,5 @@
 import asyncio
+from contextlib import contextmanager
 from datetime import datetime, timezone
 import fcntl
 import json
@@ -39,6 +40,27 @@ SYSLOG_MIN_RATE = 65536
 SMALL_AUDIT_MESSAGE = 65536
 
 QUEUE_NAME = re.compile(r"[0-9]+-[0-9a-f]{32}\.queue")
+
+@contextmanager
+def directory_lock(directory):
+    """Interprocess writer lock of one audit directory.
+
+    The running gateway and a second process of the same container (operator
+    preflight/result records of ``docker compose exec netops netops auditor
+    collect|run``) append to the same directory. Every change of the directory
+    set (local: retention, segment rotation, budget deletion and the segment
+    append; syslog: queue append and removal after delivery; recovery) runs
+    under an exclusive ``flock`` of the directory itself, so two processes can
+    neither lose nor duplicate a record. The directory is locked instead of a
+    separate lock file, so the audit file set stays unchanged. Delivery to the
+    syslog receiver runs outside the lock.
+    """
+    descriptor = os.open(directory, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC)
+    try:
+        fcntl.flock(descriptor, fcntl.LOCK_EX)
+        yield
+    finally:
+        os.close(descriptor)
 
 def queue_names(directory):
     return [path.name for path in Path(directory).glob("*.queue")
@@ -106,6 +128,10 @@ def split_records(raw):
     return raw[:cut].splitlines(), raw[cut:]
 
 def recover(directory):
+    with directory_lock(directory):
+        return _recover(directory)
+
+def _recover(directory):
     import hashlib
     directory = Path(directory)
     plan = []
@@ -211,6 +237,10 @@ class Audit:
         encoded = json.dumps(event, separators=(",", ":"), ensure_ascii=False, allow_nan=False).encode() + b"\n"
         if len(encoded) > MAX_MESSAGE * 2:
             raise AuditUnavailable("Audit record exceeds the supported message size")
+        with directory_lock(self.directory):
+            self._append_locked(encoded)
+
+    def _append_locked(self, encoded):
         files = self._files()
         if self.settings["mode"] == "local":
             now = time.time()
@@ -338,9 +368,10 @@ class Audit:
                     pass
 
     def _remove(self, paths):
-        for path in paths:
-            path.unlink()
-        sync_directory(self.directory)
+        with directory_lock(self.directory):
+            for path in paths:
+                path.unlink()
+            sync_directory(self.directory)
 
     def _send(self, path):
         self._deliver([path])

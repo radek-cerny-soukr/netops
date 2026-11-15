@@ -1243,7 +1243,7 @@ def test_readonly_refuses_missing_object_and_open_restores_missing_index(tmp_pat
     with sqlite3.connect(path) as con:
         con.execute("DROP INDEX findings_run_id")
     with sqlite3.connect(path.as_uri() + "?mode=ro", uri=True) as ro:
-        with pytest.raises((StoreError, sqlite3.DatabaseError), match="findings_run_id.*missing.*open writable.*auditor run/import-snapshot"):
+        with pytest.raises((StoreError, sqlite3.DatabaseError), match="findings_run_id.*missing.*open writable.*auditor run or auditor status"):
             schema_version(ro)
     with Store(path) as store:
         assert store.last_run(TENANT, DEVICE)["id"] == run_id
@@ -1294,7 +1294,7 @@ def test_readonly_missing_object_offers_writable_repair(tmp_path):
     with sqlite3.connect(path) as con:
         con.execute("DROP TABLE rule_status")
     before = path.read_bytes()
-    with pytest.raises(ConfigurationError, match="rule_status.*missing.*open writable.*auditor run/import-snapshot"):
+    with pytest.raises(ConfigurationError, match="rule_status.*missing.*open writable.*auditor run or auditor status"):
         ReadOnlyStore(path)
     assert path.read_bytes() == before
 

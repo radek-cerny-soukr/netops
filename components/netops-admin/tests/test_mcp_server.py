@@ -162,3 +162,97 @@ def test_schema_mcp_shares_the_server_operation_lock(schema_served):
     finally:
         mcp_server._ACTIVE.release()
     assert answer["result"]=="rejected" and "another operation" in answer["reasons"][0]
+
+
+# 109-15 and 109-16 over MCP
+
+def test_seven_tools_include_the_read_only_undo_preview():
+    assert len(mcp_server.TOOL_NAMES) == 7 and "admin_undo_preview" in mcp_server.TOOL_NAMES
+    assert "admin_undo" not in mcp_server.TOOL_NAMES
+    assert "admin_undo_preview" in mcp_server.INSTRUCTIONS
+    assert "undo a change" in mcp_server.INSTRUCTIONS and "a person runs" in mcp_server.INSTRUCTIONS
+
+
+def test_apply_bound_to_the_preview_is_confirmed(served):
+    device, runtime = served
+    ahead = call("admin_preview", arguments())
+    assert ahead["result"] == "ready"
+    answer = call("admin_apply", dict(arguments(), expected_plan_sha256=ahead["plan_sha256"]))
+    assert answer["result"] == "confirmed" and "new-host" in device.addresses
+
+
+def test_apply_with_a_changed_plan_is_rejected_with_plan_changed(served):
+    device, runtime = served
+    body = arguments(op="update", key="spare-host", changes={"comment": "approved"}, request_id="req-mcp-bound-2")
+    ahead = call("admin_preview", body)
+    device.addresses["spare-host"]["comment"] = "someone else"
+    blocks = len(device.applied_blocks)
+    answer = call("admin_apply", dict(body, expected_plan_sha256=ahead["plan_sha256"]))
+    assert answer["result"] == "rejected" and answer["reason_codes"] == ["plan_changed"]
+    assert answer["reason_details"][0]["expected"] == ahead["plan_sha256"]
+    assert len(device.applied_blocks) == blocks and list(runtime.store.records()) == []
+    assert SECRET not in json.dumps(answer)
+
+
+@pytest.mark.parametrize("value", ["A" * 64, "a" * 10, "z" * 64])
+def test_apply_with_a_malformed_plan_hash_is_rejected(served, value):
+    device, runtime = served
+    answer = call("admin_apply", dict(arguments(), expected_plan_sha256=value))
+    assert answer["result"] == "rejected" and "64 lowercase hexadecimal" in answer["reasons"][0]
+    assert device.applied_blocks == [] and "new-host" not in device.addresses
+
+
+def test_apply_without_a_plan_hash_and_repeat_with_any_hash(served):
+    device, runtime = served
+    first = call("admin_apply", arguments())
+    assert first["result"] == "confirmed"
+    blocks = len(device.applied_blocks)
+    again = call("admin_apply", dict(arguments(), expected_plan_sha256="0" * 64))
+    assert again["change_id"] == first["change_id"] and len(device.applied_blocks) == blocks
+
+
+def test_schema_apply_has_no_plan_binding():
+    async def run():
+        async with fastmcp.Client(mcp_server.mcp) as client:
+            return {tool.name: tool.inputSchema for tool in await client.list_tools()}
+
+    schemas = asyncio.run(run())
+    assert "expected_plan_sha256" in schemas["admin_apply"]["properties"]
+    assert "expected_plan_sha256" not in schemas["admin_apply"].get("required", [])
+    assert "expected_plan_sha256" not in schemas["admin_schema_apply"]["properties"]
+    assert set(schemas["admin_undo_preview"]["properties"]) == {"change_id", "reason"}
+
+
+def test_undo_preview_is_read_only_and_names_the_undo(served, tmp_path):
+    device, runtime = served
+    first = call("admin_apply", arguments(op="update", key="spare-host", changes={"comment": "mine"}))
+    assert first["result"] == "confirmed"
+    blocks, records = len(device.applied_blocks), len(list(runtime.store.records()))
+    audit = (tmp_path / "audit" / "audit.jsonl").read_text()
+    ahead = call("admin_undo_preview", {"change_id": first["change_id"], "reason": "because %s" % SECRET})
+    assert ahead["result"] == "ready" and ahead["undo_of"] == first["change_id"]
+    assert ahead["request_id"] == "undo-%s" % first["change_id"]
+    assert len(device.applied_blocks) == blocks and len(list(runtime.store.records())) == records
+    assert (tmp_path / "audit" / "audit.jsonl").read_text() == audit
+    assert device.addresses["spare-host"]["comment"] == "mine"
+    assert SECRET not in json.dumps(ahead)
+
+
+def test_undo_preview_of_an_unknown_or_undone_change_is_rejected(served):
+    from netops_admin import execute
+
+    device, runtime = served
+    assert call("admin_undo_preview", {"change_id": "0" * 32, "reason": "x"})["result"] == "rejected"
+    first = call("admin_apply", arguments(op="update", key="spare-host", changes={"comment": "mine"}))
+    assert execute.undo(runtime, first["change_id"], "investigated")["result"] == "confirmed"
+    answer = call("admin_undo_preview", {"change_id": first["change_id"], "reason": "x"})
+    assert answer["result"] == "rejected" and answer["reason_codes"] == ["undo_already_done"]
+
+
+def test_undo_preview_shares_the_server_operation_lock(served):
+    assert mcp_server._ACTIVE.acquire(blocking=False)
+    try:
+        answer = call("admin_undo_preview", {"change_id": "0" * 32, "reason": "x"})
+    finally:
+        mcp_server._ACTIVE.release()
+    assert answer["result"] == "rejected" and "another operation" in answer["reasons"][0]

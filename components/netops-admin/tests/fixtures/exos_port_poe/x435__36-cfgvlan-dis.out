@@ -1,0 +1,8 @@
+#
+# Module vlan configuration.
+#
+configure vlan default delete ports all
+configure vr VR-Default delete ports 1-12
+configure vr VR-Default add ports 1-12
+disable port 8
+configure vlan Default add ports 1-12 untagged  

@@ -1,0 +1,24 @@
+FortiADC-KVM # config system schedule-group
+  edit "netops-173-sg-now"
+    config  schedule-member
+      edit "1"
+        set type weekly-recurring
+        set starttime-of-startdate 00:00
+        set endtime-of-enddate 23:59
+        set day-of-week saturday
+      next
+    end
+  next
+  edit "netops-173-sg-off"
+    config  schedule-member
+      edit "1"
+        set type weekly-recurring
+        set starttime-of-startdate 00:00
+        set endtime-of-enddate 23:59
+        set day-of-week wednesday
+      next
+    end
+  next
+end
+
+FortiADC-KVM # 

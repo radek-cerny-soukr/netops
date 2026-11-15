@@ -6,7 +6,7 @@ from pathlib import Path
 
 
 def load_assessments(released_path=None):
-    """Overlay released assessments with current repository records by CVE/package."""
+    """Overlay released assessments with current repository records by CVE, package, version and type."""
     repository_path = Path(__file__).resolve().with_name("vulnerability-assessments.json")
     merged = {}
     paths = ([Path(released_path)] if released_path else []) + [repository_path]
@@ -26,7 +26,7 @@ def load_assessments(released_path=None):
         ):
             raise ValueError("assessments must be a list of records with id, package, version and type: " + str(path))
         for item in records:
-            merged[item["id"], item["package"]] = item
+            merged[item["id"], item["package"], item["version"], item["type"]] = item
     return list(merged.values())
 
 

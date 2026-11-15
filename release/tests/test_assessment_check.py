@@ -85,17 +85,25 @@ class LoadAssessments(unittest.TestCase):
         records = assessment_check.load_assessments(self.asset)
         self.assertEqual(records, [OK, other, other_package])
 
-    def test_override_is_by_cve_package_even_when_version_or_type_changed(self):
+    def test_other_version_or_type_is_preserved_alongside_current_record(self):
         for changes in ({"version": "0.9"}, {"type": "binary"}):
-            self.asset.write_text(json.dumps([dict(OK, **changes)]), encoding="utf-8")
-            self.assertEqual(assessment_check.load_assessments(self.asset), [OK])
+            with self.subTest(changes=changes):
+                old = dict(OK, **changes)
+                self.asset.write_text(json.dumps([old]), encoding="utf-8")
+                records = assessment_check.load_assessments(self.asset)
+                self.assertEqual(records, [old, OK])
+                gate = {"status": "needs-assessment", "assessment_required": [REQ, dict(REQ, **changes)]}
+                self.assertEqual(assessment_check.check(gate, records)[0], 0)
 
     def test_repository_can_revoke_released_assessment(self):
-        self.asset.write_text(json.dumps([OK]), encoding="utf-8")
+        other_version = dict(OK, version="0.9")
+        self.asset.write_text(json.dumps([OK, other_version]), encoding="utf-8")
         self.repository.write_text(json.dumps([dict(OK, exploitable=True)]), encoding="utf-8")
         records = assessment_check.load_assessments(self.asset)
         gate = {"status": "needs-assessment", "assessment_required": [REQ]}
         self.assertEqual(assessment_check.check(gate, records)[0], 1)
+        gate = {"status": "needs-assessment", "assessment_required": [dict(REQ, version="0.9")]}
+        self.assertEqual(assessment_check.check(gate, records)[0], 0)
 
     def test_malformed_asset_or_repository_fails_closed(self):
         for path in (self.asset, self.repository):

@@ -54,6 +54,7 @@ ALLOWED_HOSTS = {
     "www.cisco.com",
     "developer.cisco.com",
     "www.arista.com",
+    "labguides.testdrive.arista.com",
     "www.juniper.net",
 }
 REPOSITORY = "https://github.com/radek-cerny-soukr/netops"

@@ -12,6 +12,11 @@ from netops_helper import engine, read_policy, schema_read
 ADC_STATUS = "Version: FortiADC-KVM v7.6.7,build0676,260522 (GA.M)\n"
 FORTIOS_STATUS = "Version: FortiGate-VM64-KVM v7.6.7,build3704,release\n"
 FORTIOS_IDENTITY = ("FortiGate-VM64-KVM", "7.6.7", "3704")
+# A real no-VDOM FortiOS status also names its VDOM mode (fixtures/real/fortios/fg60f_7.6.8_ipv6_20261114/
+# 01-version.txt lines 29-32); without it a per-VDOM query is refused as vdom_unverified (168e2a5), so the wire
+# tests that expect the requested query to be sent use the identity plus these lines.
+FORTIOS_NO_VDOM_STATUS = (FORTIOS_STATUS + "Current virtual domain: root\nMax number of virtual domains: 10\n"
+                          "Virtual domains status: 1 in NAT mode, 0 in TP mode\nVirtual domain configuration: disable\n")
 
 
 def malformed_or_duplicate(valid):
@@ -281,7 +286,9 @@ class FortiAdcF1Wire(unittest.TestCase):
         self.reads = []
         self.cache = {}
         self.enterContext(patch.object(engine, "_SSH_PAGE_CACHE", self.cache))
-        self.auth = SimpleNamespace(alias="f1-wire", secrets=(),output_secrets=(),redaction_secrets=(), legacy_ssh=None, ssh_platform="fortiadc")
+        # read_inventory: TargetAuth always carries it (auth.py, default {}); 168e2a5 reads it for the VDOM scope.
+        self.auth = SimpleNamespace(alias="f1-wire", secrets=(),output_secrets=(),redaction_secrets=(), legacy_ssh=None, ssh_platform="fortiadc",
+                                    read_inventory={})
 
     def read(self, platform, command, responses, offset=0, snapshot=None, full=False, events=None):
         def device(auth, selected, issued):
@@ -311,7 +318,7 @@ class FortiAdcF1Wire(unittest.TestCase):
     def test_f1_wire_probe_precedes_the_requested_query_and_it_is_sent_once(self):
         command = "diagnose netlink interface list port3"
         result = self.read("fortinet", command, {
-            "get system status": (0, FORTIOS_STATUS),
+            "get system status": (0, FORTIOS_NO_VDOM_STATUS),
             command: (0, "device answer\n"),
         })
         self.assertEqual(self.reads, [("fortinet", "get system status"), ("fortinet", command)],
@@ -370,7 +377,7 @@ class FortiAdcF1Wire(unittest.TestCase):
         command = "diagnose netlink interface list port3"
         body = "x" * 1500
         first = self.read("fortinet", command, {
-            "get system status": (0, FORTIOS_STATUS),
+            "get system status": (0, FORTIOS_NO_VDOM_STATUS),
             command: (0, body),
         })
         self.assertEqual(len(self.reads), 2, "F1-MISSING-WIRE-ORDER")

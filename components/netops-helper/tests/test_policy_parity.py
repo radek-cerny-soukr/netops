@@ -324,12 +324,12 @@ class PolicyParityTests(unittest.TestCase):
         }
         expected_counts = {
             "linux": 16,
-            "fortinet": 119,
+            "fortinet": 120,
             "extreme_exos": 65,
             "cisco_ios": 49,
             "cisco_xe": 50,
             "cisco_nxos": 61,
-            "arista_eos": 54,
+            "arista_eos": 55,
             "juniper_junos": 41,
             "juniper_junos_els": 55,
             "ruckus_unleashed": 4,
@@ -343,7 +343,7 @@ class PolicyParityTests(unittest.TestCase):
             },
             expected_counts,
         )
-        self.assertEqual(sum(expected_counts.values()), 547)
+        self.assertEqual(sum(expected_counts.values()), 549)
         expected_names = {
             platform: frozenset(queries)
             for platform, queries in read_policy.READ_QUERIES.items()
@@ -480,7 +480,7 @@ class PolicyParityTests(unittest.TestCase):
                     )
                     exercised += 1
 
-        self.assertEqual(exercised, 136)
+        self.assertEqual(exercised, 137)
 
     def test_typed_query_rejections_have_proxy_render_parity(self) -> None:
         cases = (

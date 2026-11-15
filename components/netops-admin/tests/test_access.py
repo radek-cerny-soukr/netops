@@ -131,3 +131,89 @@ def test_the_check_account_uses_its_own_management_address(monkeypatch):
     assert calls[0][:2] == ("198.51.100.1", "netops-check") and calls[0][2].startswith("198.51.100.1 ")
     assert calls[1][:2] == ("192.0.2.1", "netops-rw") and calls[1][2].startswith("192.0.2.1 ")
     assert scans == ["198.51.100.1", "192.0.2.1"]
+
+
+def test_query_status_gives_the_exit_status_of_a_port_without_poe(monkeypatch):
+    """Measured (ref 171): show inline-power info ports N of a port without PoE ends with exit status 250."""
+    answers = {"show inline-power info ports 13": (250, b"Port 13 is not inline-power capable\n", b""),
+               "show inline-power info ports 10": (0, b"Port  State\n", b"")}
+
+    def run_command(address, port, login, credential, host_key_line, command, **options):
+        rc, stdout, stderr = answers[command]
+        return SimpleNamespace(rc=rc, stdout=stdout, stderr=stderr)
+
+    monkeypatch.setattr(access.ssh, "run_command", run_command)
+    monkeypatch.setattr(access.hostkey, "scan", lambda address, port, pin, timeout, legacy=None: "%s ssh-rsa AAAA" % address)
+    handle = access.DeviceAccess.__new__(access.DeviceAccess)
+    handle.device = SimpleNamespace(address="192.0.2.1", check_address=None, port=22,
+                                    host_key_fingerprint="SHA256:x", legacy_ssh=None, platform="exos")
+    handle.credential = SimpleNamespace(login="netops-rw")
+    handle._host_key_lines = {}
+    handle.read_seconds = None
+    rc, text = handle.query_status("show inline-power info ports 13")
+    assert rc == 250 and "Port 13 is not inline-power capable" in text
+    assert handle.query_status("show inline-power info ports 10")[0] == 0
+    try:
+        handle.query("show inline-power info ports 13")
+    except access.AccessError as error:
+        assert "exit status 250" in str(error)
+    else:
+        raise AssertionError("the plain query must keep refusing a non-zero exit status")
+
+
+# measured (ref admin-exos-184 N01, x440-refusal-diagnostic.jsonl): the OpenSSH client of the runtime image writes
+# this warning to stderr of every exec call to the X440
+SSH_PQ_WARNING = (b"** WARNING: connection is not using a post-quantum key exchange algorithm.\r\n"
+                  b"** This session may be vulnerable to \"store now, decrypt later\" attacks.\r\n"
+                  b"** The server may need to be upgraded. See https://openssh.com/pq.html\r\n")
+
+
+def stderr_access(monkeypatch, answers, platform="exos"):
+    def run_command(address, port, login, credential, host_key_line, command, **options):
+        rc, stdout, stderr = answers[command]
+        return access.ssh.Result(rc=rc, stdout=stdout, said="", started_at="a", finished_at="b", stderr=stderr)
+
+    monkeypatch.setattr(access.ssh, "run_command", run_command)
+    monkeypatch.setattr(access.hostkey, "scan", lambda address, port, pin, timeout, legacy=None: "%s ssh-rsa AAAA" % address)
+    handle = access.DeviceAccess.__new__(access.DeviceAccess)
+    handle.device = SimpleNamespace(address="192.0.2.1", check_address=None, port=22,
+                                    host_key_fingerprint="SHA256:x", legacy_ssh=None, platform=platform)
+    handle.credential = SimpleNamespace(login="netops-rw")
+    handle.check_credential = SimpleNamespace(login="netops-check")
+    handle._host_key_lines = {}
+    return handle
+
+
+def test_ssh_client_warning_on_stderr_keeps_the_poe_not_capable_code(monkeypatch):
+    """N01: rc 250, the single stdout line and the SSH client warning on stderr give poe_not_capable."""
+    import pytest
+    from netops_admin import exos
+    command = "show inline-power info ports 13"
+    handle = stderr_access(monkeypatch, {command: (250, b"Port 13 is not inline-power capable\n", SSH_PQ_WARNING)})
+    rc, text = handle.query_status(command)
+    assert rc == 250 and text.split() == "Port 13 is not inline-power capable".split()
+    assert "post-quantum" in handle.last_stderr and "post-quantum" not in text
+    plan = {"key": "13", "prechecks": []}
+    with pytest.raises(exos.NotInlinePower) as refused:
+        exec_exos._poe_prechecks(handle, None, plan)
+    assert refused.value.reason_codes == ["poe_not_capable"]
+    assert plan["prechecks"] == []
+
+
+def test_ssh_client_warning_on_stderr_does_not_reach_the_inline_power_table(monkeypatch):
+    command = "show inline-power info ports 10"
+    table = (b"Port      State            Class     Volts   Curr  Power  Fault\n"
+             b"                                            (mA)   (Watts)\n"
+             b"10        searching        ------     0.0      0   0.00  None\n")
+    handle = stderr_access(monkeypatch, {command: (0, table, SSH_PQ_WARNING)})
+    rc, text = handle.query_status(command)
+    assert rc == 0 and "WARNING" not in text and "Port" in text
+
+
+def test_stderr_only_answers_stay_joined_for_the_readers_that_need_them(monkeypatch):
+    """FortiADC writes the exec answer to stderr (measured 7.6.7 build0676): diagnose_query and own_query keep it."""
+    handle = stderr_access(monkeypatch, {"get load-balance vs_stat x": (0, b"", b"answer on stderr\n"),
+                                         "show system admin x": (0, b"", b"config system admin\n")},
+                           platform="fortiadc")
+    assert "answer on stderr" in handle.diagnose_query("get load-balance vs_stat x")
+    assert "config system admin" in handle.own_query("show system admin x")

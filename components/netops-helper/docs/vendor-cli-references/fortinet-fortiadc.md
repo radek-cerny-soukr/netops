@@ -122,15 +122,18 @@ Both the compared copy and the live page of 2026-10-27 document the syntax `get 
 
 Use config_read with platform="fortiadc", redaction="full" and section set to
 "load-balance virtual-server NAME", "load-balance pool NAME",
-"system health-check NAME", "security waf profile NAME" or
+"load-balance real-server NAME", "load-balance schedule-pool NAME",
+"system schedule-group NAME", "system health-check NAME", "security waf profile NAME" or
 "system certificate local_cert_group NAME". These opt-in views use
 the existing config_access read permission and the semantic configuration
 redactor, including removal of health-check passwords and secret keys; they are
 not ssh_read queries. Each executes the corresponding fixed show command.
 Object names use the Helper's existing 1–35 character FortiADC object grammar.
 The returned configuration is section-only, with unknown fields reported rather
-than exposed. The fixed show command forms and output shapes for these five views
-are awaiting live qualification on a FortiADC. The client-SSL-profile GET view is described below. The certificate-group view preserves member default selection,
+than exposed. Live captures exist only for `show full-configuration` of virtual-server, pool,
+schedule-pool and schedule-group on FortiADC-KVM 7.6.7 build0676 (VM220, 2026-11-14, task 173). The other
+object views (health-check, WAF profile, certificate group and real-server), and
+the bare `show` forms (`include_defaults=false`), remain awaiting live qualification. The client-SSL-profile GET view is described below. The certificate-group view preserves member default selection,
 local certificate names and intermediate CA group references; it does not fetch
 the referenced certificate or private-key material. Its schema is documented in
 the FortiADC 7.6.7 CLI Reference, page 352203 (config system certificate local_cert_group).
@@ -197,3 +200,31 @@ NetOps does not configure FortiADC HA; the Helper only reads `ha_status` and the
 The BGP summary, BGP neighbor and OSPF neighbor reads also require a PTY on the measured FortiADC-KVM 7.6.7 build 0676. The same commands that failed through exec returned complete terminal results: no active BGP instance and OSPF routing not enabled. These observations qualify the transport and the inactive state; they do not demonstrate established routing sessions.
 
 Installed Helper measurements on 2026-10-30 (source `315f8f0`, one FortiADC-KVM 7.6.7 build0676, administrator credential enrolled as `admin-bounded`/`catalogue`) exercised the three routing reads and five bounded diagnostics. BGP summary and neighbors returned an explicit inactive-instance message; OSPF neighbors returned an explicit routing-not-enabled message. These qualify the read transport and reported inactive state, not established routing sessions. Ping to the enrolled gateway returned five replies from five fixed packets. DNS returned a CNAME and three IPv4 addresses. The enrolled HTTP `/health` endpoint returned status 200 and `ok backend-a`; a single enrolled `HC_HTTP_APP` check returned UP/status 200 and one success. Traceroute returned three unresponsive hops before its 60-second deadline and Ctrl-C: `complete=false`, `deadline_reached=true`. This is partial diagnostic output and does not establish a route or target reachability. All five diagnostics preserve bounded output and the declared result metadata; a successful tool invocation does not mean a healthy network result.
+
+## Schedule-based virtual-server pools
+
+On FortiADC-KVM 7.6.7 build0676, `config_read` with `redaction="full"` also accepts
+`section="load-balance schedule-pool NAME"` and `section="system schedule-group NAME"`.
+Each uses the fixed `show <section>` command; `include_defaults=true` selects
+`show full-configuration <section>`. The existing object grammar, `config_access`
+read grant, redaction, paging and section-only visibility apply. These are
+configuration views, not additions to the thirty-three `ssh_read` queries.
+
+The schedule-pool view exposes its configured schedule-group and pool references;
+the schedule-group view preserves `schedule-member` rows, their IDs and configured
+`type`, `startdate`, `enddate`, `starttime-of-startdate`, `endtime-of-enddate`,
+`day-of-week` and `day-of-month` fields. `triage_slb` follows at most four entries
+of a virtual server's ordered `schedule-pool-list` when `schedule-list enable`,
+reads each distinct schedule group once, and cites the originating reads.
+Pools from those entries are `configured_candidate`; a pool named by `slb_vs_stat`
+is separately `reported_by_vs_stat`. Missing entries/groups make the verdict
+incomplete. Candidate pool/member/backend-health reads are not run in this path.
+
+Measured captures (FortiADC-KVM 7.6.7 build0676, 2026-11-14, task 173) show why no active pool is claimed: the device hides the
+previously stored `load-balance-pool` when schedule-list is enabled, but its runtime
+statistics either name that stored pool or, when no pool is stored, print
+`no rs for this vs`, even while a schedule selects a different pool. A runtime pool outside a complete candidate
+list is an informative finding, not proof of misrouting; outside the schedule
+windows `availability:DEAD` is observed, with a hypothesis about the window. The
+tool does not calculate window activity or historical pool use. `content-routing`
+remains unsupported. See the [SLB contract](../tools.md#fortiadc-load-balancing-triage-triage_slb).

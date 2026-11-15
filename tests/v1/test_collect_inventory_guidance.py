@@ -26,13 +26,13 @@ class CollectInventoryGuidance(unittest.TestCase):
             state = Path(raw)
             for role in ("gateway", "auditor"):
                 (state / role).mkdir(mode=0o700)
-            write_private(state / "gateway/config.json", b'{"version":1,"product_version":"1.0.8","audit":{"mode":"local"}}')
+            write_private(state / "gateway/config.json", b'{"version":1,"product_version":"1.0.9","audit":{"mode":"local"}}')
             write_private(state / "auditor/config.json", b'{"tenant":"default","catalog":"fortios"}')
             if data is not None:
                 write_private(state / "auditor/inventory.json", data)
             if data == b'{"version":2,"devices":[]}':
                 auditor.inventory.load(state / "auditor/inventory.json")
-            before = {path.name: path.read_bytes() for path in (state / "auditor").iterdir()}
+            before = {path.name: path.read_bytes() for path in (state / "auditor").iterdir() if path.name != "store.lock"}
             arguments = ["auditor", "collect", "--device", CANARY, "--json"]
             if explicit:
                 arguments += ["--vault", str(state / "auditor/vault.json")]
@@ -49,7 +49,7 @@ class CollectInventoryGuidance(unittest.TestCase):
                 if fault is not None:
                     stack.enter_context(patch.object(auditor, "_inventory_record", side_effect=fault))
                 code = cli.main()
-            self.assertEqual({path.name: path.read_bytes() for path in (state / "auditor").iterdir()}, before)
+            self.assertEqual({path.name: path.read_bytes() for path in (state / "auditor").iterdir() if path.name != "store.lock"}, before)
             self.assertEqual(code, 2)
             self.assertEqual(output.getvalue(), "")
             self.assertNotIn(CANARY, errors.getvalue())

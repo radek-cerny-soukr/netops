@@ -17,7 +17,7 @@ TABLE_RULES = {
     "firewall address": set(),
     "firewall addrgrp": {"group-empty", "group-dangling", "group-cycle"},
     "system dhcp server/reserved-address": {"dhcp-conflict", "dhcp-subnet"},
-    "vlan": set(), "ports": set(), "vlan-membership": {"port-native", "port-policy"},
+    "vlan": set(), "ports": set(), "inline-power": set(), "vlan-membership": {"port-native", "port-policy"},
 }
 LISTED_RULES = 8
 UNEVALUATED = "not-evaluated:"
@@ -147,13 +147,14 @@ def check_policy(plan, policy, text, prior=None):
     table, key = plan["table"], plan["key"]
     folded = key.casefold()
     if (table == "firewall addrgrp" and folded in {v.casefold() for v in policy.get("protected_groups", [])}) or (
-        table in ("ports", "vlan-membership") and key in policy.get("protected_ports", [])
+        table in ("ports", "vlan-membership", "inline-power") and key in policy.get("protected_ports", [])
     ) or (table == "vlan" and folded in {v.casefold() for v in policy.get("management_vlans", [])}):
         raise Rejected(["the requested object is protected by the audit policy"])
     target = {
         "firewall address": "firewall address/" + key,
         "firewall addrgrp": "firewall addrgrp/" + key,
         "ports": "ports/" + key,
+        "inline-power": "ports/" + key,
         "vlan": "vlan/" + key,
         "vlan-membership": "ports/" + key,
         "system dhcp server/reserved-address": "system dhcp server/" + key.replace(":", "/reserved-address/"),

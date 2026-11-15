@@ -115,10 +115,10 @@ A `helper` section may also hold `read_inventory`, `sftp_roots`, `rate_limit`, `
 }
 ```
 
-`read_inventory` lists the values an MCP caller may pass as query parameters. 136 of the 547 catalogue queries take a parameter; `read_query_catalog` names the kind and the inventory category of each parameter. An inventory-bound parameter (125 queries have one) is accepted only when its value is listed, character for character, in that category of the target. The exceptions below are checked against their own rule instead:
+`read_inventory` lists the values an MCP caller may pass as query parameters. 137 of the 549 catalogue queries take a parameter; `read_query_catalog` names the kind and the inventory category of each parameter. An inventory-bound parameter (125 queries have one) is accepted only when its value is listed, character for character, in that category of the target. The exceptions below are checked against their own rule instead:
 
 - Literal parameters, checked only for their fixed form and not looked up in the inventory (10 queries): `vlan_id` (a VLAN number from 1 to 4094), `mac_literal` (a MAC address), and the `lines` (1 to 200) and `mac_literal` (lower-case MAC) of `wifi_events`.
-- Lookup parameters of the FortiOS `route_lookup`, `policy_lookup_ipv4` and `policy_lookup_ipv6` (3 queries): a single address must be listed in `addresses`; a canonical prefix is accepted when it is equal to or inside an entry of `lookup_prefixes`. A prefix does not enroll the addresses inside it.
+- Lookup parameters of the FortiOS `route_lookup`, `ipv6_route_lookup`, `policy_lookup_ipv4` and `policy_lookup_ipv6` (4 queries): a single address must be listed in `addresses`; a canonical prefix is accepted when it is equal to or inside an entry of `lookup_prefixes`. A prefix does not enroll the addresses inside it.
 - `wtp_id` of `wifi_ap_status` and `wifi_rf_analysis`: listed in `wtp_ids`, or an access point id that an earlier `wifi_ap_status` of the same target returned.
 - `triage_flow`: `src`, `dst`, `port` and `proto` need not be enrolled; the Helper allows them for the route, policy and session reads of that one call only, and no other call gains them. This deliberately broadens lookup scope: enabling `system_status`, `route_lookup` and `policy_lookup_ipv4` permits lookups of arbitrary validated IPv4 flow literals, even outside `addresses`, `lookup_prefixes`, `flow_ports` and `ip_protocols`. Ingress for policy lookup is inferred from the route to `src` and checked for safe syntax; it need not be an enrolled interface. Session reads additionally require the `sessions` diagnostic recipe and that ingress in `interfaces`; their source and destination may still be outside enrolled addresses. The temporary scope never persists and does not broaden egress. Grant these queries only when that flow-lookup access is intended; direct `ssh_read` and `fortios_diagnostics` retain their enrolled-value checks.
 
@@ -133,9 +133,9 @@ Each category holds at most 256 unique, non-empty strings (`schema_paths`: 4096)
 | `sdwan_rules` | canonical decimal SD-WAN rule ID from 1 to 4000, without leading zeros | 2 FortiOS queries |
 | `sdwan_health_checks` | 1–35 ASCII letters, digits, underscore, dot or hyphen, starting with a letter or digit; spaces, quotes and Unicode are unsupported | `sdwan_sla_history` |
 | `link_monitors` | same supported name form as `sdwan_health_checks`; `all` is refused regardless of case | `link_monitor_status` |
-| `addresses` | an IPv4 or IPv6 address in canonical form: no leading zeros, lowercase compressed IPv6, no zone index | 25 catalogue queries; `fortios_diagnostics` |
+| `addresses` | an IPv4 or IPv6 address in canonical form: no leading zeros, lowercase compressed IPv6, no zone index | 26 catalogue queries; `fortios_diagnostics` |
 | `wtp_ids` | 1–35 ASCII letters, digits, `_` or `-`, starting with a letter or digit; the serial numbers (wtp-id) of the FortiAP the target manages. Optional: an id returned by an earlier `wifi_ap_status` of the same target is accepted without being listed | `wifi_ap_status`, `wifi_rf_analysis` (optional `wtp_id`) |
-| `lookup_prefixes` | a CIDR prefix of either family in canonical form: the network address without host bits (`198.51.100.0/24`, not `198.51.100.1/24`), a decimal prefix length from 1, lowercase compressed IPv6, no mask notation, no zone index | prefix operands of the FortiOS `route_lookup`, `policy_lookup_ipv4` and `policy_lookup_ipv6` queries and of the `sessions` and `flow` recipes of `fortios_diagnostics` |
+| `lookup_prefixes` | a CIDR prefix of either family in canonical form: the network address without host bits (`198.51.100.0/24`, not `198.51.100.1/24`), a decimal prefix length from 1, lowercase compressed IPv6, no mask notation, no zone index | prefix operands of the FortiOS `route_lookup`, `ipv6_route_lookup`, `policy_lookup_ipv4` and `policy_lookup_ipv6` queries and of the `sessions` and `flow` recipes of `fortios_diagnostics` |
 | `managed_switches` | `S` followed by 11 to 15 uppercase letters or digits | 19 FortiOS queries |
 | `services` | letters, digits and `_ . @ -`, starting with a letter or digit, at most 128 characters | 2 Linux queries |
 | `vlans` | a letter followed by up to 31 letters, digits, `_` or `-`; not `all`, `any`, `none`, `detail`, `ipv4`, `ipv6`, `tag`, `ports`, `virtual-router` or `statistics` | 2 EXOS queries |
@@ -151,9 +151,9 @@ Each category holds at most 256 unique, non-empty strings (`schema_paths`: 4096)
 | `adc_virtual_servers` | letters, digits and `_ . -`, starting with a letter or digit, at most 35 characters | 3 FortiADC queries (`slb_vs_stat`, `tls_handshake_stats`, `tls_session_reuse`) |
 | `diagnostic_virtual_servers` | FortiADC only: a letter or digit followed by up to 62 letters, digits, `_`, `.` or `-` | `fortios_diagnostics` `session_list` / `persistence_list` (the virtual server is passed as `address`) |
 
-`lookup_prefixes` lets a lookup or a filter name a whole client network, for example `198.51.100.0/24`, instead of one enrolled address. A prefix is accepted only where nothing connects to it: the FortiOS `route_lookup` and `policy_lookup_ipv4` / `policy_lookup_ipv6` parameters (`address`, `src_ip`, `dst_ip`) and the `address` and `source_address` of the `sessions` and `flow` recipes of `fortios_diagnostics`. The requested prefix must be canonical and equal to or inside an enrolled `lookup_prefixes` entry of the same family; a single address still has to be listed in `addresses` itself, and an address that merely lies inside an enrolled prefix is not enrolled. `ping`, `traceroute`, `sniffer`, `logs`, BGP peers, `triage_routing`, the other vendors' route lookups and `egress` never take a prefix, and `lookup_prefixes` does not widen `egress`. FortiOS `get router info routing-table details` and `diagnose firewall iprope lookup` take one address, so the Helper sends the network address of the prefix (`198.51.100.0/24` becomes `198.51.100.0`): the answer is the route or policy for that address, not for the whole prefix. The `sessions` and `flow` filters take the range of the prefix (`diagnose sys session filter dst 198.51.100.0 198.51.100.255`, `diagnose debug flow filter addr 198.51.100.0 198.51.100.255`). Prefix filters require measured range grammar: FortiGate-60F 7.6.8 build 3744 with a tuple, or FortiGate-80F 8.0.2 build 0251. Other identities return `prefix_not_supported_on_identity` before diagnostic state changes; route and policy lookups still use the network address. A prefix is refused when its first or last address is multicast, unspecified or the limited broadcast address. A refusal names `lookup_prefixes` in `data.field` when the requested value was a prefix, and `addresses` otherwise.
+`lookup_prefixes` lets a lookup or a filter name a whole client network, for example `198.51.100.0/24`, instead of one enrolled address. A prefix is accepted only where nothing connects to it: the FortiOS `route_lookup`, `ipv6_route_lookup` and `policy_lookup_ipv4` / `policy_lookup_ipv6` parameters (`address`, `src_ip`, `dst_ip`) and the `address` and `source_address` of the `sessions` and `flow` recipes of `fortios_diagnostics`. The requested prefix must be canonical and equal to or inside an enrolled `lookup_prefixes` entry of the same family; a single address still has to be listed in `addresses` itself, and an address that merely lies inside an enrolled prefix is not enrolled. `ping`, `traceroute`, `sniffer`, `logs`, BGP peers, `triage_routing`, the other vendors' route lookups and `egress` never take a prefix, and `lookup_prefixes` does not widen `egress`. FortiOS `get router info routing-table details`, `get router info6 routing-table` and `diagnose firewall iprope lookup` take one address, so the Helper sends the network address of the prefix (`198.51.100.0/24` becomes `198.51.100.0`): the answer is the route or policy for that address, not for the whole prefix. The `sessions` and `flow` filters take the range of the prefix (`diagnose sys session filter dst 198.51.100.0 198.51.100.255`, `diagnose debug flow filter addr 198.51.100.0 198.51.100.255`). Prefix filters require measured range grammar: FortiGate-60F 7.6.8 build 3744 with a tuple, or FortiGate-80F 8.0.2 build 0251. Other identities return `prefix_not_supported_on_identity` before diagnostic state changes; route and policy lookups still use the network address. In FortiOS `fortios_diagnostics`, a single address is refused when it is multicast, unspecified or the limited broadcast address, and a `sessions` or `flow` filter prefix when its first or last address is. Route and policy lookups and the `lookup_prefixes` inventory check the canonical form, the family and a non-zero length, and the Helper and the Proxy both refuse, in the inventory and in a request, a prefix whose network address is multicast, unspecified or the IPv4 limited broadcast address (for example `ff00::/8` or `0.0.0.0/8`); a lookup prefix must also lie inside an enrolled entry. Enroll only unicast client networks. A refusal names `lookup_prefixes` in `data.field` when the requested value was a prefix, and `addresses` otherwise.
 
-`fortios_diagnostics` requires its recipe, address and interface to be listed in `diagnostic_recipes`, `addresses` and `interfaces`. An explicit `vdom` must also be listed in `diagnostic_vdoms` and must equal the session's verified current VDOM; the Helper never enters `config vdom`, so a multi-VDOM target needs a login scoped to that VDOM.
+`fortios_diagnostics` requires its recipe, address and interface to be listed in `diagnostic_recipes`, `addresses` and `interfaces`. An explicit `vdom` must also be listed in `diagnostic_vdoms` and must equal the session's verified current VDOM. The qualified multi-VDOM sessions recipe selects and verifies that context explicitly; a per-VDOM administrator's login is not qualified for `fortios_diagnostics` (see [multi-VDOM reads](#fortios-multi-vdom-reads)).
 
 `logs` never sets a log filter. It reads `execute log filter dump`, refuses a dump whose nine fields differ from the measured FortiOS 8.0.2 shape, runs one bounded `execute log display` under the current device filter, and requires the dump read afterwards to equal the first one. When the dump differs in the same session, the helper reconnects, verifies the same identity and requires the dump of the new session to equal the first one; otherwise cleanup is reported as not verified. The result names that device filter in `filter_applied`; it is not a filter by type, target or time. Only the loaded batch (at most the device `view-lines`) of the current category is searched: records whose `srcip` or `dstip` equals the enrolled `address` are kept, at most `count` of them, and, when the optional `since` and `until` (form `YYYY-MM-DD HH:MM:SS`, `logs` only) are given, only those inside that window, with `found`, `loaded`, `matched`, `returned`, `truncated` and the `time_range` of the loaded batch. `log_state` is `ok`, `empty` (only for complete zero-count headers), `device_refused`, `unsupported` or `incomplete`; timeouts, a loaded-count/parsed-record mismatch, or a record without a valid timestamp are `incomplete`, never `empty`. Only `ok` and `empty` set the result's `ok` flag. A missing or unknown header is `unsupported`.
 
@@ -185,12 +185,12 @@ Device roles are exactly `perimeter`, `internal` and `lab`; earlier Czech spelli
 
 ## Optional configuration captures
 
-For a FortiOS target with an enrolled read-only SSH account, pinned host key and
-verified standard output, opt in with `"config_access": ["read", "compare"]`
+For a supported target with an enrolled SSH account and pinned host key (FortiOS
+also needs verified standard output), opt in with `"config_access": ["read", "compare"]`
 inside its existing `helper.read_inventory` object. Omit the category to disable
 both tools. `compare` requires `read`. The existing network egress and audit
 requirements apply.
-The read-only device profile must permit both CLI get and CLI show for these
+For FortiOS, the read-only device profile must permit both CLI get and CLI show for these
 tools (on FortiOS 8.0.2: cli-get enable, cli-show enable), with cli-config
 disabled and the relevant system/network groups read-only. A get-only profile
 can authenticate successfully yet refuse show with Unknown action; this is a
@@ -240,8 +240,8 @@ an empty text diff but `identical=false`. Two equal captures have different IDs.
 Reordering otherwise equal objects marks the comparison as different and emits a
 record-order notice when the redacted text is unchanged, without claiming their
 secret values changed. Duplicate hidden identities are withheld.
-This slice does not implement EXOS, persistent captures, or comparison with
-an implicit current capture.
+FortiOS minimal captures do not provide persistent snapshots or comparison with
+an implicit current capture. Other supported platforms use the full view below.
 
 ### Pages from completed configuration captures
 
@@ -260,18 +260,157 @@ whole completed redacted content (for a filtered config_read, for the filtered
 content), returned_bytes/offset for the current page,
 and next_offset(null at the end). Config_diff accepts offset/limit for the same
 explicit pair of captures; it never rereads the device. Reconstruct text in
-page order before comparing its digest. Diff uses a bounded, ordered line
-comparison, not a minimal edit script. Insertions may therefore produce several
-line changes. Hidden-value comparison remains keyed by private object identity.
+page order before comparing its digest. FortiOS and FortiADC keep a bounded,
+positional line comparison, so insertions may produce several line changes.
+FortiOS minimal hidden-value comparison remains keyed by private object identity;
+the five additional platforms use the line comparison described below.
 The separate secret_offset cursor starts at zero; next_secret_offset advances
 through secrets_changed, while secrets_changed_count gives its complete count.
 
 Configuration capture passes SSH stdout bytes directly to a strict incremental UTF-8 redactor. Chunk boundaries may split characters or quoted multiline values. No complete raw stdout is retained. A capture is published only after a successful transport result and complete configuration grammar; errors discard staged state. Redacted content uses bounded ASCII chunks and comparison tokens use packed keyed records. Captures and cached diffs share a fixed 512 MiB process budget, further constrained by available host/container memory with a 64 MiB admission reserve. Only one configuration capture, page or comparison runs at a time; concurrent calls are refused. Each target may lower these limits through its optional helper.configuration_limits policy; the process ceiling and available-memory reserve remain in force. A memory refusal publishes no new capture. Other device read transports retain their existing behavior.
 
 Configuration SSH reads default to a 30-second idle timeout, reset only by received stdout or stderr bytes. The configuration SSH command defaults to a 600-second timeout; this is not a deadline for the complete API call. The proxy allows 670 seconds for configuration tools, including the identity probe and connection pacing; other tools keep their existing pending-response timeout. After the configuration command starts, failures withhold the output and publish no snapshot. Consumer/redaction failures report `redaction-unverifiable` (minimal reads expose MCP `-32602` with a safe category and no partial output); capture limit failures report `capture-limit-exceeded`; a per-target or process memory refusal keeps its own `configuration memory budget exhausted` category in minimal and full reads, also inside a nested auto-script. A consumer or capture-limit failure does not invalidate the pinned host-key cache. Transport failures remain separate, and raw device error details are withheld.
+
+## Configuration captures on EXOS, Cisco and Arista
+
+The same `config_access` opt-in supports `extreme_exos`, `cisco_ios`, `cisco_xe`,
+`cisco_nxos` and `arista_eos`. Use `section="all", include_all=true,
+redaction="full", include_defaults=false`; section reads, defaults and other
+option combinations are refused before capture. The command is `show configuration`
+on EXOS and `show running-config` on the other four platforms. Identities are
+checked before capture, with these narrow adapter scopes:
+
+| Platform | Accepted identity |
+|---|---|
+| `extreme_exos` | X440G2-12p-10G4, 33.7.1.6-patch1-11 |
+| `cisco_ios` | IOSv 15.9(3)M12, fc1 |
+| `cisco_xe` | IOL-XE 17.18.2, fc3 (the image's identity reports model `Linux`) |
+| `cisco_nxos` | Nexus9000 C9300v, 9.3(12) |
+| `arista_eos` | cEOSLab, 4.36.1F; the full image build is retained in the snapshot identity |
+
+These are accepted code identities, not a claim of complete configuration
+visibility or qualification of every hardware model. Redactors retain an explicit
+allowlist of visible lines; every other line is a constant unverified marker.
+NX-OS and EOS use platform-specific indentation rules. Credentials and unknown
+lines are hidden before storage, paging and comparison; account rights and format
+coverage remain unverified. Captures never prove complete device configuration.
+The existing capture limits, snapshot lifetime, paging, literal filters and
+session redaction guard also apply.
+
+**Device rights.** Enrollment does not grant permission to read configuration.
+Cisco privilege-1 accounts (measured on the virtual IOSv 15.9(3)M12 and IOL XE 17.18.2, tasks 178 and 191,
+2026-11-14) can answer `show running-config` with
+`Line has invalid autocommand` and exit status 0; this is `device-refused`, not an
+empty snapshot. Use independently reviewed command authorization for the fixed
+read; numeric privilege alone is insufficient. On the measured cEOS 4.36.1F, privilege
+15 together with `aaa authorization exec default local` was needed for `show running-config`
+(without it the account stayed at privilege 1; tasks 178 and 191, 2026-11-14); that privilege can also allow writes,
+so it must not be presented as proof of a read-only account. EXOS read-only
+accounts refused `show configuration` (X440G2-12p-10G4 33.7.1.6-patch1-11, task 191, 2026-11-14);
+the Helper returns `device-refused`.
+Verify effective device permissions and command authorization before enrollment;
+Helper policy does not make a privileged device account read-only and does not
+escalate its privilege. A device refusal during the identity read also returns
+`device-refused`; unsupported or unverifiable identity returns
+`config_platform_not_supported`, without a capture.
+
+**Comparison.** `config_diff` of these five platforms uses a shortest line edit
+script (Myers) over stored redacted text. More than 3000 added/removed lines,
+the bounded comparison work limit or exhausted configuration memory budget
+returns `config_diff_limit_exceeded` without a partial diff. No device is read.
+`hidden_lines_compared:false` and an empty `secrets_changed` mean hidden content
+is never compared or hashed; insertion/removal/movement of a hidden line can only
+show a marker as `-`/`+`. An IOS/IOS XE `Current configuration : N bytes` header can
+still reveal that the device-reported size changed. `identical:true` means equal
+visible redacted content, not equal secrets or complete configuration.
+
+Section, firmware, redaction profile, `include_defaults` and `config_scope` must
+match; otherwise `config_snapshot_incomparable` refuses the pair. Per-capture
+counts of hidden or unverified lines can differ without making the pair
+incomparable. Each capture retains its own counts in `base_capture` and
+`other_capture`. A newly learned session secret that would change stored response
+text instead gives `config_snapshot_redaction_changed`; take fresh captures.
+FortiOS and FortiADC retain their earlier positional comparison and metadata
+comparability rules.
+
+## MLAG and vPC catalogue reads
+
+Use `ssh_read`, not `switch_read`, for the enrolled MLAG/vPC queries. NX-OS
+`vpc_status` (`show vpc brief`) adds a structured `vpc` summary; EOS `mlag_detail`
+and `mlag_interfaces`, and EXOS `mlag_peer` and `mlag_ports`, add their structured
+MLAG summaries/members alongside the bounded output. Enable only the required
+catalogue queries. These are not new normalized `switch_read` tables. Active
+peer topologies are not established by the inactive/empty captures: active NX-OS
+vPC, EOS MLAG and EXOS MLAG remain documentation-derived coverage; a refusal is
+not an empty successful topology. Existing FortiSwitch MCLAG reads keep their
+separately measured 224E-POE scope.
+
+## FortiOS multi-VDOM reads
+
+The identity probe must provide one VDOM mode and, in multiple mode, exactly one
+current VDOM. The login name does not identify the VDOM. A global administrator's
+current VDOM is `root`; enroll that exact session VDOM in `diagnostic_vdoms`.
+Per-VDOM catalogue reads run in a single verified `config vdom` / `edit <vdom>`
+context, accepting only its matching `current vf=<vdom>:<index>` marker and prompt.
+This is context selection for fixed reads; it grants no configuration-write API.
+The six device-wide `triage_health` steps (performance, conserve state, HA
+status and checksum, NTP, autoupdate versions) run in a verified `config global`
+context and are labelled `data_scope: device`; an account that may not enter
+`config global` leaves them missing (`permission_denied`). Reading another VDOM
+than the session VDOM is not supported; the context reads were measured for the global `super_admin` and
+`super_admin_readonly` accounts on FortiGate-60F 7.6.8 build3744 (2026-11-14, tasks 172, 197 and 204).
+
+**Per-VDOM administrator.** FortiOS gives an administrator whose account has `set vdom <one VDOM>` only that
+VDOM: it logs in only through an interface assigned to its VDOM (or the console), and global settings and other
+VDOMs are for a `super_admin` or global administrator only (Fortinet, FortiOS 8.0.2 Administration Guide,
+[General configurations, Create per-VDOM administrators](https://docs.fortinet.com/document/fortigate/8.0.2/administration-guide/32293/general-configurations)).
+Measured on FortiGate-60F 7.6.8 build3744 (task 197): such an account answers `config vdom` with
+`Unknown action 0` (also with `cli-config`), its `get system status` names its own VDOM as `Current virtual domain`,
+and it reads per-VDOM commands directly after the login, where a global session answers `-61`; a login through an
+interface of another VDOM fails (`name_invalid`). Enroll the target with the address of an interface of that VDOM
+and the VDOM in `diagnostic_vdoms`. The Helper takes a session for such a login only from the device: after a refused
+`config vdom` it reads `get system status` in the same SSH session, which must name exactly the session VDOM, and
+the probe `get system arp`, which must answer its table without a refusal (its text is never returned); otherwise the
+read fails with `vdom_context_unverified` and nothing is returned. The per-VDOM reads then run directly in the login
+context and are labelled `vdom` and `data_scope` as for a global account, without `vdom_index` (FortiOS prints no
+`current vf=` marker there). Reads whose data is not limited to the VDOM are refused before their command is sent
+with `vdom_admin_global_scope_unavailable` and the advice to use a target with a global account: `session_stats`,
+the global system state (resources, HA, NTP, FortiGuard packages, the six global `triage_health` steps) and the
+listings of every VDOM (`physical_interfaces`, `system_interfaces`, `interface_vlan_ids`, so also the `switch_read`
+tables `interface`, `ip_interface` and `vlan`). A read whose `interface_vlan_ids` join (`show system interface`)
+would run in the same session, such as `switch_read` `lldp_neighbor` with `interface_vlan_ids` enabled, is refused
+as a whole with this code before any command is sent; without the join its rows stay unassigned and the table is
+refused with `vdom_membership_unverified`. `triage_health` lists these steps in `missing` with that reason,
+`error_code` and `error`, and so does the `ha_checksum` step skipped after a refused `ha_status`. A VDOM not enrolled for the session stays `vdom_scope_required`. `fortios_diagnostics`,
+`config_read` and `triage_flow` keep their rules above. This path is covered by automated tests on the measured
+outputs and was verified live on the FortiGate-60F 7.6.8 build3744 on 2026-11-15 (task 222, source 7bec0b7, 112/112 checks passed): logged in through an interface of its VDOM, it read ARP, routing and IPsec of its own VDOM in its login context (`data_scope: vdom`, no `vdom_index`), identical to the CLI of the same account; reads beyond its VDOM returned `vdom_admin_global_scope_unavailable` and a request for another VDOM `vdom_scope_required`.
+
+Responses identify `vdom_mode`, `vdom`, and, when verified, `vdom_index` and
+`data_scope`: `vdom`, `device`, `all_vdoms` or `unverified`. Device-wide session
+counters must not be read as counters of one VDOM. Normalized interface, LLDP and
+VLAN records need verified ownership from `show system interface` (`set vdom`);
+enable `interface_vlan_ids` for the join. Other-VDOM rows are excluded and counted,
+not relabelled. `triage_health` reports `data_scopes` per read and `data_scope` on
+findings and session counters; `triage_routing` and `triage_vpn` carry their VDOM.
+
+Reads fail closed with `vdom_scope_required`, `vdom_unverified`,
+`vdom_context_unverified` or `vdom_membership_unverified` when scope cannot be
+proved, and with `vdom_admin_global_scope_unavailable` when a per-VDOM
+administrator asks for data beyond its VDOM. The status read can still be returned without scope labels when identity
+is incomplete; triage then stops with incomplete evidence. A refused diagnose
+command is `permission_denied` with `diagnose_not_permitted`, never an empty
+result. Multi-VDOM `config_read` with `redaction="minimal"` and `triage_flow` stay refused.
+Full `config_read` reads the global/VDOM structure as visible to the account,
+with `config_scope: device-account-visible` and `vdom-coverage-not-verified`,
+without selecting a VDOM context or assigning the capture to a single VDOM. The sessions
+recipe verifies interface ownership, applies the VDOM-index filter and refuses
+any session block outside it, with cleanup verified. Other multi-VDOM diagnostic
+recipes and device-wide health commands inside a VDOM context remain unqualified.
+See the [complete scope and refusals](../components/netops-helper/docs/tools.md#fortios-multi-vdom-scope-109).
+
 ## Registry-free bounded FortiOS diagnostics
 
-The existing fortios_diagnostics tool needs no NETOPS_SCHEMA_REGISTRY. Keep its enrolled recipes, destination addresses and interfaces, verified standard output and pinned host key. Each session must return one measured hardware/version/build identity, one current VDOM and one Virtual domain configuration marker (disable or multiple) before any diagnostic command. In disable mode the current VDOM must be root. In multiple mode an enrolled explicit vdom equal to the current VDOM is required; a missing or different selector returns config_platform_not_supported. Interface ownership is checked in the same session context without switching VDOM. The response exposes the measured identity and vdom; schema_sha256 is removed. Recipe limits, the 30-second session bound, 131072-byte capture bound and verified cleanup are retained. For FortiGate-VM64 on FortiOS 8.0.2 build 0251, the five recipes ping, traceroute, sniffer, sessions and flow have
+The existing fortios_diagnostics tool needs no NETOPS_SCHEMA_REGISTRY. Keep its enrolled recipes, destination addresses and interfaces, verified standard output and pinned host key. Each session must return one measured hardware/version/build identity, one current VDOM and one Virtual domain configuration marker (disable or multiple) before any diagnostic command. In disable mode the current VDOM must be root. In multiple mode an enrolled explicit vdom equal to the current VDOM is required; a missing or different selector returns config_platform_not_supported. The multi-VDOM sessions recipe selects and verifies the matching VDOM context and checks interface ownership there; the single-VDOM path does not switch context. The response exposes the measured identity and vdom; schema_sha256 is removed. Recipe limits, the 30-second session bound, 131072-byte capture bound and verified cleanup are retained. For FortiGate-VM64 on FortiOS 8.0.2 build 0251, the five recipes ping, traceroute, sniffer, sessions and flow have
 been exercised on a single-root target, including timer interruption and verified
 restoration of diagnostic settings. This does not qualify another model or build,
 multi-VDOM, or successful forwarding to an external destination.
@@ -485,7 +624,7 @@ The memory limit counts only the current target's retained captures, filtered
 views and diffs plus its staged content; the separate process limit still
 counts every target. Another target's captures do not consume this target's quota.
 Changing the enrolled limits removes earlier snapshots and comparisons for
-that target from the process cache at its next configuration operation; take a fresh capture. The same limits apply to both vendors,
+that target from the process cache at its next configuration operation; take a fresh capture. The same limits apply to supported platforms,
 minimal and full captures, and supported embedded configuration scripts.
 
 ## Query catalogue pages
@@ -587,7 +726,7 @@ to their full-2 profile. Comparison uses the already redacted content, including
 public certificate changes, without password comparison tokens. The minimal
 view retains its existing redaction and keyed comparison behavior.
 
-A config_diff of two full captures also returns base_capture and other_capture.
+A config_diff of two FortiOS or FortiADC full captures also returns base_capture and other_capture.
 Each lists the fields that config_read returned for that capture: firmware
 (model, version, build), section, redaction_profile, include_defaults,
 capture_complete, configuration_complete, config_scope, visibility_limitations,
@@ -620,8 +759,8 @@ usable when rights or coverage cannot be proved.
 
 On the verified FortiADC-KVM 7.6.7 build0676, config_read accepts
 section="load-balance virtual-server NAME", "load-balance pool NAME",
-"load-balance real-server NAME",
-"system health-check NAME", "security waf profile NAME" or
+"load-balance real-server NAME", "load-balance schedule-pool NAME",
+"system schedule-group NAME", "system health-check NAME", "security waf profile NAME" or
 "system certificate local_cert_group NAME", with platform="fortiadc"
 and redaction="full". By default each issues exactly show followed by that section.
 NAME is one object name: 1–35 ASCII letters, digits, underscores, dots or hyphens,
@@ -653,6 +792,18 @@ returned object's identity. The existing device-account-visible, incomplete and
 requested-section-only metadata still applies. Empty or malformed responses are
 refused; unknown fields use the existing redaction metadata. No referenced
 certificate or private-key material is fetched.
+
+For a virtual server with `schedule-list enable`, `triage_slb` follows its
+`schedule-pool-list` (at most four entries) to `load-balance schedule-pool` and
+`system schedule-group` objects. It reports sourced `configured_candidate` pools
+and separately `reported_by_vs_stat` references, not the active pool. On the
+measured FortiADC-KVM 7.6.7 build0676 (VM220, 2026-11-14, task 173; product check task 198), runtime statistics either name a previously
+stored pool or, when no pool is stored, print `no rs for this vs`; this does not establish selection or
+backend health. Schedule groups preserve their `schedule-member` rows and fields;
+the tool does not calculate the active window from the device clock. It does not
+read candidate pools/members/health checks in this schedule path. Missing entries
+or groups make the triage incomplete; `content-routing enable` remains unsupported.
+See the [SLB read plan](../components/netops-helper/docs/tools.md#fortiadc-load-balancing-triage-triage_slb).
 
 ## Find lines in a redacted configuration
 

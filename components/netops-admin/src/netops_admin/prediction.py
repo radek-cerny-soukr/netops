@@ -69,12 +69,17 @@ def snapshot_after(text, plan):
         return membership.prediction(snapshot, key, state)
     kept = []
     for command in snapshot.commands:
-        own = (exos._is_display_string(command) and command.tokens[2] == key) if table == "ports" else snapshot._is_own(command, key)
+        own = exos.port_owned(command, table, key) if table in ("ports", "inline-power") else snapshot._is_own(command, key)
         if not own:
             kept.append(command)
     lines = []
+    if table == "inline-power":
+        added = ["disable inline-power ports %s" % key] if (state or {}).get("admin-state") == "disabled" else []
+        return "\n".join(membership.modular(snapshot, kept, added, module="poe")) + "\n"
     if state is not None:
         if table == "ports":
+            if state.get("admin-state") == "disabled":
+                lines += ["disable port %s" % key]
             if "display-string" in state:
                 lines += ["configure ports %s display-string %s" % (key, state["display-string"])]
         else:

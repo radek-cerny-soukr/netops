@@ -22,8 +22,8 @@ class ReleaseVersion(unittest.TestCase):
 
     def test_signing_gate_requires_the_current_predecessor(self):
         tool = (ROOT / 'release/sign/netops-release-sign.ps1').read_text()
-        self.assertIn('$MinimumVersion = [version]"1.0.8"', tool)
-        self.assertIn('$UpgradeFromVersion = "1.0.7"', tool)
+        self.assertIn('$MinimumVersion = [version]"1.0.9"', tool)
+        self.assertIn('$UpgradeFromVersion = "1.0.8"', tool)
         image = re.search(r'(?m)^FROM_IMAGE=(.+)$', (ROOT / 'release/acceptance/release.env').read_text())[1]
         self.assertIn(f'$UpgradeFromImage = "{image}"', tool)
 
@@ -32,17 +32,19 @@ class ReleaseVersion(unittest.TestCase):
         spec = importlib.util.spec_from_file_location('release_verify_version', here / 'verify_state.py')
         verify = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(verify)
-        path = here / 'api-changes-1.0.7-1.0.8.json'
-        items, problems, info = verify.load_api_changes(path, {'FROM_VERSION': '1.0.7', 'TO_VERSION': '1.0.8'})
+        path = here / 'api-changes-1.0.8-1.0.9.json'
+        items, problems, info = verify.load_api_changes(path, {'FROM_VERSION': '1.0.8', 'TO_VERSION': '1.0.9'})
         self.assertEqual(problems, [])
-        # The runtime change declares no API change; the Helper adds the cdp_neighbor table value to the switch_read
-        # argument. Existing Linux catalogue commands and descriptions stay unchanged.
+        # 1.0.9 adds admin_undo_preview and findings_summary, the arguments expected_plan_sha256 (admin_apply) and
+        # source_port (triage_flow), suppressions_configured in audit_status and two catalogue queries.
         self.assertEqual(sorted((item['tool'], item['kind']) for item in items),
-                         [('switch_read', 'definition')])
+                         [('admin_apply', 'definition'), ('admin_preview', 'definition'), ('admin_undo_preview', 'added'),
+                          ('audit_status', 'response'), ('findings_summary', 'added'), ('read_query_catalog', 'response'),
+                          ('triage_flow', 'definition')])
         self.assertEqual(info['file'], path.name)
         env = (here / 'release.env').read_text()
-        self.assertIn('TO_IMAGE=netops-candidate:1.0.8', env)
-        self.assertIn('FROM_IMAGE=ghcr.io/radek-cerny-soukr/netops@sha256:e04b19091819897e1bb4dec11416253b1dd598c18d5567325583b7e7e5fb8dfc', env)
+        self.assertIn('TO_IMAGE=netops-candidate:1.0.9', env)
+        self.assertIn('FROM_IMAGE=ghcr.io/radek-cerny-soukr/netops@sha256:ad9416496b39aceb5313edd0e48d2939172513f034353e188726b4c2a262649f', env)
 
 
 if __name__ == '__main__':

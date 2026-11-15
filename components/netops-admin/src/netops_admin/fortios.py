@@ -272,7 +272,48 @@ def render_delete(profile, key: str) -> list:
     return prefix + ["    delete " + local_key] + suffix
 
 
+SERVICE_TABLE = "firewall service custom"
+SERVICE_PORTS = ("tcp-portrange", "udp-portrange")
+PORT_RANGE = re.compile(r"([0-9]{1,5})(?:-([0-9]{1,5}))?")
+
+
+def _port_range(value: str) -> bool:
+    parts = value.split(":")
+    if len(parts) > 2:
+        return False
+    for part in parts:
+        match = PORT_RANGE.fullmatch(part)
+        if match is None:
+            return False
+        low = int(match.group(1))
+        high = low if match.group(2) is None else int(match.group(2))
+        if not 1 <= low <= high <= 65535:
+            return False
+    return True
+
+
+def service_prechecks(snapshot, key: str, after) -> list:
+    reasons = []
+    states = [] if after is None else [after]
+    entry = (snapshot.entries(SERVICE_TABLE) or {}).get(key)
+    if entry is not None:
+        states.append({name: entry.value(name) for name in SERVICE_PORTS if entry.value(name) is not None})
+    if after is not None and not any(after.get(name) for name in SERVICE_PORTS):
+        reasons.append("a TCP/UDP/SCTP service needs tcp-portrange or udp-portrange")
+    for state in states:
+        for name in SERVICE_PORTS:
+            value = state.get(name)
+            if value is not None and not _port_range(value):
+                reason = ("%s %r is not one port range low[-high][:low[-high]] with ports 1-65535 and low <= high"
+                          % (name, value))
+                if reason not in reasons:
+                    reasons.append(reason)
+    return reasons
+
+
 def prechecks(snapshot, profile, op: str, key: str, after) -> list:
+    if profile.table == SERVICE_TABLE:
+        return service_prechecks(snapshot, key, after)
     if profile.table == "firewall addrgrp":
         if not after or not after.get("member", "").split():
             return ["a static address group must retain at least one member"]
@@ -552,7 +593,10 @@ UNRESERVED = frozenset("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123
 WEBHOOK_PARTS = ("stitch", "trigger", "action", "user", "profile")
 WEBHOOK_SECTIONS = {"stitch": "system automation-stitch", "trigger": "system automation-trigger",
                     "action": "system automation-action", "user": "system api-user", "profile": "system accprofile"}
-REST_KEYS = {"firewall policy": "policyid", "firewall address": "name", "firewall addrgrp": "name"}
+REST_KEYS = {"firewall policy": "policyid", "firewall address": "name", "firewall addrgrp": "name",
+             "firewall service custom": "name"}
+REST_PATHS = {"firewall policy": "firewall/policy", "firewall address": "firewall/address",
+              "firewall addrgrp": "firewall/addrgrp", "firewall service custom": "firewall.service/custom"}
 ACCPROFILE_NONE = ("secfabgrp", "ftviewgrp", "authgrp", "sysgrp", "netgrp", "loggrp", "vpngrp", "utmgrp", "wifi")
 API_KEY = re.compile(r"^New API key:[ \t]*([0-9A-Za-z]+)[ \t\r]*$", re.MULTILINE)
 QUERY_GLOBAL = "show system global"
@@ -641,7 +685,7 @@ def _rest_value(profile, name, values):
 
 def rest_inverse(profile, op: str, key: str, inverse: list, address: str) -> dict:
     field = REST_KEYS.get(profile.table)
-    if field is None:
+    if field is None or profile.table not in REST_PATHS:
         raise Rejected(["the webhook safeguard has no REST inverse for table %s" % profile.table])
     assign, removed = {}, []
     for line in inverse:
@@ -650,7 +694,7 @@ def rest_inverse(profile, op: str, key: str, inverse: list, address: str) -> dic
             assign[tokens[1]] = _rest_value(profile, tokens[1], tokens[2:])
         elif tokens[:1] == ["unset"]:
             removed.append(tokens[1])
-    path = "api/v2/cmdb/" + profile.table.replace(" ", "/")
+    path = "api/v2/cmdb/" + REST_PATHS[profile.table]
     item = path + "/" + _percent(key)
     if op == "create":
         method, uri, body = "delete", item, None

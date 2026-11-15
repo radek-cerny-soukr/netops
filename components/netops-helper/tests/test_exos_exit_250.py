@@ -6,9 +6,10 @@ import pytest
 import netops_helper.engine as engine
 from netops_helper import normalization
 from conftest import _target
+from support.capture_sets import complete_sets
 
 REAL = Path(__file__).parent / "fixtures/real/exos"
-DIRS = sorted(path for path in REAL.iterdir() if path.is_dir())
+DIRS = complete_sets(REAL)
 NAMES = ("vlan_details", "interface_details", "ipv6_route_summary")
 
 

@@ -9,7 +9,6 @@ from .triage_routing import _INTERFACE_NAME, route_lookup, vdom_mode
 IDENTITIES = frozenset({("FortiGate-80F", "8.0.2", "0251")})
 STEPS = ("system_status", "route_dst", "route_src", "policy_lookup", "session")
 PLANNED_READS = len(STEPS)
-PROBE_SOURCE_PORT = 40000
 PROTOCOLS = {"tcp": 6, "udp": 17, "icmp": 1}
 VERDICTS = frozenset({"allowed_and_session_seen", "allowed_no_session", "denied_by_policy", "no_route", "incomplete"})
 SESSION_REPORTED = 5
@@ -20,15 +19,21 @@ NOT_SIMULATED = (
     "traffic to the FortiGate itself (local-in policy) and IPv6",
     "reverse-path filtering and asymmetric routing",
 )
-ASSUMPTIONS = (
-    "the ingress interface is the interface of the route to the source address",
-    "the policy lookup uses the fixed source port %d: a policy whose service restricts the source port to a range "
-    "that does not contain %d is not matched by the lookup, although a connection from such a source port may match it" % (
-        PROBE_SOURCE_PORT, PROBE_SOURCE_PORT),
-)
+INGRESS_ASSUMPTION = "the ingress interface is the interface of the route to the source address"
+SESSION_NOTE = ("observations of the sessions the device holds for this source, destination, destination port and "
+                "protocol with any source port: not a policy lookup, and not an exhaustive or unambiguous answer for "
+                "the whole range of source ports")
 
 
-def validate(src, dst, port, proto):
+def assumptions(source_port):
+    if source_port is None:
+        return [INGRESS_ASSUMPTION,
+                "the source port is unknown: the device CLI has no documented wildcard for the policy lookup, so no "
+                "lookup was run and no policy verdict is given; the sessions below are observations only"]
+    return [INGRESS_ASSUMPTION, "the policy lookup uses the source port %d given by the caller" % source_port]
+
+
+def validate(src, dst, port, proto, source_port=None):
     """Return the checked flow, or the reason that the tool does not handle it; never touches a device."""
     if not isinstance(src, str) or not isinstance(dst, str):
         raise ValueError("src and dst must be IP address literals")
@@ -50,9 +55,13 @@ def validate(src, dst, port, proto):
         raise ValueError("port must be an integer from 1 to 65535")
     if not isinstance(proto, str) or proto not in PROTOCOLS:
         raise ValueError("proto must be tcp, udp or icmp")
+    if source_port is not None and (type(source_port) is not int or not 1 <= source_port <= 65535):
+        raise ValueError("source_port must be omitted, null or an integer from 1 to 65535")
+    if source_port is not None and proto == "icmp":
+        raise ValueError("source_port does not apply to icmp")
     if versions != {4}:
         return {"unsupported": "ipv6_not_supported"}
-    return {"src": src, "dst": dst, "port": port, "proto": proto}
+    return {"src": src, "dst": dst, "port": port, "proto": proto, "source_port": source_port}
 
 
 def identity(text):
@@ -133,7 +142,7 @@ def head(text):
             for line in [line for line in lines if line][:HEAD_LINES]]
 
 
-def sessions(text, src, dst, dport, proto):
+def sessions(text, src, dst, dport, proto, sport=None):
     """Parse a filtered `diagnose sys session list`; the Helper repeats the tuple filter itself."""
     numbers = re.split(r"(?m)^(?=session info:)", text.replace("\r\n", "\n"))
     blocks = numbers[1:]
@@ -153,13 +162,15 @@ def sessions(text, src, dst, dport, proto):
         if not head or not policy or len(hooks) != 1:
             complete = False
             continue
-        _, act, source, sport, target, port, nat_address, nat_port = hooks[0]
+        _, act, source, sport_seen, target, port, nat_address, nat_port = hooks[0]
         if (head.group(1), source, target, port) != (str(PROTOCOLS[proto]), src, dst, str(dport)):
+            continue
+        if sport is not None and int(sport_seen) != sport:
             continue
         nat = None if act == "noop" else {"action": act, "translated": nat_address + ":" + nat_port}
         found.append({"policy_id": int(policy.group(1)), "proto_state": head.group(2),
                       "duration_s": int(head.group(3)), "expire_s": int(head.group(4)),
-                      "source_port": int(sport), "nat": nat})
+                      "source_port": int(sport_seen), "nat": nat})
     complete = complete and int(total[0]) == len(blocks) == len(found)
     return {"device_total": int(total[0]), "matching": len(found), "sessions": found[:SESSION_REPORTED],
             "complete": complete}
@@ -195,6 +206,7 @@ def run(read, clock, flow, alias, read_sessions=None):
     or a reason string, `None` when the target does not enrol the session recipe."""
     started = clock()
     src, dst, port, proto = flow["src"], flow["dst"], flow["port"], flow["proto"]
+    sport = flow.get("source_port")
     first = read("system_status", None)
     if not first.get("ok"):
         raise UnsupportedPlatform("config_platform_not_supported: the identity read failed")
@@ -227,6 +239,7 @@ def run(read, clock, flow, alias, read_sessions=None):
     device = ingress[0] if (ingress and len(set(ingress)) == 1 and ingress[0] is not None
                             and _INTERFACE_NAME.fullmatch(ingress[0])) else None
     policy = None
+    unknown_port_sessions = False
     session = {"state": "not_run"}
     if proto == "icmp":
         missing.append({"step": "policy_lookup", "reason": "unsupported"})
@@ -235,9 +248,12 @@ def run(read, clock, flow, alias, read_sessions=None):
         missing.append({"step": "policy_lookup", "reason": "ingress_unknown"})
     elif device is None:
         missing.append({"step": "policy_lookup", "reason": "ingress_not_unique"})
+    elif device is not None and parsed.get("route_dst", False) is not None and sport is None:
+        missing.append({"step": "policy_lookup", "reason": "source_port_unknown"})
+        unknown_port_sessions = "route_dst" in parsed  # sessions only when both routes were derived
     elif device is not None and parsed.get("route_dst", False) is not None:
         item = _read(read, "policy_lookup_ipv4",
-                     {"src_ip": src, "src_port": str(PROBE_SOURCE_PORT), "dst_ip": dst, "dst_port": str(port),
+                     {"src_ip": src, "src_port": str(sport), "dst_ip": dst, "dst_port": str(port),
                       "protocol": str(PROTOCOLS[proto]), "device": device, "pol_type": "policy"},
                      clock(), missing, sources, "policy_lookup", policy_lookup)
         if item is not None:
@@ -251,7 +267,7 @@ def run(read, clock, flow, alias, read_sessions=None):
                 policy = None
             else:
                 checked.append("policy_lookup")
-    if policy is not None and policy["action"] == "accept":
+    if (policy is not None and policy["action"] == "accept") or unknown_port_sessions:
         if read_sessions is None:
             missing.append({"step": "session", "reason": "not_enrolled"})
         else:
@@ -265,11 +281,16 @@ def run(read, clock, flow, alias, read_sessions=None):
             else:
                 sources["session"] = _source("sessions", answer, clock())
                 try:
-                    session = {"state": "read", **sessions(answer["text"], src, dst, port, proto)}
+                    session = {"state": "read", **sessions(answer["text"], src, dst, port, proto, sport)}
                 except (Unparsed, ValueError):
                     missing.append({"step": "session", "reason": "unparsed", "first_lines": head(answer["text"])})
                 else:
                     checked.append("session")
+                    if sport is None:
+                        shown = session["sessions"]
+                        session.update(exhaustive_for_any_source_port=False, note=SESSION_NOTE, reported=len(shown),
+                                       truncated=session["matching"] > len(shown),
+                                       observed_policy_ids=sorted({item["policy_id"] for item in shown}))
                     if not session["complete"]:
                         missing.append({"step": "session", "reason": "incomplete"})
     elif policy is not None:
@@ -277,10 +298,10 @@ def run(read, clock, flow, alias, read_sessions=None):
     if policy is not None:
         if policy["matched"]:
             fact = "policy id %d, action %s (lookup for source port %d on ingress %s)" % (
-                policy["policy_id"], policy["action"], PROBE_SOURCE_PORT, device)
+                policy["policy_id"], policy["action"], sport, device)
         else:
             fact = "no policy matched: implicit deny (lookup for source port %d on ingress %s)" % (
-                PROBE_SOURCE_PORT, device)
+                sport, device)
         findings.append({"id": "F-FLOW-POLICY-DENY" if policy["action"] == "deny" else "F-FLOW-POLICY-ACCEPT",
                          "layer": "policy", "object": "policy:%s" % (policy["policy_id"] or "implicit"),
                          "fact": fact, "sources": [sources["policy_lookup"]]})
@@ -291,8 +312,10 @@ def run(read, clock, flow, alias, read_sessions=None):
                                       "report them; the target must enrol configuration access)" % policy["policy_id"]})
     if session.get("state") == "read" and session["matching"]:
         findings.append({"id": "F-FLOW-SESSION", "layer": "session", "object": "session:%s>%s:%d" % (src, dst, port),
-                         "fact": "%d session%s for this source, destination, port and protocol on the device (any source "
-                                 "port)" % (session["matching"], "s" * (session["matching"] > 1)),
+                         "fact": "%d session%s for this source, destination, port and protocol on the device (%s)" % (
+                             session["matching"], "s" * (session["matching"] > 1),
+                             "source port %d" % sport if sport is not None else
+                             "any source port; observations only, not a policy lookup"),
                          "sources": [sources["session"]]})
     if missing:
         verdict = "incomplete"
@@ -311,12 +334,12 @@ def run(read, clock, flow, alias, read_sessions=None):
         "ok": session["state"] not in {"restore_unverified", "scope_refused"},
         "identity": ident,
         "vdom_mode": "disable",
-        "flow": {"src": src, "dst": dst, "port": port, "proto": proto},
+        "flow": {"src": src, "dst": dst, "port": port, "proto": proto, "source_port": sport},
         "started_at": _utc(started),
         "finished_at": _utc(clock()),
         "vantage": {"kind": "device_cli_lookup", "device": alias, "packets_sent": False,
                     "ingress_interface": device, "ingress_inferred_from": "route to src",
-                    "policy_lookup_source_port": PROBE_SOURCE_PORT if proto != "icmp" else None},
+                    "policy_lookup_source_port": sport if proto != "icmp" else None},
         "chain": {
             "ingress": {"route": parsed.get("route_src"), "interface": device},
             "egress": {"route": route_dst, "interfaces": egress},
@@ -328,7 +351,7 @@ def run(read, clock, flow, alias, read_sessions=None):
         "findings": findings,
         "missing": missing,
         "checked": checked,
-        "assumptions": list(ASSUMPTIONS),
+        "assumptions": assumptions(sport),
         "next_steps": next_steps,
         "dataplane_simulated": False,
         "not_simulated": list(NOT_SIMULATED),

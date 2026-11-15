@@ -61,6 +61,7 @@ QUERIES: dict[str, Query] = {
     "lldp_neighbors_detail": Query("show lldp neighbors detail", NO_SLOTS, "Show detailed LLDP neighbors with capabilities and management addresses.", high_volume=True),
     "vlan_details": Query("show vlan id {vlan_id}", VLAN_ID, "Show one VLAN with its member ports."),
     "mlag_detail": Query("show mlag detail", NO_SLOTS, "Show MLAG state, peer link and peer address."),
+    "mlag_interfaces": Query("show mlag interfaces", NO_SLOTS, "Show MLAG interfaces with local and remote port-channel state."),
     "mlag_config_sanity": Query("show mlag config-sanity", NO_SLOTS, "Show MLAG configuration consistency between the peers."),
     "ntp_status": Query("show ntp status", NO_SLOTS, "Show NTP synchronization state."),
     "ntp_associations": Query("show ntp associations", NO_SLOTS, "Show NTP peers with stratum, reachability, delay and offset."),

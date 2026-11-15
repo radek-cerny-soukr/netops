@@ -65,13 +65,19 @@ def test_shipped_profiles_load():
     loaded = profiles.load_profiles()
     assert set(loaded) == {("fortios", "firewall address"), ("exos", "vlan"), ("exos", "ports"),
                            ("fortios", "firewall addrgrp"), ("fortios", "system dhcp server/reserved-address"),
-                           ("exos", "vlan-membership"), ("fortios", "firewall policy")}
+                           ("exos", "vlan-membership"), ("fortios", "firewall policy"),
+                           ("fortios", "firewall service custom"), ("exos", "inline-power")}
     assert loaded[("exos", "ports")].implicit_keys and loaded[("exos", "ports")].ops == ("update",)
     assert loaded[("fortios", "firewall address")].versions == ("8.0.0 build0167", "7.6.8 build3744", "7.6.7 build3704", "8.0.2 build0251")
     assert loaded[("fortios", "firewall policy")].versions == ("7.6.8 build3744", "8.0.2 build0251")
+    assert loaded[("fortios", "firewall service custom")].versions == ("7.6.8 build3744", "8.0.2 build0251")
+    assert not loaded[("fortios", "firewall service custom")].provisional
+    assert loaded[("fortios", "firewall service custom")].measured
     assert loaded[("fortios", "firewall addrgrp")].versions == ("8.0.0 build0167", "7.6.8 build3744", "7.6.7 build3704")
     assert loaded[("fortios", "system dhcp server/reserved-address")].versions == ("8.0.0 build0167", "7.6.8 build3744", "7.6.7 build3704")
     assert loaded[("exos", "vlan")].versions == ("33.7.1.6", "33.6.1.14")
+    assert loaded[("exos", "inline-power")].action == "poe-cycle"
+    assert set(loaded[("exos", "ports")].attributes) == {"display-string", "admin-state"}
 
 
 def shipped():
@@ -84,7 +90,7 @@ def test_shipped_profile_texts_name_no_internal_documents_or_accounts():
     from importlib import resources
     directory = resources.files("netops_admin") / "profiles"
     names = sorted(entry.name for entry in directory.iterdir() if entry.name.endswith(".json"))
-    assert len(names) == 7
+    assert len(names) == 9
     for name in names:
         text = (directory / name).read_text(encoding="utf-8")
         for marker in ("docs/t167", "not releasable", "netops-test-", " branch "):

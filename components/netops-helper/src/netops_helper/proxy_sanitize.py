@@ -6,8 +6,11 @@ from collections.abc import Iterable
 import json
 import re
 from typing import Any
-from netops.redaction_spans import Marked, edits, sub, replace, loads, dumps
+from netops.redaction_spans import Marked
 
+# The Helper's span operations: the same results as netops.redaction_spans for
+# credential ranges, linear in the number of ranges, and they carry tracked ranges.
+from .sanitize import edits, sub, replace, loads, dumps
 from .sanitize import _wtp_128_length_password_capability, redact_snmp_credentials, _replace_credential, _SNMP_PREFIX
 
 

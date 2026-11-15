@@ -15,6 +15,15 @@ from netops_core.audit import Recorder
 from netops_helper import audit as helper_audit, engine, proxy, server
 
 SERIAL = 'S000SSSS00000001'
+# Version line and the VDOM lines of the same no-VDOM 80F 8.0.2 status capture
+# (components/netops-helper/tests/fixtures/fortios_80f_802_flow_status.txt lines 1 and 36-39). A status without
+# 'Virtual domain configuration' is refused as an unverified VDOM scope (168e2a5, fortios_vdom.scope).
+STATUS = '''Version: FortiGate-80F v8.0.2,build0251,260928 (GA.F)
+Current virtual domain: root
+Max number of virtual domains: 10
+Virtual domains status: 1 in NAT mode, 0 in TP mode
+Virtual domain configuration: disable
+'''
 MAC = '''Vdom: root
 Managed Switch : S000SSSS00000001 0
 MAC: 00:00:5e:00:53:02 VLAN: 100 Port: port3(port-id 3)
@@ -106,7 +115,7 @@ class ManagedSwitchBridge(unittest.IsolatedAsyncioTestCase):
     def device_read(self, auth, platform, command):
         self.assertEqual((auth.alias, platform), ('fw-a', 'fortinet'))
         return 0, {
-            'get system status': 'Version: FortiGate-80F v8.0.2,build0251,260928 (GA.F)\n',
+            'get system status': STATUS,
             'diagnose switch-controller switch-info port-stats ' + SERIAL: STATS,
             'diagnose switch-controller switch-info port-stats ' + SERIAL + ' port3': STATS,
             'show switch-controller managed-switch ' + SERIAL: PORT_CONFIG,

@@ -48,11 +48,73 @@ def prechecks(access, device, snapshot_text, spec) -> list:
 
 
 def plan_prechecks(access, device, plan, snapshot_text="") -> list:
+    before, after = plan["predicted"]["before"] or {}, plan["predicted"]["after"] or {}
+    if plan["table"] == "ports" and before.get("admin-state") != after.get("admin-state"):
+        _port_prechecks(access, device, plan, snapshot_text)
+    elif plan["table"] == "inline-power":
+        _poe_prechecks(access, device, plan)
     return []
 
 
+def _sides(plan) -> set:
+    return set(plan["predicted"]["before"] or {}) | set(plan["predicted"]["after"] or {})
+
+
+def _port_prechecks(access, device, plan, snapshot_text) -> None:
+    key = plan["key"]
+    shown = exos.port_configuration(access.query("show ports %s configuration no-refresh" % key), key)
+    if shown is None:
+        plan["prechecks"].append("port %s: show ports configuration is not recognised (informational)" % key)
+    else:
+        plan["prechecks"].append("port %s now: port state %s, link state %s"
+                                 % (key, shown["port_state"], shown["link_state"]))
+    if (plan["predicted"]["after"] or {}).get("admin-state") != "disabled" \
+            or (plan["predicted"]["before"] or {}).get("admin-state") == "disabled":
+        return
+    snapshot = exos.Snapshot(snapshot_text, device.firmware)
+    if not exos.vlan_module_closed(snapshot):
+        raise Rejected(["the configuration ends inside its vlan module; VLAN membership of port %s cannot be read "
+                        "completely" % key], reason_codes=["port_usage_unreadable"])
+    if "ports" in plan:
+        snapshot.inventory = frozenset(plan["ports"])
+    vlans = (device.audit_policy or {}).get("management_vlans", [])
+    if exos.management_vlan_member(snapshot, key, vlans):
+        raise Rejected(["port %s is a member of a management VLAN of the audit policy" % key],
+                       reason_codes=["port_management_vlan"])
+    if key in exos.lldp_ports(access.query(exos.QUERY_LLDP)):
+        raise Rejected(["port %s has an LLDP neighbor (uplink or managed device); disabling it is refused" % key],
+                       reason_codes=["port_lldp_neighbor"])
+    if key in exos.fdb_ports(access.query(exos.QUERY_FDB)):
+        raise Rejected(["port %s has learned MAC addresses; disabling a port in use is refused" % key],
+                       reason_codes=["port_learned_mac"])
+    plan["prechecks"].append("port %s has no LLDP neighbor and no learned MAC address" % key)
+
+
+def poe_state(access, key: str, check=False) -> dict:
+    """Configured admin state and inline power state of a port, read by the check account or the write account."""
+    query = access.check_query if check else access.query
+    return exos.poe_detail(query("show inline-power info detail ports %s" % key), key)
+
+
+def _poe_prechecks(access, device, plan) -> None:
+    key = plan["key"]
+    command = "show inline-power info ports %s" % key
+    rc, text = access.query_status(command)
+    if exos.poe_not_capable_answer(rc, text, key):
+        raise exos.NotInlinePower(["port %s is not inline-power capable" % key], reason_codes=["poe_not_capable"])
+    if rc != 0:
+        from netops_admin.access import AccessError
+        raise AccessError("query ended with exit status %s" % rc)
+    row = exos.poe_info(text, key)
+    if row["state"] == "disabled":
+        raise Rejected(["inline power of port %s is disabled (not delivering and not searching); a cycle is refused"
+                        % key], reason_codes=["poe_disabled"])
+    plan["prechecks"].append("port %s inline power before the cycle: %s, class %s, %s W, fault %s"
+                             % (key, row["state"], row["class"], row["power_watts"], row["fault"]))
+
+
 def ports(access, table: str):
-    if table not in ("vlan-membership", "ports"):
+    if table not in ("vlan-membership", "ports", "inline-power"):
         return None
     return exos.switch_ports(access.query(exos.QUERY_PORTS))
 
@@ -152,7 +214,11 @@ def observe(access, plan):
             alias = (port or {}).get("display-string")
         return membership.shown(text, plan["key"], alias)
     if plan["table"] == "ports":
-        return exos.shown_port(access.check_query("show ports %s information detail" % plan["key"]), plan["key"])
+        return exos.shown_port(access.check_query("show ports %s information detail" % plan["key"]), plan["key"],
+                               admin_state="admin-state" in _sides(plan))
+    if plan["table"] == "inline-power":
+        state = poe_state(access, plan["key"], check=True)
+        return {"admin-state": "disabled"} if state["configured"] == "disabled" else {}
     text = access.check_query("show vlan %s" % plan["key"])
     try:
         return exos.shown_vlan(text, plan["key"])

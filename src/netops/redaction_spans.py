@@ -14,6 +14,27 @@ class Marked(str):
         return instance
 
 
+def _touching(spans):
+    """Visit only spans meeting successive windows with nondecreasing bounds.
+
+    Keep source order (including overlapping/unsorted spans) for compatibility.
+    Each disjoint range enters and leaves once, instead of being scanned for
+    every substitution. Overlapping ranges cost only the intersections visited.
+    """
+    order = sorted(range(len(spans)), key=lambda index: spans[index][0])
+    active, following = [], 0
+
+    def touching(start, end):
+        nonlocal active, following
+        while following < len(order) and spans[order[following]][0] < end:
+            active.append(order[following])
+            following += 1
+        active = [index for index in active if spans[index][1] > start]
+        return sorted(active) if len(active) > 1 else active
+
+    return touching
+
+
 def edits(value, changes):
     if not isinstance(value, Marked):
         parts, cursor = [], 0
@@ -21,12 +42,15 @@ def edits(value, changes):
             parts.extend((value[cursor:start], replacement))
             cursor = end
         return ''.join(parts) + value[cursor:] if parts else value
+    source = value.spans
+    touching = _touching(source)
     parts, spans, cursor, offset = [], [], 0, 0
 
     def copy(start, end):
         nonlocal offset
         parts.append(value[start:end])
-        for left, right, kind in value.spans:
+        for index in touching(start, end):
+            left, right, kind = source[index]
             a, b = max(start, left), min(end, right)
             if a < b:
                 spans.append((offset + a - start, offset + b - start, kind))
@@ -44,9 +68,11 @@ def edits(value, changes):
             suffix += 1
         copy(start, start + prefix)
         changed = replacement[prefix:len(replacement) - suffix if suffix else len(replacement)]
-        inherited = [kind for a, b, kind in value.spans if a < end and b > start]
-        if changed and inherited:
-            spans.append((offset, offset + len(changed), 'community' if 'community' in inherited else None))
+        if changed:
+            inherited = [source[index][2] for index in touching(start, end)
+                         if source[index][0] < end and source[index][1] > start]
+            if inherited:
+                spans.append((offset, offset + len(changed), 'community' if 'community' in inherited else None))
         parts.append(changed)
         offset += len(changed)
         copy(end - suffix, end)
@@ -120,13 +146,15 @@ def loads(text, **kwargs):
     if not isinstance(text, Marked):
         return value
     tokens = iter(_JSON_STRING.finditer(text))
+    touching = _touching(text.spans)
 
     def walk(item):
         if isinstance(item, str):
             token = next(tokens)
             bounds = _boundaries(token.group())
             spans = []
-            for start, end, kind in text.spans:
+            for index in touching(token.start() + 1, token.end() - 1):
+                start, end, kind = text.spans[index]
                 a, b = max(start, token.start() + 1), min(end, token.end() - 1)
                 if a < b:
                     spans.append((max(0, bisect.bisect_right(bounds, a - token.start()) - 1),

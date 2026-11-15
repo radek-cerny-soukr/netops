@@ -78,13 +78,16 @@ def lldp(table, text):
     return t.lines(text, row)
 
 
-def configuration_view(text):
-    """Project only VLAN identity, parent and IPv4; never expose full config."""
+def configuration_view(text, keep=None):
+    """Project only VLAN identity, parent and IPv4; never expose full config.
+
+    `keep` (multi-VDOM): the names of the VLAN interfaces that may be projected; the others are left out.
+    """
     from .fortiswitch_ports import _entries
     entries, unknown = _entries(text, ('system interface',))
     output = ['config system interface']
     for name, fields in entries:
-        if 'vlanid' not in fields:
+        if 'vlanid' not in fields or (keep is not None and name not in keep):
             continue
         output.append('    edit ' + json.dumps(name, ensure_ascii=False))
         for field in ('vlanid', 'interface', 'ip'):
@@ -94,6 +97,33 @@ def configuration_view(text):
     output.append('end')
     output.extend('unrecognized configuration syntax from source line ' + str(item['line']) for item in unknown)
     return '\n'.join(output) + '\n'
+
+
+def vdom_configuration_view(text, vdom):
+    """The VLAN projection of one VDOM from `show system interface`, owners assigned before the projection.
+
+    Measured (task 172): in multi-VDOM `show system interface` lists the interfaces of every VDOM, each with its
+    own `set vdom`. Only VLAN interfaces whose own `set vdom` names `vdom` are projected; the projection never
+    carries `set vdom`, so the owner is decided here, on the full entry. A VLAN interface without exactly one
+    valid `set vdom` refuses (VdomRefused("vdom_membership_unverified")). Returns (projection, other VLANs).
+    """
+    from . import fortios_vdom
+    from .fortiswitch_ports import _entries
+    entries, unknown = _entries(text, ('system interface',))
+    if unknown:
+        raise fortios_vdom.VdomRefused('vdom_membership_unverified')
+    keep, other = set(), 0
+    for name, fields in entries:
+        if 'vlanid' not in fields:
+            continue
+        owner = fields.get('vdom', [])
+        if len(owner) != 1 or not fortios_vdom.VDOM_NAME.fullmatch(owner[0]):
+            raise fortios_vdom.VdomRefused('vdom_membership_unverified')
+        if owner[0] == vdom:
+            keep.add(name)
+        else:
+            other += 1
+    return configuration_view(text, keep), other
 
 
 def vlans(table, text):

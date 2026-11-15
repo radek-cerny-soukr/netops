@@ -1,4 +1,6 @@
+import re
 import unittest
+from pathlib import Path
 
 import pytest
 from test_issue5_admin import delivery_bench
@@ -44,3 +46,83 @@ def test_refresh_delivery_returns_the_record_when_the_lock_is_unusable(tmp_path)
     lock.symlink_to(tmp_path / 'elsewhere')
     assert execute.refresh_delivery(runtime, record) == record
     assert runtime.store.operation(change)['audit_delivery'] == 'pending'
+
+
+def test_plan_changed_carries_its_code_and_both_hashes(tmp_path):
+    from fake_fortios import FakeFortiOS
+    from test_execute import make_runtime, request
+
+    device = FakeFortiOS()
+    runtime = make_runtime(tmp_path, device)
+    approved = request(op='update', key='spare-host', changes={'comment': 'approved'}, request_id='req-code-0001')
+    expected = execute.preview(runtime, 'lab', approved)['plan_sha256']
+    device.addresses['spare-host']['comment'] = 'changed meanwhile'
+    with pytest.raises(Rejected) as caught:
+        execute.apply(runtime, 'lab', approved, expected_plan_sha256=expected)
+    assert type(caught.value) is Rejected
+    assert caught.value.reason_codes == ['plan_changed']
+    assert [set(detail) for detail in caught.value.reason_details] == [{'code', 'expected', 'actual'}]
+    assert caught.value.reason_details[0]['expected'] == expected
+
+
+def test_schema_transaction_has_no_plan_binding():
+    from netops_admin.schema_request import Transaction
+
+    transaction = Transaction('lab', [], 'reason', 'request', 'req-code-0002')
+    with pytest.raises(Rejected) as caught:
+        execute._expected_plan(transaction, 'a' * 64)
+    assert 'only for profile requests' in caught.value.reasons[0]
+    assert execute._expected_plan(transaction, None) is None
+
+
+def test_undo_preview_after_an_undo_is_undo_already_done(tmp_path):
+    from fake_fortios import FakeFortiOS
+    from test_execute import make_runtime, request
+
+    device = FakeFortiOS()
+    runtime = make_runtime(tmp_path, device)
+    first = execute.apply(runtime, 'lab', request(op='update', key='spare-host', changes={'comment': 'mine'}))
+    assert execute.undo(runtime, first['change_id'], 'investigated')['result'] == 'confirmed'
+    for reason in ('investigated', 'another reason'):
+        with pytest.raises(Rejected) as caught:
+            execute.preview_undo(runtime, first['change_id'], reason)
+        assert caught.value.reason_codes == ['undo_already_done']
+        assert caught.value.reasons == [execute.UNDO_DONE]
+
+
+PORT_AND_POE_CODES = {
+    "port_protected", "port_management_vlan", "port_uplink", "port_lag_member", "port_lldp_neighbor",
+    "port_learned_mac", "port_usage_unreadable", "port_action_not_measured", "poe_not_capable", "poe_unsupported",
+    "poe_disabled", "poe_state_unreadable", "action_only_table", "action_unsupported", "undo_not_applicable",
+}
+CODE_PATTERNS = (
+    re.compile(r'reason_codes=\["([a-z_]+)"'),
+    re.compile(r'reason_code="([a-z_]+)"'),
+    re.compile(r'"code": "([a-z_]+)"'),
+    re.compile(r'default_code = "([a-z_]+)"'),
+    re.compile(r'\["reason_codes"\] = \["([a-z_]+)"\]'),
+)
+
+
+def _source_codes() -> set:
+    source = Path(execute.__file__).parent
+    codes = set()
+    for path in sorted(source.glob("*.py")):
+        text = path.read_text(encoding="utf-8")
+        for pattern in CODE_PATTERNS:
+            codes.update(pattern.findall(text))
+    return codes
+
+
+def test_port_and_poe_refusals_carry_named_codes():
+    assert PORT_AND_POE_CODES <= _source_codes()
+
+
+def test_every_reason_code_of_the_source_is_documented():
+    docs = Path(__file__).resolve().parents[3] / "docs" / "admin-configuration.md"
+    if not docs.is_file():
+        pytest.skip("the monorepo documentation is not part of this tree")
+    documented = set()
+    for row in re.findall(r"^\| (`[a-z_]+`(?:, `[a-z_]+`)*) \|", docs.read_text(encoding="utf-8"), re.MULTILINE):
+        documented.update(re.findall(r"`([a-z_]+)`", row))
+    assert _source_codes() - documented == set()

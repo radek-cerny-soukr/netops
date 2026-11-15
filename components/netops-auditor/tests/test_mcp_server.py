@@ -210,13 +210,22 @@ def _import_closure(module_name):
     return frozenset(seen)
 
 
-def test_the_surface_holds_exactly_seven_tools_with_the_agreed_names():
+def test_the_surface_holds_exactly_eight_tools_with_the_agreed_names():
     tools = asyncio.run(mcp_server.mcp.list_tools())
     names = sorted(tool.name for tool in tools)
-    assert len(mcp_server.TOOL_NAMES) == 7
+    assert len(mcp_server.TOOL_NAMES) == 8
     assert names == sorted(mcp_server.TOOL_NAMES)
     assert names == sorted(
-        ("audit_status", "list_rules", "rule_detail", "list_findings", "finding_detail", "compare", "schema_report")
+        (
+            "audit_status",
+            "list_rules",
+            "rule_detail",
+            "list_findings",
+            "finding_detail",
+            "compare",
+            "schema_report",
+            "findings_summary",
+        )
     )
     for banned in BANNED_TOOL_NAMES:
         assert banned not in names
@@ -330,10 +339,11 @@ def test_audit_status_reads_the_tenant_and_takes_its_parameters(configured):
 def test_audit_status_returns_what_query_returns(configured):
     with Store(configured.path) as store:
         expected = query.audit_status(
-            store, TENANT, device=DEVICE, now=datetime.now(timezone.utc),
+            store, TENANT, device=DEVICE, now=datetime.now(timezone.utc), suppressions_configured=False,
         )
     actual = mcp_server.audit_status(device=DEVICE)
-    assert set(actual) == set(expected) == set(query.STATUS_KEYS)
+    assert set(actual) == set(expected) == set(query.STATUS_KEYS) | {"suppressions_configured"}
+    assert actual["suppressions_configured"] is False
     assert set(actual["devices"][0]) == set(query.DEVICE_STATUS_KEYS)
     for name in ("tenant", "stale_after_hours", "never_audited", "totals"):
         assert actual[name] == expected[name]
@@ -360,9 +370,11 @@ def test_list_findings_returns_what_query_returns(configured):
     with Store(configured.path) as store:
         expected = query.list_findings(
             store, TENANT, DEVICE, suppressions=(), now=datetime.now(timezone.utc),
+            suppressions_configured=False,
         )
     assert mcp_server.list_findings(DEVICE) == expected
-    assert set(expected) == set(query.LISTING_KEYS)
+    assert set(expected) == set(query.LISTING_KEYS) | {"suppressions_configured"}
+    assert expected["suppressions_configured"] is False
 
 
 def test_list_findings_passes_every_filter(configured):
@@ -401,6 +413,63 @@ def test_list_findings_reads_the_configured_suppressions(suppressed):
     assert states["L1-001"] == STATE_OPEN_KNOWN
     assert listing["counts"][STATE_SUPPRESSED] == 1
     assert listing["counts"][STATE_NEW] == 0
+    assert listing["suppressions_configured"] is True
+    assert mcp_server.audit_status()["suppressions_configured"] is True
+
+
+def test_findings_summary_returns_what_query_returns(configured):
+    with Store(configured.path) as store:
+        expected = query.findings_summary(
+            store, TENANT, load_catalog(PLATFORM), suppressions=(), now=datetime.now(timezone.utc),
+        )
+    actual = mcp_server.findings_summary()
+    assert actual == expected
+    assert set(actual) == set(query.SUMMARY_KEYS)
+    assert actual["suppressions_configured"] is False
+    for item in actual["items"]:
+        assert set(item) == set(query.SUMMARY_ITEM_KEYS)
+        assert "evidence" not in item
+
+
+def test_findings_summary_spans_the_devices_and_matches_list_findings(configured):
+    for filters in ({}, {"severity": "high"}, {"state": STATE_NEW}, {"state": STATE_GONE}):
+        summary = mcp_server.findings_summary(**filters)
+        listings = [mcp_server.list_findings(name, **filters) for name in (DEVICE, OTHER_DEVICE)]
+        assert summary["total_matching"] == sum(item["total"] for item in listings), filters
+    summary = mcp_server.findings_summary()
+    assert {item["device"] for item in summary["items"]} == {DEVICE, OTHER_DEVICE}
+    assert summary["total_matching"] == 4
+    one = mcp_server.findings_summary(device=OTHER_DEVICE)
+    assert {item["device"] for item in one["items"]} == {OTHER_DEVICE}
+    cut = mcp_server.findings_summary(limit=1)
+    assert (cut["returned"], cut["total_matching"], cut["truncated"]) == (1, 4, True)
+    narrowed = mcp_server.findings_summary(state=STATE_NEW)
+    assert narrowed["counts_before_filter"]["state"][STATE_NEW] == 2
+    assert narrowed["counts_before_filter"]["state"][STATE_OPEN_KNOWN] == 1
+    assert narrowed["counts_after_filter"]["state"][STATE_OPEN_KNOWN] == 0
+    known_rule = load_catalog(PLATFORM)[0].id
+    assert mcp_server.findings_summary(rule_id=known_rule)["total_matching"] == 0
+
+
+def test_findings_summary_refuses_invalid_arguments(configured):
+    with pytest.raises(ToolError, match="the catalog holds no rule"):
+        mcp_server.findings_summary(rule_id="L1-001")
+    with pytest.raises(ToolError, match="limit must be"):
+        mcp_server.findings_summary(limit=0)
+    with pytest.raises(ToolError, match="limit must be"):
+        mcp_server.findings_summary(limit=201)
+    with pytest.raises(ToolError, match="severity must be one of"):
+        mcp_server.findings_summary(severity="critical")
+    with pytest.raises(ToolError, match="state must be one of"):
+        mcp_server.findings_summary(state="open")
+
+
+def test_findings_summary_reads_the_configured_suppressions(suppressed):
+    summary = mcp_server.findings_summary(device=DEVICE)
+    states = {item["rule_id"]: item["state"] for item in summary["items"]}
+    assert states["L1-003"] == STATE_SUPPRESSED
+    assert summary["counts_before_filter"]["state"][STATE_SUPPRESSED] == 1
+    assert summary["suppressions_configured"] is True
 
 
 def test_finding_detail_passes_the_fingerprint_and_returns_what_query_returns(configured):

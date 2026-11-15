@@ -1,0 +1,45 @@
+MAC                                      VLAN Name( Tag)  Age  Flags          Port / Virtual Port List
+------------------------------------------------------------------------------------------------------
+00:00:5e:00:53:01                          Default(0001) 0025  d m            1
+00:00:5e:00:53:02                          Default(0001) 0001  d m            11
+00:00:5e:00:53:03                          Default(0001) 0076  d m            1
+00:00:5e:00:53:04                          Default(0001) 0003  d m            1
+00:00:5e:00:53:05                          Default(0001) 0000  d m            1
+00:00:5e:00:53:15                              IoT(0020) 0134  d m            1
+00:00:5e:00:53:16                          Default(0001) 0033  d m            9
+00:00:5e:00:53:06                          Default(0001) 0020  d m            1
+00:00:5e:00:53:17                           KAMERY(0040) 0042  d m            1
+00:00:5e:00:53:18                           KAMERY(0040) 0056  d m            1
+00:00:5e:00:53:19                           KAMERY(0040) 0018  d m            1
+00:00:5e:00:53:07                          Default(0001) 0091  d m            1
+00:00:5e:00:53:1a                           KAMERY(0040) 0012  d m            1
+00:00:5e:00:53:1b                              IoT(0020) 0024  d m            1
+00:00:5e:00:53:08                          Default(0001) 0032  d m            1
+00:00:5e:00:53:1c                              IoT(0020) 0001  d m            1
+00:00:5e:00:53:09                          Default(0001) 0235  d m            1
+00:00:5e:00:53:0b                          Default(0001) 0001  d m            1
+00:00:5e:00:53:0c                          Default(0001) 0082  d m            1
+00:00:5e:00:53:0d                          Default(0001) 0026  d m            1
+00:00:5e:00:53:1d                              IoT(0020) 0208  d m            1
+00:00:5e:00:53:0e                          Default(0001) 0002  d m            1
+00:00:5e:00:53:0e                              IoT(0020) 0066  d m            1
+00:00:5e:00:53:1e                          Default(0001) 0012  d m            3
+00:00:5e:00:53:0f                          Default(0001) 0027  d m            1
+00:00:5e:00:53:10                          Default(0001) 0010  d m            1
+00:00:5e:00:53:11                          Default(0001) 0001  d m            1
+00:00:5e:00:53:12                          Default(0001) 0002  d m            1
+00:00:5e:00:53:12                          VLAN100(0100) 0067  d m            1
+00:00:5e:00:53:13                          Default(0001) 0002  d m            1
+00:00:5e:00:53:13                          VLAN100(0100) 0208  d m            1
+00:00:5e:00:53:1f                          Default(0001) 0002  d m            7
+00:00:5e:00:53:14                          Default(0001) 0065  d m            1
+
+Flags : d - Dynamic, s - Static, p - Permanent, n - NetLogin, m - MAC, i - IP,
+        x - IPX, l - lockdown MAC, L - lockdown-timeout MAC, M- Mirror, B - Egress Blackhole,
+        b - Ingress Blackhole, v - MAC-Based VLAN, P - Private VLAN, T - VLAN translation,
+        D - drop packet, h - Hardware Aging (Age=0), o - IEEE 802.1ah Backbone MAC,
+        S - Software Controlled Deletion, r - MSRP,
+        X - VXLAN, E - EVPN
+
+Total: 33 Static: 0  Perm: 0  Dyn: 33  Dropped: 0  Locked: 0  Locked with Timeout: 0
+FDB Aging time: 300

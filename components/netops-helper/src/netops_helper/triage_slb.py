@@ -14,7 +14,17 @@ MISSING_REASONS = frozenset((
 REQUIRED_STEPS = ("vs_config", "pool_config", "slb_vs_stat", "system_performance")
 MAX_HEALTH_CHECKS = 4
 MAX_REAL_SERVERS = 4
+# A virtual server with schedule-list enable: at most this many schedule-pool entries are read (one
+# config_read each) and at most as many distinct schedule groups; further entries are missing as truncated.
+MAX_SCHEDULE_ENTRIES = 4
 RATE_COST = 21
+# Worst cases of the two read plans; both must fit the reserved RATE_COST.
+STATIC_PLAN = 1 + 1 + 1 + MAX_HEALTH_CHECKS + 2 + 2 + 1 + 3 + 1 + 1 + MAX_REAL_SERVERS
+SCHEDULE_PLAN = 1 + 1 + 2 * MAX_SCHEDULE_ENTRIES + 2 + 2 + 1 + 3 + 1 + 1
+# Measured on FortiADC-KVM 7.6.7 build 0676 (CLI help of config schedule-member and show full-configuration).
+SCHEDULE_TYPES = frozenset(("daily-recurring", "hourly-recurring", "monthly-recurring", "one-time", "weekly-recurring"))
+SCHEDULE_MEMBER_FIELDS = frozenset(("type", "startdate", "enddate", "starttime-of-startdate", "endtime-of-enddate",
+                                    "day-of-week", "day-of-month"))
 FAULT_RULES = frozenset((
     "F-VS-DISABLED", "F-VS-AVAIL", "F-MEMBER-DOWN", "F-POOL-ALL-DOWN", "F-MISMATCH", "F-TLS-FAIL",
 ))
@@ -24,7 +34,11 @@ _VDOM = re.compile(r"vdom name is\s+(\S+)")
 _VS_STAT = re.compile(r"\tvirtual-server: (\S+), availability:(\S+)")
 _COUNTER = re.compile(r"([A-Za-z][A-Za-z ]{0,40}): (-?[0-9]+)")
 _POOL = re.compile(r"\t\treal-server-pool: (\S+)")
-_MEMBER_STAT = re.compile(r"\t\tid:([0-9]+), hc_state: (\S+), last-state-change-time: ([0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2})")
+# FortiADC 7.6.7 prints an empty last-state-change-time for a member that never changed state.
+_MEMBER_STAT = re.compile(r"\t\tid:([0-9]+), hc_state: (\S+), last-state-change-time:"
+                          r"(?: ([0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}))? ?")
+# vs_stat and slb_load of a virtual server without a pool in its runtime (measured for schedule-list enable).
+_NO_RS = "no rs for this vs"
 _LOAD_VS = re.compile(r"\tvirtual-server (\S+)")
 _LOAD_POOL = re.compile(r"\t\treal-server (\S+)")
 _LOAD_MEMBER = re.compile(r"\t\tid:([0-9]+), status ([0-9]+), weight ([0-9]+)")
@@ -52,7 +66,7 @@ def _lines(text: str) -> list[str]:
     return lines
 
 
-def parse_config_object(text: str, family: str, name: str) -> dict[str, Any]:
+def parse_config_object(text: str, family: str, name: str, table: str = "pool_member") -> dict[str, Any]:
     head = "config " + family
     lines = [line.strip() for line in text.split("\n") if line.strip()]
     try:
@@ -61,6 +75,7 @@ def parse_config_object(text: str, family: str, name: str) -> dict[str, Any]:
         raise TriageParseError("configuration header is missing") from None
     fields: dict[str, list[str]] = {}
     members: list[dict[str, Any]] = []
+    tables: list[str] = []
     stack: list[tuple[str, str]] = []
     found = False
     for raw in lines[start + 1:]:
@@ -74,17 +89,19 @@ def parse_config_object(text: str, family: str, name: str) -> dict[str, Any]:
                 if found or words[1] != name:
                     raise TriageParseError("configuration carries another object")
                 found = True
-            elif len(stack) == 2 and stack[1] == ("config", "pool_member"):
+            elif len(stack) == 2 and stack[1] == ("config", table):
                 members.append({"id": words[1], "fields": {}})
             stack.append(("edit", words[1]))
         elif verb == "config" and len(words) == 2 and top == "edit":
+            if len(stack) == 1:
+                tables.append(words[1])
             stack.append(("config", words[1]))
         elif verb in ("set", "unset") and len(words) >= 2 and top == "edit":
             if verb == "unset":
                 continue
             if len(stack) == 1:
                 fields[words[1]] = words[2:]
-            elif len(stack) == 3 and stack[1] == ("config", "pool_member"):
+            elif len(stack) == 3 and stack[1] == ("config", table):
                 members[-1]["fields"][words[1]] = words[2:]
         elif verb == "next" and len(words) == 1 and top == "edit":
             stack.pop()
@@ -98,7 +115,7 @@ def parse_config_object(text: str, family: str, name: str) -> dict[str, Any]:
         raise TriageParseError("configuration block is not closed")
     if not found:
         raise TriageParseError("configuration object is missing")
-    return {"fields": fields, "members": members}
+    return {"fields": fields, "members": members, "tables": tables}
 
 
 def _one(fields: dict[str, list[str]], key: str) -> str | None:
@@ -121,7 +138,44 @@ def virtual_server_config(text: str, name: str) -> dict[str, Any]:
         "client_ssl_profile": _one(fields, "client-ssl-profile"),
         "waf_profile": _one(fields, "waf-profile"),
         "dos_profile": _one(fields, "dos-profile"),
+        # Literal: the device prints the list space-separated with a trailing space, in the configured order.
+        "schedule_list": _one(fields, "schedule-list"),
+        "schedule_pool_list": list(fields.get("schedule-pool-list", [])),
+        "content_routing": _one(fields, "content-routing"),
     }
+
+
+def schedule_pool_config(text: str, name: str) -> dict[str, Any]:
+    """One `load-balance schedule-pool` entry: the schedule group and the pool it names (both required)."""
+    parsed = parse_config_object(text, "load-balance schedule-pool", name)
+    fields = parsed["fields"]
+    schedule, pool = _one(fields, "schedule"), _one(fields, "load-balance-pool")
+    if schedule is None or pool is None or set(fields) != {"schedule", "load-balance-pool"} or parsed["tables"]:
+        raise TriageParseError("schedule-pool entry has an unknown shape")
+    return {"schedule": schedule, "pool": pool}
+
+
+def schedule_group_config(text: str, name: str) -> dict[str, Any]:
+    """One `system schedule-group`: its `schedule-member` rows with their fields exactly as configured.
+
+    Nothing is computed from them; whether a member window is active depends on the device clock and is not
+    reported by the device output.
+    """
+    parsed = parse_config_object(text, "system schedule-group", name, table="schedule-member")
+    if parsed["fields"] or any(table != "schedule-member" for table in parsed["tables"]):
+        raise TriageParseError("schedule group has an unknown shape")
+    members = []
+    for member in parsed["members"]:
+        fields = member["fields"]
+        if not member["id"].isdigit() or not set(fields) <= SCHEDULE_MEMBER_FIELDS:
+            raise TriageParseError("schedule member has an unknown shape")
+        if _one(fields, "type") not in SCHEDULE_TYPES:
+            raise TriageParseError("schedule member type is unknown")
+        if any(not value for value in fields.values()):
+            raise TriageParseError("schedule member field has no value")
+        members.append({"id": int(member["id"]),
+                        "fields": {key: " ".join(value) for key, value in fields.items()}})
+    return {"members": members}
 
 
 def pool_config(text: str, name: str) -> dict[str, Any]:
@@ -183,6 +237,13 @@ def parse_vs_stat(text: str, virtual_server: str, vdom: str) -> dict[str, Any]:
             continue
         if result["availability"] is None:
             raise TriageParseError("vs_stat line precedes its virtual server")
+        if result.get("no_rs"):
+            raise TriageParseError("vs_stat continues after its last line")
+        if line.rstrip() == _NO_RS:
+            if result["pools"]:
+                raise TriageParseError("vs_stat line has an unknown shape")
+            result["no_rs"], owner = True, None
+            continue
         pool = _POOL.fullmatch(line)
         if pool:
             result["pools"].append({"name": pool.group(1), "members": []})
@@ -213,13 +274,21 @@ def parse_slb_load(text: str, virtual_server: str) -> dict[str, Any]:
     servers: dict[str, list[dict[str, Any]]] = {}
     current: list[dict[str, Any]] | None = None
     pool: dict[str, Any] | None = None
+    no_rs: set[str] = set()
+    owner = None
     for line in lines[1:]:
         vs = _LOAD_VS.fullmatch(line)
         if vs:
             if vs.group(1) in servers:
                 raise TriageParseError("slb_load repeats a virtual server")
-            current, pool = servers.setdefault(vs.group(1), []), None
+            owner = vs.group(1)
+            current, pool = servers.setdefault(owner, []), None
             continue
+        if line.rstrip() == _NO_RS and current is not None and not current and owner not in no_rs:
+            no_rs.add(owner)
+            continue
+        if owner in no_rs:
+            raise TriageParseError("slb_load line has an unknown shape")
         found = _LOAD_POOL.fullmatch(line)
         if found and current is not None:
             pool = {"name": found.group(1), "members": []}
@@ -231,7 +300,10 @@ def parse_slb_load(text: str, virtual_server: str) -> dict[str, Any]:
                                     "weight": int(member.group(3))})
             continue
         raise TriageParseError("slb_load line has an unknown shape")
-    return {"present": virtual_server in servers, "pools": servers.get(virtual_server, [])}
+    result = {"present": virtual_server in servers, "pools": servers.get(virtual_server, [])}
+    if virtual_server in no_rs:
+        result["no_rs"] = True
+    return result
 
 
 def parse_tls_stats(text: str) -> dict[str, Any]:
@@ -296,6 +368,8 @@ def evaluate(chain: dict[str, Any], sources: dict[str, dict[str, Any]], target: 
                                  [sources["slb_vs_stat"]]))
     config_members = (pool.get("config") or {}).get("members")
     runtime_pools = vs_runtime["pools"] if vs_runtime else None
+    if pool.get("selection") == "schedule":
+        _schedule_findings(chain, sources, findings, hypotheses, runtime_pools)
     runtime_members: dict[int, dict[str, Any]] = {}
     if runtime_pools is not None:
         for item in runtime_pools:
@@ -320,7 +394,7 @@ def evaluate(chain: dict[str, Any], sources: dict[str, dict[str, Any]], target: 
                     findings.append(_finding(
                         "F-MEMBER-DOWN", "runtime", "%s id %d" % (pool["name"], member["id"]),
                         "real-server %s, hc_state: %s, last-state-change-time: %s, health-check %s" % (
-                            member["real_server"] or "-", state["hc_state"], state["last_state_change"],
+                            member["real_server"] or "-", state["hc_state"], state["last_state_change"] or "-",
                             ",".join(checks) or "-"),
                         [sources["pool_config"], sources["slb_vs_stat"]]))
                     address = chain.get("real_servers", {}).get(member["real_server"])
@@ -390,8 +464,42 @@ def evaluate(chain: dict[str, Any], sources: dict[str, dict[str, Any]], target: 
     return findings, hypotheses, steps
 
 
-def verdict(findings: list[dict[str, Any]], missing: list[dict[str, Any]], executed: set[str]) -> str:
-    if missing or any(step not in executed for step in REQUIRED_STEPS):
+def _schedule_findings(chain: dict[str, Any], sources: dict[str, dict[str, Any]], findings: list, hypotheses: list,
+                       runtime_pools: list[dict[str, Any]] | None) -> None:
+    """Pool selection by schedule: name the configured candidates, never an active pool.
+
+    Measured on FortiADC-KVM 7.6.7 build 0676 (VM220, 2026-11-14, task 173): vs_stat and slb_load of such a virtual server print
+    `no rs for this vs`, or the pool of a load-balance-pool stored before schedule-list was enabled (hidden
+    in the CLI configuration and not the pool the schedule selects); availability is DEAD outside every window.
+    """
+    name, pool = chain["virtual_server"], chain["pool"]
+    entries = (chain["vs"].get("config") or {}).get("schedule_pool_list") or []
+    candidates = [ref["name"] for ref in pool.get("references", ()) if ref["relation"] == "configured_candidate"]
+    read = [source for item in chain.get("schedule", ()) for source in item["sources"][1:]]
+    findings.append(_finding(
+        "F-POOL-BY-SCHEDULE", "config", name,
+        "schedule-list enable, schedule-pool-list %s, candidate pools %s; the device output does not name "
+        "the pool the schedule selects" % (" ".join(entries) or "-", " ".join(candidates) or "-"),
+        [sources["vs_config"], *read]))
+    if runtime_pools is not None and pool.get("candidates_complete"):
+        known = set(candidates) | ({pool["name"]} if pool.get("name") else set())
+        for item in runtime_pools:
+            if item["name"] not in known:
+                findings.append(_finding(
+                    "F-POOL-NOT-CANDIDATE", "runtime", item["name"],
+                    "vs_stat real-server-pool %s is not a schedule-pool candidate; the virtual server configuration "
+                    "shows no load-balance-pool for it" % item["name"],
+                    [sources["slb_vs_stat"], sources["vs_config"], *read]))
+    vs_runtime = chain["vs"].get("runtime")
+    if vs_runtime and vs_runtime["availability"] != "HEALTHY":
+        hypotheses.append({"text": "no schedule window may be active at the device time; compare the schedule "
+                                   "group members with the device clock",
+                           "based_on": ["F-VS-AVAIL", "F-POOL-BY-SCHEDULE"]})
+
+
+def verdict(findings: list[dict[str, Any]], missing: list[dict[str, Any]], executed: set[str],
+            required: tuple[str, ...] = REQUIRED_STEPS) -> str:
+    if missing or any(step not in executed for step in required):
         return "incomplete"
     if any(finding["id"] in FAULT_RULES for finding in findings):
         return "fault_found"

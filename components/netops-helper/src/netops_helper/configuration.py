@@ -1,3 +1,4 @@
+from array import array
 from dataclasses import dataclass, replace
 from collections import OrderedDict, deque
 import codecs
@@ -150,6 +151,35 @@ def _quoted_value(value):
     return value if re.fullmatch(r'[A-Za-z0-9_./:@%+*-]+', value) else json.dumps(value, ensure_ascii=True)
 
 def _snapshot_profile(profile, platform):
+    if platform == 'extreme_exos':
+        # Only the EXOS read profile (config_exos_adapter.PROFILE family); config_diff compares two of them.
+        if type(profile) is not str or re.fullmatch(r'extreme_exos-full-1:[0-9a-f]{64}', profile) is None:
+            raise ValueError('invalid configuration profile')
+        return
+    if platform == 'cisco_ios':
+        # Only the exact reviewed IOS read profile (config_cisco_ios_adapter.PROFILE); no family pattern.
+        from . import config_cisco_ios_adapter
+        if type(profile) is not str or profile != config_cisco_ios_adapter.PROFILE:
+            raise ValueError('invalid configuration profile')
+        return
+    if platform == 'cisco_xe':
+        # Only the exact IOS XE read profile (config_cisco_xe_adapter.PROFILE); no family pattern.
+        from . import config_cisco_xe_adapter
+        if type(profile) is not str or profile != config_cisco_xe_adapter.PROFILE:
+            raise ValueError('invalid configuration profile')
+        return
+    if platform == 'cisco_nxos':
+        # Only the exact NX-OS read profile (config_cisco_nxos_adapter.PROFILE); no family pattern.
+        from . import config_cisco_nxos_adapter
+        if type(profile) is not str or profile != config_cisco_nxos_adapter.PROFILE:
+            raise ValueError('invalid configuration profile')
+        return
+    if platform == 'arista_eos':
+        # Only the exact Arista EOS read profile (config_arista_eos_adapter.PROFILE); no family pattern.
+        from . import config_arista_eos_adapter
+        if type(profile) is not str or profile != config_arista_eos_adapter.PROFILE:
+            raise ValueError('invalid configuration profile')
+        return
     if platform not in ('fortios', 'fortiadc'):
         raise ValueError('invalid configuration profile')
     if profile == PROFILE and platform == 'fortios':
@@ -264,6 +294,29 @@ class Snapshot:
                 (self.filtered[1].memory_bytes if self.filtered is not None else 0))
 
 def require(auth, platform, permission):
+    if platform == 'extreme_exos':
+        # EXOS: read, and compare (config_diff of two stored snapshots, task 157) only together with read.
+        if permission not in ('read', 'compare'):
+            raise ValueError('config_platform_not_supported')
+        if auth.ssh_platform != 'extreme_exos':
+            raise ValueError('configuration platform is outside target policy')
+        rights = auth.read_inventory.get('config_access', ())
+        if 'read' not in rights or permission not in rights:
+            raise ValueError('config access is not enabled for this target')
+        auth.require_tcp_port(auth.port)
+        return
+    if platform in ('cisco_ios', 'cisco_xe', 'cisco_nxos', 'arista_eos'):
+        # IOS/IOS XE/NX-OS/EOS: read, and compare (config_diff, task 157) only together with read, and only for
+        # a target enrolled as exactly that platform.
+        if permission not in ('read', 'compare'):
+            raise ValueError('config_platform_not_supported')
+        if auth.ssh_platform != platform:
+            raise ValueError('config_platform_not_supported: configuration platform is outside target policy')
+        rights = auth.read_inventory.get('config_access', ())
+        if 'read' not in rights or permission not in rights:
+            raise ValueError('config access is not enabled for this target')
+        auth.require_tcp_port(auth.port)
+        return
     if platform not in ('fortios', 'fortinet', 'fortiadc'):
         raise ValueError('config_platform_not_supported')
     if auth.ssh_platform != ('fortiadc' if platform == 'fortiadc' else 'fortinet'):
@@ -295,7 +348,13 @@ def require_single_vdom(status):
     return identity
 
 def scope(auth, platform='fortios'):
-    if platform not in ('fortios', 'fortiadc') or auth.ssh_platform != ('fortinet' if platform == 'fortios' else 'fortiadc'):
+    if platform == 'extreme_exos':
+        if auth.ssh_platform != 'extreme_exos':
+            raise ValueError('configuration platform is outside target policy')
+    elif platform in ('cisco_ios', 'cisco_xe', 'cisco_nxos', 'arista_eos'):
+        if auth.ssh_platform != platform:
+            raise ValueError('configuration platform is outside target policy')
+    elif platform not in ('fortios', 'fortiadc') or auth.ssh_platform != ('fortinet' if platform == 'fortios' else 'fortiadc'):
         raise ValueError('configuration platform is outside target policy')
     material = '\0'.join((auth.alias, auth.host, str(auth.port), auth.login,
                           auth.host_key_fingerprint, auth.credential_kind, auth.secret))
@@ -903,7 +962,237 @@ def store(auth, text, hidden, count, section, firmware, *, platform='fortios', p
         _SNAPSHOTS[identity] = snapshot
     return identity
 
-def compare(auth, base, other, *, platform='fortios', with_metadata=False):
+INCOMPARABLE = 'configuration snapshot section, firmware or profile mismatch'
+
+# config_diff of the ExtremeXOS, Cisco IOS, IOS XE, NX-OS and Arista EOS snapshots (task 186): a line diff
+# along a shortest edit script (Myers 1986, greedy forward pass with a stored furthest-reaching trace), not a
+# positional comparison, so one inserted line is one '+' line and a device-rewritten header line is one '-'/'+'
+# pair without shifting the rest.  FortiOS/FortiADC keep the positional comparison.  The inputs are the stored
+# snapshots (bounded by the configuration capture limits); the line tables and the trace are charged to the
+# same configuration memory budget, and the edit script has fixed bounds: more than LINE_DIFF_MAX_EDITS
+# changed lines between the common head and tail, or more than LINE_DIFF_MAX_WORK steps, refuses the diff
+# with DiffLimitExceeded instead of running without bound.
+LINE_DIFF_PLATFORMS = frozenset(('extreme_exos', 'cisco_ios', 'cisco_xe', 'cisco_nxos', 'arista_eos'))
+LINE_DIFF_MAX_EDITS = 3000
+LINE_DIFF_MAX_WORK = 20_000_000
+DIFF_LIMIT_EXCEEDED = ('configuration diff exceeds its comparison limit (at most %d changed lines); output withheld'
+                       % LINE_DIFF_MAX_EDITS)
+_LINE_ENTRY_BYTES = 120   # per distinct line: dict slot, key reference and list slot (conservative)
+_BUDGET_EVERY = 4096
+# Measure object headers once.  Capacity estimates below include allocation/growth
+# slack; list reservations also cover the old pointer buffer during a resize.
+_DIFF_ARRAY_HEADER = sys.getsizeof(array('i'))
+_DIFF_ITEM_BYTES = array('i').itemsize
+_DIFF_BYTES_HEADER = sys.getsizeof(b'')
+_DIFF_LIST_HEADER = sys.getsizeof([])
+_DIFF_LIST_SLOT = sys.getsizeof([None]) - _DIFF_LIST_HEADER
+_DIFF_PAIR_BYTES = sys.getsizeof((None, None))
+_DIFF_RANGE_BYTES = sys.getsizeof(range(0))
+
+
+def _diff_list_bytes(count):
+    return _DIFF_LIST_HEADER + (3 * count + 8) * _DIFF_LIST_SLOT
+
+
+def _diff_array_bytes(count):
+    # array.frombytes can reserve spare elements in addition to its payload.
+    return _DIFF_ARRAY_HEADER + (count + count // 8 + 8) * _DIFF_ITEM_BYTES
+
+
+def _diff_hunk_bytes(edits, index_bytes):
+    # At most one hunk per edit, two lists and one pair per hunk, and
+    # `edits` integer indexes across all the deleted/inserted lists.
+    return (_diff_list_bytes(edits) + 2 * _diff_list_bytes(0)
+            + edits * (_DIFF_PAIR_BYTES + 2 * _diff_list_bytes(0))
+            + edits * (3 * _DIFF_LIST_SLOT + index_bytes))
+
+
+DIFF_BUDGET_EXCEEDED = 'configuration diff exceeds its memory budget; output withheld'
+
+
+class DiffLimitExceeded(ValueError):
+    """The line diff would exceed its fixed edit or work bound or the memory budget; nothing was cached."""
+
+    def __init__(self, message=DIFF_LIMIT_EXCEEDED):
+        super().__init__(message)
+
+
+def _line_ids(content, ids, lines, charged):
+    """The lines of ``content`` as small integers; equal lines share one id (and one stored bytes object)."""
+    sequence = array('i')
+    for line in content.lines():
+        identity = ids.get(line)
+        if identity is None:
+            identity = ids[line] = len(lines)
+            lines.append(line)
+            charged[0] += sys.getsizeof(line) + _LINE_ENTRY_BYTES
+        sequence.append(identity)
+        if len(sequence) % _BUDGET_EVERY == 0:
+            _budget(charged[0] + sys.getsizeof(sequence))   # the allocated size, growth headroom included
+    charged[0] += sys.getsizeof(sequence)
+    _budget(charged[0])
+    return sequence
+
+
+def _edit_script(a, b, charged, head=0, tail=0):
+    """Hunks [(deleted a indexes, inserted b indexes), ...] of a shortest edit script from a to b, in order.
+
+    Only a[head:len(a) - tail] and b[head:len(b) - tail] are compared, through offsets (no copies of the line
+    tables, task 186-r2); the returned indexes are relative to ``head``.  The edit bound is checked first on
+    every path, including a pure insertion or deletion (one side empty after the common head and tail).
+
+    Greedy forward pass of Myers' O((N+M)D) algorithm.  After step d the furthest-reaching x of every
+    diagonal k = -d, -d+2, ..., d is kept (d + 1 values), so the trace of D steps holds (D+1)(D+2)/2 values;
+    the backtrack takes, as the forward pass did, the diagonal k+1 (an insertion) when k == -d or when
+    v[k-1] < v[k+1], otherwise k-1 (a deletion).  Equal lines are never listed.
+    """
+    n, m = len(a) - head - tail, len(b) - head - tail
+    if n < 0 or m < 0:
+        raise ValueError('invalid line diff range')
+    if abs(n - m) > LINE_DIFF_MAX_EDITS:
+        raise DiffLimitExceeded()   # at least |n - m| lines are added or removed
+    if not n or not m:
+        retained = _diff_list_bytes(1) + _DIFF_PAIR_BYTES + 2 * _DIFF_RANGE_BYTES if n or m else _diff_list_bytes(0)
+        _budget(charged[0] + retained)
+        charged[0] += retained
+        return [(range(n), range(m))] if n or m else []
+    limit = min(n + m, LINE_DIFF_MAX_EDITS)
+    offset = limit + 1
+    v_count = 2 * limit + 3
+    v_bytes = _diff_array_bytes(v_count)
+    _budget(charged[0] + v_bytes + _DIFF_BYTES_HEADER + _DIFF_ITEM_BYTES * v_count + _diff_list_bytes(0))
+    v = array('i', bytes(_DIFF_ITEM_BYTES * v_count))
+    trace = []
+    trace_bytes = 0
+    work = 0
+    found = None
+    for d in range(limit + 1):
+        row_bytes = _diff_array_bytes(d + 1)
+        # Check before allocating either the temporary bytes or the next row.
+        _budget(charged[0] + v_bytes + trace_bytes + row_bytes + _diff_list_bytes(d + 1)
+                + _DIFF_BYTES_HEADER + _DIFF_ITEM_BYTES * (d + 1))
+        row = array('i', bytes(_DIFF_ITEM_BYTES * (d + 1)))
+        trace_bytes += row_bytes
+        for k in range(-d, d + 1, 2):
+            if k == -d or (k != d and v[offset + k - 1] < v[offset + k + 1]):
+                x = v[offset + k + 1]
+            else:
+                x = v[offset + k - 1] + 1
+            y = x - k
+            start = x
+            while x < n and y < m and a[head + x] == b[head + y]:
+                x += 1
+                y += 1
+            work += 1 + x - start
+            v[offset + k] = x
+            row[(k + d) >> 1] = x
+            if x >= n and y >= m:
+                found = d
+                break
+        trace.append(row)
+        if found is not None:
+            break
+        if work > LINE_DIFF_MAX_WORK:
+            raise DiffLimitExceeded()
+    if found is None:
+        raise DiffLimitExceeded()
+    index_bytes = sys.getsizeof(max(n, m))
+    retained = _diff_hunk_bytes(found, index_bytes)
+    moves_bytes = _diff_list_bytes(2 * found) + found * (_DIFF_PAIR_BYTES + index_bytes)
+    # Reserve both reconstruction phases before creating moves.  This is
+    # conservative: hunks are built after releasing the trace, while moves live
+    # through both phases.  The final row/previous aliases are covered as well.
+    _budget(charged[0] + v_bytes + trace_bytes + _diff_list_bytes(found + 1) + moves_bytes + retained)
+    moves = []     # backwards: ('-', a index) / ('+', b index); None separates hunks
+    x, y = n, m
+    for d in range(found, -1, -1):
+        k = x - y
+        if d == 0:
+            prev_x = prev_y = 0
+        else:
+            previous = trace[d - 1]   # step d-1 values: diagonal j at index (j + d - 1) >> 1
+            if k == -d or (k != d and previous[(k - 1 + d - 1) >> 1] < previous[(k + 1 + d - 1) >> 1]):
+                prev_k = k + 1
+            else:
+                prev_k = k - 1
+            prev_x = previous[(prev_k + d - 1) >> 1]
+            prev_y = prev_x - prev_k
+        snake = 0
+        while x > prev_x and y > prev_y:
+            x -= 1
+            y -= 1
+            snake += 1
+        if d == 0:
+            break
+        if snake and moves and moves[-1] is not None:
+            moves.append(None)
+        if x == prev_x:
+            moves.append(('+', prev_y))
+        else:
+            moves.append(('-', prev_x))
+        x, y = prev_x, prev_y
+    trace = v = None
+    moves.reverse()
+    hunks, deleted, inserted = [], [], []
+    for move in moves:
+        if move is None:
+            hunks.append((deleted, inserted))
+            deleted, inserted = [], []
+        elif move[0] == '-':
+            deleted.append(move[1])
+        else:
+            inserted.append(move[1])
+    if deleted or inserted:
+        hunks.append((deleted, inserted))
+    charged[0] += retained   # the caller retains these lists while writing the diff
+    return hunks
+
+
+def _line_diff(left, right, out, changed):
+    """Write the removed ('-') and added ('+') lines of right against left, in order, after the diff header."""
+    ids, lines, charged = {}, [], [0]
+    a = _line_ids(left, ids, lines, charged)
+    b = _line_ids(right, ids, lines, charged)
+    ids = None
+    n, m = len(a), len(b)
+    head = 0
+    while head < n and head < m and a[head] == b[head]:
+        head += 1
+    tail = 0
+    while tail < n - head and tail < m - head and a[n - 1 - tail] == b[m - 1 - tail]:
+        tail += 1
+    hunks = _edit_script(a, b, charged, head, tail)
+    out.add(b'--- base\n+++ other\n')
+    written = 0
+    for deleted, inserted in hunks:
+        for sign, sequence, indexes in ((b'-', a, deleted), (b'+', b, inserted)):
+            for index in indexes:
+                line = lines[sequence[head + index]]
+                out.add(sign + line if line.endswith(b'\n') else sign + line + b'\n')
+                written += 1
+                if written % 1024 == 0:
+                    _budget(charged[0] + out.memory_bytes + changed.memory_bytes)
+    _budget(charged[0] + out.memory_bytes + changed.memory_bytes)
+
+
+# Comparability of two snapshots of the same scope (task 194).  For the line diff platforms the capture
+# metadata also carries content summaries (unverified_count, credential_redactions, unsupported_format_count,
+# unverified_fields, unverified_truncated, configuration_complete and the visibility_limitations they imply),
+# which change with every added or removed hidden line; only the identity keys below take part, so such a
+# change is a diff (a redacted marker line), not a false config_snapshot_incomparable.  Section, firmware,
+# redaction profile (name and rule hash) and include_defaults still have to match.  FortiOS/FortiADC compare
+# the whole metadata as before.
+_IDENTITY_METADATA = frozenset(('config_scope', 'identity_scope_verified'))
+
+
+def _comparable_identity(snapshot, platform):
+    metadata = snapshot.metadata
+    if platform in LINE_DIFF_PLATFORMS:
+        metadata = tuple((key, value) for key, value in metadata if key in _IDENTITY_METADATA)
+    return snapshot.section, snapshot.firmware, snapshot.profile, snapshot.include_defaults, metadata
+
+
+def compare(auth, base, other, *, platform='fortios', with_metadata=False, admit=None):
     if not all(isinstance(i, str) and re.fullmatch('cfg_[0-9a-f]{32}', i) for i in (base, other)):
         raise ValueError('configuration snapshot not found or expired')
     with _LOCK:
@@ -914,8 +1203,13 @@ def compare(auth, base, other, *, platform='fortios', with_metadata=False):
         if any(s.scope != scope(auth, platform) for s in pair):
             raise ValueError('configuration snapshot scope mismatch')
     left, right = pair
-    if (left.section, left.firmware, left.profile, left.include_defaults, left.metadata) != (right.section, right.firmware, right.profile, right.include_defaults, right.metadata):
-        raise ValueError('configuration snapshot section, firmware or profile mismatch')
+    if admit is not None:
+        # Caller check of each stored snapshot (EXOS/IOS family: the session redaction guard of config_read);
+        # it runs before the diff cache, so a cached diff never bypasses it.
+        for snapshot in pair:
+            admit(snapshot)
+    if _comparable_identity(left, platform) != _comparable_identity(right, platform):
+        raise ValueError(INCOMPARABLE)
     metadata = {}
     if with_metadata and left.profile != PROFILE:
         metadata = {name: {
@@ -937,7 +1231,18 @@ def compare(auth, base, other, *, platform='fortios', with_metadata=False):
     out = ContentBuilder(512*1024*1024, serialized_markers=left.profile == PROFILE)
     equal = left.text == right.text
     order_changed = left.hidden.order.digest() != right.hidden.order.digest()
-    if not equal:
+    if not equal and platform in LINE_DIFF_PLATFORMS:
+        try:
+            _line_diff(left.text, right.text, out, changed)
+        except ConfigurationBudgetError:
+            # The line tables, trace or output of the new diff path exceed the memory budget (task 186-r2):
+            # the same controlled refusal code as the edit bound, not an internal error.
+            out.close()
+            raise DiffLimitExceeded(DIFF_BUDGET_EXCEEDED) from None
+        except BaseException:
+            out.close()
+            raise
+    elif not equal:
         wrote = False
         for before,after in zip_longest(left.text.lines(), right.text.lines()):
             if before == after:

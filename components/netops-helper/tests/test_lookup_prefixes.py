@@ -26,6 +26,12 @@ FLOW = {"src_port": "443", "dst_port": "443", "protocol": "6", "device": "port1"
 
 # built at run time: the source privacy gate refuses multicast literals outside its listed exceptions
 MULTICAST_PREFIX = str(ipaddress.ip_network((0xEF010000, 16)))
+NON_UNICAST_PREFIXES = [
+    MULTICAST_PREFIX,
+    str(ipaddress.IPv6Network((0xFF << 120, 8))),
+    "0.0.0.0/8", "::/64", "::/128",
+    str(ipaddress.IPv4Network((0xFFFFFFFF, 32))),
+]
 
 BAD_PREFIXES = [
     "198.51.100.1/24",                    # host bits
@@ -34,6 +40,7 @@ BAD_PREFIXES = [
     "198.051.100.0/24", "198.51.100/24",  # non canonical address
     "198.51.100.0/024", "198.51.100.0/+24",
     "0.0.0.0/0", "::/0",                  # not a usable scope
+    *NON_UNICAST_PREFIXES,
     "198.51.100.0/33", "2001:db8::/129",
     "2001:DB8:20::/48",                   # upper case is not canonical
     "fe80::1%eth0/64", "198.51.100.0%x/24",
@@ -171,6 +178,28 @@ def test_proxy_refuses_with_the_inventory_field_that_would_grant_it(value, field
     with pytest.raises(proxy_module.PolicyScopeError) as refusal:
         _authorize_read(value)
     assert refusal.value.data["field"] == field and refusal.value.data["parameter"] == "address"
+
+
+@pytest.mark.parametrize("value", NON_UNICAST_PREFIXES + [PREFIX, "2001:db8:20::/48"])
+def test_lookup_requests_refuse_non_unicast_even_when_enrolled(value):
+    network = ipaddress.ip_network(value)
+    query = "route_lookup" if network.version == 4 else "ipv6_route_lookup"
+    auth = _auth(query, lookup_prefixes=(value,))
+    section = _section(lookup_prefixes=(value,))
+    section.enabled_queries = (query,)
+    request = {"target": "fixture", "platform": "fortinet", "query": query, "parameters": {"address": value}}
+    checked = proxy_module.Proxy._validate_tool_arguments("ssh_read", request)
+    if value in NON_UNICAST_PREFIXES:
+        with pytest.raises(ValueError, match="invalid typed lookup prefix"):
+            engine._ssh_read_state(auth, "fortinet", query, {"address": value})
+        with pytest.raises(proxy_module.PolicyScopeError) as refusal:
+            proxy_module.Proxy._authorize_tool("ssh_read", checked, SimpleNamespace(port=22), section)
+        assert refusal.value.data["field"] == "lookup_prefixes"
+        assert refusal.value.data["parameter"] == "address"
+    else:
+        _, command, _ = engine._ssh_read_state(auth, "fortinet", query, {"address": value})
+        assert command.endswith(" " + str(network.network_address))
+        proxy_module.Proxy._authorize_tool("ssh_read", checked, SimpleNamespace(port=22), section)
 
 
 def test_proxy_and_engine_agree_on_a_corpus():

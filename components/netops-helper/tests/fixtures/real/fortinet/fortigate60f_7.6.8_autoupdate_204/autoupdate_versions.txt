@@ -1,0 +1,246 @@
+AV Engine
+---------
+Version: 7.00062 signed
+Contract Expiry Date: Wed Nov 11 2026
+Last Updated using manual update on Wed Aug  5 18:26:00 2026
+Last Update Attempt: Fri Jul 24 19:28:08 2026
+Result: No Updates
+
+Virus Definitions
+---------
+Version: 1.00001 signed
+Contract Expiry Date: Wed Nov 11 2026
+Last Updated using scheduled update on Fri Jul 24 17:28:37 2026
+Last Update Attempt: Fri Jul 24 19:28:08 2026
+Result: No Updates
+
+Extended set
+---------
+Version: 1.00001 signed
+Contract Expiry Date: Wed Nov 11 2026
+Last Updated using scheduled update on Fri Jul 24 17:28:37 2026
+Last Update Attempt: Fri Jul 24 19:28:08 2026
+Result: No Updates
+
+Mobile Malware Definitions
+---------
+Version: 0.00000
+Contract Expiry Date: Wed Nov 11 2026
+Last Updated using scheduled update on Fri Jul 24 17:28:37 2026
+Last Update Attempt: Fri Jul 24 19:28:08 2026
+Result: No Updates
+
+IPS Attack Engine
+---------
+Version: 7.01200 signed
+Contract Expiry Date: Wed Nov 11 2026
+Last Updated using scheduled update on Tue Jul  2 14:40:16 2024
+Last Update Attempt: Fri Jul 24 19:28:08 2026
+Result: No Updates
+
+Attack Definitions
+---------
+Version: 6.00741 signed
+Contract Expiry Date: Wed Nov 11 2026
+Last Updated using scheduled update on Thu Jun 25 01:02:53 2026
+Last Update Attempt: Thu Jun 25 01:02:53 2026
+Result: Updates Installed
+
+Attack Extended Definitions
+---------
+Version: 0.00000
+Contract Expiry Date: Wed Nov 11 2026
+Last Updated using scheduled update on Fri Jul 24 01:25:46 2026
+Last Update Attempt: Fri Jul 24 19:28:08 2026
+Result: No Updates
+
+AI/Machine Learning IPS Definitions
+---------
+Version: 0.00000
+Contract Expiry Date: Wed Nov 11 2026
+Last Updated using scheduled update on Fri May  8 11:41:27 2026
+Last Update Attempt: Fri Jul 24 19:28:08 2026
+Result: No Updates
+
+Application Definitions
+---------
+Version: 6.00741 signed
+Contract Expiry Date: Wed Nov 11 2026
+Last Updated using scheduled update on Fri Jul 24 01:25:46 2026
+Last Update Attempt: Fri Jul 24 19:28:08 2026
+Result: No Updates
+
+GenAI Application Definitions
+---------
+Version: 0.00000
+Contract Expiry Date: Wed Nov 11 2026
+Last Updated using scheduled update on Thu Jul 23 01:25:55 2026
+Last Update Attempt: Fri Jul 24 19:28:08 2026
+Result: No Updates
+
+OT Threat Definitions
+---------
+Version: 6.00741 signed
+Contract Expiry Date: Sat Jun 26 2027
+Last Updated using scheduled update on Wed Jul 22 01:25:49 2026
+Last Update Attempt: Fri Jul 24 19:28:08 2026
+Result: No Updates
+
+FMWP Definitions
+---------
+Version: 0.00000
+Contract Expiry Date: Wed Nov 11 2026
+Last Updated using scheduled update on Tue Sep 24 18:32:40 2024
+Last Update Attempt: Fri May  8 09:22:12 2026
+Result: Unauthorized
+
+IPS Malicious URL Database
+---------
+Version: 1.00001 signed
+Contract Expiry Date: Wed Nov 11 2026
+Last Updated using scheduled update on Fri Jul 24 19:28:08 2026
+Last Update Attempt: Fri Jul 24 19:28:08 2026
+Result: Updates Installed
+
+IoT Detect Definitions
+---------
+Version: 0.00000 signed
+Contract Expiry Date: n/a
+Last Updated using manual update on Wed Aug 17 18:31:00 2022
+Last Update Attempt: n/a
+Result: Updates Installed
+
+OT Detect Definitions
+---------
+Version: 0.00000
+Contract Expiry Date: Sat Jun 26 2027
+Last Updated using scheduled update on Fri Jul 24 01:25:46 2026
+Last Update Attempt: Fri Jul 24 19:28:08 2026
+Result: No Updates
+
+OT Patch Definitions
+---------
+Version: 0.00000
+Contract Expiry Date: Sat Jun 26 2027
+Last Updated using scheduled update on Fri Jul 24 01:25:46 2026
+Last Update Attempt: Fri Jul 24 19:28:08 2026
+Result: No Updates
+
+Flow-based Virus Definitions
+---------
+Version: 1.00001 signed
+Contract Expiry Date: Wed Nov 11 2026
+Last Updated using scheduled update on Fri Jul 24 17:28:37 2026
+Last Update Attempt: Fri Jul 24 19:28:08 2026
+Result: No Updates
+
+Botnet Domain Database
+---------
+Version: 3.01714 signed
+Contract Expiry Date: Wed Nov 11 2026
+Last Updated using scheduled update on Wed Nov 11 04:51:18 2026
+Last Update Attempt: Sat Nov 14 04:50:04 2026
+Result: Unauthorized
+
+Internet-service Standard Database
+---------
+Version: 7.04516 signed
+Contract Expiry Date: n/a
+Last Updated using manual update on Mon Nov  9 16:24:00 2026
+Last Update Attempt: n/a
+Result: Updates Installed
+
+Device and OS Identifications
+---------
+Version: 1.00209
+Contract Expiry Date: Wed Nov 11 2026
+Last Updated using scheduled update on Tue Nov 10 04:51:05 2026
+Last Update Attempt: Sat Nov 14 04:50:04 2026
+Result: Unauthorized
+
+URL Allow list
+---------
+Version: 5.00125
+Contract Expiry Date: Wed Nov 11 2026
+Last Updated using scheduled update on Wed Nov 11 04:51:18 2026
+Last Update Attempt: Sat Nov 14 04:50:04 2026
+Result: Unauthorized
+
+DLP Signatures
+---------
+Version: 0.00000
+Contract Expiry Date: n/a
+Last Updated using manual update on Mon Jan  1 00:00:00 2001
+Last Update Attempt: n/a
+Result: Updates Installed
+
+IP Geography DB
+---------
+Version: 3.00358 signed
+Contract Expiry Date: n/a
+Last Updated using manual update on Mon Nov  9 21:59:00 2026
+Last Update Attempt: n/a
+Result: Updates Installed
+
+Certificate Bundle
+---------
+Version: 1.00067
+Contract Expiry Date: n/a
+Last Updated using manual update on Tue Oct 20 15:00:00 2026
+Last Update Attempt: n/a
+Result: Updates Installed
+
+Malicious Certificate DB
+---------
+Version: 0.00000
+Contract Expiry Date: Wed Nov 11 2026
+Last Updated using scheduled update on Sat Jul 18 01:25:52 2026
+Last Update Attempt: Fri Jul 24 19:28:08 2026
+Result: No Updates
+
+Mac Address Database
+---------
+Version: 1.00350
+Contract Expiry Date: Wed Nov 11 2026
+Last Updated using scheduled update on Wed Nov 11 04:51:18 2026
+Last Update Attempt: Sat Nov 14 04:50:04 2026
+Result: Unauthorized
+
+AI/Machine Learning Malware Detection Model
+---------
+Version: 0.00000
+Contract Expiry Date: Wed Nov 11 2026
+Last Updated using scheduled update on Fri Jul 24 13:28:34 2026
+Last Update Attempt: Fri Jul 24 19:28:08 2026
+Result: No Updates
+
+SLA Database
+---------
+Version: 1.00000
+Contract Expiry Date: n/a
+Last Updated using manual update on Sat May  6 16:26:00 2023
+Last Update Attempt: n/a
+Result: Updates Installed
+
+Modem List
+---------
+Version: 0.000
+
+Timezone Database
+---------
+Version: 1.016
+IANA Version: 2026f
+
+Security Rating Data Package
+---------
+Version: 7.00009
+Contract Expiry Date: Wed Nov 11 2026
+Last Updated using manual update on Wed Sep 23 20:49:51 2026
+Last Update Attempt: Sat Nov 14 04:50:04 2026
+Result: Unauthorized
+
+FDS Address
+---------
+192.0.2.6:443
+
+

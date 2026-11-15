@@ -3,6 +3,7 @@ from __future__ import annotations
 import datetime
 from contextlib import contextmanager
 import json
+import re
 import secrets
 import time
 
@@ -13,7 +14,7 @@ from netops_admin.schema_request import Transaction
 from netops_admin.blocking import BLOCKING_REASONS, BLOCKING_RESULTS, blocks
 from netops_admin.config import SAFEGUARD_MAX_SECONDS
 from netops_admin.errors import BudgetExhausted, Rejected, SnapshotRejected, StateUnreadable, shown
-from netops_admin.profiles import find_profile
+from netops_admin.profiles import find_profile, load_profiles
 from netops_admin.request import parse_request
 from netops_admin.state import Store
 
@@ -31,13 +32,21 @@ DAY = 86400
 REUSED_REQUEST = "request_id was already used for a different request"
 UNDO_DONE = ("undo of this change has already been performed; "
              "after a reverted change remove the object with regular administration")
+PLAN_SHA256 = re.compile(r"^[0-9a-f]{64}$")
+PLAN_CHANGED = "the fresh plan differs from the previewed plan"
+NO_UNDO = "a PoE cycle returns the configuration to its state before the operation; it has no undo"
 
 
 class Runtime:
-    def __init__(self, config, access_factory, notifier=None, sleep=time.sleep, monotonic=time.monotonic, *, require_export=True):
+    def __init__(self, config, access_factory, notifier=None, sleep=time.sleep, monotonic=time.monotonic, *, require_export=True,
+                 simulate_unmeasured_profiles=False):
         if type(require_export) is not bool:
             raise ValueError("require_export must be a boolean")
+        if type(simulate_unmeasured_profiles) is not bool:
+            raise ValueError("simulate_unmeasured_profiles must be a boolean")
         self.require_export = require_export
+        # Only tests against simulated devices set this; the CLI and the MCP server never pass it.
+        self.simulate_unmeasured_profiles = simulate_unmeasured_profiles
         self.config = config
         self.access_factory = access_factory
         self.notifier = notifier
@@ -314,13 +323,35 @@ def _count_rejection(runtime) -> None:
         pass
 
 
-def apply(runtime, device_name: str, request, expected_before=ANY_STATE) -> dict:
-    return _apply_counted(runtime, device_name, request, expected_before)
+def _expected_plan(request, expected_plan_sha256):
+    if expected_plan_sha256 is None:
+        return None
+    if isinstance(request, Transaction):
+        raise Rejected(["expected_plan_sha256 is supported only for profile requests: the plan_sha256 of a schema"
+                        " transaction depends on the snapshot and the request_id, so a preview never matches it"])
+    if not isinstance(expected_plan_sha256, str) or not PLAN_SHA256.fullmatch(expected_plan_sha256):
+        raise Rejected(["expected_plan_sha256 must be 64 lowercase hexadecimal characters"])
+    return expected_plan_sha256
 
 
-def _apply_counted(runtime, device_name: str, request, expected_before=ANY_STATE, undo=False) -> dict:
+def apply(runtime, device_name: str, request, expected_before=ANY_STATE, expected_plan_sha256=None) -> dict:
+    # expected_plan_sha256 binds the apply to an approved preview; like expected_before it stays outside
+    # Request.fingerprint, so a repeated request_id returns its operation whatever hash is sent
     try:
-        return _apply(runtime, device_name, request, expected_before, undo=undo)
+        expected_plan = _expected_plan(request, expected_plan_sha256)
+    except Rejected:
+        # a malformed or unsupported hash is a rejected apply like any other: zero device writes and
+        # zero operation records, but the hourly budget of rejected requests counts it
+        _count_rejection(runtime)
+        raise
+    return _apply_counted(runtime, device_name, request, expected_before, expected_plan=expected_plan)
+
+
+def _apply_counted(runtime, device_name: str, request, expected_before=ANY_STATE, undo=False, expected_plan=None,
+                   action=None) -> dict:
+    try:
+        return _apply(runtime, device_name, request, expected_before, undo=undo, expected_plan=expected_plan,
+                      action=action)
     except BudgetExhausted:
         raise
     except Rejected:
@@ -342,6 +373,33 @@ def _opt_in(device, request, undo=False) -> None:
         return
     if request.table in OPT_IN_TABLES and request.table not in device.opt_in:
         raise Rejected(["table %r is not enabled for device %s (opt_in)" % (request.table, device.name)])
+
+
+def _action(device, request, action) -> None:
+    """A table with an own operation (profile action) is changed only by that operation, never by apply."""
+    if isinstance(request, Transaction):
+        if action is not None:
+            raise Rejected(["operation %s takes no schema transaction" % action])
+        return
+    profile = load_profiles().get((device.platform, request.table))
+    owner = None if profile is None else profile.action
+    if owner == action:
+        return
+    if owner is not None:
+        raise Rejected(["table %r is changed only by the %s operation" % (request.table, owner)],
+                       reason_codes=["action_only_table"])
+    raise Rejected(["operation %s does not apply to table %r on platform %s"
+                    % (action, request.table, device.platform)], reason_codes=["action_unsupported"])
+
+
+def _measured(runtime, device, request) -> None:
+    if isinstance(request, Transaction) or runtime.simulate_unmeasured_profiles:
+        return
+    profile = load_profiles().get((device.platform, request.table))
+    if profile is not None and not profile.measured:
+        raise Rejected(["profile %s %r is not measured on a device; it is refused until the measurement is done"
+                        " (opt_in does not enable it)" % (device.platform, request.table)],
+                       reason_codes=["profile_not_measured"])
 
 
 def _target(runtime, device_name: str, request):
@@ -386,9 +444,11 @@ def preview(runtime, device_name: str, request) -> dict:
     return result
 
 
-def _preview(runtime, device_name: str, request):
+def _preview(runtime, device_name: str, request, expected_before=ANY_STATE, undo=False, action=None):
     device = _target(runtime, device_name, request)
-    _opt_in(device, request)
+    _action(device, request, action)
+    _opt_in(device, request, undo)
+    _measured(runtime, device, request)
     adapter = _adapter(device.platform, isinstance(request, Transaction))
     with runtime.store.lock(device.name), _target_lock(device):
         missing = []
@@ -397,7 +457,7 @@ def _preview(runtime, device_name: str, request):
             if known is not None:
                 return {"result": "known-request", "device": device.name, "change_id": known["change_id"],
                         "reasons": ["request_id already started an operation; apply returns it without running again"]}, False
-            prepared = _prepared(runtime, device, adapter, request, ANY_STATE, False, missing)
+            prepared = _prepared(runtime, device, adapter, request, expected_before, False, missing, undo=undo)
         except Rejected as exc:
             return ({"result": "rejected", "device": device.name, "reasons": list(exc.reasons), "reason_codes": list(exc.reason_codes), "reason_details": list(exc.reason_details)},
                     not isinstance(exc, BudgetExhausted))
@@ -426,7 +486,8 @@ def _preview(runtime, device_name: str, request):
     }, bool(missing)
 
 
-def _prepared(runtime, device, adapter, request, expected_before, enrolling, missing=None, undo=False):
+def _prepared(runtime, device, adapter, request, expected_before, enrolling, missing=None, undo=False,
+              expected_plan=None):
     config = runtime.config
     transaction = isinstance(request, Transaction)
     _budgets(runtime, device, len(request.operations) if transaction else 1)
@@ -500,6 +561,10 @@ def _prepared(runtime, device, adapter, request, expected_before, enrolling, mis
         raise Rejected(["the plan holds more than %d commands" % config.limits["plan_commands"]])
     if expected_before is not ANY_STATE and plan["predicted"]["before"] != expected_before:
         raise Rejected(["the object differs from the state the undo was planned against"])
+    if expected_plan is not None and plan["plan_sha256"] != expected_plan:
+        raise Rejected([PLAN_CHANGED], reason_codes=["plan_changed"],
+                       reason_details=[{"code": "plan_changed", "expected": expected_plan,
+                                        "actual": plan["plan_sha256"]}])
     try:
         policy = device.audit_policy
         plan["device"] = device.name
@@ -533,9 +598,12 @@ def _prepared(runtime, device, adapter, request, expected_before, enrolling, mis
     return access, before_text, accounts, hostname, plan, audit_before, policy, coverage
 
 
-def _apply(runtime, device_name: str, request, expected_before, enrolling=False, undo=False) -> dict:
+def _apply(runtime, device_name: str, request, expected_before, enrolling=False, undo=False, expected_plan=None,
+           action=None) -> dict:
     device = _target(runtime, device_name, request)
+    _action(device, request, action)
     _opt_in(device, request, undo)
+    _measured(runtime, device, request)
     adapter = _adapter(device.platform, isinstance(request, Transaction))
     fingerprint = request.fingerprint()
     with runtime.store.lock(device.name), _target_lock(device):
@@ -543,7 +611,7 @@ def _apply(runtime, device_name: str, request, expected_before, enrolling=False,
         if known is not None:
             return known
         access, before_text, accounts, hostname, plan, audit_before, policy, coverage = _prepared(
-            runtime, device, adapter, request, expected_before, enrolling, undo=undo)
+            runtime, device, adapter, request, expected_before, enrolling, undo=undo, expected_plan=expected_plan)
         profile = None if isinstance(request, Transaction) else find_profile(plan["platform"], plan["table"], plan["firmware"])
         change_id = secrets.token_hex(16)
         plan["safeguard_id"] = change_id
@@ -551,7 +619,7 @@ def _apply(runtime, device_name: str, request, expected_before, enrolling=False,
             "change_id": change_id, "request_id": request.request_id, "request_sha256": fingerprint,
             "device": device.name, "status": "running", "result": None, "hostname": hostname,
             "plan": plan, "steps": [], "created_at": audit.now_utc(), "created_at_epoch": time.time(), "budget_at_epoch": runtime.store.budget_now(),
-            "kind": "enrollment" if enrolling else "change",
+            "kind": "enrollment" if enrolling else (action or "change"),
             "budget_changes": len(request.operations) if isinstance(request, Transaction) else 1,
             "audit_before": audit_before, "audit_policy": policy, "audit_coverage": coverage, "accounts": accounts,
         }
@@ -620,6 +688,9 @@ def _execute(runtime, adapter, access, record, plan, device) -> dict:
         return _finish(runtime, record, "reverted" if cleaned else "unknown", "safeguard not verified")
     runtime.store.save(record)
     _step(runtime, record, "safeguard_verified")
+    if record.get("kind") == "poe-cycle":
+        from netops_admin import exos_poe
+        return exos_poe.run(runtime, adapter, access, record, plan, device, due)
     _step(runtime, record, "change_start")
     try:
         access.apply(plan["commands"], spec)
@@ -746,6 +817,8 @@ def _stored_plan(runtime, record) -> dict:
 
 
 def undo_request(record, reason: str):
+    if record is not None and record.get("kind") == "poe-cycle":
+        raise Rejected([NO_UNDO], reason_codes=["undo_not_applicable"])
     if record is None or record.get("status") != "finished" or record.get("result") != "confirmed":
         raise Rejected(["only a confirmed operation can be undone"])
     plan = engine._read_plan(record.get("plan"))
@@ -799,6 +872,33 @@ def undo(runtime, change_id: str, reason: str) -> dict:
         raise
 
 
+def preview_undo(runtime, change_id: str, reason: str) -> dict:
+    """Every check of undo without a change: nothing is written to the device, the journal or a notification."""
+    original = runtime.store.operation(change_id)
+    try:
+        if original is not None and original.get("status") == "finished" and original.get("result") == "confirmed":
+            _stored_plan(runtime, original)
+        request, expected = undo_request(original, reason)
+        result, refused = _preview(runtime, original["device"], request, expected_before=expected, undo=True)
+    except BudgetExhausted:
+        raise
+    except Rejected as exc:
+        _count_rejection(runtime)
+        if exc.reasons == [REUSED_REQUEST]:
+            raise Rejected([UNDO_DONE], reason_codes=["undo_already_done"]) from None
+        raise
+    if result["result"] == "known-request":
+        _count_rejection(runtime)
+        raise Rejected([UNDO_DONE], reason_codes=["undo_already_done"],
+                       reason_details=[{"code": "undo_already_done", "change_id": result["change_id"]}])
+    if result["result"] == "rejected" and result.get("reasons") == [REUSED_REQUEST]:
+        _count_rejection(runtime)
+        raise Rejected([UNDO_DONE], reason_codes=["undo_already_done"])
+    if refused:
+        _count_rejection(runtime)
+    return dict(result, undo_of=change_id, request_id=request.request_id)
+
+
 def recover(runtime, device_name: str) -> list:
     device = runtime.config.devices.get(device_name)
     if device is None:
@@ -847,7 +947,12 @@ def recover(runtime, device_name: str) -> list:
                 settled.append(_finish(runtime, record, "unknown", "interrupted; state unreadable"))
                 continue
             steps = {step["step"] for step in record.get("steps", [])}
-            if is_after and "confirm_start" in steps:
+            if record.get("kind") == "poe-cycle" and is_before and "confirm_start" in steps:
+                # the cycle ends on the before side: power was observed back on before confirm_start
+                saved = _persist(runtime, adapter, access, record)
+                settled.append(_finish(runtime, record, "confirmed",
+                                       "confirmed before the interruption" if saved else "not persisted"))
+            elif is_after and "confirm_start" in steps:
                 saved = _persist(runtime, adapter, access, record)
                 settled.append(_finish(runtime, record, "confirmed",
                                        "confirmed before the interruption" if saved else "not persisted"))

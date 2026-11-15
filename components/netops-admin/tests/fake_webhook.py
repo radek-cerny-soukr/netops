@@ -156,7 +156,8 @@ class FakeFortiOSWebhook(FakeFortiOS):
             self.calls.append((hook.get("method"), path, 401))
             return
         parts = [urllib.parse.unquote(p) for p in path.split("/")]
-        table = {"firewall/policy": self.policies, "firewall/address": self.addresses}["/".join(parts[3:5])]
+        table = {"firewall/policy": self.policies, "firewall/address": self.addresses,
+                 "firewall.service/custom": self.services}["/".join(parts[3:5])]
         method = hook.get("method")
         body = json.loads(hook.get("http-body") or "{}")
         values = {k: " ".join(i["name"] for i in v) if isinstance(v, list) else str(v) for k, v in body.items()}

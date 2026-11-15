@@ -20,11 +20,22 @@
       "unset": true,
       "referenced_update": true,
       "required_on_create": false
+    },
+    "admin-state": {
+      "type": "text",
+      "max_length": 8,
+      "pattern": "^(enabled|disabled)$",
+      "default": "enabled",
+      "update": true,
+      "unset": false,
+      "referenced_update": true,
+      "required_on_create": false,
+      "undo_to_default": true
     }
   },
   "fixed": {},
   "volatile": [],
   "reserved_values": {},
   "inverse_identity_changes": {},
-  "rollback_evidence": "ExtremeXOS 33.7.1.6-patch1-11 and EXOS 33.6.1.14 are separate firmware scopes. Port operations require the profile-specific read-back and rollback evidence for the exact firmware and privilege role. Software-image behavior does not establish hardware rollback guarantees. Treat missing or ambiguous clock or configuration-state evidence as unknown and keep write operations blocked."
+  "rollback_evidence": "ExtremeXOS 33.7.1.6-patch1-11 and EXOS 33.6.1.14 are separate firmware scopes. Port operations require the profile-specific read-back and rollback evidence for the exact firmware and privilege role. Software-image behavior does not establish hardware rollback guarantees. Treat missing or ambiguous clock or configuration-state evidence as unknown and keep write operations blocked. admin-state (disable ports N / enable ports N) is measured on X435-8P-4S and X440-G2-12p-10G4 with 33.7.1.6-patch1-11 only and is refused on other firmware: show configuration then holds the single line 'disable port N' in module vlan and loses it after enable; show ports N information detail reads 'Admin state: Disabled' or 'Enabled'. The timed UPM safeguard runs in non-persistent CLI mode by default, which left 'disable port N' in the configuration after 'enable ports N'; with 'configure cli mode persistent' as its first line it restored both the port and the configuration (measured on both models)."
 }

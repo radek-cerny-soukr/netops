@@ -1,0 +1,13 @@
+diagnose server-load-balance vs_stat vdom root vs netops-173-vs
+vdom name is root
+	virtual-server: netops-173-vs, availability:HEALTHY
+		APP Response: 0
+		Client RTT: 0
+		Concurrent Connections: 0
+		Inbound Throughput: 0
+		Outbound Throughput: 0
+		Requests: 0
+		Server RTT: 0
+no rs for this vs
+
+FortiADC-KVM # 

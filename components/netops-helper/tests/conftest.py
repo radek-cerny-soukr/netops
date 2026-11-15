@@ -48,7 +48,9 @@ HOST_KEY_BLOB = "cmVwbGFjZS1tZS1ob3N0LWtleS1tYXRlcmlhbC1B"
 HOST_KEY_PIN = fingerprint_of(HOST_KEY_BLOB)
 KNOWN_HOSTS_LINE = f"[{LOOPBACK}]:{PORT} ssh-ed25519 {HOST_KEY_BLOB}"
 EXEC_OUTPUT = "wire-test output marker"
-FORTIOS_STATUS = "Version: FortiGate-VM64-KVM v7.6.7,build3704,release\n"
+# Every FortiOS status names its VDOM mode; a status without it is refused as an unverified VDOM scope (review
+# 175-rv finding 1), so the synthetic no-VDOM status carries the line as a real one does.
+FORTIOS_STATUS = "Version: FortiGate-VM64-KVM v7.6.7,build3704,release\nVirtual domain configuration: disable\n"
 FORTIADC_STATUS = "Version: FortiADC-KVM v7.6.7,build0676,260522 (GA.M)\n"
 IDENTITY_STATUS = {"fortinet": FORTIOS_STATUS, "fortiadc": FORTIADC_STATUS}
 RUCKUS_BANNER = "Welcome to the Ruckus Unleashed Network Command Line Interface"

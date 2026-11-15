@@ -24,6 +24,7 @@ class AccessError(Exception):
 
 class DeviceAccess:
     read_seconds = None
+    last_stderr = ""
 
     def __init__(self, device):
         self.device = device
@@ -36,6 +37,7 @@ class DeviceAccess:
         if self.check_credential.login == self.credential.login:
             raise AccessError("the check credential logs in with the write account")
         self._host_key_lines = {}
+        self.last_stderr = ""
 
     def _host_key(self, address=None) -> str:
         address = address or self.device.address
@@ -66,6 +68,15 @@ class DeviceAccess:
     def diagnose_query(self, command: str) -> str:
         return self._query(self.credential, command, with_stderr=True)
 
+    def query_status(self, command: str) -> tuple:
+        """Exit status and stdout answer of a write-account query; the caller judges the status.
+
+        The stderr of the exec call is not part of the answer: the SSH client of the runtime image writes its own
+        warnings there (for example that the key exchange is not post-quantum, ref admin-exos-184 N01), and EXOS
+        answers on stdout. The cleaned stderr is kept in ``last_stderr`` for diagnosis only.
+        """
+        return self._query(self.credential, command, any_status=True, with_status=True)
+
     def check_query(self, command: str) -> str:
         return self._query(self.check_credential, command, any_status=True,
                            address=self.device.check_address or self.device.address)
@@ -77,7 +88,7 @@ class DeviceAccess:
         return self._query(self.credential, command, any_status=True, with_stderr=True)
 
     def _query(self, credential, command: str, any_status: bool = False, address=None,
-               with_stderr: bool = False) -> str:
+               with_stderr: bool = False, with_status: bool = False):
         address = address or self.device.address
         try:
             result = ssh.run_command(
@@ -90,12 +101,17 @@ class DeviceAccess:
         if result.rc != 0 and not any_status:
             raise AccessError("query ended with exit status %s" % result.rc)
         text = prompt.cleaned(result.stdout.decode("utf-8", "replace"), self.device.platform)
+        raw_stderr = getattr(result, "stderr", b"") or b""
+        error_text = prompt.cleaned(raw_stderr.decode("utf-8", "replace"), self.device.platform)
+        self.last_stderr = error_text
         if not with_stderr:
-            return text
-        if len(result.stderr) >= ssh.STDERR_MAX_BYTES:
+            return (result.rc, text) if with_status else text
+        # FortiADC (measured 7.6.7 build0676) writes the whole exec answer to stderr, so the readers that ask
+        # for it (diagnose_query, own_query) keep the joined answer
+        if len(raw_stderr) >= ssh.STDERR_MAX_BYTES:
             raise AccessError("query answer on stderr reached the capture limit")
-        error_text = prompt.cleaned(result.stderr.decode("utf-8", "replace"), self.device.platform)
-        return "\n".join(part for part in (text, error_text) if part.strip())
+        joined = "\n".join(part for part in (text, error_text) if part.strip())
+        return (result.rc, joined) if with_status else joined
 
     def _session(self):
         return session.Session(

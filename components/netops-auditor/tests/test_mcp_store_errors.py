@@ -49,7 +49,7 @@ def test_a_locked_store_is_a_tool_error_with_a_store_message(tmp_path, capsys, m
     real_connect = sqlite3.connect
 
     def connect(*args, **keywords):
-        keywords.setdefault("timeout", LOCK_WAIT_SECONDS)
+        keywords["timeout"] = LOCK_WAIT_SECONDS
         return real_connect(*args, **keywords)
 
     monkeypatch.setattr(sqlite3, "connect", connect)
@@ -84,3 +84,109 @@ def test_a_query_error_is_a_tool_error_with_its_own_message(tmp_path, capsys, ca
     assert str(surfaced.value) == str(direct.value)
     assert "Error calling tool" not in str(surfaced.value)
     assert not [record for record in caplog.records if record.exc_info]
+
+
+def test_store_writer_and_mcp_reader_use_the_explicit_busy_timeout(tmp_path, capsys, monkeypatch):
+    from netops_auditor.store import BUSY_TIMEOUT_SECONDS, Store
+    database, _ = _audited_store(tmp_path, capsys)
+    _configure(database)
+    real_connect = sqlite3.connect
+    timeouts = []
+
+    def connect(*args, **keywords):
+        timeouts.append(keywords.get("timeout"))
+        return real_connect(*args, **keywords)
+
+    monkeypatch.setattr(sqlite3, "connect", connect)
+    Store(database).close()
+    mcp_server.audit_status(DEVICE)
+    assert BUSY_TIMEOUT_SECONDS == 15.0
+    assert len(timeouts) >= 2
+    assert all(timeout == BUSY_TIMEOUT_SECONDS for timeout in timeouts)
+
+
+def test_an_mcp_read_waits_for_a_commit_instead_of_failing(tmp_path, capsys):
+    import threading
+    import time
+    database, _ = _audited_store(tmp_path, capsys)
+    _configure(database)
+    expected = mcp_server.list_findings(DEVICE)
+    holder = sqlite3.connect(str(database), isolation_level=None, check_same_thread=False)
+    holder.execute("BEGIN EXCLUSIVE")
+
+    def release():
+        time.sleep(1.0)
+        holder.execute("COMMIT")
+
+    thread = threading.Thread(target=release)
+    thread.start()
+    try:
+        assert mcp_server.list_findings(DEVICE) == expected
+    finally:
+        thread.join(30)
+        holder.close()
+
+
+def test_one_mcp_call_returns_the_previous_or_the_new_run_never_a_mix(tmp_path, capsys, monkeypatch):
+    import threading
+    from netops_auditor import cli
+    from test_cli import clean_text, run_args, write_config
+    database, _ = _audited_store(tmp_path, capsys)
+    _configure(database)
+    previous = mcp_server.list_findings(DEVICE)
+    clean = write_config(tmp_path, clean_text(), name="clean.conf")
+    real_connect = sqlite3.connect
+    reading, released, committing = threading.Event(), threading.Event(), threading.Event()
+
+    def reader_trace(statement):
+        # Pause the reader inside its read transaction (opened by the schema check), before it reads the runs.
+        if reading.is_set() or "from runs" not in statement.lower():
+            return
+        reading.set()
+        released.wait(30)
+
+    def writer_trace(statement):
+        if statement == "COMMIT":
+            committing.set()
+
+    def connect(*args, **keywords):
+        connection = real_connect(*args, **keywords)
+        name = threading.current_thread().name
+        if name == "mcp-reader" and keywords.get("uri"):
+            connection.set_trace_callback(reader_trace)
+        elif name == "auditor-writer":
+            connection.set_trace_callback(writer_trace)
+        return connection
+
+    monkeypatch.setattr(sqlite3, "connect", connect)
+    outcome = {}
+
+    def read():
+        try:
+            outcome["read"] = mcp_server.list_findings(DEVICE)
+        except Exception as error:
+            outcome["read"] = repr(error)
+
+    def write():
+        outcome["write"] = cli.main(run_args(clean, store=database))
+
+    reader = threading.Thread(target=read, name="mcp-reader")
+    writer = threading.Thread(target=write, name="auditor-writer")
+    reader.start()
+    assert reading.wait(30)
+    writer.start()
+    try:
+        assert committing.wait(30)
+        writer.join(0.5)
+        # The commit waits for the open read transaction of the paused MCP call.
+        assert writer.is_alive()
+    finally:
+        released.set()
+        reader.join(30)
+        writer.join(60)
+    capsys.readouterr()
+    assert outcome["write"] in (cli.EXIT_OK, cli.EXIT_STALE)
+    assert outcome["read"] == previous
+    current = mcp_server.list_findings(DEVICE)
+    assert current["run_id"] != previous["run_id"]
+    assert current["findings"] != previous["findings"]

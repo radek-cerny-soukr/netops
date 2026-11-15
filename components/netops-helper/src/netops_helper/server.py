@@ -325,9 +325,10 @@ async def triage_health(target: str, auth_context: str = "", ctx: Context = Curr
 
 @mcp.tool
 @_refusals
-def triage_flow(target: str, src: str, dst: str, port: int, proto: str, auth_context: str = "") -> dict[str, Any]:
-    """Read route, policy lookup and sessions for one IPv4 flow; no packet is sent, findings cite device output."""
-    return engine_triage_flow(_auth(target, auth_context), src, dst, port, proto)
+def triage_flow(target: str, src: str, dst: str, port: int, proto: str, auth_context: str = "",
+                source_port: int | None = None) -> dict[str, Any]:
+    """Read route, policy lookup and sessions for one IPv4 flow; no packet is sent, findings cite device output. source_port (1..65535) is the client's known source port; omitted or null means unknown, and then no policy lookup is run."""
+    return engine_triage_flow(_auth(target, auth_context), src, dst, port, proto, source_port)
 
 
 @mcp.tool
@@ -433,9 +434,14 @@ def config_read(target: str, platform: str, section: str, include_all: bool = Fa
                 auth_context: str = "", redaction: str = "minimal",
                 include_defaults: bool = False, contains: str | None = None,
                 context: Annotated[int, Field(strict=True, ge=0, le=10)] = 0,
-                content_sha256: str | None = None, filter_sha256: str | None = None) -> dict[str, Any]:
+                content_sha256: str | None = None, filter_sha256: str | None = None,
+                redaction_context: list[str] | None = None) -> dict[str, Any]:
     """Read an opted-in redacted configuration; full mode retains mapped safe values and reports visibility limits."""
-    return engine_config_read(_auth(target, auth_context), platform, section, include_all, snapshot_id, offset, limit,
+    # Only the EXOS, Cisco IOS, IOS XE, NX-OS and Arista EOS captures take the private session redaction handoff; other platforms keep _auth.
+    auth = (_paged_auth(target, auth_context, redaction_context)
+            if platform in ("extreme_exos", "cisco_ios", "cisco_xe", "cisco_nxos", "arista_eos")
+            else _auth(target, auth_context))
+    return engine_config_read(auth, platform, section, include_all, snapshot_id, offset, limit,
                               redaction, include_defaults, contains=contains, context=context,
                               content_sha256=content_sha256, filter_sha256=filter_sha256)
 
@@ -444,9 +450,14 @@ def config_read(target: str, platform: str, section: str, include_all: bool = Fa
 @_refusals
 def config_diff(target: str, platform: str, base_snapshot: str,
                 other_snapshot: str, offset: int = 0, limit: int = 48000, secret_offset: int = 0,
-                auth_context: str = "") -> dict[str, Any]:
+                auth_context: str = "", redaction_context: list[str] | None = None) -> dict[str, Any]:
     """Compare two redacted captures belonging to this authenticated target."""
-    return engine_config_diff(_auth(target, auth_context), platform, base_snapshot, other_snapshot, offset, limit, secret_offset)
+    # EXOS and the IOS family compare snapshots taken with the private session handoff, so the diff takes it too
+    # (task 157); FortiOS/FortiADC keep _auth.
+    auth = (_paged_auth(target, auth_context, redaction_context)
+            if platform in ("extreme_exos", "cisco_ios", "cisco_xe", "cisco_nxos", "arista_eos")
+            else _auth(target, auth_context))
+    return engine_config_diff(auth, platform, base_snapshot, other_snapshot, offset, limit, secret_offset)
 
 @mcp.tool
 @_refusals

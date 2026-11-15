@@ -149,7 +149,7 @@ def test_run_against_a_store_locked_by_another_writer_ends_with_a_store_error(tm
             holders.append(holder)
 
     def connect(*args, **keywords):
-        keywords.setdefault("timeout", LOCK_WAIT_SECONDS)
+        keywords["timeout"] = LOCK_WAIT_SECONDS
         connection = real_connect(*args, **keywords)
         connection.set_trace_callback(lock)
         return connection

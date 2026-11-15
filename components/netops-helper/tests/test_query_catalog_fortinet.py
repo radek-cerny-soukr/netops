@@ -130,6 +130,11 @@ EXPECTED = {
         (("address", "addresses", "ipv4_lookup"),),
         False,
     ),
+    "ipv6_route_lookup": (
+        "get router info6 routing-table {address}",
+        (("address", "addresses", "ipv6_lookup"),),
+        False,
+    ),
     "route_protocols": ("get router info protocols", (), False),
     "ipv6_route_protocols": ("get router info6 protocols", (), False),
     "arp_table": ("get system arp", (), True),

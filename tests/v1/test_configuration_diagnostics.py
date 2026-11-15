@@ -37,10 +37,10 @@ class StructuredConfigurationDiagnostics(unittest.TestCase):
             (state / "gateway").mkdir(mode=0o700)
             (state / role).mkdir(mode=0o700)
             write_private(state / "gateway/config.json", json.dumps({
-                "version": 1, "product_version": "1.0.8", "audit": {"mode": "local"}}).encode())
+                "version": 1, "product_version": "1.0.9", "audit": {"mode": "local"}}).encode())
             stream = io.TextIOWrapper(io.BytesIO(json.dumps(document).encode()))
             errors, output = io.StringIO(), io.StringIO()
-            with patch.dict(UIDS, {"gateway": current_uid}), patch.object(operator, "STATE", state), patch.object(operator, "demote"), \
+            with patch.dict(UIDS, {"gateway": current_uid, "auditor": current_uid}), patch.object(operator, "STATE", state), patch.object(operator, "demote"), \
                     patch.object(operator, "role_environment"), \
                     patch.object(operator.os, "geteuid", side_effect=itertools.chain([0], itertools.repeat(current_uid))), \
                     patch.object(sys, "stdin", stream), patch.object(sys, "argv", ["netops", "configure", role]), \
@@ -48,7 +48,7 @@ class StructuredConfigurationDiagnostics(unittest.TestCase):
                 result = cli.main()
             self.assertEqual(result, 2, errors.getvalue())
             self.assertEqual(output.getvalue(), "")
-            self.assertEqual(list((state / role).iterdir()), [])
+            self.assertEqual([p for p in (state / role).iterdir() if p.name != "store.lock"], [])
             self.assertNotIn(CANARY, errors.getvalue())
             self.assertNotIn("example-user", errors.getvalue())
             self.assertNotIn("example-device", errors.getvalue())

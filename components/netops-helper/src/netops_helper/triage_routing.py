@@ -4,7 +4,7 @@ import ipaddress
 import re
 
 from .triage_health import (missing_read, SDWAN_NOT_RUNNING, Unparsed, UnsupportedPlatform, _lines, _utc,
-                            sdwan_health)
+                            in_vdom, sdwan_health, vdom_scope)
 
 IDENTITIES = frozenset({
     ("FortiGate-60F", "7.6.8", "3744"),
@@ -292,6 +292,7 @@ def run(read, clock, address, alias):
     if not first.get("ok"):
         raise UnsupportedPlatform("config_platform_not_supported: the identity read failed")
     ident = identity(first["text"])
+    scope = vdom_scope(first["text"])
     parsed = {}
     sources = {}
     missing = []
@@ -301,6 +302,10 @@ def run(read, clock, address, alias):
         answer = read(query, {"address": target} if query == "route_lookup" else None)
         if not answer.get("ok"):
             missing.append(missing_read(query, answer))
+            continue
+        if not in_vdom(scope, answer):
+            # Multi-VDOM: data not read in the verified session VDOM never feeds the verdict.
+            missing.append({"step": query, "reason": "vdom_unverified"})
             continue
         text = answer["text"]
         if query == "sdwan_health" and (not text.strip() or text.strip() in SDWAN_NOT_RUNNING):
@@ -357,6 +362,8 @@ def run(read, clock, address, alias):
         "ok": True,
         "identity": ident,
         "vdom_mode": vdom_mode(first["text"]),
+        "vdom": scope["vdom"] if scope else None,
+        "current_vdom": scope["vdom"] if scope else None,
         "address": target,
         "started_at": _utc(started),
         "finished_at": _utc(clock()),

@@ -301,6 +301,7 @@ class SafeConfigurationDiagnostics(unittest.TestCase):
         import json
         import sys
         from netops import cli, operator
+        from netops.files import UIDS
         vault = {"version": 2, "credentials": {}}
         admin = {"config": {"version": 1, "devices": {"canary_private_alias": {
             "canary_unknown_key": "canary_private_password"}}}, "vault": vault}
@@ -319,11 +320,11 @@ class SafeConfigurationDiagnostics(unittest.TestCase):
                 (state / "gateway").mkdir(mode=0o700)
                 from netops.files import write_private
                 write_private(state / "gateway/config.json", json.dumps({
-                    "version": 1, "product_version": "1.0.8", "audit": {"mode": "local"}}).encode())
+                    "version": 1, "product_version": "1.0.9", "audit": {"mode": "local"}}).encode())
                 (state / role).mkdir(mode=0o700)
                 stream = io.TextIOWrapper(io.BytesIO(json.dumps(document).encode()))
                 errors = io.StringIO()
-                with patch.object(operator, "STATE", state), patch.object(operator, "demote"), \
+                with patch.dict(UIDS, {"gateway": current_uid, "auditor": current_uid}), patch.object(operator, "STATE", state), patch.object(operator, "demote"), \
                      patch.object(operator, "role_environment"), \
                      patch.object(operator.os, "geteuid", side_effect=itertools.chain([0], itertools.repeat(current_uid))), \
                      patch.object(sys, "stdin", stream), patch.object(sys, "argv", ["netops", "configure", role]), \
@@ -334,4 +335,4 @@ class SafeConfigurationDiagnostics(unittest.TestCase):
                 for value in ("canary_private_alias", "canary_unknown_key", "canary_private_name",
                               "canary_private_login", "canary_private_password"):
                     self.assertNotIn(value, errors.getvalue())
-                self.assertEqual(list((state / role).iterdir()), [])
+                self.assertEqual([p for p in (state / role).iterdir() if p.name != "store.lock"], [])

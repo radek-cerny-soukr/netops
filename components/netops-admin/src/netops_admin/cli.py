@@ -176,10 +176,30 @@ def _operate(args, *, require_export=True) -> int:
         settled = execute.recover(runtime, args.device)
         _emit({"device": args.device, "settled": settled})
         return EXIT_CONFIRMED_BLOCKED if any(execute.blocks(r.get("result"), r.get("reason")) for r in settled) else 0
+    if args.command == "poe-cycle":
+        from netops_admin import exos_poe
+        cycle = exos_poe.request(args.device, args.port, args.reason, args.user_request, args.request_id)
+        if args.preview:
+            result = exos_poe.preview(runtime, args.device, cycle)
+            _emit(result)
+            return 0 if result["result"] == "ready" else EXIT_REJECTED
+        record = exos_poe.apply(runtime, args.device, cycle)
+        _emit(record)
+        if record.get("result") != "confirmed":
+            return EXIT_NOT_CONFIRMED
+        if record.get("reason") in execute.BLOCKING_REASONS:
+            return EXIT_CONFIRMED_BLOCKED
+        # confirmed, but a powered device did not return to delivering within the wait
+        return EXIT_NOT_CONFIRMED if record.get("reason") else 0
+    if args.command == "undo" and args.preview:
+        result = execute.preview_undo(runtime, args.change_id, args.reason)
+        _emit(result)
+        return 0 if result["result"] == "ready" else EXIT_REJECTED
     if args.command == "undo":
         record = execute.undo(runtime, args.change_id, args.reason)
     else:
-        record = execute.apply(runtime, args.device, parse_request(_read(args.request)))
+        record = execute.apply(runtime, args.device, parse_request(_read(args.request)),
+                               expected_plan_sha256=args.expect_plan_sha256)
     _emit(record)
     if record.get("result") != "confirmed":
         return EXIT_NOT_CONFIRMED
@@ -223,6 +243,8 @@ def main(argv=None, *, require_export=True) -> int:
     run.add_argument("--config", required=True, type=Path)
     run.add_argument("--device", required=True)
     run.add_argument("--request", required=True, type=Path)
+    run.add_argument("--expect-plan-sha256", help="profile requests: refuse with plan_changed when the fresh plan "
+                                                  "differs from the plan_sha256 of the approved preview")
     look_ahead = commands.add_parser("preview", help="run every check of apply against the device and print the plan, without any change")
     look_ahead.add_argument("--config", required=True, type=Path)
     look_ahead.add_argument("--device", required=True)
@@ -253,6 +275,17 @@ def main(argv=None, *, require_export=True) -> int:
     back.add_argument("--config", required=True, type=Path)
     back.add_argument("--change-id", required=True)
     back.add_argument("--reason", required=True)
+    back.add_argument("--preview", action="store_true",
+                      help="run every check of the undo and print its plan, without any change")
+    cycle = commands.add_parser("poe-cycle", help="ExtremeXOS: power-cycle one PoE port (disable, then enable inline "
+                                                  "power) behind a rollback safeguard; no undo")
+    cycle.add_argument("--config", required=True, type=Path)
+    cycle.add_argument("--device", required=True)
+    cycle.add_argument("--port", required=True, help="one port number, e.g. 8")
+    cycle.add_argument("--reason", required=True)
+    cycle.add_argument("--user-request", required=True, help="the request of the person, as written")
+    cycle.add_argument("--request-id", required=True)
+    cycle.add_argument("--preview", action="store_true", help="run every check of the cycle and print its plan, without any change")
     member = commands.add_parser("pool-member", help="FortiADC: set the status of one real-server pool member and verify it")
     member.add_argument("--config", required=True, type=Path)
     member.add_argument("--device", required=True)
@@ -274,7 +307,7 @@ def main(argv=None, *, require_export=True) -> int:
         if args.command == "pool-member-remove":
             return _pool_member_remove(args)
         if args.command in ("apply", "status", "recover", "unblock", "notify-retry", "undo", "enroll",
-                            "preview", "doctor"):
+                            "preview", "doctor", "poe-cycle"):
             return _operate(args, require_export=require_export)
         if args.command in ("schema-plan", "schema-verify"):
             from netops_core import schema

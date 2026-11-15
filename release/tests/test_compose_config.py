@@ -66,5 +66,10 @@ class ComposeStateIdentity(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("NETOPS_BIND_IP", result.stderr)
 
+    def test_no_new_privileges_uses_current_security_opt_syntax(self):
+        config = self.resolve(self.base / "security-opt")
+        self.assertEqual(config["services"]["netops"]["security_opt"],
+                         ["no-new-privileges=true"])
+
 if __name__ == "__main__":
     unittest.main()

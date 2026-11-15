@@ -2,12 +2,30 @@ from __future__ import annotations
 
 import datetime
 import shlex
+from pathlib import Path
 from types import SimpleNamespace
 
 from fake_fortios import DeviceRefused
 
+from netops_admin.access import AccessError
+
 FIRMWARE = "33.7.1.6"
 TIME_FORMAT = "%Y-%m-%d %H:%M:%S"
+NOT_INLINE_POWER_RC = 250
+FIXTURES = Path(__file__).parent / "fixtures" / "exos_port_poe"
+
+
+def fixture(name: str) -> str:
+    """An anonymised output measured on X435-8P-4S or X440-G2-12p-10G4 (33.7.1.6-patch1-11)."""
+    return (FIXTURES / name).read_text(encoding="utf-8")
+
+
+def _row(template: str, key: str, row: str) -> str:
+    """Replace the row of the measured test port in a measured table by the row of another port."""
+    lines = template.splitlines()
+    index = next(number for number, line in enumerate(lines) if line.split()[:1] in (["8"], ["10"]))
+    lines[index] = row
+    return "\n".join(lines) + "\n"
 
 
 class FakeExos:
@@ -43,6 +61,17 @@ class FakeExos:
         self.timer_stuck = False
         self.run_seconds = 0
         self.history, self.runs = [], []
+        self.persistent_mode = True
+        # port admin state: in the configuration (persistent CLI mode only) and in operation, as measured
+        self.ports_disabled, self.ports_down = set(), set()
+        # inline power: ports 1-12 have PoE (X440-G2-12p-10G4), 13-16 have none
+        self.poe_ports = {str(number) for number in range(1, 13)}
+        self.poe_disabled, self.poe_off, self.poe_since = set(), set(), {}
+        self.powered_devices = set()
+        self.poe_off_delay, self.poe_on_delay, self.pd_seconds = 1, 3, 5
+        self.poe_stuck_off = False
+        self.lldp_text = fixture("x440__03-lldp.out")
+        self.fdb_text = fixture("x440__02-show-fdb.out")
 
     @property
     def clock(self):
@@ -103,6 +132,24 @@ class FakeExos:
             self.port_strings[words[2]] = words[4]
         elif words[:2] == ["unconfigure", "ports"] and words[3:] == ["display-string"]:
             self.port_strings.pop(words[2], None)
+        elif words[:2] in (["disable", "ports"], ["enable", "ports"]) and len(words) == 3:
+            if words[2] not in self.port_numbers:
+                return False
+            down = words[0] == "disable"
+            (self.ports_down.add if down else self.ports_down.discard)(words[2])
+            if self.persistent_mode:
+                (self.ports_disabled.add if down else self.ports_disabled.discard)(words[2])
+        elif words[:3] in (["disable", "inline-power", "ports"], ["enable", "inline-power", "ports"]) and len(words) == 4:
+            port = words[3]
+            if port not in self.poe_ports:
+                return False
+            off = words[0] == "disable"
+            if off != (port in self.poe_off):
+                (self.poe_off.add if off else self.poe_off.discard)(port)
+                self.poe_since[port] = self.uptime
+            # measured: without persistent mode the configuration keeps "disable inline-power ports N"
+            if self.persistent_mode:
+                (self.poe_disabled.add if off else self.poe_disabled.discard)(port)
         elif words[:3] == ["create", "upm", "timer"] and len(words) == 4:
             self.timers[words[3]] = {"profile": None, "next": None, "due": None}
         elif words[:3] == ["configure", "upm", "timer"] and words[4:5] == ["profile"]:
@@ -148,6 +195,7 @@ class FakeExos:
                 self.unsaved = True
             else:
                 plain += 1
+                self.persistent_mode = True
                 if self.fail_at_line == plain or not self._command(shlex.split(step), False):
                     raise DeviceRefused(accepted)
             accepted += 1
@@ -175,11 +223,14 @@ class FakeExos:
             lines.append("configure vlan DATA add ports 1-4 untagged")
         for port, text in sorted(self.port_strings.items()):
             lines.append("configure ports %s display-string %s" % (port, text))
+        lines += ["disable port %s" % port for port in sorted(self.ports_disabled, key=int)]
         lines.append("configure ports 10 description-string \"Default settings for the access port\"")
         lines += ["#", "# Module ems configuration.", "#", "configure syslog add 192.0.2.10:514 vr VR-Default local0",
                   "#", "# Module netTools configuration.", "#", "configure sntp-client primary 192.0.2.123 vr VR-Default",
                   "enable sntp-client", "#", "# Module snmpMaster configuration.", "#",
-                  "#", "# Module telnetd configuration.", "#", "disable telnet"]
+                  "#", "# Module poe configuration.", "#"]
+        lines += ["disable inline-power ports %s" % port for port in sorted(self.poe_disabled, key=int)]
+        lines += ["#", "# Module telnetd configuration.", "#", "disable telnet"]
         lines += ["#", "# Module upm configuration.", "#"]
         for name, body in self.profiles.items():
             lines.append("create upm profile %s" % name)
@@ -192,6 +243,20 @@ class FakeExos:
         return "\n".join(lines) + "\n"
 
     def query(self, command):
+        """The write-account query of the real access: a non-zero exit status is refused before any parser."""
+        rc, text = self.query_status(command)
+        if rc != 0:
+            raise AccessError("query ended with exit status %s" % rc)
+        return text
+
+    def query_status(self, command):
+        """Exit status and answer, as the real transport gives them (ref 171: a port without PoE ends with 250)."""
+        text = self.answer(command)
+        if command.startswith("show inline-power info ports ") and "is not inline-power capable" in text:
+            return NOT_INLINE_POWER_RC, text
+        return 0, text
+
+    def answer(self, command):
         self._fire()
         if command == "show switch":
             return "\nSysName:          %s\nCurrent Time:     %s\n" % (self.hostname, self.clock.strftime("%a %b %e %H:%M:%S %Y"))
@@ -207,6 +272,27 @@ class FakeExos:
             return ("Port Summary\nPort     Display              VLAN Name           Port  Link  Speed  Duplex\n"
                     "#        String               (or # VLANs)        State State Actual Actual\n"
                     "=====\n%s=====\n   Port State: D-Disabled, E-Enabled\n" % rows)
+        if command == "show lldp neighbors":
+            return self.lldp_text
+        if command == "show fdb":
+            return self.fdb_text
+        if command.startswith("show ports ") and command.endswith(" configuration no-refresh"):
+            port = command.split()[2]
+            if port not in self.port_numbers:
+                return fixture("x435__47-disable-bad.out")
+            state = "D" if port in self.ports_down else "E"
+            return _row(fixture("x440__20-p-cfg-pre.out"), port,
+                        "%-8s VR-Default %s       R   ON  ON    AUTO        AUTO                    UTP          "
+                        % (port, state))
+        if command.startswith("show inline-power info detail ports "):
+            return self.poe_detail(command.split()[-1])
+        if command.startswith("show inline-power info ports "):
+            port = command.split()[-1]
+            if port not in self.poe_ports:
+                return "Port %s is not inline-power capable\n" % port
+            return _row(fixture("x440__23-ip-info-pre.out"), port,
+                        "%-7s %-15s ------      0.0       0      %s    None"
+                        % (port, self.poe_state(port), "4.200" if self.poe_state(port) == "delivering" else "0.000"))
         if command == "show version":
             return "Image   : ExtremeXOS version %s by release-manager\n" % self.firmware
         if command == "show upm timers":
@@ -228,10 +314,33 @@ class FakeExos:
                     % "\n".join(self.profiles[name]))
         raise AssertionError("unexpected query %r" % command)
 
+    def poe_state(self, port):
+        since = self.poe_since.get(port)
+        age = float("inf") if since is None else self.uptime - since
+        if port in self.poe_off:
+            return "searching" if age < self.poe_off_delay else "disabled"
+        if self.poe_stuck_off or age < self.poe_on_delay:
+            return "disabled"
+        if port in self.powered_devices and (self.pd_seconds is not None and age >= self.pd_seconds):
+            return "delivering"
+        return "searching"
+
+    def poe_detail(self, port):
+        if port not in self.poe_ports:
+            return "Port %s is not inline-power capable\n" % port
+        text = fixture("x440__25-ip-info-detail-pre.out").replace("Port 10 ", "Port %-2s" % port, 1)
+        state = self.poe_state(port)
+        configured = "disabled" if port in self.poe_disabled else "enabled"
+        text = text.replace("Configured Admin State: enabled", "Configured Admin State: %s" % configured)
+        text = text.replace("Inline Power State    : searching", "Inline Power State    : %s" % state)
+        return text.replace("MIB Detect Status     : searching", "MIB Detect Status     : %s" % state)
+
     def check_query(self, command):
         self._fire()
         if self.check_unreadable:
             raise RuntimeError("check account unavailable")
+        if command.startswith("show inline-power info detail ports "):
+            return self.poe_detail(command.split()[-1])
         if command.startswith("show ports "):
             port = command.split()[2]
             if self.check_override is not None and port in self.check_override:
@@ -240,7 +349,10 @@ class FakeExos:
                 return "%% Invalid port number detected.\n"
             else:
                 text = self.port_strings.get(port)
-            return "Port:\t%s(%s):\n\tVirtual-router:\tVR-Default\n" % (port, text) if text else "Port:\t%s\n" % port
+            admin = "\tAdmin state:\t%s with  auto-speed sensing  auto-duplex\n" % (
+                "Disabled" if port in self.ports_down else "Enabled") if command.endswith(" information detail") else ""
+            head = "Port:\t%s(%s):\n\tVirtual-router:\tVR-Default\n" % (port, text) if text else "Port:\t%s\n" % port
+            return head + admin
         key = command.split()[2]
         attributes = self.vlans.get(key)
         if self.check_override is not None and key in self.check_override:

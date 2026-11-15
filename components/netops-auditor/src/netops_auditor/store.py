@@ -14,6 +14,11 @@ MOMENT_FORMAT = "%Y-%m-%dT%H:%M:%SZ"
 SCHEMA_VERSION = 2
 PREVIOUS_SCHEMA_VERSION = 1
 MIGRATE_COMMAND = "netops-auditor migrate-store --store <file>"
+# Explicit busy timeout for every store connection (writer and read-only MCP reader).
+# The store keeps the rollback journal (no WAL): a writer holds the database only
+# for the short BEGIN IMMEDIATE ... COMMIT of one run, so readers and a second
+# writer wait for it instead of failing with "database is locked".
+BUSY_TIMEOUT_SECONDS = 15.0
 
 SCHEMA = (
     """CREATE TABLE IF NOT EXISTS runs (
@@ -208,12 +213,12 @@ def schema_version(connection, *, require_complete=True) -> int:
             )
     if "runs" not in objects:
         if require_complete and any(name.lower() in objects for name in SCHEMA_TYPES):
-            raise _SchemaObjectError("store schema object runs: expected table, missing; open writable (auditor run/import-snapshot)")
+            raise _SchemaObjectError("store schema object runs: expected table, missing; open writable (auditor run or auditor status)")
         return 0
     if require_complete:
         for name, expected in SCHEMA_TYPES.items():
             if name.lower() not in objects:
-                raise _SchemaObjectError("store schema object %s: expected %s, missing; open writable (auditor run/import-snapshot)" % (name, expected))
+                raise _SchemaObjectError("store schema object %s: expected %s, missing; open writable (auditor run or auditor status)" % (name, expected))
     return int(connection.execute("PRAGMA user_version").fetchone()[0]) or PREVIOUS_SCHEMA_VERSION
 
 
@@ -307,7 +312,7 @@ def migrate(path) -> dict:
 
 
 def _migrate(path) -> dict:
-    connection = sqlite3.connect(str(path), isolation_level=None)
+    connection = sqlite3.connect(str(path), isolation_level=None, timeout=BUSY_TIMEOUT_SECONDS)
     connection.row_factory = sqlite3.Row
     try:
         version = schema_version(connection, require_complete=False)
@@ -440,7 +445,7 @@ class Store:
                     pass
                 else:
                     os.close(descriptor)
-            self._connection = sqlite3.connect(str(path), isolation_level=None)
+            self._connection = sqlite3.connect(str(path), isolation_level=None, timeout=BUSY_TIMEOUT_SECONDS)
         except (OSError, sqlite3.Error) as error:
             raise StoreError("cannot open store %s: %s" % (path, error)) from None
         try:

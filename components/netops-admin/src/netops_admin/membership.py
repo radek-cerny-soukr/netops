@@ -143,13 +143,16 @@ def prediction(snapshot, port, state):
     return "\n".join(modular(snapshot, kept, added)) + "\n"
 
 
-def modular(snapshot, commands, added):
+def modular(snapshot, commands, added, module="vlan"):
     modules = list(snapshot.configuration.modules)
     lines = [command.text for command in commands if command.module not in modules]
+    target = module
     for module in modules:
         lines += ["# Module %s configuration." % module] + [command.text for command in commands if command.module == module]
-        if module == "vlan":
+        if module == target:
             lines += added
+    if target not in modules and added:
+        lines += ["# Module %s configuration." % target] + added
     return lines
 
 

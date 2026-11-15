@@ -1,0 +1,96 @@
+{
+ "from": "1.0.8",
+ "to": "1.0.9",
+ "changes": [
+  {
+   "tool": "admin_undo_preview",
+   "kind": "added",
+   "reason": "New read-only Admin tool: it runs every check of the undo of a confirmed operation against the device and returns the plan, the predicted object state and the reasons the undo would be refused, without applying the undo. Nothing is changed, installed, journaled or notified; the undo itself remains an operator action."
+  },
+  {
+   "tool": "findings_summary",
+   "kind": "added",
+   "reason": "New read-only Auditor tool: brief findings of the last run across the devices of the configured tenant, or of one device, filtered by severity, state and rule_id, with a bounded number of items (limit), truncation and counts before and after the filter. Without a rule filter its totals match the per-device list_findings totals under the same severity and state filters. It has no paging or historical detail."
+  },
+  {
+   "tool": "admin_apply",
+   "kind": "definition",
+   "reason": "admin_apply accepts the optional expected_plan_sha256, the plan_sha256 of the approved admin_preview: when the fresh plan differs, the change is refused with plan_changed before any write. Without the argument apply behaves as in 1.0.8. The description states this.",
+   "added_keys": {
+    "/inputSchema/properties/expected_plan_sha256": {
+     "sha256": "8df079e90ae598d81db07cf8abf57ab17d9efaef8841009037533af591d9bb77"
+    }
+   },
+   "changed_keys": {
+    "/description": {
+     "sha256": "fef43c4cbda804a80ebf48c589b2fffe17cadd06c40a8207ed97f1ba99fdae50"
+    }
+   }
+  },
+  {
+   "tool": "admin_preview",
+   "kind": "definition",
+   "reason": "The description adds that plan_sha256 is passed to admin_apply as expected_plan_sha256 to refuse the change when the fresh plan differs. Arguments and result of admin_preview are unchanged.",
+   "changed_keys": {
+    "/description": {
+     "sha256": "d6fcc5cd3280e42daf7efb3541f519d0670caa70e46fdc067a0385c7b44f2b50"
+    }
+   }
+  },
+  {
+   "tool": "triage_flow",
+   "kind": "definition",
+   "reason": "triage_flow accepts the optional source_port (1..65535), the client's known source port; omitted or null means unknown, and then no policy lookup is run instead of inventing a port. The description states this.",
+   "added_keys": {
+    "/inputSchema/properties/source_port": {
+     "sha256": "033303405191c2a584fe206b8db2bcda3a831619dc4bbaa76b1fd2fe212d241b"
+    }
+   },
+   "changed_keys": {
+    "/description": {
+     "sha256": "4d0786b25642c349909fbb28c94b3b8292c3d8e99854ab73bd513b9703cf9d61"
+    }
+   }
+  },
+  {
+   "tool": "read_query_catalog",
+   "kind": "response",
+   "reason": "The query catalogue adds the FortiOS query ipv6_route_lookup (scoped IPv6 destination lookup) and the Arista EOS query mlag_interfaces (MLAG members); total and catalog_sha256 change accordingly. Existing queries are unchanged.",
+   "added_keys": {
+    "/queries/arista_eos/mlag_interfaces": {
+     "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "/queries/fortinet/ipv6_route_lookup": {
+     "sha256": "c0a5f6dec220496c26c4492ebeb03cda74d30ce1a1a791125865e3648a9185ce"
+    },
+    "/query_metadata/arista_eos/mlag_interfaces": {
+     "sha256": "ae5339f182a1a4efe2e50ebc79bf9f2f2494656e147d8e98afa64a2a35b4d59f"
+    },
+    "/query_metadata/fortinet/ipv6_route_lookup": {
+     "sha256": "73d8ba3abd5342470717e823b6b5f7c13c00369e99564604957c6250d4c8bb33"
+    }
+   },
+   "changed_keys": {
+    "/catalog_sha256": {
+     "sha256": "5579ac0202131529a6116c9da9bd59cfa808b485567221492de1b70dd32f1a3d",
+     "value": "7515b475283e5b5ec1afce4161b9b62425d8eea83436138bb49c550394a48643"
+    },
+    "/total": {
+     "sha256": "068814875fcdfb8faf539ef43cf5d109a22b7cfd28770e90b00be8c48bfc722f",
+     "value": 549
+    }
+   }
+  },
+  {
+   "tool": "audit_status",
+   "kind": "response",
+   "reason": "audit_status adds the field suppressions_configured (true when the Auditor reader has a suppression file); its other fields are unchanged.",
+   "added_keys": {
+    "/suppressions_configured": {
+     "sha256": "fcbcf165908dd18a9e49f7ff27810176db8e9f63b4352213741664245224f8aa",
+     "value": false
+    }
+   }
+  }
+ ]
+}

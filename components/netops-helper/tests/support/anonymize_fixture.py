@@ -47,7 +47,7 @@ VERSION_CONTEXT = re.compile(
 LABEL_VALUES = {
     # label regex -> kind of the labelled value
     r"SysName": "name", r"SysLocation": "name", r"System Name": "name", r"Host ?name": "name",
-    r"SSID": "ssid", r"Serial(?: ?Number| ?No\.?)?": "serial", r"S/N": "serial", r"SN": "serial",
+    r"SSID": "ssid", r"Serial(?:[ -]?Number| ?No\.?)?": "serial", r"S/N": "serial", r"SN": "serial",
     r"Chassis Serial(?: Number)?": "serial",
 }
 

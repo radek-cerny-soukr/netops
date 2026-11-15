@@ -295,8 +295,13 @@ def _merge(results):
     result['unparsed'] = [line | {'query': item['sources'][0]['query'] if item['sources'] else None}
                           for item in results for line in item['unparsed']]
     result['warnings'] = list(dict.fromkeys(w for item in results for w in item['warnings']))
-    failures = [item['status'] for item in results if item['status'] not in ('ok', 'empty')]
-    result['status'] = failures[0] if failures else 'ok' if rows else 'empty'
+    failures = [item for item in results if item['status'] not in ('ok', 'empty')]
+    result['status'] = failures[0]['status'] if failures else 'ok' if rows else 'empty'
+    # The reported status and its cause come from the same (first failed) source.
+    for key in ('error_code', 'error'):
+        result.pop(key, None)
+        if failures and key in failures[0]:
+            result[key] = failures[0][key]
     result['ok'] = result['status'] in ('ok', 'empty')
     result['coverage'] = {'complete': all(item['coverage']['complete'] for item in results),
                           'parsed_records': len(rows), 'unparsed_lines': len(result['unparsed']),

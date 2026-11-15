@@ -244,6 +244,12 @@ QUERIES: dict[str, Query] = {
         IPV4_LOOKUP,
         "Show the IPv4 route for one enrolled address; for a prefix inside an enrolled lookup prefix the route of its network address.",
     ),
+    "ipv6_route_lookup": Query(
+        "get router info6 routing-table {address}",
+        {"address": Slot("addresses", "ipv6_lookup")},
+        "Show the IPv6 route for one enrolled IPv6 address; for a prefix inside an enrolled lookup prefix the route of "
+        "its network address, which does not show that the whole prefix is reachable.",
+    ),
     "policy_lookup_ipv4": Query(
         "diagnose firewall iprope lookup {src_ip} {src_port} {dst_ip} {dst_port} {protocol} {device} {pol_type}",
         {

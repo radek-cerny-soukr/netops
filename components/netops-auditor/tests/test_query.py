@@ -1037,3 +1037,258 @@ def test_single_history_lookup_gives_the_same_results_as_the_v106_path(store):
         finally:
             module.last_evaluated = original
         assert len(calls) == expected
+
+
+# --- findings_summary (1.0.9 bod 14) ---------------------------------------------------------
+
+SUMMARY_RULES = (
+    make_rule(RULE_DANGLING),
+    make_rule(RULE_UNUSED, severity="low"),
+    make_rule(RULE_ANY, severity="medium"),
+    make_rule(RULE_WAN, severity="medium"),
+)
+
+SUMMARY_FILTERS = (
+    {},
+    {"severity": "high"},
+    {"severity": "medium"},
+    {"state": STATE_NEW},
+    {"state": STATE_GONE},
+    {"state": STATE_SUPPRESSED},
+    {"state": STATE_OPEN_KNOWN},
+    {"severity": "high", "state": STATE_NEW},
+    {"severity": "info"},
+)
+
+
+def _third_device(populated):
+    third = make_finding(rule_id=RULE_UNUSED, object_key=OBJECT_CORP, severity="low", device=THIRD_DEVICE)
+    other = make_finding(rule_id=RULE_DANGLING, object_key=OBJECT_POLICY, severity="high", device=THIRD_DEVICE)
+    record(populated.store, (third, other), device=THIRD_DEVICE, started_at=RUN_TWO_AT)
+    return third, other
+
+
+def _summary(populated, **keywords):
+    keywords.setdefault("now", NOW)
+    return query.findings_summary(populated.store, TENANT, SUMMARY_RULES, **keywords)
+
+
+def test_findings_summary_matches_the_sum_of_list_findings_over_devices(populated):
+    _third_device(populated)
+    suppressions = (suppression(populated.loose),)
+    devices = (DEVICE, SECOND_DEVICE, THIRD_DEVICE)
+    for filters in SUMMARY_FILTERS:
+        summary = _summary(populated, suppressions=suppressions, limit=200, **filters)
+        listings = [
+            query.list_findings(populated.store, TENANT, name, suppressions=suppressions, now=NOW, **filters)
+            for name in devices
+        ]
+        assert summary["total_matching"] == sum(item["total"] for item in listings), filters
+        expected = sorted(
+            (name, entry["fingerprint"], entry["state"])
+            for name, listing in zip(devices, listings)
+            for entry in listing["findings"] + listing["gone"]
+        )
+        assert sorted(
+            (item["device"], item["fingerprint"], item["state"]) for item in summary["items"]
+        ) == expected, filters
+        for state in query.STATES:
+            assert summary["counts_after_filter"]["state"][state] == sum(
+                item["counts"][state] for item in listings
+            ), (filters, state)
+
+
+def test_findings_summary_rule_id_filter_matches_list_findings(populated):
+    _third_device(populated)
+    summary = _summary(populated, rule_id=RULE_DANGLING, limit=200)
+    expected = 0
+    for name in (DEVICE, SECOND_DEVICE, THIRD_DEVICE):
+        listing = query.list_findings(populated.store, TENANT, name, now=NOW)
+        expected += sum(
+            1 for entry in listing["findings"] + listing["gone"] if entry["rule_id"] == RULE_DANGLING
+        )
+    assert summary["total_matching"] == expected == 3
+    assert {item["rule_id"] for item in summary["items"]} == {RULE_DANGLING}
+
+
+def test_findings_summary_of_one_device_matches_list_findings(populated):
+    _third_device(populated)
+    summary = _summary(populated, device=DEVICE, state=STATE_NEW)
+    listing = query.list_findings(populated.store, TENANT, DEVICE, now=NOW, state=STATE_NEW)
+    assert summary["device"] == DEVICE
+    assert {item["device"] for item in summary["items"]} == {DEVICE}
+    assert summary["total_matching"] == listing["total"] == 3
+
+
+def test_findings_summary_limit_truncates_and_reports_it(populated):
+    _third_device(populated)
+    full = _summary(populated)
+    assert full["total_matching"] == 7
+    assert full["returned"] == 7
+    assert full["truncated"] is False
+    cut = _summary(populated, limit=3)
+    assert cut["total_matching"] == 7
+    assert cut["returned"] == len(cut["items"]) == 3
+    assert cut["truncated"] is True
+    assert cut["items"] == full["items"][:3]
+    exact = _summary(populated, limit=7)
+    assert exact["truncated"] is False
+    assert _summary(populated, limit=query.SUMMARY_LIMIT_MAX)["returned"] == 7
+    assert query.SUMMARY_LIMIT_DEFAULT == 50
+
+
+@pytest.mark.parametrize("limit", [0, -1, 201, 1.5, "10", True, None])
+def test_findings_summary_refuses_a_limit_outside_the_range(populated, limit):
+    with pytest.raises(query.QueryError, match="limit must be"):
+        _summary(populated, limit=limit)
+
+
+def test_findings_summary_counts_before_and_after_the_filter(populated):
+    _third_device(populated)
+    summary = _summary(populated, severity="high", state=STATE_NEW)
+    before = summary["counts_before_filter"]
+    after = summary["counts_after_filter"]
+    assert set(before) == set(after) == set(query.SUMMARY_COUNT_KEYS)
+    assert set(before["state"]) == set(after["state"]) == set(query.SUMMARY_STATES)
+    assert set(before["severity"]) == set(after["severity"]) == {"high", "medium", "low", "info"}
+    # every entry of the tenant: DEVICE 4 present + 1 gone, THIRD_DEVICE 2 new
+    assert before["state"] == {
+        STATE_NEW: 5,
+        STATE_OPEN_KNOWN: 1,
+        STATE_SUPPRESSED: 0,
+        STATE_GONE: 1,
+        "not-evaluated": 0,
+    }
+    assert before["severity"] == {"high": 3, "medium": 2, "low": 2, "info": 0}
+    assert sum(before["state"].values()) == sum(before["severity"].values()) == 7
+    # only the matching entries: the canary on DEVICE and the policy finding on THIRD_DEVICE
+    assert after["state"] == {
+        STATE_NEW: 2,
+        STATE_OPEN_KNOWN: 0,
+        STATE_SUPPRESSED: 0,
+        STATE_GONE: 0,
+        "not-evaluated": 0,
+    }
+    assert after["severity"] == {"high": 2, "medium": 0, "low": 0, "info": 0}
+    assert summary["total_matching"] == 2
+    # a filter that matches nothing still says how much there was to choose from
+    nothing = _summary(populated, severity="info")
+    assert nothing["total_matching"] == 0
+    assert nothing["items"] == ()
+    assert nothing["counts_before_filter"] == before
+
+
+def test_findings_summary_refuses_an_unknown_rule_id_like_other_invalid_input(populated):
+    with pytest.raises(query.QueryError, match="the catalog holds no rule"):
+        _summary(populated, rule_id="fortios.no.such.rule")
+    with pytest.raises(query.QueryError, match="rule_id must be a non-empty string"):
+        _summary(populated, rule_id="")
+    with pytest.raises(query.QueryError, match="severity must be one of"):
+        _summary(populated, severity="critical")
+    with pytest.raises(query.QueryError, match="state must be one of"):
+        _summary(populated, state="open")
+    with pytest.raises(query.QueryError, match="now must be"):
+        query.findings_summary(populated.store, TENANT, SUMMARY_RULES)
+    # a rule of the catalog without any finding is a valid, empty filter
+    assert _summary(populated, rule_id=RULE_WAN, state=STATE_NEW)["total_matching"] == 0
+
+
+def test_findings_summary_honours_an_active_and_ignores_an_expired_suppression(populated):
+    active = _summary(populated, suppressions=(suppression(populated.loose),), suppressions_configured=True)
+    states = {item["fingerprint"]: item["state"] for item in active["items"]}
+    assert states[populated.loose.fingerprint()] == STATE_SUPPRESSED
+    assert active["counts_before_filter"]["state"][STATE_SUPPRESSED] == 1
+    assert active["suppressions_configured"] is True
+    only = _summary(populated, suppressions=(suppression(populated.loose),), state=STATE_SUPPRESSED)
+    assert tuple(item["fingerprint"] for item in only["items"]) == (populated.loose.fingerprint(),)
+    expired = _summary(
+        populated,
+        suppressions=(suppression(populated.loose, expires=NOW - timedelta(hours=1)),),
+        suppressions_configured=True,
+    )
+    states = {item["fingerprint"]: item["state"] for item in expired["items"]}
+    assert states[populated.loose.fingerprint()] == STATE_NEW
+    assert expired["counts_before_filter"]["state"][STATE_SUPPRESSED] == 0
+    assert expired["suppressions_configured"] is True
+    foreign = _summary(populated, suppressions=(suppression(populated.loose, device=SECOND_DEVICE),))
+    states = {item["fingerprint"]: item["state"] for item in foreign["items"]}
+    assert states[populated.loose.fingerprint()] == STATE_NEW
+    assert _summary(populated)["suppressions_configured"] is False
+
+
+def test_findings_summary_carries_no_evidence_section_or_line(populated):
+    summary = _summary(populated)
+    assert set(summary) == set(query.SUMMARY_KEYS)
+    assert summary["items"]
+    for item in summary["items"]:
+        assert set(item) == set(query.SUMMARY_ITEM_KEYS)
+    keys = collected_keys(summary)
+    for name in ("evidence", "section", "line", "rule_status", "rule_version", "class"):
+        assert name not in keys
+    assert not keys & FORBIDDEN_KEYS
+    assert CANARY_EVIDENCE not in blob(summary)
+    assert CANARY_SOURCE not in blob(summary)
+
+
+def test_findings_summary_does_not_cross_tenants(populated):
+    summary = _summary(populated, limit=200)
+    assert OTHER_CANARY not in blob(summary)
+    assert populated.stranger.fingerprint() not in {item["fingerprint"] for item in summary["items"]}
+    foreign = query.findings_summary(populated.store, OTHER_TENANT, SUMMARY_RULES, now=NOW)
+    assert tuple(item["fingerprint"] for item in foreign["items"]) == (populated.stranger.fingerprint(),)
+
+
+def test_findings_summary_keeps_a_deterministic_order(populated):
+    _third_device(populated)
+    items = _summary(populated)["items"]
+    order = {"high": 0, "medium": 1, "low": 2, "info": 3}
+    keys = [(item["device"], order[item["severity"]], item["rule_id"], item["object_key"]) for item in items]
+    assert keys == sorted(keys)
+    assert items[0]["device"] == DEVICE
+    assert items[0]["severity"] == "high"
+    assert items[-1]["device"] == THIRD_DEVICE
+    assert items == _summary(populated)["items"]
+
+
+def test_findings_summary_reports_not_evaluated_like_list_findings(store):
+    first, carried, plain, gone = _skipped_history(store)
+    rules = (make_rule(RULE_DANGLING), make_rule("exos.port.optional"), make_rule(RULE_WAN, severity="medium"))
+    summary = query.findings_summary(store, TENANT, rules, now=NOW)
+    listing = query.list_findings(store, TENANT, DEVICE, now=NOW)
+    states = {item["fingerprint"]: item["state"] for item in summary["items"]}
+    assert states == {
+        plain.fingerprint(): STATE_NEW,
+        carried.fingerprint(): "not-evaluated",
+        gone.fingerprint(): STATE_GONE,
+    }
+    assert summary["counts_before_filter"]["state"]["not-evaluated"] == 1
+    only = query.findings_summary(store, TENANT, rules, now=NOW, state="not-evaluated")
+    expected = query.list_findings(store, TENANT, DEVICE, now=NOW, state="not-evaluated")
+    assert only["total_matching"] == expected["total"] == 1
+    assert listing["total"] == summary["total_matching"]
+
+
+def test_findings_summary_of_an_empty_store_is_empty(store):
+    summary = query.findings_summary(store, TENANT, SUMMARY_RULES, now=NOW)
+    assert summary["items"] == ()
+    assert summary["total_matching"] == summary["returned"] == 0
+    assert summary["truncated"] is False
+    assert summary["counts_before_filter"] == summary["counts_after_filter"]
+    unknown = query.findings_summary(store, TENANT, SUMMARY_RULES, device="fw-z.example.invalid", now=NOW)
+    assert unknown["items"] == ()
+
+
+def test_suppressions_configured_is_an_optional_key_of_status_and_listing(populated):
+    plain_status = query.audit_status(populated.store, TENANT, now=NOW)
+    plain_listing = query.list_findings(populated.store, TENANT, DEVICE, now=NOW)
+    assert set(plain_status) == set(query.STATUS_KEYS)
+    assert set(plain_listing) == set(query.LISTING_KEYS)
+    for flag in (False, True):
+        status = query.audit_status(populated.store, TENANT, now=NOW, suppressions_configured=flag)
+        listing = query.list_findings(populated.store, TENANT, DEVICE, now=NOW, suppressions_configured=flag)
+        never = query.list_findings(populated.store, TENANT, SECOND_DEVICE, now=NOW, suppressions_configured=flag)
+        assert status.pop("suppressions_configured") is flag
+        assert listing.pop("suppressions_configured") is flag
+        assert never.pop("suppressions_configured") is flag
+        assert status == plain_status
+        assert listing == plain_listing

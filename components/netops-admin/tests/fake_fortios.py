@@ -56,7 +56,7 @@ class FakeFortiOS:
         self.check_unreadable = False
         self.policies = {"1": {"dstaddr": "srv-web"}}
         self.interfaces = ["port1", "port2", "wan1"]
-        self.services = ["HTTP", "HTTPS"]
+        self.services = {"HTTP": {}, "HTTPS": {}}
         self.snapshot_extra = []
         self.policy_hidden = {"status": "enable", "action": "deny"}
         self.policy_front = False
@@ -130,13 +130,16 @@ class FakeFortiOS:
                             self.policies[current] = entry
                 if section == "firewall address" and current not in self.addresses:
                     self.addresses[current] = {"uuid": self._uuid()}
+                elif section == "firewall service custom" and current not in self.services:
+                    self.services[current] = {"uuid": self._uuid()}
                 elif section == "system automation-stitch":
                     owner = current
                     self.stitches.setdefault(current, {"trigger": None, "action": None})
             elif command == "next":
                 current = None
             elif command == "delete":
-                target = {"firewall policy": self.policies, "firewall address": self.addresses, "system automation-action": self.actions,
+                target = {"firewall policy": self.policies, "firewall address": self.addresses,
+                          "firewall service custom": self.services, "system automation-action": self.actions,
                           "system automation-trigger": self.triggers, "system automation-stitch": self.stitches}[section]
                 target.pop(tokens[1], None)
                 self.fired.discard(tokens[1])
@@ -158,6 +161,10 @@ class FakeFortiOS:
                     self.addresses[current][tokens[1]] = " ".join(tokens[2:])
             elif command == "unset" and section == "firewall address":
                 self.addresses[current].pop(tokens[1], None)
+            elif command == "set" and section == "firewall service custom":
+                self.services[current][tokens[1]] = " ".join(tokens[2:])
+            elif command == "unset" and section == "firewall service custom":
+                self.services[current].pop(tokens[1], None)
             elif command == "set" and section == "system automation-trigger" and tokens[1] == "trigger-type":
                 self.trigger_types[current] = tokens[2]
             elif command == "set" and section == "system automation-trigger" and tokens[1] == "trigger-datetime":
@@ -192,7 +199,7 @@ class FakeFortiOS:
         lines.append("end")
         lines.append("config firewall service custom")
         for name in self.services:
-            lines += ['    edit "%s"' % name, "    next"]
+            lines += self._service_lines(name)
         lines.append("end")
         lines += self.snapshot_extra
         lines.append("config firewall policy")
@@ -269,6 +276,8 @@ class FakeFortiOS:
         key = command.split('"')[1]
         if command.startswith("show firewall policy"):
             return self._policy_show(key)
+        if command.startswith("show firewall service custom"):
+            return self._service_show(key)
         attributes = self.addresses.get(key)
         if self.check_override is not None and key in self.check_override:
             attributes = self.check_override[key]
@@ -280,6 +289,17 @@ class FakeFortiOS:
                 value = attributes[name]
                 lines.append("        set %s %s" % (name, quoted(value) if name == "comment" else value))
         return "\n".join(lines + ["    next", "end", ""])
+
+    def _service_lines(self, name):
+        lines = ['    edit "%s"' % name]
+        for key, value in self.services[name].items():
+            lines.append("        set %s %s" % (key, quoted(value) if key == "comment" else value))
+        return lines + ["    next"]
+
+    def _service_show(self, key):
+        if key not in self.services:
+            return "entry is not found in table\n"
+        return "\n".join(["FortiGate-60F $ config firewall service custom"] + self._service_lines(key) + ["end", ""])
 
     def _policy_show(self, key):
         attributes = self.policies.get(key)

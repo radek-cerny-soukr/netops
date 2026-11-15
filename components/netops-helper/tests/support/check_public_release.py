@@ -7,6 +7,7 @@ import argparse
 import ast
 import hashlib
 import importlib.util
+import io
 import json
 import os
 from pathlib import Path, PurePosixPath
@@ -16,6 +17,7 @@ import subprocess
 import tempfile
 import sys
 import tomllib
+import tokenize
 from typing import Any
 
 if __name__ == "__main__":
@@ -254,9 +256,21 @@ def _diagnostic_vdom_allowed(tree: ast.AST) -> bool:
     if any(isinstance(n.func, ast.Attribute) and isinstance(n.func.value, ast.Name)
            and n.func.value.id == "shell" and n.func.attr == "navigate" for n in calls):
         return False
+    # 1.0.9 item 11 (measured on the 60F 7.6.8): only the sessions recipe of a multi-VDOM session enters the
+    # context of the verified session VDOM, after the VDOM guards and before the interface owner is read, and
+    # enter_vdom answers only for a `current vf=<vdom>:<index>` marker checked by context_index.
+    context_assign = ast.dump(ast.parse(
+        'context = enter_vdom(shell, domain) if mode == "multiple" and recipe == "sessions" else None').body[0])
+    contexts = [n for n in ast.walk(run) if isinstance(n, ast.Assign) and ast.dump(n) == context_assign]
+    entered = [n for n in calls if isinstance(n.func, ast.Name) and n.func.id == "enter_vdom"
+               and n.args and isinstance(n.args[0], ast.Name) and n.args[0].id == "shell"]
+    enter = functions.get("enter_vdom")
+    marker = enter is not None and any(isinstance(n, ast.Call) and isinstance(n.func, ast.Name)
+                                       and n.func.id == "context_index" for n in ast.walk(enter))
     return (len(measured) == len(unscoped) == len(vdom_foreign) == len(reported) == len(unknown) == len(foreign) == len(status) == 1
+            and len(contexts) == len(entered) == 1 and marker
             and status[0].lineno < measured[0].lineno < unscoped[0].lineno < vdom_foreign[0].lineno
-            < reported[0].lineno < unknown[0].lineno < foreign[0].lineno)
+            < contexts[0].lineno < reported[0].lineno < unknown[0].lineno < foreign[0].lineno)
 
 
 def _diagnostic_wrapper_allowed(tree: ast.AST) -> bool:
@@ -286,6 +300,32 @@ def _diagnostic_calls_ordered(function: ast.FunctionDef, expected: dict) -> bool
                     return False
                 found[name]=call.lineno
     return set(found)==set(expected) and list(found[name] for name in expected)==sorted(found.values())
+
+
+def _catalog_code_text(source: str, tree: ast.Module) -> str:
+    """Preserve code spelling and positions while masking comments and docstrings."""
+    lines = source.splitlines(keepends=True)
+
+    def position(line: int, byte_column: int) -> tuple[int, int]:
+        return line, len(lines[line - 1].encode("utf-8")[:byte_column].decode("utf-8"))
+
+    docstrings = []
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)):
+            if (node.body and isinstance(node.body[0], ast.Expr)
+                    and isinstance(node.body[0].value, ast.Constant)
+                    and isinstance(node.body[0].value.value, str)):
+                value = node.body[0].value
+                docstrings.append((position(value.lineno, value.col_offset),
+                                   position(value.end_lineno, value.end_col_offset)))
+    tokens = []
+    for token in tokenize.generate_tokens(io.StringIO(source).readline):
+        if token.type == tokenize.COMMENT or any(
+            start <= token.start and token.end <= end for start, end in docstrings
+        ):
+            token = token._replace(string=re.sub(r"[^\r\n]", " ", token.string))
+        tokens.append(token)
+    return tokenize.untokenize(tokens).lower()
 
 
 def _phase1_surface_errors(root: Path) -> list[str]:
@@ -333,11 +373,13 @@ def _phase1_surface_errors(root: Path) -> list[str]:
 
     source_texts: dict[Path, str] = {}
     source_trees: dict[Path, ast.Module] = {}
+    catalog_texts: dict[Path, str] = {}
     try:
         for source_path in source_paths:
             source_text = source_path.read_text(encoding="utf-8")
             source_texts[source_path] = source_text.lower()
             source_trees[source_path] = ast.parse(source_text)
+            catalog_texts[source_path] = _catalog_code_text(source_text, source_trees[source_path])
     except (OSError, UnicodeError, SyntaxError):
         return ["phase-1 surface sources are unavailable or invalid"]
 
@@ -461,21 +503,33 @@ def _phase1_surface_errors(root: Path) -> list[str]:
         "save" + "_config",
         "config" + "_mode",
     )
+    config_read_allowances = {
+        ("src/netops_helper/config_arista_eos_adapter.py", "show running-config"): 1,
+        ("src/netops_helper/config_cisco_nxos_adapter.py", "show running-config"): 1,
+        ("src/netops_helper/config_cisco_xe_adapter.py", "show running-config"): 1,
+        ("src/netops_helper/config_indented.py", "show running-config"): 1,
+        ("src/netops_helper/config_cisco_ios_adapter.py", "show running-config"): 1,
+        ("src/netops_helper/config_exos_adapter.py", "show configuration"): 1,
+        ("src/netops_helper/config_fortiadc.py", "show full-configuration"): 2,
+        ("src/netops_helper/config_fortios.py", "show full-configuration"): 1,
+    }
     for source_path in source_paths:
         relative = source_path.relative_to(root).as_posix()
         source_text = source_texts[source_path]
+        catalog_text = catalog_texts[source_path]
         if relative == "src/netops_helper/engine.py" and _schema_snapshot_allowed(source_trees[source_path]):
             function=next(n for n in source_trees[source_path].body if isinstance(n,ast.FunctionDef) and n.name=="schema_read")
-            lines=source_text.splitlines(keepends=True)
+            lines=catalog_text.splitlines(keepends=True)
             bounded="".join(lines[function.lineno-1:function.end_lineno])
-            if bounded.count("show full-configuration")==1 and source_text.count("show full-configuration")==1:
-                source_text=source_text.replace("show full-configuration","[bounded schema snapshot]",1)
+            if bounded.count("show full-configuration")==1 and catalog_text.count("show full-configuration")==1:
+                catalog_text=catalog_text.replace("show full-configuration","[bounded schema snapshot]",1)
         if relative == "src/netops_helper/fortios_diagnostics.py" and _diagnostic_vdom_allowed(source_trees[source_path]):
             interface_token='show full-configuration system interface "'
-            if source_text.count("show full-configuration")==1:
-                source_text=source_text.replace(interface_token,"[verified interface owner]"+chr(34),1)
+            if catalog_text.count("show full-configuration")==1:
+                catalog_text=catalog_text.replace(interface_token,"[verified interface owner]"+chr(34),1)
         for pattern in forbidden_catalog_patterns:
-            if pattern in source_text:
+            count = catalog_text.count(pattern)
+            if count and count != config_read_allowances.get((relative, pattern)):
                 errors.append(
                     "phase-1 source contains configuration export pattern: "
                     f"{relative}: {pattern}"

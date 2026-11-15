@@ -168,6 +168,8 @@ def test_proxy_injects_only_explicit_enrolled_targets(tmp_path, monkeypatch):
     from netops_helper.endpoint_worker import decode
     auths = decode(args['targets'], args['auth_context'])
     assert [a.alias for a in auths] == ['device-a', 'device-b']
+    # No REST enrolment: no token is injected and the worker cap is the reserved plan.
+    assert [(a.fortios_rest_token, a.locate_read_limit) for a in auths] == [(None, 7), (None, 7)]
     assert len(proxy.rate_history['device-a']) == 7
     assert len(proxy.rate_history['device-b']) == 7
     assert proxy.request(c._request(2, 'locate_endpoint', {'targets': ['unknown'], 'endpoint': MAC})) is None

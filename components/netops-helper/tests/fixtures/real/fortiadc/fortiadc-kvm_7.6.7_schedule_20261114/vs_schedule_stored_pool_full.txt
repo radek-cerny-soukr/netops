@@ -1,0 +1,52 @@
+FortiADC-KVM # config load-balance virtual-server
+  edit "netops-173-vs"
+    set status enable
+    set type l7-load-balance
+    set multi-process 1
+    set interface port2
+    set addr-type ipv4
+    set ip 192.0.2.10
+    set public-ip-type ipv4
+    set public-ip 0.0.0.0
+    set port 8173 
+    set protocol-numbers 0 
+    set connection-limit 0
+    set load-balance-profile LB_PROF_HTTP
+    unset dos-profile
+    unset client-ssl-profile
+    set content-rewriting disable
+    set schedule-list enable
+    set content-routing disable
+    unset load-balance-persistence
+    set load-balance-method LB_METHOD_ROUND_ROBIN
+    unset connection-pool
+    set schedule-pool-list netops-173-sp-a netops-173-sp-b 
+    unset ippool-list
+--More--              set traffic-log disable
+    set alone enable
+    set warm-up 0
+    set warm-rate 100
+    unset error-page
+    set error-msg Server-unavailable!
+    set trans-rate-limit 0
+    unset waf-profile
+    unset auth-policy
+    set scripting-flag disable
+    unset pagespeed
+    unset comments
+    set ssl-mirror disable
+    unset traffic-group
+    set fortiview disable
+    set http2https-port 80 
+    set max-persistence-entries 262144
+    unset av-profile
+    unset clone-pool
+    set clone-traffic-type both-sides
+    set wccp disable
+    set one-click-gslb-server-option disable
+    set stream-scripting-flag disable
+    set ingress-tag 0
+--More--            next
+end
+
+FortiADC-KVM # 

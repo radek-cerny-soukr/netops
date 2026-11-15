@@ -46,9 +46,14 @@ class HelperRedactionContract(unittest.TestCase):
         self.assertEqual(redact(Text("password:canary")),"password:<REDACTED>")
 
     def test_ssh_read_applies_the_existing_size_cap_after_redaction(self):
-        auth=types.SimpleNamespace(alias="synthetic",secrets=(),output_secrets=(),redaction_secrets=())
+        # read_inventory: TargetAuth always carries it (auth.py, default {}); 168e2a5 reads it for the VDOM scope.
+        auth=types.SimpleNamespace(alias="synthetic",secrets=(),output_secrets=(),redaction_secrets=(),read_inventory={})
         pem="-----BEGIN PRIVATE KEY-----\n"+"x"*2_000_001+"\n-----END PRIVATE KEY-----"
-        status="Version: FortiGate-VM64-KVM v7.6.7,build3704,release\n"
+        # Identity plus the VDOM lines of a real no-VDOM status (helper fixtures real/fortios/fg60f_7.6.8_ipv6_20261114/
+        # 01-version.txt lines 29-32); without them the read is refused as vdom_unverified (168e2a5) before the cap.
+        status=("Version: FortiGate-VM64-KVM v7.6.7,build3704,release\nCurrent virtual domain: root\n"
+                "Max number of virtual domains: 10\nVirtual domains status: 1 in NAT mode, 0 in TP mode\n"
+                "Virtual domain configuration: disable\n")
         reader=lambda body:lambda target,platform,command:(0,status if command=="get system status" else body)
         with patch.object(engine,"_ssh_read_state",
                           return_value=("fortinet","show system status",("synthetic",))), \

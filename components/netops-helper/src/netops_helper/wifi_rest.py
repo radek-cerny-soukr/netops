@@ -185,9 +185,18 @@ def _resolve_addresses(auth, remaining):
                 pipe.close()
 
 
-def get(auth, path, *, method="GET", addresses=None):
-    """Authenticate TLS before sending the bearer; never follow redirects or use ambient proxies."""
-    deadline = time.monotonic() + TIMEOUT
+def get(auth, path, *, method="GET", addresses=None, budget_seconds=None):
+    """Authenticate TLS before sending the bearer; never follow redirects or use ambient proxies.
+
+    `budget_seconds` (optional) is what remains of a caller's shared deadline; it can only
+    shorten this request, never extend it beyond TIMEOUT.
+    """
+    seconds = TIMEOUT
+    if budget_seconds is not None:
+        if type(budget_seconds) not in (int, float) or not math.isfinite(budget_seconds):
+            raise ValueError("budget_seconds must be a finite number of seconds")
+        seconds = max(0.0, min(TIMEOUT, budget_seconds))
+    deadline = time.monotonic() + seconds
     def remaining():
         seconds = deadline - time.monotonic()
         if seconds <= 0:

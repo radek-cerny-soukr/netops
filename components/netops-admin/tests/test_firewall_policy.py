@@ -433,3 +433,22 @@ def test_value_requires_must_name_a_later_attribute():
         profiles.parse_profile(data)
     data["value_requires"] = {"action": {"deny": ["logtraffic"]}}
     assert profiles.parse_profile(data).value_requires == {"action": {"deny": ("logtraffic",)}}
+
+
+def test_undo_preview_of_a_created_policy_plans_the_delete_of_the_undo_ops(tmp_path):
+    device = FakeFortiOS()
+    rt = runtime(tmp_path, device)
+    record = execute.apply(rt, "lab", policy())
+    assert record["result"] == "confirmed"
+    plain = execute.preview(rt, "lab", policy(op="delete", changes={}, request_id="req-plain-delete"))
+    assert plain["result"] == "rejected"
+    assert any("operation delete is not enabled" in reason for reason in plain["reasons"])
+    blocks = len(device.applied_blocks)
+    ahead = execute.preview_undo(rt, record["change_id"], "investigated")
+    assert ahead["result"] == "ready", ahead["reasons"]
+    assert ahead["op"] == "delete" and ahead["key"] == "9001" and ahead["table"] == "firewall policy"
+    assert ahead["undo_of"] == record["change_id"] and ahead["request_id"] == "undo-%s" % record["change_id"]
+    assert ahead["predicted"]["after"] is None or ahead["predicted"]["after"] == {}
+    assert "9001" in device.policies and len(device.applied_blocks) == blocks
+    back = execute.undo(rt, record["change_id"], "investigated")
+    assert back["result"] == "confirmed" and "9001" not in device.policies

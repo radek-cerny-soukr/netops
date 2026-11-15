@@ -1,0 +1,10 @@
+FortiGate-60F # 
+Routing table for VRF=0
+Routing entry for ::1/128
+  Known via "connected", distance 0, metric 0, best
+  Last update 01w2d02h ago
+  * directly connected, root
+
+
+
+FortiGate-60F # 

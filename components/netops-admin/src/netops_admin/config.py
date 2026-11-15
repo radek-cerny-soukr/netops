@@ -20,7 +20,7 @@ DEVICE_FIELDS = frozenset((
     "safeguard_seconds", "confirm_margin_seconds", "protected", "legacy_ssh", "accounts", "check_credential",
     "check_address", "audit_policy", "schema", "opt_in",
 ))
-OPT_IN_TABLES = ("firewall policy",)
+OPT_IN_TABLES = ("firewall policy", "firewall service custom")
 NOTIFY_FIELDS = frozenset(("server", "topic_file", "timeout_seconds", "x509_strict"))
 DEFAULT_LIMITS = {
     "export_max_pending": 1000, "export_max_age_seconds": 900, "export_status_max_age_seconds": 120,
@@ -115,8 +115,9 @@ def _device(name, data) -> Device:
     _require(isinstance(opt_in, list) and all(isinstance(item, str) and item in OPT_IN_TABLES for item in opt_in)
              and len(set(opt_in)) == len(opt_in), "device %s opt_in must list distinct opt-in tables" % name,
              field='config.devices[].opt_in', code='opt-in')
-    _require("firewall policy" not in opt_in or data["platform"] == "fortios",
-             "device %s: firewall policy is a FortiOS table" % name, field='config.devices[].opt_in', code='opt-in')
+    for table in opt_in:
+        _require(data["platform"] == "fortios", "device %s: %s is a FortiOS table" % (name, table),
+                 field='config.devices[].opt_in', code='opt-in')
     _require("firewall policy" not in opt_in or protected.get("system interface"),
              "device %s: firewall policy changes need protected system interface" % name,
              field='config.devices[].protected', code='required')

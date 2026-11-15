@@ -14,6 +14,7 @@ from .query_catalog import READ_QUERIES
 from .read_policy import _validate_slot
 from . import port_vlan
 from . import switch_managed, fortiswitch_ports
+from . import route_ipv6 as _route_ipv6
 
 FIELDS = {
     'interface': ('name', 'description', 'admin_status', 'oper_status', 'speed', 'vlan_id', 'trunk', 'mac', 'mtu'),
@@ -158,6 +159,12 @@ def parse(profile, table, query, text, *, rc=0, status=None, filters=None, comma
     if command is None and entry is not None and not entry.slots:
         command = entry.command
     state = status or output_status(text, rc=rc, profile=profile, command=command)
+    blank_lookup = (profile, table, query) in _route_ipv6.QUERIES and (
+        state == 'empty' or state == 'ok' and _route_ipv6.blank(text))
+    if blank_lookup:
+        # A blank capture, or one holding only the prompt framing, is not the recognized
+        # "% Network not in table" answer: no route is shown.
+        state = 'unparsed'
     if table == 'interface_errors':
         state = _port_errors.output_state(profile, query, text, state, rc)
     refusal_states = {'permission_denied', 'unsupported', 'not_applicable'}
@@ -202,6 +209,8 @@ def parse(profile, table, query, text, *, rc=0, status=None, filters=None, comma
         result['warnings'].append('fields_absent_in_catalogue_output')
     if unknown:
         result['warnings'].append('unrecognized_output_lines')
+    if blank_lookup:
+        result['warnings'].append('blank_output_not_a_route_answer')
     hint = refusal_hint(profile, text, command=command) if state == 'permission_denied' else None
     if hint:
         result['hint'] = hint
@@ -1885,10 +1894,11 @@ def fortinet(table, text):
 
 
 BINDINGS['fortinet'] = {'neighbor_l3': 'arp_table', 'neighbor_l3_v6': 'ipv6_neighbors', 'route': 'route_lookup',
-                        'route_all': 'routing_table', **switch_managed.TABLES}
+                        'route_v6': 'ipv6_route_lookup', 'route_all': 'routing_table', **switch_managed.TABLES}
 from . import fortigate_tables  # noqa: E402
 fortigate_tables.register(QUERY_PARSERS)
 QUERY_PARSERS[('fortinet', 'route', 'route_lookup')] = lambda table, text: switch_managed.routes(table, text, lookup=True)
+QUERY_PARSERS[('fortinet', 'route', 'ipv6_route_lookup')] = _route_ipv6.routes
 PARSERS['fortinet'] = switch_managed.parse
 
 for _profile, _query in port_vlan.BINDINGS.items():

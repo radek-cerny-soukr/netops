@@ -58,7 +58,7 @@ def test_admin_busy_target_refuses_before_snapshot_or_write(tmp_path, monkeypatc
     isolated(monkeypatch, tmp_path)
     device = SimpleNamespace(name="different-admin-alias", platform="fortios",
                              host_key_fingerprint=PIN)
-    runtime = SimpleNamespace(store=Store(tmp_path / "admin"))
+    runtime = SimpleNamespace(store=Store(tmp_path / "admin"), simulate_unmeasured_profiles=False)
     request = SimpleNamespace(request_id="lock-test", table="firewall address",
                               fingerprint=lambda: "test-fingerprint")
     monkeypatch.setattr(execute, "_target", lambda *args: device)

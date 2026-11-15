@@ -286,12 +286,12 @@
         "records": [
           {
             "port": "nic0",
-            "type": null,
+            "type": "dynamic",
             "vlan_id": null
           },
           {
             "port": "nic0",
-            "type": null,
+            "type": "dynamic",
             "vlan_id": null
           },
           {
@@ -446,7 +446,7 @@
           },
           {
             "port": "tap220i0",
-            "type": null,
+            "type": "dynamic",
             "vlan_id": null
           },
           {
@@ -491,7 +491,7 @@
           },
           {
             "port": "tap220i2",
-            "type": null,
+            "type": "dynamic",
             "vlan_id": null
           },
           {
@@ -556,7 +556,7 @@
           },
           {
             "port": "tap207i0",
-            "type": null,
+            "type": "dynamic",
             "vlan_id": null
           },
           {
@@ -581,7 +581,7 @@
           },
           {
             "port": "tap201i0",
-            "type": null,
+            "type": "dynamic",
             "vlan_id": null
           },
           {
@@ -606,7 +606,7 @@
           },
           {
             "port": "tap201i1",
-            "type": null,
+            "type": "dynamic",
             "vlan_id": null
           },
           {

@@ -116,7 +116,7 @@ def _operations(platform, firmware) -> dict:
         except Rejected:
             tables[table] = "not measured on this firmware"
         else:
-            tables[table] = " ".join(profile.ops)
+            tables[table] = profile.action or " ".join(profile.ops)
     return tables
 
 

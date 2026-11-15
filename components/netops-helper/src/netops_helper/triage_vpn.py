@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import re
 
-from .triage_health import missing_read, Unparsed, UnsupportedPlatform, _lines, _utc, identity
+from .triage_health import (missing_read, Unparsed, UnsupportedPlatform, _lines, _utc, identity, in_vdom, vdom_fields,
+                           vdom_scope)
 
 STEPS = (
     ("identity", "system_status"),
@@ -141,11 +142,16 @@ def run(read, clock, tunnel):
     if not first.get("ok"):
         raise UnsupportedPlatform("config_platform_not_supported: the identity read failed")
     ident = identity(first["text"])
+    scope = vdom_scope(first["text"])
     for _, query in STEPS[1:]:
         moment = clock()
         answer = read(query)
         if not answer.get("ok"):
             missing.append(missing_read(query, answer))
+            continue
+        if not in_vdom(scope, answer):
+            # Multi-VDOM: a tunnel list of another or an unverified VDOM is no evidence for this VDOM.
+            missing.append({"step": query, "reason": "vdom_unverified"})
             continue
         if not answer["text"].strip() and query != "ipsec_summary":
             missing.append({"step": query, "reason": "empty"})
@@ -166,6 +172,11 @@ def run(read, clock, tunnel):
         routes = [item for item in parsed["routing_table"] if _instance(item["interface"], tunnel)]
         routes = [item for number, item in enumerate(routes) if item not in routes[:number]]
     findings = findings_for(tunnel, instances, routes, sources)
+    if scope and scope["vdom_mode"] == "multiple":
+        for item in findings:
+            if item["id"] == "F-VPN-NOT-FOUND":
+                # Measured: the summary lists only the tunnels of the current VDOM.
+                item["fact"] += " in VDOM " + str(scope["vdom"])
     if missing:
         verdict = "incomplete"
     elif any(item["severity"] == "fault" for item in findings):
@@ -176,6 +187,8 @@ def run(read, clock, tunnel):
         "ok": True,
         "tunnel": tunnel,
         "identity": ident,
+        **vdom_fields(scope),
+        "current_vdom": scope["vdom"] if scope else None,
         "started_at": _utc(started),
         "finished_at": _utc(clock()),
         "chain": {"tunnel": {"name": tunnel, "instances": instances}, "routes": routes,

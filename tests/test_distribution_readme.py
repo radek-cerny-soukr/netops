@@ -22,13 +22,13 @@ class DistributionReadmeTest(unittest.TestCase):
             self.assertEqual(set(downloads), {version})
             self.assertIn(f'netops-{version}-SHA256SUMS.sigstore.json', document)
             self.assertIn(f'netops-{version}-SHA256SUMS', document)
-        self.assertIn('a 1.0.7 instance', readme)
-        self.assertIn('"upgrade":{"from":"1.0.7","to":"1.0.8"}', guide)
+        self.assertIn('a 1.0.8 instance', readme)
+        self.assertIn('"upgrade":{"from":"1.0.8","to":"1.0.9"}', guide)
         self.assertIn('No inventory or credential changes are required', guide)
         self.assertIn('lookup_prefixes', guide)
         self.assertIn('keyboard-interactive', guide)
         self.assertIn('five-second', guide)
-        self.assertIn('netops-108', guide)
+        self.assertIn('netops-109', guide)
 
     def test_current_release_documents_page_boundary_security_fix(self):
         root = Path(__file__).resolve().parents[1]
@@ -63,7 +63,7 @@ class DistributionReadmeTest(unittest.TestCase):
         self.assertIn(f'the tool count of step 9 is then `{without_admin}` instead of `{total}`', guide)
         tools = (root / 'components/netops-helper/docs/tools.md').read_text()
         self.assertIn(f'It exposes {helper} Helper tool names', tools)
-        self.assertEqual((helper, auditor, admin), (26, 7, 6))
+        self.assertEqual((helper, auditor, admin), (26, 8, 7))
 
     def test_normalized_coverage_matrix_and_legend_stay_consistent(self):
         root = Path(__file__).resolve().parents[1]

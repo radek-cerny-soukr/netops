@@ -25,7 +25,9 @@ DST = "203.0.113.88"
 NOW = datetime(2026, 11, 8, 12, 0, 0, tzinfo=timezone.utc)
 # built at run time: the source privacy gate accepts multicast literals only where it lists them
 MULTICAST = str(ipaddress.IPv4Address(0xE0000001))
-FLOW = {"src": SRC, "dst": DST, "port": 443, "proto": "tcp"}
+# the lookups of this module are the explicit source port 40000 (the former fixed probe port), never an implied one
+FLOW = {"src": SRC, "dst": DST, "port": 443, "proto": "tcp", "source_port": 40000}
+UNKNOWN_PORT_FLOW = {**FLOW, "source_port": None}
 
 
 def live(name):
@@ -86,7 +88,8 @@ def ids(items):
 # ---- input checks -------------------------------------------------------------------------------------------------
 
 def test_validate_returns_the_checked_flow():
-    assert t.validate(SRC, DST, 443, "tcp") == FLOW
+    assert t.validate(SRC, DST, 443, "tcp", 40000) == FLOW
+    assert t.validate(SRC, DST, 443, "tcp") == UNKNOWN_PORT_FLOW
     assert t.validate(SRC, DST, 1, "icmp")["proto"] == "icmp"
 
 
@@ -177,7 +180,7 @@ def test_sessions_report_at_most_five_but_count_all():
     assert result["matching"] == 7 and len(result["sessions"]) == 5 and result["complete"] is True
 
 
-UDP_FLOW = {"src": SRC, "dst": "203.0.113.53", "port": 53, "proto": "udp"}
+UDP_FLOW = {"src": SRC, "dst": "203.0.113.53", "port": 53, "proto": "udp", "source_port": 40640}
 
 
 def test_sessions_parse_the_live_80f_read_with_the_source_port_open():
@@ -250,9 +253,11 @@ def test_live_sessions_of_another_tuple_are_not_counted_and_flag_the_read():
 
 
 def test_live_session_text_gives_allowed_and_session_seen():
-    result, _, session_calls = run(outputs(), UDP_FLOW, sessions=answer(live("session_seen")))
+    # the first session of the capture (source port 40640) as the device lists it for a filter with that sport
+    one = live("session_seen").split("\nsession info:")[0] + "\ntotal session: 1\n"
+    result, _, session_calls = run(outputs(), UDP_FLOW, sessions=answer(one))
     assert result["verdict"] == "allowed_and_session_seen" and session_calls == ["LAN-test"]
-    assert result["chain"]["session"]["matching"] == 2 and result["missing"] == []
+    assert result["chain"]["session"]["matching"] == 1 and result["missing"] == []
     assert result["chain"]["session"]["sessions"][0]["nat"]["action"] == "snat"
 
 
@@ -270,7 +275,8 @@ def test_live_session_text_that_was_not_filtered_to_the_flow_is_incomplete():
 
 # ---- the chain on the live fixtures --------------------------------------------------------------------------------
 
-SEEN = {"ok": True, "text": SESSION_BLOCK + "total session: 1\n", "content_sha256": "a" * 64}
+# the session of the flow from the explicit source port 40000 of FLOW
+SEEN = {"ok": True, "text": SESSION_BLOCK.replace("40640", "40000") + "total session: 1\n", "content_sha256": "a" * 64}
 NONE = {"ok": True, "text": "total session: 0\n", "content_sha256": "b" * 64}
 
 
@@ -342,7 +348,7 @@ def test_explicit_deny_policy_is_denied_by_policy():
 
 
 def test_lan_to_the_local_network_uses_the_connected_route_beside_a_bgp_route():
-    flow = {"src": SRC, "dst": "198.51.100.110", "port": 22, "proto": "tcp"}
+    flow = {"src": SRC, "dst": "198.51.100.110", "port": 22, "proto": "tcp", "source_port": 40000}
     result, calls, _ = run(outputs(route_dst=live("route_dst_local")), flow, sessions=NONE)
     assert result["verdict"] == "allowed_no_session"
     assert result["chain"]["egress"]["interfaces"] == ["wan1"]
@@ -351,13 +357,13 @@ def test_lan_to_the_local_network_uses_the_connected_route_beside_a_bgp_route():
 
 
 def test_flow_to_a_directly_connected_network_through_another_interface():
-    flow = {"src": SRC, "dst": "203.0.113.2", "port": 22, "proto": "tcp"}
+    flow = {"src": SRC, "dst": "203.0.113.2", "port": 22, "proto": "tcp", "source_port": 40000}
     result, _, _ = run(outputs(route_dst=live("route_dst_wan2"), policy_lookup=live("policy_nomatch")), flow)
     assert result["verdict"] == "denied_by_policy" and result["chain"]["egress"]["interfaces"] == ["wan2"]
 
 
 def test_udp_uses_protocol_17():
-    flow = {"src": SRC, "dst": DST, "port": 53, "proto": "udp"}
+    flow = {"src": SRC, "dst": DST, "port": 53, "proto": "udp", "source_port": 40000}
     _, calls, _ = run(outputs(), flow, sessions=NONE)
     assert calls[3][1]["protocol"] == "17" and calls[3][1]["dst_port"] == "53"
 
@@ -537,7 +543,7 @@ def test_engine_reads_with_values_that_are_not_in_the_inventory_and_audits_the_f
         return 0, values[COMMANDS[command]]
 
     monkeypatch.setattr(engine, "read_from_device", device)
-    result = engine.triage_flow(_enrolled(*QUERIES), SRC, DST, 443, "tcp")
+    result = engine.triage_flow(_enrolled(*QUERIES), SRC, DST, 443, "tcp", 40000)
     assert sent == list(COMMANDS)
     assert result["ok"] is True and result["target"] == "wire-test" and result["flow"] == FLOW
     assert result["verdict"] == "incomplete" and result["missing"] == [{"step": "session", "reason": "not_enrolled"}]
@@ -579,7 +585,7 @@ def test_engine_does_not_widen_the_inventory_for_later_calls(audit_log, monkeypa
 def test_engine_maps_a_disabled_query_to_permission_denied(audit_log, monkeypatch):
     values = outputs()
     monkeypatch.setattr(engine, "read_from_device", lambda a, p, command, **_: (0, values[COMMANDS[command]]))
-    result = engine.triage_flow(_enrolled("system_status", "route_lookup"), SRC, DST, 443, "tcp")
+    result = engine.triage_flow(_enrolled("system_status", "route_lookup"), SRC, DST, 443, "tcp", 40000)
     assert {"step": "policy_lookup", "reason": "permission_denied"} in result["missing"]
     assert result["verdict"] == "incomplete"
 
@@ -616,7 +622,7 @@ def test_session_read_needs_the_recipe_and_the_ingress_interface_enrolled(monkey
     assert engine._flow_session_text(no_status, FLOW, "LAN-test") == {"ok": False, "reason": "permission_denied"}
 
 
-def test_session_read_sets_a_filter_without_the_source_port(monkeypatch):
+def test_session_read_of_an_unknown_source_port_sets_a_filter_without_it(monkeypatch):
     from contextlib import nullcontext
     import netops_core.target_lock
     seen = {}
@@ -633,7 +639,7 @@ def test_session_read_sets_a_filter_without_the_source_port(monkeypatch):
     monkeypatch.setattr(engine, "DeviceCredential", lambda auth: None)
     monkeypatch.setattr(engine, "_FortiosDiagnosticShell", lambda session: session)
     monkeypatch.setattr(engine.core_session, "Session", lambda *a, **k: nullcontext(SimpleNamespace(close=lambda: None)))
-    out = engine._flow_session_text(_session_auth(), FLOW, "LAN-test")
+    out = engine._flow_session_text(_session_auth(), UNKNOWN_PORT_FLOW, "LAN-test")
     assert out["ok"] is True and out["text"].endswith("total session: 1\n")
     assert seen["recipe"] == "sessions" and seen["address"] == DST and seen["interface"] == "LAN-test"
     assert seen["source_address"] == SRC and "source_port" not in seen and seen["any_source_port"] is True

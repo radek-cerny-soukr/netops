@@ -28,7 +28,7 @@ from . import checks_fortios
 from . import query
 from .engine import CatalogError, load_catalog
 from .findings import FingerprintError, checked_component
-from .store import SCHEMA_VERSION, Store, schema_version
+from .store import BUSY_TIMEOUT_SECONDS, SCHEMA_VERSION, Store, schema_version
 from .suppressions import SuppressionError, load_for_tenant
 from .suppressions import load as load_suppressions
 
@@ -49,6 +49,7 @@ TOOL_NAMES = (
     "finding_detail",
     "compare",
     "schema_report",
+    "findings_summary",
 )
 
 READ_ONLY_MODE = "mode=ro"
@@ -99,9 +100,16 @@ class ReadOnlyStore(Store):
             "%s?%s" % (location.resolve().as_uri(), READ_ONLY_MODE),
             uri=True,
             isolation_level=None,
+            timeout=BUSY_TIMEOUT_SECONDS,
         )
         self._connection.row_factory = sqlite3.Row
         try:
+            # One deferred read transaction per tool call: every SELECT of the call
+            # reads the same committed state (the previous or the new run, never a
+            # mix), and a concurrent Auditor commit makes the reader wait up to the
+            # busy timeout instead of failing. The transaction is never written and
+            # ends with close().
+            self._connection.execute("BEGIN")
             version = schema_version(self._connection)
         except sqlite3.Error as error:
             self._connection.close()
@@ -206,6 +214,10 @@ def open_store() -> ReadOnlyStore:
         raise ToolError(str(error)) from None
 
 
+def suppressions_configured() -> bool:
+    return configuration().suppressions_path is not None
+
+
 def suppressions() -> tuple:
     current = configuration()
     location = current.suppressions_path
@@ -259,6 +271,7 @@ def audit_status(
             device=device,
             now=_now(),
             stale_after_hours=stale_after_hours,
+            suppressions_configured=suppressions_configured(),
         )
 
 
@@ -305,6 +318,40 @@ def list_findings(
             state=state,
             since=since,
             group_by=group_by,
+            suppressions_configured=suppressions_configured(),
+        )
+
+
+@mcp.tool(
+    description=(
+        "Summarize the findings of the last audit run of every device of the configured tenant, or of "
+        "one device, narrowed by severity, state and rule_id: only device, rule, severity, state, "
+        "object and fingerprint, without evidence, at most limit items, with counts before and after "
+        "the filter."
+    )
+)
+@_tool_errors
+def findings_summary(
+    device: str | None = None,
+    severity: str | None = None,
+    state: str | None = None,
+    rule_id: str | None = None,
+    limit: int = query.SUMMARY_LIMIT_DEFAULT,
+) -> dict[str, Any]:
+    current = configuration()
+    with open_store() as store:
+        return query.findings_summary(
+            store,
+            current.tenant,
+            current.rules,
+            device=device,
+            suppressions=suppressions(),
+            now=_now(),
+            severity=severity,
+            state=state,
+            rule_id=rule_id,
+            limit=limit,
+            suppressions_configured=suppressions_configured(),
         )
 
 

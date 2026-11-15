@@ -135,13 +135,13 @@ def _fdb(value):
     values, index, kind = {}, 1, None
     while index < len(parts):
         key = parts[index]
-        if key in ('permanent', 'static', 'dynamic'):
-            selected = 'static' if key != 'dynamic' else 'dynamic'
+        if key in ('permanent', 'static', 'dynamic', 'stale'):
+            selected = 'static' if key in ('permanent', 'static') else 'dynamic'
             if kind is not None and kind != selected:
                 return None
             kind = selected
             index += 1
-        elif key in ('self', 'offload', 'extern_learn', 'sticky', 'router', 'stale'):
+        elif key in ('self', 'offload', 'extern_learn', 'sticky', 'router'):
             index += 1
         elif key in ('dev', 'master', 'vlan') and key not in values:
             item = parts[index + 1]
@@ -157,7 +157,9 @@ def _fdb(value):
             return None
     if 'dev' not in values:
         return None
-    return t.record('mac_entry', mac=mac, port=values['dev'], vlan_id=values.get('vlan'), type=kind)
+    # iproute2 prints no state word for a learned (NUD_REACHABLE) entry and "stale" for an
+    # aged learned one; both are dynamic. permanent/static (NUD_PERMANENT/NUD_NOARP) are static.
+    return t.record('mac_entry', mac=mac, port=values['dev'], vlan_id=values.get('vlan'), type=kind or 'dynamic')
 
 
 # Explicitly recognized ip -details metadata (not exposed by the shared schema).

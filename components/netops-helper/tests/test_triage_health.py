@@ -261,6 +261,27 @@ def test_refusal_is_never_read_as_zero_or_ok_and_findings_survive():
     assert {"step": "ha_checksum", "reason": "permission_denied"} in result["missing"]
 
 
+def test_a_skipped_ha_checksum_keeps_the_code_and_advice_of_the_refused_ha_status():
+    # Review 206-rv note: the skipped checksum carries the error_code and error of the ha_status refusal.
+    advice = "Use a target with a global account"
+    calls = []
+
+    def read(query):
+        calls.append(query)
+        if query == "ha_status":
+            return {"ok": False, "reason": "vdom_admin_global_scope_unavailable",
+                    "error_code": "vdom_admin_global_scope_unavailable", "error": advice}
+        text = outputs()[query]
+        return {"ok": True, "text": text, "content_sha256": hashlib.sha256(text.encode()).hexdigest()}
+
+    ticks = iter(NOW + timedelta(seconds=n) for n in range(100))
+    result = t.run(read, lambda: next(ticks))
+    expected = {"reason": "vdom_admin_global_scope_unavailable",
+                "error_code": "vdom_admin_global_scope_unavailable", "error": advice}
+    assert {"step": "ha_status", **expected} in result["missing"]
+    assert {"step": "ha_checksum", **expected} in result["missing"] and "ha_checksum" not in calls
+
+
 @pytest.mark.parametrize("query,text", [
     ("conserve_state", CONSERVE + "memory surprise: 1\n"),
     ("conserve_state", CONSERVE.replace("73% of total RAM", "lots")),
@@ -363,6 +384,35 @@ def test_engine_reads_each_enabled_query_once_and_audits_every_read(audit_log, m
     assert [r["event"] for r in records][0] == "triage_health" and records[-1]["event"] == "triage_health"
     assert {r.get("query") for r in records if r["event"] == "triage_health_read"} == set(COMMANDS.values()) - {"ha_checksum"}
     assert "untrusted_device_output" not in result
+
+
+def test_engine_keeps_all_31_real_packages_but_not_fds_address(audit_log, monkeypatch):
+    text = (Path(__file__).parent / "fixtures/real/fortinet/fortigate60f_7.6.8_autoupdate_204"
+            / "autoupdate_versions.txt").read_text()
+    # Independent expected values from the captured Version/Contract Expiry lines.
+    expected = []
+    lines = text.splitlines()
+    for index, line in enumerate(lines):
+        if line.startswith("Version:"):
+            expiry = lines[index + 1]
+            expected.append((lines[index - 2], line.removeprefix("Version: "),
+                             expiry.removeprefix("Contract Expiry Date: ")
+                             if expiry.startswith("Contract Expiry Date:") else None))
+    assert len(expected) == 31 and "FDS Address\n---------\n" in text
+    values = outputs(autoupdate_versions=text)
+    sent = []
+
+    def device(auth, platform, command, **_):
+        sent.append(command)
+        return 0, values[COMMANDS[command]]
+
+    monkeypatch.setattr(engine, "read_from_device", device)
+    result = engine.triage_health(_enrolled(*COMMANDS.values()))
+    assert result["ok"] is True
+    assert "autoupdate_versions" in result["checked"]
+    assert [(item["package"], item["version"], item["contract_expiry"])
+            for item in result["chain"]["updates"]] == expected
+    assert sent.count("diagnose autoupdate versions") == 1
 
 
 def test_engine_maps_policy_refusal_and_device_refusal_to_missing(audit_log, monkeypatch):

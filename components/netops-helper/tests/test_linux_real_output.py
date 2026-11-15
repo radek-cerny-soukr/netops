@@ -257,6 +257,8 @@ def test_linux_fdb_stale_and_veth_namespace_metadata():
     result = tables.parse('linux', 'mac_entry', 'bridge_fdb',
                           '00:00:5e:00:53:8a dev veth0 master br0 stale')
     assert result['status'] == 'ok' and not result['unparsed']
+    # iproute2 prints "stale" for an aged learned entry: dynamic, not an unknown state (audit 1.0.8 D).
+    assert result['records'][0]['type'] == 'dynamic'
     result = tables.parse('linux', 'interface', 'interface_link',
         '2: veth0@if3: <BROADCAST,UP,LOWER_UP> mtu 1500 state UP\n'
         '    link/ether 00:00:5e:00:53:8a brd 00:00:5e:00:53:89 link-netnsid 0\n')

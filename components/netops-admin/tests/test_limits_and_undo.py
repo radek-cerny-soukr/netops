@@ -156,3 +156,140 @@ def test_reused_request_id_of_a_regular_request_keeps_the_original_message(tmp_p
     with pytest.raises(Rejected) as caught:
         execute.apply(runtime, "lab", request(request_id=taken, changes={"subnet": "192.0.2.31/32", "comment": "x"}))
     assert caught.value.reasons == [execute.REUSED_REQUEST]
+
+
+# 109-16: undo preview (execute.preview_undo), read only
+
+
+def _footprint(tmp_path, runtime, device):
+    audit = tmp_path / "audit" / "audit.jsonl"
+    return (len(device.applied_blocks), [r["change_id"] for r in runtime.store.records()],
+            audit.read_text() if audit.exists() else "", sorted(device.stitches), sorted(device.triggers))
+
+
+def test_undo_preview_of_a_confirmed_update_is_ready_with_swapped_states(tmp_path):
+    device = FakeFortiOS()
+    runtime = make_runtime(tmp_path, device)
+    first = execute.apply(runtime, "lab", request(op="update", key="spare-host", changes={"comment": "mine"}))
+    assert first["result"] == "confirmed"
+    ahead = execute.preview_undo(runtime, first["change_id"], "investigated")
+    assert ahead["result"] == "ready" and ahead["reasons"] == [] and ahead["reason_codes"] == []
+    assert ahead["undo_of"] == first["change_id"] and ahead["request_id"] == "undo-%s" % first["change_id"]
+    assert ahead["op"] == "update" and ahead["key"] == "spare-host" and ahead["commands"]
+    assert ahead["predicted"]["before"] == first["plan"]["predicted"]["after"]
+    assert ahead["predicted"]["after"] == first["plan"]["predicted"]["before"]
+    back = execute.undo(runtime, first["change_id"], "investigated")
+    assert back["result"] == "confirmed" and back["plan"]["plan_sha256"] == ahead["plan_sha256"]
+
+
+def test_undo_preview_refuses_an_object_changed_since(tmp_path):
+    device = FakeFortiOS()
+    runtime = make_runtime(tmp_path, device)
+    first = execute.apply(runtime, "lab", request(op="update", key="spare-host", changes={"comment": "mine"}))
+    device.addresses["spare-host"]["comment"] = "someone else"
+    before = _footprint(tmp_path, runtime, device)
+    refused = runtime.store.rejections_since(runtime.store.budget_now() - execute.HOUR)
+    ahead = execute.preview_undo(runtime, first["change_id"], "investigated")
+    assert ahead["result"] == "rejected" and ahead["undo_of"] == first["change_id"]
+    assert any("differs from the state" in reason for reason in ahead["reasons"])
+    assert _footprint(tmp_path, runtime, device) == before
+    assert runtime.store.rejections_since(runtime.store.budget_now() - execute.HOUR) == refused + 1
+
+
+def test_undo_preview_needs_a_confirmed_operation(tmp_path):
+    device = FakeFortiOS()
+    device.drop_comment = True
+    runtime = make_runtime(tmp_path, device)
+    first = execute.apply(runtime, "lab", request(op="update", key="spare-host", changes={"comment": "x y"}))
+    assert first["result"] == "reverted"
+    with pytest.raises(Rejected) as caught:
+        execute.preview_undo(runtime, first["change_id"], "investigated")
+    assert "only a confirmed operation" in caught.value.reasons[0]
+    with pytest.raises(Rejected) as caught:
+        execute.preview_undo(runtime, "0" * 32, "investigated")
+    assert "only a confirmed operation" in caught.value.reasons[0]
+
+
+def test_undo_preview_after_the_undo_is_undo_already_done_without_a_write(tmp_path):
+    device = FakeFortiOS()
+    runtime = make_runtime(tmp_path, device)
+    first = execute.apply(runtime, "lab", request(op="update", key="spare-host", changes={"comment": "mine"}))
+    back = execute.undo(runtime, first["change_id"], "investigated")
+    assert back["result"] == "confirmed"
+    before = _footprint(tmp_path, runtime, device)
+    for reason in ("investigated", "another reason"):
+        with pytest.raises(Rejected) as caught:
+            execute.preview_undo(runtime, first["change_id"], reason)
+        assert caught.value.reasons == [UNDO_DONE] and caught.value.reason_codes == ["undo_already_done"]
+    assert _footprint(tmp_path, runtime, device) == before
+
+
+def test_undo_preview_after_the_undo_counts_against_the_rejection_budget(tmp_path):
+    device = FakeFortiOS()
+    runtime = make_runtime(tmp_path, device, limits=limited(rejections_per_hour=2))
+    first = execute.apply(runtime, "lab", request(op="update", key="spare-host", changes={"comment": "mine"}))
+    assert execute.undo(runtime, first["change_id"], "investigated")["result"] == "confirmed"
+    assert runtime.store.rejections_since(runtime.store.budget_now() - execute.HOUR) == 0
+    before = _footprint(tmp_path, runtime, device)
+    for _ in range(2):
+        # the same reason makes the identical undo request: _preview answers known-request
+        with pytest.raises(Rejected) as caught:
+            execute.preview_undo(runtime, first["change_id"], "investigated")
+        assert caught.value.reason_codes == ["undo_already_done"]
+        assert not isinstance(caught.value, BudgetExhausted)
+    assert runtime.store.rejections_since(runtime.store.budget_now() - execute.HOUR) == 2
+    assert _footprint(tmp_path, runtime, device) == before
+    with pytest.raises(BudgetExhausted) as caught:
+        execute.apply(runtime, "lab", request(request_id="req-after-undo-preview"))
+    assert "rejected requests" in caught.value.reasons[0]
+    assert "new-host" not in device.addresses
+
+
+def test_undo_preview_writes_nothing_to_device_journal_or_notification(tmp_path):
+    device = FakeFortiOS()
+    runtime = make_runtime(tmp_path, device)
+    first = execute.apply(runtime, "lab", request(op="update", key="spare-host", changes={"comment": "mine"}))
+    sent = []
+    runtime.notifier = lambda record: sent.append(record) or "sent"
+    before = _footprint(tmp_path, runtime, device)
+    ahead = execute.preview_undo(runtime, first["change_id"], "investigated")
+    assert ahead["result"] == "ready"
+    assert _footprint(tmp_path, runtime, device) == before
+    assert runtime.store.request("undo-%s" % first["change_id"]) is None
+    assert device.addresses["spare-host"]["comment"] == "mine"
+    assert sent == []
+    assert runtime.store.operation(first["change_id"])["result"] == "confirmed"
+
+
+def test_undo_preview_on_exos(tmp_path):
+    device = FakeExos()
+    runtime = make_exos_runtime(tmp_path, device)
+    first = execute.apply(runtime, "sw", exos_request(op="update", key="spare", changes={"description": "parked"}))
+    saves = device.saves
+    ahead = execute.preview_undo(runtime, first["change_id"], "investigated")
+    assert ahead["result"] == "ready" and ahead["device"] == "sw"
+    assert device.vlans["spare"]["description"] == "parked" and device.saves == saves
+
+
+def test_undo_preview_of_a_schema_transaction(tmp_path, monkeypatch):
+    import copy
+
+    from test_schema_execute import runtime as schema_runtime
+    from test_schema_plan import op
+    from test_schema_runtime import request as schema_request
+
+    value, fake = schema_runtime(tmp_path, monkeypatch)
+    result = execute.apply(value, "lab", schema_request([op(changes={"comment": "intermediate"}),
+                                                         op(changes={"comment": "final"})]))
+    assert result["result"] == "confirmed"
+    addresses, writes, records = copy.deepcopy(fake.addresses), len(fake.applied_blocks), len(value.store.records())
+    ahead = execute.preview_undo(value, result["change_id"], "operator undo")
+    assert ahead["result"] == "ready", ahead["reasons"]
+    assert ahead["undo_of"] == result["change_id"] and ahead["request_id"] == "undo-%s" % result["change_id"]
+    assert fake.addresses == addresses and len(fake.applied_blocks) == writes
+    assert len(value.store.records()) == records
+    undone = execute.undo(value, result["change_id"], "operator undo")
+    assert undone["result"] == "confirmed"
+    with pytest.raises(Rejected) as caught:
+        execute.preview_undo(value, result["change_id"], "operator undo")
+    assert caught.value.reason_codes == ["undo_already_done"]

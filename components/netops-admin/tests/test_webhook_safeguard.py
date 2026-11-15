@@ -571,3 +571,99 @@ def test_the_audit_after_a_change_ignores_only_the_own_safeguard(tmp_path):
     device.api_users.pop(foreign + "u")
     assert audit_gate.new_blocking("fortios", before, device.snapshot(), "lab", own=own) == []
     assert audit_gate.new_blocking("fortios", before, device.snapshot(), "lab") == ["fortios.mgmt.netops-safeguard-leftover"]
+
+
+SERVICE = "firewall service custom"
+
+
+def service_request(**fields):
+    fields.setdefault("table", SERVICE)
+    fields.setdefault("key", "TCP-8443")
+    fields.setdefault("op", "create")
+    fields.setdefault("changes", {"tcp-portrange": "8443"})
+    return request(**fields)
+
+
+def service_runtime(tmp_path, device):
+    return runtime(tmp_path, device, opt_in=("firewall policy", SERVICE))
+
+
+def service_check_failure(device):
+    def hook(fake, block):
+        if block[0] == "config " + SERVICE:
+            fake.check_unreadable = True
+    device.on_apply = hook
+
+
+def test_rest_paths_of_the_earlier_tables_are_unchanged():
+    for table in ("firewall policy", "firewall address", "firewall addrgrp"):
+        assert fortios.REST_PATHS[table] == table.replace(" ", "/")
+    assert fortios.REST_PATHS[SERVICE] == "firewall.service/custom"
+    assert set(fortios.REST_PATHS) == set(fortios.REST_KEYS)
+    assert fortios.REST_KEYS[SERVICE] == "name"
+    addrgrp = profiles.load_profiles()[("fortios", "firewall addrgrp")]
+    request_ = fortios.rest_inverse(addrgrp, "create", "grp", fortios.render_delete(addrgrp, "grp"), "192.0.2.1")
+    assert request_ == {"method": "delete", "uri": "192.0.2.1/api/v2/cmdb/firewall/addrgrp/grp", "body": ""}
+
+
+def test_rest_inverse_of_a_service():
+    profile = profiles.find_profile("fortios", SERVICE, "8.0.2 build0251")
+    request_ = fortios.rest_inverse(profile, "create", "TCP-8443", fortios.render_delete(profile, "TCP-8443"),
+                                    "192.0.2.1")
+    assert request_ == {"method": "delete", "uri": "192.0.2.1/api/v2/cmdb/firewall.service/custom/TCP-8443",
+                        "body": ""}
+    update = fortios.render_update(profile, "TCP-8443", {"tcp-portrange": "8443"}, ["comment"])
+    request_ = fortios.rest_inverse(profile, "update", "TCP-8443", update, "192.0.2.1")
+    assert request_["method"] == "put" and request_["uri"] == "192.0.2.1/api/v2/cmdb/firewall.service/custom/TCP-8443"
+    assert json.loads(request_["body"]) == {"tcp-portrange": "8443", "comment": ""}
+    create = fortios.render_create(profile, "a b", {"udp-portrange": "53", "comment": 'say "hi"'})
+    request_ = fortios.rest_inverse(profile, "delete", "a b", create, "192.0.2.1")
+    assert request_["method"] == "post" and request_["uri"] == "192.0.2.1/api/v2/cmdb/firewall.service/custom"
+    assert json.loads(request_["body"]) == {"name": "a b", "udp-portrange": "53", "comment": 'say "hi"'}
+
+
+def test_service_create_and_undo_are_confirmed_with_the_webhook(tmp_path):
+    device = FakeFortiOSWebhook()
+    rt = service_runtime(tmp_path, device)
+    record = execute.apply(rt, "lab", service_request())
+    assert record["result"] == "confirmed" and device.services["TCP-8443"]["tcp-portrange"] == "8443"
+    sent = lines(device)
+    assert "set action-type webhook" in sent and "set method delete" in sent
+    assert 'set uri "192.0.2.1/api/v2/cmdb/firewall.service/custom/TCP-8443"' in sent
+    back = execute.undo(rt, record["change_id"], "investigated")
+    assert back["result"] == "confirmed" and "TCP-8443" not in device.services
+    assert own_objects(device) == [] and device.calls == []
+
+
+def test_service_firing_reverts_a_create_with_delete(tmp_path):
+    device = FakeFortiOSWebhook()
+    service_check_failure(device)
+    record = execute.apply(service_runtime(tmp_path, device), "lab", service_request())
+    assert record["result"] == "reverted" and "TCP-8443" not in device.services
+    assert device.calls == [("delete", "api/v2/cmdb/firewall.service/custom/TCP-8443", 200)]
+    assert own_objects(device) == []
+
+
+def test_service_firing_reverts_an_update_with_put(tmp_path):
+    device = FakeFortiOSWebhook()
+    device.services["SRV-A"] = {"uuid": device._uuid(), "tcp-portrange": "8443"}
+    service_check_failure(device)
+    record = execute.apply(service_runtime(tmp_path, device), "lab",
+                           service_request(key="SRV-A", op="update",
+                                           changes={"tcp-portrange": "9443", "comment": "moved"}))
+    assert record["result"] == "reverted"
+    assert device.calls == [("put", "api/v2/cmdb/firewall.service/custom/SRV-A", 200)]
+    assert device.services["SRV-A"]["tcp-portrange"] == "8443" and "comment" not in device.services["SRV-A"]
+    assert own_objects(device) == []
+
+
+def test_service_firing_reverts_a_delete_with_post(tmp_path):
+    device = FakeFortiOSWebhook()
+    device.services["SRV-A"] = {"uuid": device._uuid(), "udp-portrange": "5353", "comment": "mdns"}
+    service_check_failure(device)
+    record = execute.apply(service_runtime(tmp_path, device), "lab",
+                           service_request(key="SRV-A", op="delete", changes={}))
+    assert record["result"] == "reverted"
+    assert device.calls == [("post", "api/v2/cmdb/firewall.service/custom", 200)]
+    assert device.services["SRV-A"]["udp-portrange"] == "5353" and device.services["SRV-A"]["comment"] == "mdns"
+    assert own_objects(device) == []

@@ -155,6 +155,12 @@
       "baseline": "EOS 4.36.x, primarily 4.36.2F",
       "url": "https://www.arista.com/en/um-eos/eos-spanning-tree-protocol"
     },
+    "A-EOS-ATD-MLAG": {
+      "vendor": "Arista",
+      "title": "Arista ATD Lab Guides 2026.2 – Data Center VXLAN (MLAG verification)",
+      "baseline": "ATD lab guide 2026.2 documentation example; not an EOS firmware or hardware qualification",
+      "url": "https://labguides.testdrive.arista.com/2026.2/data_center/vxlan/"
+    },
     "A-EOS-BOOTING": {
       "vendor": "Arista",
       "title": "EOS Switch booting commands",
@@ -766,6 +772,12 @@
       "title": "FortiOS 8.0.0 diagnose sys CLI reference",
       "baseline": "FortiOS 7.6.x and 8.0.0",
       "url": "https://docs.fortinet.com/document/fortigate/8.0.0/cli-reference/235530229/diagnose-sys"
+    },
+    "F-DOC-IPV6-LOOKUP": {
+      "vendor": "Fortinet",
+      "title": "FortiOS 7.6.6 Administration Guide - Ignore VRRP default route",
+      "baseline": "FortiOS 7.6.6",
+      "url": "https://docs.fortinet.com/document/fortigate/7.6.6/administration-guide/513779/ignore-vrrp-default-route"
     },
     "F-HA-76": {
       "vendor": "Fortinet",
@@ -1439,6 +1451,15 @@
       "query": "mlag_detail",
       "source_type": "official_vendor",
       "source_ids": [
+        "A-EOS-MLAG"
+      ]
+    },
+    "arista_eos/mlag_interfaces": {
+      "profile": "arista_eos",
+      "query": "mlag_interfaces",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "A-EOS-ATD-MLAG",
         "A-EOS-MLAG"
       ]
     },
@@ -4326,6 +4347,14 @@
         "F-CLI-76",
         "F-CLI-80",
         "F-CLI-802"
+      ]
+    },
+    "fortinet/ipv6_route_lookup": {
+      "profile": "fortinet",
+      "query": "ipv6_route_lookup",
+      "source_type": "official_vendor",
+      "source_ids": [
+        "F-DOC-IPV6-LOOKUP"
       ]
     },
     "fortinet/ipv6_route_protocols": {

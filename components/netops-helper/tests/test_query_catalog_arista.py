@@ -57,6 +57,7 @@ EXPECTED = {
     "lldp_neighbors_detail": ("show lldp neighbors detail", {}, True),
     "vlan_details": ("show vlan id {vlan_id}", {"vlan_id": (None, "vlan_id")}, False),
     "mlag_detail": ("show mlag detail", {}, False),
+    "mlag_interfaces": ("show mlag interfaces", {}, False),
     "mlag_config_sanity": ("show mlag config-sanity", {}, False),
     "ntp_status": ("show ntp status", {}, False),
     "ntp_associations": ("show ntp associations", {}, False),

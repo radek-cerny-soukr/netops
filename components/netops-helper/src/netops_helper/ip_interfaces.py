@@ -264,6 +264,8 @@ def join(profile, result, enabled_queries, read):
                         result['coverage'].setdefault('warnings', []).append('routes_partial')
         elif result['status'] in ('ok', 'empty'):
             result['status'] = other['status']
+            # The failed join read names its cause, as a direct read would.
+            result.update({key: other[key] for key in ('error_code', 'error') if key in other})
         if not partial_routes:
             result['unparsed'].extend({**line, 'query': query} for line in other['unparsed'])
         coverage = result['coverage']

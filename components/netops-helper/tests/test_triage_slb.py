@@ -605,3 +605,354 @@ def test_down_server_reads_are_bounded_and_repeated_servers_share_a_read(monkeyp
     assert result["verdict"] == "fault_found"
     assert len([call for call in device.calls if call[:2] == ("config_read", "load-balance real-server RS_1")]) == 1
     assert {step["arguments"]["address"] for step in result["next_steps"]} == {"192.0.2.11"}
+
+
+# --- Pool selection by schedule (1.0.9 item 12) -------------------------------------------------------------
+# REAL captures of FortiADC-KVM 7.6.7 build 0676 in fixtures/real/fortiadc/fortiadc-kvm_7.6.7_schedule_20261114
+# (see its PROVENANCE.md). They go through the real config_read and ssh_read paths; only the SSH transport
+# (_exec_read for the configuration stream, _prompt_read for the PTY catalogue queries) is replaced.
+# DERIVED texts are built from those captures by the functions below and named as such; STATUS and PERF stay
+# the synthetic texts of this module (identity and resources are not under test here).
+
+from pathlib import Path
+
+SCHEDULE_DIR = Path(__file__).parent / "fixtures/real/fortiadc/fortiadc-kvm_7.6.7_schedule_20261114"
+SVS = "netops-173-vs"
+ADC_PROMPT = "FortiADC-KVM # "
+VS_STAT_COMMAND = "diagnose server-load-balance vs_stat vdom root vs " + SVS
+SLB_LOAD_COMMAND = "diagnose server-load-balance slb_load"
+
+
+def real(name):
+    with open(SCHEDULE_DIR / name, encoding="utf-8", newline="") as handle:
+        return handle.read()
+
+
+def exec_body(name):
+    """DERIVED: the PTY body of an exec-channel capture, i.e. without the exec channel's prompt lines."""
+    return "\n".join(line for line in real(name).split("\n") if line != ADC_PROMPT)
+
+
+def object_view(table_capture, single_capture, name):
+    """DERIVED: the object view of `name`, cut from the real whole-table capture into the frame of a real
+    object-view capture (test_object_views_derive_exactly_from_the_table pins the method)."""
+    lines = table_capture.split("\n")
+    start = lines.index('  edit "%s"' % name)
+    block = lines[start:lines.index("  next", start) + 1]
+    frame = single_capture.split("\n")
+    first = next(i for i, line in enumerate(frame) if line.startswith("  edit "))
+    return "\n".join(frame[:first] + block + frame[frame.index("  next", first) + 1:])
+
+
+def schedule_views():
+    return {
+        "load-balance virtual-server " + SVS: real("vs_schedule_full.txt"),
+        "load-balance schedule-pool netops-173-sp-a": real("schedule_pool_sp_a_full.txt"),
+        "load-balance schedule-pool netops-173-sp-b": object_view(
+            real("schedule_pool_full.txt"), real("schedule_pool_sp_a_full.txt"), "netops-173-sp-b"),
+        "system schedule-group netops-173-sg-now": real("schedule_group_sg_now_full.txt"),
+        "system schedule-group netops-173-sg-off": object_view(
+            real("schedule_group_full.txt"), real("schedule_group_sg_now_full.txt"), "netops-173-sg-off"),
+    }
+
+
+def schedule_auth():
+    from dataclasses import replace
+    from conftest import _target
+    from netops_helper.auth import EgressPolicy
+    from netops_helper.query_catalog import READ_QUERIES
+    return replace(_target("fortiadc", "system_status"), enabled_queries=tuple(READ_QUERIES["fortiadc"]),
+                   egress=EgressPolicy(addresses=("127.0.0.1",), tcp_ports=(2222,), allow_icmp=True),
+                   read_inventory={**Auth().read_inventory, "adc_virtual_servers": (SVS,)})
+
+
+@pytest.fixture
+def schedule_wire(monkeypatch):
+    """Answers device commands from the captures; `views`/`runtime` entries can be replaced per test."""
+    from netops_helper import configuration
+    configuration._SNAPSHOTS.clear()
+    state = SimpleNamespace(calls=[], views=schedule_views(), runtime={
+        VS_STAT_COMMAND: exec_body("vs_stat_schedule_exec.txt"),
+        SLB_LOAD_COMMAND: exec_body("slb_load_schedule_exec.txt"),
+        "get system performance": PERF})
+
+    def exec_read(auth, platform, command, stdout_consumer=None):
+        state.calls.append(command)
+        if command == "get system status":
+            body = STATUS
+        elif command in state.runtime:
+            body = state.runtime[command]
+        else:
+            assert command.startswith("show full-configuration "), command
+            body = state.views[command[len("show full-configuration "):]]
+        if stdout_consumer:
+            encoded = body.encode()
+            for index in range(0, len(encoded), 7):
+                stdout_consumer(encoded[index:index + 7])
+            return 0, ""
+        return 0, body
+
+    def prompt_read(auth, platform, command):
+        state.calls.append(command)
+        return None, state.runtime[command]
+
+    monkeypatch.setattr(engine, "_exec_read", exec_read)
+    monkeypatch.setattr(engine, "_prompt_read", prompt_read)
+    monkeypatch.setattr(engine, "record", lambda *a, **k: None)
+    yield state
+    configuration._SNAPSHOTS.clear()
+
+
+def test_object_views_derive_exactly_from_the_table():
+    assert object_view(real("schedule_pool_full.txt"), real("schedule_pool_sp_a_full.txt"),
+                       "netops-173-sp-a") == real("schedule_pool_sp_a_full.txt")
+    assert object_view(real("schedule_group_full.txt"), real("schedule_group_sg_now_full.txt"),
+                       "netops-173-sg-now") == real("schedule_group_sg_now_full.txt")
+
+
+def test_exec_capture_minus_prompt_lines_is_the_pty_body():
+    pty = real("vs_stat_schedule_pty.txt").encode()
+    assert engine._pty_body(pty, VS_STAT_COMMAND, ADC_PROMPT.encode()) == exec_body("vs_stat_schedule_exec.txt")
+
+
+def test_hidden_stored_pool_leaves_the_virtual_server_configuration_unchanged():
+    # Measured: a load-balance-pool stored before schedule-list enable is not printed by show full-configuration.
+    assert real("vs_schedule_full.txt") == real("vs_schedule_stored_pool_full.txt")
+    assert "load-balance-pool" not in real("vs_schedule_full.txt")
+    assert "set schedule-pool-list netops-173-sp-a netops-173-sp-b \n" in real("vs_schedule_full.txt")
+
+
+@pytest.mark.parametrize("section,name", [
+    ("load-balance schedule-pool netops-173-sp-a", "schedule_pool_sp_a_full.txt"),
+    ("system schedule-group netops-173-sg-now", "schedule_group_sg_now_full.txt"),
+])
+def test_config_read_returns_the_new_object_views_with_the_same_redaction(schedule_wire, section, name):
+    result = engine.config_read(schedule_auth(), "fortiadc", section, redaction="full", include_defaults=True)
+    assert schedule_wire.calls == ["get system status", "show full-configuration " + section]
+    assert result["ok"] is True and result["capture_complete"] is True and result["next_offset"] is None
+    assert result["config_scope"] == "device-account-visible" and result["unverified_count"] == 0
+    assert result["credential_redactions"] == 0
+    output = result["untrusted_device_output"]
+    if section.startswith("system"):
+        assert output == ("config system schedule-group\nedit netops-173-sg-now\nconfig schedule-member\nedit 1\n"
+                          "    set type weekly-recurring\n    set starttime-of-startdate 00:00\n"
+                          "    set endtime-of-enddate 23:59\n    set day-of-week saturday\nnext\nend\nnext\nend\n")
+    else:
+        assert output == ("config load-balance schedule-pool\nedit netops-173-sp-a\n"
+                          "    set load-balance-pool netops-173-pool-a\n    set schedule netops-173-sg-now\nnext\nend\n")
+
+
+@pytest.mark.parametrize("section,body", [
+    ("load-balance schedule-pool netops-173-sp-b", "schedule_pool_sp_a_full.txt"),
+    ("load-balance schedule-pool netops-173-sp-a", "schedule_pool_full.txt"),
+    ("system schedule-group netops-173-sg-now", "schedule_group_full.txt"),
+])
+def test_config_read_refuses_another_or_more_than_the_requested_object(schedule_wire, section, body):
+    schedule_wire.views[section] = real(body)
+    with pytest.raises(ValueError):
+        engine.config_read(schedule_auth(), "fortiadc", section, redaction="full", include_defaults=True)
+
+
+def test_schedule_parsers_read_the_redacted_real_views_literally(schedule_wire):
+    auth = schedule_auth()
+
+    def view(section):
+        return engine.config_read(auth, "fortiadc", section, redaction="full", include_defaults=True)[
+            "untrusted_device_output"]
+    vs = rules.virtual_server_config(view("load-balance virtual-server " + SVS), SVS)
+    assert (vs["schedule_list"], vs["schedule_pool_list"], vs["content_routing"], vs["pool"]) == (
+        "enable", ["netops-173-sp-a", "netops-173-sp-b"], "disable", None)
+    assert rules.schedule_pool_config(view("load-balance schedule-pool netops-173-sp-b"), "netops-173-sp-b") == {
+        "schedule": "netops-173-sg-off", "pool": "netops-173-pool-b"}
+    assert rules.schedule_group_config(view("system schedule-group netops-173-sg-off"), "netops-173-sg-off") == {
+        "members": [{"id": 1, "fields": {"type": "weekly-recurring", "starttime-of-startdate": "00:00",
+                                         "endtime-of-enddate": "23:59", "day-of-week": "wednesday"}}]}
+    group = view("system schedule-group netops-173-sg-now")
+    for changed in (group.replace("weekly-recurring", "yearly-recurring"),
+                    group.replace("set day-of-week saturday", "set active-now yes"),
+                    group.replace("config schedule-member", "config member")):
+        with pytest.raises(rules.TriageParseError):
+            rules.schedule_group_config(changed, "netops-173-sg-now")
+    entry = view("load-balance schedule-pool netops-173-sp-a")
+    with pytest.raises(rules.TriageParseError):
+        rules.schedule_pool_config(entry.replace("    set schedule netops-173-sg-now\n", ""), "netops-173-sp-a")
+
+
+def test_real_runtime_without_pool_and_with_the_stored_pool_is_read_literally():
+    parsed = rules.parse_vs_stat(exec_body("vs_stat_schedule_exec.txt"), SVS, "root")
+    assert parsed == {"availability": "HEALTHY", "pools": [], "no_rs": True, "counters": {
+        "APP Response": 0, "Client RTT": 0, "Concurrent Connections": 0, "Inbound Throughput": 0,
+        "Outbound Throughput": 0, "Requests": 0, "Server RTT": 0}}
+    assert rules.parse_slb_load(exec_body("slb_load_schedule_exec.txt"), SVS) == {
+        "present": True, "pools": [], "no_rs": True}
+    assert rules.parse_slb_load(exec_body("slb_load_schedule_exec.txt"), "VS_APP_HTTP")["pools"][0]["name"] == POOL
+    stored = rules.parse_vs_stat(exec_body("vs_stat_stored_pool_exec.txt"), SVS, "root")
+    assert "no_rs" not in stored and [p["name"] for p in stored["pools"]] == ["netops-173-pool-b"]
+    assert [(m["id"], m["hc_state"], m["last_state_change"]) for m in stored["pools"][0]["members"]] == [(1, "UP", None)]
+    assert rules.parse_vs_stat(exec_body("vs_stat_stored_pool_offwindow_exec.txt"), SVS, "root")["availability"] == "DEAD"
+    assert rules.parse_slb_load(exec_body("slb_load_stored_pool_exec.txt"), SVS)["pools"] == [
+        {"name": "netops-173-pool-b", "members": [{"id": 1, "status": 1, "weight": 0}]}]
+    body = exec_body("vs_stat_schedule_exec.txt")
+    for changed in (body + "\n\t\treal-server-pool: P", body.replace("no rs for this vs", "no rs for this vs\nno rs for this vs"),
+                    body.replace("\tvirtual-server:", "no rs for this vs\n\tvirtual-server:")):
+        with pytest.raises(rules.TriageParseError):
+            rules.parse_vs_stat(changed, SVS, "root")
+    load = exec_body("slb_load_schedule_exec.txt")
+    with pytest.raises(rules.TriageParseError):
+        rules.parse_slb_load(load + "\n\t\treal-server P", SVS)
+
+
+def run_schedule(wire, reports=None):
+    token = engine.progress.bind(lambda *report: reports.append(report)) if reports is not None else None
+    try:
+        return engine.triage_slb(schedule_auth(), SVS)
+    finally:
+        if token is not None:
+            engine.progress.unbind(token)
+
+
+def test_schedule_virtual_server_lists_candidates_and_claims_no_active_pool(schedule_wire):
+    reports = []
+    result = run_schedule(schedule_wire, reports)
+    assert result["missing"] == [] and result["verdict"] == "no_fault_in_checked_data"
+    assert result["checked"] == ["schedule_group:netops-173-sg-now", "schedule_group:netops-173-sg-off",
+                                 "schedule_pool:netops-173-sp-a", "schedule_pool:netops-173-sp-b",
+                                 "slb_load", "slb_vs_stat", "system_performance", "vs_config"]
+    # Every config_read and ssh_read verifies the identity again before its own command.
+    assert schedule_wire.calls[0] == "get system status"
+    assert [call for call in schedule_wire.calls if call != "get system status"] == [
+        "show full-configuration load-balance virtual-server " + SVS,
+        "show full-configuration load-balance schedule-pool netops-173-sp-a",
+        "show full-configuration load-balance schedule-pool netops-173-sp-b",
+        "show full-configuration system schedule-group netops-173-sg-now",
+        "show full-configuration system schedule-group netops-173-sg-off",
+        VS_STAT_COMMAND, SLB_LOAD_COMMAND, "get system performance"]
+    assert reports[-1][:2] == (9, rules.RATE_COST)
+    chain, sources = result["chain"], {}
+    vs_source = chain["schedule"][0]["sources"][0]
+    assert vs_source["section"] == "load-balance virtual-server " + SVS
+    assert [(item["entry"], item["schedule"], item["pool"], [s["section"] for s in item["sources"]])
+            for item in chain["schedule"]] == [
+        ("netops-173-sp-a", "netops-173-sg-now", "netops-173-pool-a",
+         [vs_source["section"], "load-balance schedule-pool netops-173-sp-a"]),
+        ("netops-173-sp-b", "netops-173-sg-off", "netops-173-pool-b",
+         [vs_source["section"], "load-balance schedule-pool netops-173-sp-b"])]
+    assert [(g["name"], g["members"], [s["section"] for s in g["sources"]]) for g in chain["schedule_groups"]] == [
+        ("netops-173-sg-now", [{"id": 1, "fields": {"type": "weekly-recurring", "starttime-of-startdate": "00:00",
+                                                     "endtime-of-enddate": "23:59", "day-of-week": "saturday"}}],
+         ["system schedule-group netops-173-sg-now"]),
+        ("netops-173-sg-off", [{"id": 1, "fields": {"type": "weekly-recurring", "starttime-of-startdate": "00:00",
+                                                     "endtime-of-enddate": "23:59", "day-of-week": "wednesday"}}],
+         ["system schedule-group netops-173-sg-off"])]
+    pool = chain["pool"]
+    assert (pool["name"], pool["config"], pool["selection"], pool["candidates_complete"]) == (None, None, "schedule", True)
+    assert [(r["name"], r["relation"], r.get("entries"), [s["section"] for s in r["sources"]])
+            for r in pool["references"]] == [
+        ("netops-173-pool-a", "configured_candidate", ["netops-173-sp-a"],
+         [vs_source["section"], "load-balance schedule-pool netops-173-sp-a"]),
+        ("netops-173-pool-b", "configured_candidate", ["netops-173-sp-b"],
+         [vs_source["section"], "load-balance schedule-pool netops-173-sp-b"])]
+    assert chain["vs"]["runtime"]["no_rs"] is True and chain["vs"]["runtime"]["pools"] == []
+    assert chain["load"] == {"present": True, "pools": [], "no_rs": True}
+    assert chain["members"] == [] and chain["health_checks"] == [] and chain["real_servers"] == {}
+    assert ids(result) == ["F-POOL-BY-SCHEDULE"]
+    finding = result["findings"][0]
+    assert finding["fact"] == ("schedule-list enable, schedule-pool-list netops-173-sp-a netops-173-sp-b, "
+                               "candidate pools netops-173-pool-a netops-173-pool-b; the device output does not "
+                               "name the pool the schedule selects")
+    assert [s["section"] for s in finding["sources"]] == [
+        vs_source["section"], "load-balance schedule-pool netops-173-sp-a", "load-balance schedule-pool netops-173-sp-b"]
+    assert all(len(s["content_sha256"]) == 64 and s["call"] == "config_read" for s in finding["sources"])
+    text = json.dumps(result).casefold()
+    assert "not_applicable" not in text and "active pool" not in text and "reported_by_vs_stat" not in text
+    print(json.dumps({key: result[key] for key in ("verdict", "missing", "findings")}
+                     | {"pool": pool, "schedule": [{k: v for k, v in item.items() if k != "sources"}
+                                                   for item in chain["schedule"]]}, indent=1))
+
+
+def test_stored_pool_reported_by_vs_stat_is_qualified_not_a_mismatch(schedule_wire):
+    schedule_wire.runtime[VS_STAT_COMMAND] = exec_body("vs_stat_stored_pool_exec.txt")
+    schedule_wire.runtime[SLB_LOAD_COMMAND] = exec_body("slb_load_stored_pool_exec.txt")
+    result = run_schedule(schedule_wire)
+    assert ids(result) == ["F-POOL-BY-SCHEDULE"] and result["verdict"] == "no_fault_in_checked_data"
+    reported = [r for r in result["chain"]["pool"]["references"] if r["relation"] == "reported_by_vs_stat"]
+    assert [(r["name"], [s["query"] for s in r["sources"]]) for r in reported] == [("netops-173-pool-b", ["slb_vs_stat"])]
+    assert result["chain"]["members"] == []
+
+
+def test_no_schedule_window_is_a_literal_availability_fault_with_a_schedule_hypothesis(schedule_wire):
+    schedule_wire.runtime[VS_STAT_COMMAND] = exec_body("vs_stat_stored_pool_offwindow_exec.txt")
+    schedule_wire.runtime[SLB_LOAD_COMMAND] = exec_body("slb_load_stored_pool_exec.txt")
+    result = run_schedule(schedule_wire)
+    assert ids(result) == ["F-VS-AVAIL", "F-POOL-BY-SCHEDULE"] and result["verdict"] == "fault_found"
+    assert result["findings"][0]["fact"] == "availability:DEAD"
+    assert result["hypotheses"] == [{"text": "no schedule window may be active at the device time; compare the "
+                                             "schedule group members with the device clock",
+                                     "based_on": ["F-VS-AVAIL", "F-POOL-BY-SCHEDULE"]}]
+
+
+def test_runtime_pool_outside_the_candidates_is_named_without_a_mismatch(schedule_wire):
+    # DERIVED: the real stored-pool vs_stat with the pool renamed to one that no schedule-pool entry names.
+    schedule_wire.runtime[VS_STAT_COMMAND] = exec_body("vs_stat_stored_pool_exec.txt").replace(
+        "netops-173-pool-b", "netops-173-pool-c")
+    result = run_schedule(schedule_wire)
+    assert ids(result) == ["F-POOL-BY-SCHEDULE", "F-POOL-NOT-CANDIDATE"]
+    assert result["verdict"] == "no_fault_in_checked_data"
+    finding = result["findings"][1]
+    assert finding["object"] == "netops-173-pool-c" and finding["layer"] == "runtime"
+    assert [s.get("query") or s.get("section") for s in finding["sources"]][:2] == [
+        "slb_vs_stat", "load-balance virtual-server " + SVS]
+
+
+def test_unreadable_or_truncated_schedule_entries_keep_the_result_incomplete(schedule_wire, monkeypatch):
+    schedule_wire.views["load-balance schedule-pool netops-173-sp-b"] = real("schedule_pool_full.txt")
+    schedule_wire.runtime[VS_STAT_COMMAND] = exec_body("vs_stat_stored_pool_exec.txt").replace(
+        "netops-173-pool-b", "netops-173-pool-c")
+    result = run_schedule(schedule_wire)
+    assert [(m["step"], m["reason"]) for m in result["missing"]] == [("schedule_pool:netops-173-sp-b", "device_cli_error")]
+    assert result["chain"]["pool"]["candidates_complete"] is False
+    assert result["chain"]["schedule"][1] == {"entry": "netops-173-sp-b", "schedule": None, "pool": None,
+                                              "sources": [result["chain"]["schedule"][0]["sources"][0]]}
+    assert ids(result) == ["F-POOL-BY-SCHEDULE"] and result["verdict"] == "incomplete"
+    monkeypatch.setattr(rules, "MAX_SCHEDULE_ENTRIES", 1)
+    schedule_wire.views = schedule_views()
+    schedule_wire.calls.clear()
+    result = run_schedule(schedule_wire)
+    assert result["missing"] == [{"step": "schedule_pool:netops-173-sp-b", "reason": "truncated"}]
+    assert [item["entry"] for item in result["chain"]["schedule"]] == ["netops-173-sp-a"]
+    assert not any("sp-b" in call or "sg-off" in call for call in schedule_wire.calls)
+    assert result["verdict"] == "incomplete"
+
+
+def test_schedule_without_entries_and_content_routing_are_explicitly_missing(schedule_wire):
+    vs = real("vs_schedule_full.txt")
+    # DERIVED: the real virtual-server view without its schedule-pool-list line.
+    schedule_wire.views["load-balance virtual-server " + SVS] = vs.replace(
+        "    set schedule-pool-list netops-173-sp-a netops-173-sp-b \n", "")
+    result = run_schedule(schedule_wire)
+    assert result["missing"] == [{"step": "schedule_pool", "reason": "empty",
+                                  "detail": "schedule-list enable without schedule-pool-list"}]
+    assert result["chain"]["schedule"] == [] and result["verdict"] == "incomplete"
+    # DERIVED: content-routing enabled in the real view; pool selection per request is not evaluated.
+    schedule_wire.views["load-balance virtual-server " + SVS] = vs.replace(
+        "set content-routing disable", "set content-routing enable")
+    schedule_wire.calls.clear()
+    result = run_schedule(schedule_wire)
+    assert result["missing"] == [{"step": "pool_config", "reason": "unsupported", "detail": (
+        "content-routing enable: the virtual server selects pools per request, which triage_slb does not evaluate")}]
+    assert "selection" not in result["chain"]["pool"] and "schedule" not in result["chain"]
+    assert not any("schedule" in call for call in schedule_wire.calls)
+    assert result["verdict"] == "incomplete"
+
+
+def test_both_read_plans_fit_the_reserved_triage_budget():
+    assert rules.STATIC_PLAN == rules.RATE_COST == engine.progress.TRIAGE_READS["triage_slb"]
+    assert rules.SCHEDULE_PLAN == 12 + 2 * rules.MAX_SCHEDULE_ENTRIES <= rules.RATE_COST
+
+
+def test_virtual_server_without_schedule_keeps_its_chain():
+    result = run(Device())
+    assert "selection" not in result["chain"]["pool"] and "schedule" not in result["chain"]
+    assert result["chain"]["vs"]["config"]["schedule_list"] is None
+    assert result["chain"]["vs"]["config"]["schedule_pool_list"] == []
+    assert "no_rs" not in result["chain"]["vs"]["runtime"] and "no_rs" not in result["chain"]["load"]

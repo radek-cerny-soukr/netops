@@ -42,6 +42,7 @@ The nat_pool_assignments CLI reference documents a pool-name argument but does n
 | `interface_hardware` | `diagnose hardware deviceinfo nic {interface}` | `interfaces.fortios_physical_interface` | normal | F-DIAG-HW-76, F-NIC-ADMIN-76, F-NIC-ACCEL-76, F-NIC-ADMIN-80, F-NETLINK-INTERFACE-80, F-CONFIG-SYSTEM-INTERFACE-80, F-TEXT-STRINGS-80, F-INTERFACE-SETTINGS-80, F-IPSEC-ALIAS-80 |
 | `routing_table` | `get router info routing-table all` | none | high-volume | F-CLI-76, F-CLI-80, F-CLI-802, F-CHEAT-76, F-CHEAT-80, F-CHEAT-802 |
 | `route_lookup` | `get router info routing-table details {address}` | `addresses.ipv4_lookup` | normal | F-CLI-76, F-CLI-80, F-CLI-802, F-CHEAT-76, F-CHEAT-80, F-CHEAT-802 |
+| `ipv6_route_lookup` | `get router info6 routing-table {address}` | `addresses.ipv6_lookup` | normal | F-DOC-IPV6-LOOKUP |
 | `policy_routes_ipv4` | `diagnose firewall proute list` | none | high-volume | F-CLI-768, F-ADMIN-CHEAT-768, F-CHEAT-76, F-CLI-802, F-CHEAT-802 |
 | `policy_routes_ipv6` | `diagnose firewall proute6 list` | none | high-volume | F-CLI-768, F-CLI-802 |
 | `fqdn_object_detail` | `diagnose firewall fqdn get-ip {name}` | `firewall_addresses.fortios_address_object` | normal | F-CLI-768, F-CLI-802 |
@@ -169,6 +170,13 @@ No additional command in this review is approved merely because it appears in ve
 
 These are research candidates, not callable query names. The accepted table must not be expanded from this section without a separate source and live-test review.
 
+
+### IPv6 route lookup (narrow update 2026-11-14)
+
+This narrow update is dated separately from the 2026-10-27 verification date and the 8.0.2 Phase-1 claims above, which are unchanged. The new `ipv6_route_lookup` query (`get router info6 routing-table {address}`) rests on the official FortiOS 7.6.6 Administration Guide syntax example at https://docs.fortinet.com/document/fortigate/7.6.6/administration-guide/513779/ignore-vrrp-default-route and on two actual CLI cases on a FortiGate-60F running FortiOS 7.6.8 build3744 (VDOM mode disabled, root VRF 0).
+
+Normalization is bounded: the CLI looks up the raw enrolled IPv6 address or network-address prefix and does not guarantee reachability of the whole prefix. The structured parser reports only measured connected and no-route results; every other output format is left unparsed. Static, BGP, ECMP, recursive routes, multi-VDOM, future firmware and hardware qualification are not claimed. The recorded positive CLI case is a connected loopback route, not proof of forwarding.
+
 ## Primary source manifest
 
 Only first-party Fortinet pages are retained. General CLI references establish the reviewed baselines; focused pages support the mapped query groups and operational interpretation. No long vendor passages are copied.
@@ -210,6 +218,7 @@ Only first-party Fortinet pages are retained. General CLI references establish t
 | F-CONFIG-SYSTEM-INTERFACE-80 | FortiOS 8.0.0 CLI Reference: `config system interface` | documentation-only interface-name grammar evidence for `interface_details` and `interface_hardware`; the configuration command is not callable | https://docs.fortinet.com/document/fortigate/8.0.0/cli-reference/317104469/config-system-interface |
 | F-TEXT-STRINGS-80 | FortiOS 8.0.0 Administration Guide: Text strings | interface-name character constraints for `interface_details` and `interface_hardware` | https://docs.fortinet.com/document/fortigate/8.0.0/administration-guide/651640/text-strings |
 | F-INTERFACE-SETTINGS-80 | FortiOS 8.0.0 Administration Guide: Interface settings | interface types and naming context for `interface_details` and `interface_hardware` | https://docs.fortinet.com/document/fortigate/8.0.0/administration-guide/574723/interface-settings |
+| F-DOC-IPV6-LOOKUP | FortiOS 7.6.6 Administration Guide - Ignore VRRP default route | `ipv6_route_lookup`; IPv6 route-lookup query syntax `get router info6 routing-table <address>` only | https://docs.fortinet.com/document/fortigate/7.6.6/administration-guide/513779/ignore-vrrp-default-route |
 
 ## Wi-Fi reads for a read-only account (measured)
 

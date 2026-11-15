@@ -1,0 +1,15 @@
+FortiGate-60F # IPv6 Routing Table
+Codes: K - kernel route, C - connected, S - static, R - RIP, O - OSPF,
+       IA - OSPF inter area
+       N1 - OSPF NSSA external type 1, N2 - OSPF NSSA external type 2
+       E1 - OSPF external type 1, E2 - OSPF external type 2
+       i - IS-IS, B - BGP, V - BGP VPNv6
+       * - candidate default
+
+Timers: Uptime
+
+Routing table for VRF=0
+C       ::1/128 via ::, root, 01w2d02h
+
+
+FortiGate-60F # 

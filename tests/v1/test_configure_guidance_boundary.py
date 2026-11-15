@@ -32,13 +32,13 @@ class ConfigureGuidanceBoundary(unittest.TestCase):
             state = Path(temporary)
             (state / "gateway").mkdir(mode=0o700)
             (state / role).mkdir(mode=0o700, exist_ok=True)
-            settings = {"version": 1, "product_version": "1.0.8", "audit": {"mode": "local"}}
+            settings = {"version": 1, "product_version": "1.0.9", "audit": {"mode": "local"}}
             write_private(state / "gateway/config.json", json.dumps(settings).encode())
             before = {str(p.relative_to(state)): p.read_bytes() for p in state.rglob("*") if p.is_file()}
             errors, output = io.StringIO(), io.StringIO()
             with contextlib.ExitStack() as stack:
                 stack.enter_context(patch.object(operator, "STATE", state))
-                stack.enter_context(patch.dict(UIDS, {"gateway": uid}))
+                stack.enter_context(patch.dict(UIDS, {"gateway": uid, "auditor": uid}))
                 stack.enter_context(patch.object(operator, "demote"))
                 stack.enter_context(patch.object(operator, "role_environment"))
                 stack.enter_context(patch.object(operator.os, "geteuid", side_effect=itertools.chain([0], itertools.repeat(uid))))
@@ -52,7 +52,7 @@ class ConfigureGuidanceBoundary(unittest.TestCase):
             self.assertEqual(rc, 2, errors.getvalue())
             self.assertEqual(output.getvalue(), "")
             after = {str(p.relative_to(state)): p.read_bytes() for p in state.rglob("*")
-                     if p.is_file() and p.name != "instance.lock" and "audit" not in p.parts}
+                     if p.is_file() and p.name not in ("instance.lock", "store.lock") and "audit" not in p.parts}
             self.assertEqual(after, before)
             return errors.getvalue()
 
@@ -192,7 +192,7 @@ class ConfigureGuidanceBoundary(unittest.TestCase):
         uid = os.geteuid()
         with tempfile.TemporaryDirectory() as temporary:
             state = Path(temporary); (state / "gateway").mkdir(mode=0o700)
-            write_private(state / "gateway/config.json", json.dumps({"version": 1, "product_version": "1.0.8"}).encode())
+            write_private(state / "gateway/config.json", json.dumps({"version": 1, "product_version": "1.0.9"}).encode())
             lock = os.open(state / "gateway/instance.lock", os.O_RDWR | os.O_CREAT, 0o600)
             try:
                 fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)

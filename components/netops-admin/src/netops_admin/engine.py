@@ -11,6 +11,7 @@ from netops_admin.request import canonical_value
 PLAN_FORMAT = "netops-admin-plan/1"
 ADAPTERS = {"fortios": fortios, "exos": exos}
 MAX_SNAPSHOT_BYTES = 16 * 1024 * 1024
+PORT_TABLES = ("ports", "inline-power")
 REFERENCE_TEXT_ATTRIBUTES = {"vlan-membership": ("untagged",), "firewall policy": ("schedule",)}
 
 
@@ -194,15 +195,22 @@ def build_plan(platform: str, snapshot_raw: bytes, request, firmware: str | None
     key, op = request.key, request.op
     if key.casefold().startswith("netops-enroll-") and not enrollment_probe:
         raise Rejected(["the enrollment object namespace is reserved"])
-    checks = ["firmware %s is measured for this profile" % snapshot.firmware]
+    if profile.measured:
+        checks = ["firmware %s is measured for this profile" % snapshot.firmware]
+    else:
+        checks = ["firmware %s is named by this profile, but the profile is NOT MEASURED on a device"
+                  " (simulation only)" % snapshot.firmware]
     if op not in profile.ops and not (undo and op in profile.undo_ops):
         raise Rejected(["operation %s is not enabled in the profile" % op])
     if not profile.key_pattern.fullmatch(key):
         raise Rejected(["key %r does not match %s" % (key, profile.key_pattern.pattern)])
     guarded = {name.casefold() for name in profile.protected_keys}
     guarded |= {name.casefold() for name in (protected or {}).get(profile.table, ())}
+    if profile.table == "inline-power":
+        guarded |= {name.casefold() for name in (protected or {}).get("ports", ())}
     if key.casefold() in guarded:
-        raise Rejected(["object %r is protected" % key])
+        raise Rejected(["object %r is protected" % key],
+                       reason_codes=["port_protected"] if profile.table in PORT_TABLES else None)
     checks.append("key is valid and not protected")
     entries = snapshot.entries(profile.table)
     if entries is None:
@@ -276,6 +284,9 @@ def build_plan(platform: str, snapshot_raw: bytes, request, firmware: str | None
                 else:
                     after[name] = value
             if after == before:
+                if profile.table == "inline-power":
+                    raise Rejected(["inline power of port %s is configured disabled; a cycle needs it enabled" % key],
+                                   reason_codes=["poe_disabled"])
                 raise Rejected(["update changes nothing"])
             checks.append("references allow the changed attributes")
             assign = {name: value for name, value in changes.items() if value is not None}

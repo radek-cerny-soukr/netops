@@ -1,0 +1,25 @@
+vdom name is  root
+FortiADC-KVM # 
+	virtual-server VS_APP_HTTP
+		real-server POOL_APP
+		id:1, status 1, weight 0
+		id:2, status 1, weight 0
+	virtual-server LAB_VS_HTTPS
+		real-server POOL_APP
+		id:1, status 1, weight 0
+		id:2, status 1, weight 0
+	virtual-server LAB_VS_SMTP
+		real-server LAB_POOL_SMTP
+		id:1, status 1, weight 0
+		id:2, status 1, weight 0
+	virtual-server LAB_VS_DNS
+		real-server LAB_POOL_DNS
+		id:1, status 1, weight 0
+		id:2, status 1, weight 0
+	virtual-server netops-tlsca-vs
+		real-server netops-tlsca-pool
+		id:1, status 1, weight 0
+	virtual-server netops-173-vs
+		real-server netops-173-pool-b
+		id:1, status 1, weight 0
+FortiADC-KVM # 

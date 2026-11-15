@@ -44,7 +44,26 @@ class Snapshot:
                 entry = self.vlans.setdefault(command.tokens[2], Entry(command.tokens[2]))
                 if len(command.tokens) != 3:
                     entry.unsupported.append("line %d: create options" % command.line)
-        self.ports, self.port_lists = {}, []
+        self.ports, self.port_lists, self.inline_power = {}, [], {}
+        for command in self.commands:
+            if _is_port_disabled(command) or _is_poe_disabled(command):
+                port = command.tokens[-1]
+                table = self.ports if _is_port_disabled(command) else self.inline_power
+                if not port.isdigit():
+                    # a list disables several ports in one line: only the ports it names are refused
+                    try:
+                        listed = membership.ports(port)
+                    except Exception:
+                        self.port_lists.append("line %d" % command.line)
+                        continue
+                    for member in listed:
+                        table.setdefault(member, Entry(member)).unsupported.append(
+                            "line %d: %s on a port list" % (command.line, " ".join(command.tokens[:-1])))
+                    continue
+                entry = table.setdefault(port, Entry(port))
+                if "admin-state" in entry.attributes:
+                    entry.unsupported.append("line %d: repeated admin-state" % command.line)
+                entry.attributes["admin-state"] = "disabled"
         for command in self.commands:
             if _is_display_string(command):
                 port = command.tokens[2]
@@ -99,11 +118,11 @@ class Snapshot:
                 entry.attributes = attrs
                 result[port] = entry
             return result
-        if table == "ports":
+        if table in ("ports", "inline-power"):
             if self.port_lists:
-                raise Rejected(["display strings are set on port lists (%s); they cannot be evaluated per port"
-                                % ", ".join(self.port_lists)])
-            return dict(self.ports)
+                raise Rejected(["port settings (display string, disabled port or inline power) are set on port lists"
+                                " (%s); they cannot be evaluated per port" % ", ".join(self.port_lists)])
+            return dict(self.ports if table == "ports" else self.inline_power)
         if table != "vlan":
             return None
         return dict(self.vlans)
@@ -112,7 +131,7 @@ class Snapshot:
         return dict(entry.attributes), list(entry.unsupported)
 
     def references(self, table: str, key: str) -> list:
-        if table in ("ports", "vlan-membership"):
+        if table in ("ports", "vlan-membership", "inline-power"):
             return []
         return sorted(
             "line %d (module %s)" % (command.line, command.module or "-")
@@ -131,9 +150,11 @@ class Snapshot:
                          if not _default_recovery(command))
         if table == "vlan-membership":
             return membership.rest_digest(self, key, commands)
+        if table == "inline-power":
+            lines = [command.text for command in commands if not port_owned(command, table, key)]
+            return hashlib.sha256("\n".join(lines).encode("utf-8")).hexdigest()
         if table == "ports":
-            kept = tuple(command for command in commands
-                         if not (_is_display_string(command) and command.tokens[2] == key))
+            kept = tuple(command for command in commands if not port_owned(command, table, key))
             if self.inventory is not None:
                 return membership.rest_digest(self, None, kept)
             lines = [command.text for command in kept]
@@ -185,6 +206,26 @@ def _is_display_string(command) -> bool:
     return len(tokens) >= 5 and tokens[:2] == ("configure", "ports") and tokens[3] == "display-string"
 
 
+def _is_port_disabled(command) -> bool:
+    # show configuration prints a disabled port as "disable port N" (singular) in module vlan, whatever the
+    # spelling of the command was (measured on 33.7.1.6-patch1-11, X435-8P-4S and X440-G2-12p-10G4)
+    return len(command.tokens) == 3 and command.tokens[:2] == ("disable", "port") and command.module == "vlan"
+
+
+def _is_poe_disabled(command) -> bool:
+    # "disable inline-power ports N" keeps its plural spelling and sits in module poe (same measurement)
+    return (len(command.tokens) == 4 and command.tokens[:3] == ("disable", "inline-power", "ports")
+            and command.module == "poe")
+
+
+def port_owned(command, table: str, key: str) -> bool:
+    """The configuration line belongs to the per-port object of the table (display string or admin state)."""
+    if table == "inline-power":
+        return _is_poe_disabled(command) and command.tokens[3] == key
+    return ((_is_display_string(command) and command.tokens[2] == key)
+            or (_is_port_disabled(command) and command.tokens[2] == key))
+
+
 def load(text: str, firmware: str | None) -> Snapshot:
     return Snapshot(text, firmware)
 
@@ -218,12 +259,32 @@ def render_create(profile, key: str, attributes: dict) -> list:
     return lines
 
 
+ADMIN_STATES = ("enabled", "disabled")
+
+
+def _admin_state(prefix: str, key: str, value: str) -> str:
+    if value not in ADMIN_STATES:
+        raise Rejected(["admin-state must be enabled or disabled"])
+    return "%s %s %s" % ("disable" if value == "disabled" else "enable", prefix, key)
+
+
 def render_update(profile, key: str, assign: dict, remove: list) -> list:
     if profile.table == "vlan-membership":
         return []
+    if profile.table == "inline-power":
+        lines = [_admin_state("inline-power ports", key, value) for name, value in assign.items()]
+        return lines + [_admin_state("inline-power ports", key, "enabled") for _name in remove]
     if profile.table == "ports":
-        lines = ["configure ports %s display-string %s" % (key, _text(value, spaces=False)) for value in assign.values()]
-        return lines + ["unconfigure ports %s display-string" % key for _name in remove]
+        lines = []
+        for name, value in assign.items():
+            if name == "admin-state":
+                lines.append(_admin_state("ports", key, value))
+            else:
+                lines.append("configure ports %s display-string %s" % (key, _text(value, spaces=False)))
+        for name in remove:
+            lines.append(_admin_state("ports", key, "enabled") if name == "admin-state"
+                         else "unconfigure ports %s display-string" % key)
+        return lines
     lines = []
     if "description" in assign:
         lines.append('configure vlan %s description "%s"' % (key, _text(assign["description"])))
@@ -237,13 +298,161 @@ def render_delete(profile, key: str) -> list:
 
 
 def prechecks(snapshot, profile, op: str, key: str, after) -> list:
-    if profile.table == "ports" and snapshot.inventory is not None and key not in snapshot.inventory:
+    if profile.table in ("ports", "inline-power") and snapshot.inventory is not None and key not in snapshot.inventory:
         return ["port %s is not reported by the switch" % key]
+    if profile.table in ("ports", "inline-power"):
+        port_state_prechecks(snapshot, profile, key, after)
     if profile.table == "vlan-membership":
         return membership.prechecks(snapshot, key, membership.states(snapshot).get(key, {}), after)
     if op == "create" and after is not None and after.get("tag") in snapshot.tags():
         return ["tag %s is already used by another VLAN" % after["tag"]]
     return []
+
+
+# admin-state of ports and the inline-power cycle are measured only on this firmware (X435-8P-4S and
+# X440-G2-12p-10G4, 33.7.1.6-patch1-11); the display string keeps the wider scope of the ports profile
+PORT_ACTION_FIRMWARE = ("33.7.1.6",)
+
+
+def _disabling(snapshot, table: str, key: str, after) -> bool:
+    entries = snapshot.ports if table == "ports" else snapshot.inline_power
+    before = entries.get(key).attributes if key in entries else {}
+    return (after or {}).get("admin-state") == "disabled" and before.get("admin-state") != "disabled"
+
+
+def touches_admin_state(snapshot, table: str, key: str, after) -> bool:
+    entries = snapshot.ports if table == "ports" else snapshot.inline_power
+    before = entries.get(key).attributes if key in entries else {}
+    return (after or {}).get("admin-state", "enabled") != before.get("admin-state", "enabled")
+
+
+def port_state_prechecks(snapshot, profile, key: str, after) -> None:
+    if not touches_admin_state(snapshot, profile.table, key, after):
+        return
+    if snapshot.firmware not in PORT_ACTION_FIRMWARE:
+        raise Rejected(["%s is measured only on ExtremeXOS %s, not on %s"
+                        % ("the port admin state" if profile.table == "ports" else "the inline-power cycle",
+                           ", ".join(PORT_ACTION_FIRMWARE), snapshot.firmware)],
+                       reason_codes=["port_action_not_measured"])
+    if profile.table == "inline-power":
+        return
+    if not _disabling(snapshot, profile.table, key, after):
+        return
+    if not vlan_module_closed(snapshot):
+        raise Rejected(["the configuration ends inside its vlan module; VLAN and link aggregation membership of port %s "
+                        "cannot be read completely" % key], reason_codes=["port_usage_unreadable"])
+    if key in membership.lag_ports(snapshot):
+        raise Rejected(["port %s belongs to a link aggregation; disabling it is refused" % key],
+                       reason_codes=["port_lag_member"])
+    _vlans, members, _descriptions = membership.model(snapshot)
+    tagged = sorted(members.get(key, {}).get("tagged", ()))
+    if tagged:
+        raise Rejected(["port %s carries tagged VLANs (%d); a trunk is treated as an uplink and is not disabled"
+                        % (key, len(tagged))], reason_codes=["port_uplink"])
+
+
+def vlan_module_closed(snapshot) -> bool:
+    """VLAN membership and link aggregation are read from the vlan module of show configuration; it is complete
+    only when the switch printed another module after it (a dump cut off inside the vlan module is not)."""
+    modules = list(snapshot.configuration.modules)
+    return "vlan" in modules and modules.index("vlan") < len(modules) - 1
+
+
+def management_vlan_member(snapshot, key: str, names) -> bool:
+    folded = {name.casefold() for name in names or ()}
+    if not folded:
+        return False
+    _vlans, members, _descriptions = membership.model(snapshot)
+    modes = members.get(key, {})
+    return any(name.casefold() in folded for mode in modes.values() for name in mode)
+
+
+QUERY_LLDP = "show lldp neighbors"
+QUERY_FDB = "show fdb"
+LLDP_HEADER = re.compile(r"^Port\s+Chassis ID\s+Port ID\s+TTL\s+Age\s+System Name\s*$", re.MULTILINE)
+LLDP_ROW = re.compile(r"^([1-9][0-9]*(?::[1-9][0-9]*)?)\s+\S", re.MULTILINE)
+FDB_HEADER = re.compile(r"^MAC\s+VLAN Name\( Tag\)\s+Age\s+Flags\s+Port / Virtual Port List\s*$", re.MULTILINE)
+FDB_ROW = re.compile(r"^(?:[0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}[^\S\n]+\S+\(\d{4}\)[^\S\n]+\d+[^\S\n]+"
+                     r"(?:[A-Za-z][^\S\n]+)*?([0-9][0-9:,-]*(?:,[^\S\n]*[0-9][0-9:,-]*)*)[^\S\n]*$", re.MULTILINE)
+FDB_TOTAL = re.compile(r"^Total:\s+(\d+)\s", re.MULTILINE)
+
+
+LLDP_SEPARATOR = re.compile(r"^={3,}$")
+LLDP_NOTE = "NOTE: The Chassis ID and/or Port ID might be truncated to fit the screen."
+
+
+def _lldp_unreadable(reason: str):
+    return Rejected(["the LLDP neighbor list %s" % reason], reason_codes=["port_usage_unreadable"])
+
+
+def lldp_ports(text: str) -> set:
+    """Ports with an LLDP neighbor in show lldp neighbors; an unrecognised or incomplete answer is refused.
+
+    The list counts as complete only in the measured layout (33.7.1.6, X435 and X440): the header, a separator,
+    the rows, the closing separator and the closing NOTE line. A list cut off anywhere before the NOTE, even
+    after valid rows, is refused instead of being read as "no neighbor"."""
+    header = LLDP_HEADER.search(text)
+    if header is None:
+        raise _lldp_unreadable("is not recognised")
+    lines = [line.rstrip() for line in text[header.end():].splitlines()]
+    lines = [line for line in lines if line.strip()]
+    if not lines or not LLDP_SEPARATOR.match(lines[0]):
+        raise _lldp_unreadable("has no separator under the header")
+    closing = next((index for index in range(1, len(lines)) if LLDP_SEPARATOR.match(lines[index])), None)
+    if closing is None:
+        raise _lldp_unreadable("is cut off (no closing separator)")
+    trailer = lines[closing + 1:]
+    if trailer != [LLDP_NOTE]:
+        raise _lldp_unreadable("is cut off or ends in an unknown way (no closing NOTE line)")
+    found = set()
+    for line in lines[1:closing]:
+        match = LLDP_ROW.match(line)
+        if match is None:
+            raise _lldp_unreadable("holds a row that is not recognised")
+        found.add(match.group(1))
+    return found
+
+
+FDB_SEPARATOR = re.compile(r"^-{3,}\s*$", re.MULTILINE)
+
+
+def fdb_ports(text: str) -> set:
+    """Ports with learned MAC addresses in show fdb; the list is complete only with its separator under the header
+    and the closing Total line after the last row, and the row count must equal that Total."""
+    header = FDB_HEADER.search(text)
+    if header is None:
+        raise Rejected(["the forwarding database is not recognised"], reason_codes=["port_usage_unreadable"])
+    separator = FDB_SEPARATOR.search(text, header.end())
+    if separator is not None and text[header.end():separator.start()].strip():
+        separator = None
+    total = FDB_TOTAL.search(text)
+    rows = list(FDB_ROW.finditer(text))
+    if separator is None or total is None or int(total.group(1)) != len(rows) \
+            or any(row.start() < separator.end() or row.end() > total.start() for row in rows):
+        raise Rejected(["the forwarding database is incomplete"], reason_codes=["port_usage_unreadable"])
+    found = set()
+    for row in rows:
+        try:
+            found |= membership.ports(row.group(1).replace(" ", ""))
+        except Exception:
+            raise Rejected(["the forwarding database names a port list that is not recognised"],
+                           reason_codes=["port_usage_unreadable"]) from None
+    return found
+
+
+PORT_STATES = {"E": "enabled", "D": "disabled", "F": "disabled by link-flap detection", "L": "disabled by licensing"}
+LINK_STATES = {"A": "active", "R": "ready", "NP": "not present", "L": "loopback"}
+
+
+def port_configuration(text: str, key: str):
+    """Port State and Link State of show ports N configuration no-refresh, or None when not recognised."""
+    if "Port Configuration" not in text:
+        return None
+    for line in text.splitlines():
+        words = line.split()
+        if len(words) >= 4 and words[0] == key and words[2] in PORT_STATES:
+            return {"port_state": PORT_STATES[words[2]], "link_state": LINK_STATES.get(words[3], words[3])}
+    return None
 
 
 SAFEGUARD_PREFIX = "netops"
@@ -405,9 +614,10 @@ def foreign_sessions(text: str) -> int:
 
 PORT_HEADER = re.compile(r"^Port:\s+(\d+)(?:\((.*)\))?:?\s*$", re.MULTILINE)
 PORT_ABSENT = "Invalid port number"
+ADMIN_STATE_LINE = re.compile(r"^[^\S\n]*Admin state:\s+(Enabled|Disabled)\b", re.MULTILINE)
 
 
-def shown_port(text: str, key: str):
+def shown_port(text: str, key: str, admin_state=False):
     header = PORT_HEADER.search(text)
     if header is None:
         if PORT_ABSENT in text:
@@ -415,7 +625,78 @@ def shown_port(text: str, key: str):
         raise Rejected(["the check account answer about port %s is not recognised" % key])
     if header.group(1) != key:
         raise Rejected(["the check account answer names another port"])
-    return {"display-string": header.group(2)} if header.group(2) else {}
+    attributes = {"display-string": header.group(2)} if header.group(2) else {}
+    state = ADMIN_STATE_LINE.findall(text)
+    if admin_state and len(state) != 1:
+        raise Rejected(["the check account answer about port %s shows no admin state" % key])
+    if state and state[0] == "Disabled":
+        attributes["admin-state"] = "disabled"
+    return attributes
+
+
+POE_NOT_CAPABLE = re.compile(r"\bPort (\S+) is not inline-power capable\b")
+POE_INFO_HEADER = re.compile(r"^Port\s+State\s+Class\s+Volts\s+Curr\s+Power\s+Fault\s*$", re.MULTILINE)
+POE_DETAIL = {
+    "configured": re.compile(r"^Configured Admin State:\s*(enabled|disabled)\s*$", re.MULTILINE),
+    "state": re.compile(r"^Inline Power State\s*:\s*(\S+)\s*$", re.MULTILINE),
+    "class": re.compile(r"^PD Class\s*:[^\S\n]*(\S*)\s*$", re.MULTILINE),
+    "power": re.compile(r"^Measured Power\s*:\s*([0-9.]+ W)\s*$", re.MULTILINE),
+    "fault": re.compile(r"^Fault Status\s*:\s*(.*?)\s*$", re.MULTILINE),
+}
+POE_DETAIL_HEADER = re.compile(r"^Port (\S+)\s*$", re.MULTILINE)
+
+
+class NotInlinePower(Rejected):
+    pass
+
+
+def poe_info(text: str, key: str) -> dict:
+    """The row of port N in show inline-power info ports N (measured format), or a coded refusal."""
+    refused = POE_NOT_CAPABLE.search(text)
+    if refused is not None:
+        if refused.group(1) != key:
+            raise Rejected(["the inline-power answer names another port"], reason_codes=["poe_state_unreadable"])
+        raise NotInlinePower(["port %s is not inline-power capable" % key], reason_codes=["poe_not_capable"])
+    if POE_INFO_HEADER.search(text) is None:
+        raise Rejected(["the switch gives no inline-power table for port %s; the platform may have no PoE" % key],
+                       reason_codes=["poe_unsupported"])
+    for line in text.splitlines():
+        words = line.split()
+        if len(words) >= 7 and words[0] == key:
+            return {"state": words[1], "class": words[2], "power_watts": words[5], "fault": " ".join(words[6:])}
+    raise Rejected(["the inline-power table holds no row for port %s" % key], reason_codes=["poe_state_unreadable"])
+
+
+# measured (ref 171, X435 port 9 and X440 port 13): show inline-power info ports N on a port without PoE ends
+# with exit status 250 and prints only this line
+POE_NOT_CAPABLE_RC = 250
+
+
+def poe_not_capable_answer(rc, text: str, key: str) -> bool:
+    """True only for the measured refusal of a port without PoE: exit status 250 and the single line."""
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    return rc == POE_NOT_CAPABLE_RC and lines == ["Port %s is not inline-power capable" % key]
+
+
+def poe_detail(text: str, key: str) -> dict:
+    """show inline-power info detail ports N: the configured admin state and the inline power state."""
+    refused = POE_NOT_CAPABLE.search(text)
+    if refused is not None and refused.group(1) == key:
+        raise NotInlinePower(["port %s is not inline-power capable" % key], reason_codes=["poe_not_capable"])
+    header = POE_DETAIL_HEADER.search(text)
+    if header is None or header.group(1) != key:
+        raise Rejected(["the inline-power detail of port %s is not recognised" % key],
+                       reason_codes=["poe_state_unreadable"])
+    found = {}
+    for name, pattern in POE_DETAIL.items():
+        values = pattern.findall(text)
+        if len(values) != 1:
+            if name in ("configured", "state"):
+                raise Rejected(["the inline-power detail of port %s shows no %s" % (key, name)],
+                               reason_codes=["poe_state_unreadable"])
+            continue
+        found[name] = values[0]
+    return found
 
 
 def switch_ports(text: str) -> list:

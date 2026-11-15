@@ -1,0 +1,15 @@
+
+Port    State           Class      Volts    Curr    Power     Fault
+                                            (mA)   (Watts)
+1       searching       ------      0.0       0      0.000    None
+2       searching       ------      0.0       0      0.000    None
+3       searching       ------      0.0       0      0.000    None
+4       searching       ------      0.0       0      0.000    None
+5       searching       ------      0.0       0      0.000    None
+6       searching       ------      0.0       0      0.000    None
+7       searching       ------      0.0       0      0.000    None
+8       searching       ------      0.0       0      0.000    None
+9       searching       ------      0.0       0      0.000    None
+10      searching       ------      0.0       0      0.000    None
+11      searching       ------      0.0       0      0.000    None
+12      searching       ------      0.0       0      0.000    None

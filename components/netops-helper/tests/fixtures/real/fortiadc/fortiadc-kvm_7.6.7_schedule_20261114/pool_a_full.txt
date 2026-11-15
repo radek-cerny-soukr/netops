@@ -1,0 +1,35 @@
+FortiADC-KVM # config load-balance pool
+  edit "netops-173-pool-a"
+    set type static
+    set addr-type ipv4
+    set health-check-ctrl disable
+    set health-check-down-action reject
+    unset health-check-list
+    set real-server-ssl-profile NONE
+    config  pool_member
+      edit 1
+        set health-check-inherit enable
+        set status enable
+        set real-server-ssl-profile-inherit enable
+        set backup disable
+        set pool_member_service_port 80
+        set pool_member_weight 1
+        set connection-limit 0
+        set recover 0
+        set warm-up 0
+        set warm-rate 100
+        set connection-rate-limit 0
+        set pool_member_cookie rs1
+        set real-server RS_A
+        set mysql-read-only disable
+--More--                  set mysql-group-id 0
+        set proxy-protocol none
+        set mssql-read-only disable
+        set modify-host disable
+        set auto-populate-from 0
+      next
+    end
+  next
+end
+
+FortiADC-KVM # 

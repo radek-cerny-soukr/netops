@@ -1,0 +1,4 @@
+                                                             local/remote
+mlag       desc             state       local       remote          status
+---------- ---------- ----------------- ----------- ------------ ------------
+    5       MLAG - HOST2        active-full         Po5          Po5           up/up

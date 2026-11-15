@@ -23,6 +23,14 @@
       {"profiles": ["extreme_exos"], "status": ["ok", "transport_error", "ok"], "cli_refused": false, "permission_refused": false, "template_refused": false, "refusal_hint": null}
     ]
   },
+  "docs/arista_eos/mlag_interfaces.txt": {
+    "profile": "arista_eos",
+    "rc": 0,
+    "matrix": [
+      {"profiles": ["arista_eos", "cisco_ios", "cisco_nxos", "cisco_xe", "fortiadc", "fortinet", "juniper_junos", "juniper_junos_els", "linux", "ruckus_unleashed", null], "status": ["ok", "transport_error", "transport_error"], "cli_refused": false, "permission_refused": false, "template_refused": false, "refusal_hint": null},
+      {"profiles": ["extreme_exos"], "status": ["ok", "transport_error", "ok"], "cli_refused": false, "permission_refused": false, "template_refused": false, "refusal_hint": null}
+    ]
+  },
   "docs/arista_eos/route_lookup_ecmp.txt": {
     "profile": "arista_eos",
     "rc": 0,
@@ -3266,6 +3274,78 @@
       {"profiles": ["cisco_ios", "cisco_xe"], "status": ["permission_denied", "permission_denied", "permission_denied"], "cli_refused": true, "permission_refused": false, "template_refused": false, "refusal_hint": "The command was refused by the account or does not exist on this image (for example a router image without switching commands)"}
     ]
   },
+  "real/exos/dom_33.7.1.6_20261114/existing_port1_ddmi_unsupported.txt": {
+    "profile": "extreme_exos",
+    "rc": 0,
+    "matrix": [
+      {"profiles": ["arista_eos", "cisco_ios", "cisco_nxos", "cisco_xe", "fortiadc", "fortinet", "juniper_junos", "juniper_junos_els", "linux", "ruckus_unleashed", null], "status": ["ok", "transport_error", "transport_error"], "cli_refused": false, "permission_refused": false, "template_refused": false, "refusal_hint": null},
+      {"profiles": ["extreme_exos"], "status": ["ok", "transport_error", "ok"], "cli_refused": false, "permission_refused": false, "template_refused": false, "refusal_hint": null}
+    ]
+  },
+  "real/exos/dom_33.7.1.6_20261114/sample_a-port13.txt": {
+    "profile": "extreme_exos",
+    "rc": 0,
+    "matrix": [
+      {"profiles": ["arista_eos", "cisco_ios", "cisco_nxos", "cisco_xe", "fortiadc", "fortinet", "juniper_junos", "juniper_junos_els", "linux", "ruckus_unleashed", null], "status": ["ok", "transport_error", "transport_error"], "cli_refused": false, "permission_refused": false, "template_refused": false, "refusal_hint": null},
+      {"profiles": ["extreme_exos"], "status": ["ok", "transport_error", "ok"], "cli_refused": false, "permission_refused": false, "template_refused": false, "refusal_hint": null}
+    ]
+  },
+  "real/exos/dom_33.7.1.6_20261114/sample_a-port14.txt": {
+    "profile": "extreme_exos",
+    "rc": 0,
+    "matrix": [
+      {"profiles": ["arista_eos", "cisco_ios", "cisco_nxos", "cisco_xe", "fortiadc", "fortinet", "juniper_junos", "juniper_junos_els", "linux", "ruckus_unleashed", null], "status": ["ok", "transport_error", "transport_error"], "cli_refused": false, "permission_refused": false, "template_refused": false, "refusal_hint": null},
+      {"profiles": ["extreme_exos"], "status": ["ok", "transport_error", "ok"], "cli_refused": false, "permission_refused": false, "template_refused": false, "refusal_hint": null}
+    ]
+  },
+  "real/exos/dom_33.7.1.6_20261114/sample_a-temperature.txt": {
+    "profile": "extreme_exos",
+    "rc": 0,
+    "matrix": [
+      {"profiles": ["arista_eos", "cisco_ios", "cisco_nxos", "cisco_xe", "fortiadc", "fortinet", "juniper_junos", "juniper_junos_els", "linux", "ruckus_unleashed", null], "status": ["ok", "transport_error", "transport_error"], "cli_refused": false, "permission_refused": false, "template_refused": false, "refusal_hint": null},
+      {"profiles": ["extreme_exos"], "status": ["ok", "transport_error", "ok"], "cli_refused": false, "permission_refused": false, "template_refused": false, "refusal_hint": null}
+    ]
+  },
+  "real/exos/dom_33.7.1.6_20261114/sample_a-version.txt": {
+    "profile": "extreme_exos",
+    "rc": 0,
+    "matrix": [
+      {"profiles": ["arista_eos", "cisco_ios", "cisco_nxos", "cisco_xe", "fortiadc", "fortinet", "juniper_junos", "juniper_junos_els", "linux", "ruckus_unleashed", null], "status": ["ok", "transport_error", "transport_error"], "cli_refused": false, "permission_refused": false, "template_refused": false, "refusal_hint": null},
+      {"profiles": ["extreme_exos"], "status": ["ok", "transport_error", "ok"], "cli_refused": false, "permission_refused": false, "template_refused": false, "refusal_hint": null}
+    ]
+  },
+  "real/exos/dom_33.7.1.6_20261114/sample_b-port13.txt": {
+    "profile": "extreme_exos",
+    "rc": 0,
+    "matrix": [
+      {"profiles": ["arista_eos", "cisco_ios", "cisco_nxos", "cisco_xe", "fortiadc", "fortinet", "juniper_junos", "juniper_junos_els", "linux", "ruckus_unleashed", null], "status": ["ok", "transport_error", "transport_error"], "cli_refused": false, "permission_refused": false, "template_refused": false, "refusal_hint": null},
+      {"profiles": ["extreme_exos"], "status": ["ok", "transport_error", "ok"], "cli_refused": false, "permission_refused": false, "template_refused": false, "refusal_hint": null}
+    ]
+  },
+  "real/exos/dom_33.7.1.6_20261114/sample_b-port14.txt": {
+    "profile": "extreme_exos",
+    "rc": 0,
+    "matrix": [
+      {"profiles": ["arista_eos", "cisco_ios", "cisco_nxos", "cisco_xe", "fortiadc", "fortinet", "juniper_junos", "juniper_junos_els", "linux", "ruckus_unleashed", null], "status": ["ok", "transport_error", "transport_error"], "cli_refused": false, "permission_refused": false, "template_refused": false, "refusal_hint": null},
+      {"profiles": ["extreme_exos"], "status": ["ok", "transport_error", "ok"], "cli_refused": false, "permission_refused": false, "template_refused": false, "refusal_hint": null}
+    ]
+  },
+  "real/exos/dom_33.7.1.6_20261114/sample_b-temperature.txt": {
+    "profile": "extreme_exos",
+    "rc": 0,
+    "matrix": [
+      {"profiles": ["arista_eos", "cisco_ios", "cisco_nxos", "cisco_xe", "fortiadc", "fortinet", "juniper_junos", "juniper_junos_els", "linux", "ruckus_unleashed", null], "status": ["ok", "transport_error", "transport_error"], "cli_refused": false, "permission_refused": false, "template_refused": false, "refusal_hint": null},
+      {"profiles": ["extreme_exos"], "status": ["ok", "transport_error", "ok"], "cli_refused": false, "permission_refused": false, "template_refused": false, "refusal_hint": null}
+    ]
+  },
+  "real/exos/dom_33.7.1.6_20261114/sample_b-version.txt": {
+    "profile": "extreme_exos",
+    "rc": 0,
+    "matrix": [
+      {"profiles": ["arista_eos", "cisco_ios", "cisco_nxos", "cisco_xe", "fortiadc", "fortinet", "juniper_junos", "juniper_junos_els", "linux", "ruckus_unleashed", null], "status": ["ok", "transport_error", "transport_error"], "cli_refused": false, "permission_refused": false, "template_refused": false, "refusal_hint": null},
+      {"profiles": ["extreme_exos"], "status": ["ok", "transport_error", "ok"], "cli_refused": false, "permission_refused": false, "template_refused": false, "refusal_hint": null}
+    ]
+  },
   "real/exos/exosvm_33.6.1.14/access_list_counters.txt": {
     "profile": "extreme_exos",
     "rc": 0,
@@ -6108,6 +6188,118 @@
       {"profiles": ["extreme_exos"], "status": ["ok", "transport_error", "ok"], "cli_refused": false, "permission_refused": false, "template_refused": false, "refusal_hint": null}
     ]
   },
+  "real/fortiadc/fortiadc-kvm_7.6.7_schedule_20261114/pool_a_full.txt": {
+    "profile": "fortiadc",
+    "rc": 0,
+    "matrix": [
+      {"profiles": ["arista_eos", "cisco_ios", "cisco_nxos", "cisco_xe", "fortiadc", "fortinet", "juniper_junos", "juniper_junos_els", "linux", "ruckus_unleashed", null], "status": ["ok", "transport_error", "transport_error"], "cli_refused": false, "permission_refused": false, "template_refused": false, "refusal_hint": null},
+      {"profiles": ["extreme_exos"], "status": ["ok", "transport_error", "ok"], "cli_refused": false, "permission_refused": false, "template_refused": false, "refusal_hint": null}
+    ]
+  },
+  "real/fortiadc/fortiadc-kvm_7.6.7_schedule_20261114/schedule_group_full.txt": {
+    "profile": "fortiadc",
+    "rc": 0,
+    "matrix": [
+      {"profiles": ["arista_eos", "cisco_ios", "cisco_nxos", "cisco_xe", "fortiadc", "fortinet", "juniper_junos", "juniper_junos_els", "linux", "ruckus_unleashed", null], "status": ["ok", "transport_error", "transport_error"], "cli_refused": false, "permission_refused": false, "template_refused": false, "refusal_hint": null},
+      {"profiles": ["extreme_exos"], "status": ["ok", "transport_error", "ok"], "cli_refused": false, "permission_refused": false, "template_refused": false, "refusal_hint": null}
+    ]
+  },
+  "real/fortiadc/fortiadc-kvm_7.6.7_schedule_20261114/schedule_group_sg_now_full.txt": {
+    "profile": "fortiadc",
+    "rc": 0,
+    "matrix": [
+      {"profiles": ["arista_eos", "cisco_ios", "cisco_nxos", "cisco_xe", "fortiadc", "fortinet", "juniper_junos", "juniper_junos_els", "linux", "ruckus_unleashed", null], "status": ["ok", "transport_error", "transport_error"], "cli_refused": false, "permission_refused": false, "template_refused": false, "refusal_hint": null},
+      {"profiles": ["extreme_exos"], "status": ["ok", "transport_error", "ok"], "cli_refused": false, "permission_refused": false, "template_refused": false, "refusal_hint": null}
+    ]
+  },
+  "real/fortiadc/fortiadc-kvm_7.6.7_schedule_20261114/schedule_pool_full.txt": {
+    "profile": "fortiadc",
+    "rc": 0,
+    "matrix": [
+      {"profiles": ["arista_eos", "cisco_ios", "cisco_nxos", "cisco_xe", "fortiadc", "fortinet", "juniper_junos", "juniper_junos_els", "linux", "ruckus_unleashed", null], "status": ["ok", "transport_error", "transport_error"], "cli_refused": false, "permission_refused": false, "template_refused": false, "refusal_hint": null},
+      {"profiles": ["extreme_exos"], "status": ["ok", "transport_error", "ok"], "cli_refused": false, "permission_refused": false, "template_refused": false, "refusal_hint": null}
+    ]
+  },
+  "real/fortiadc/fortiadc-kvm_7.6.7_schedule_20261114/schedule_pool_sp_a_full.txt": {
+    "profile": "fortiadc",
+    "rc": 0,
+    "matrix": [
+      {"profiles": ["arista_eos", "cisco_ios", "cisco_nxos", "cisco_xe", "fortiadc", "fortinet", "juniper_junos", "juniper_junos_els", "linux", "ruckus_unleashed", null], "status": ["ok", "transport_error", "transport_error"], "cli_refused": false, "permission_refused": false, "template_refused": false, "refusal_hint": null},
+      {"profiles": ["extreme_exos"], "status": ["ok", "transport_error", "ok"], "cli_refused": false, "permission_refused": false, "template_refused": false, "refusal_hint": null}
+    ]
+  },
+  "real/fortiadc/fortiadc-kvm_7.6.7_schedule_20261114/slb_load_schedule_exec.txt": {
+    "profile": "fortiadc",
+    "rc": 0,
+    "matrix": [
+      {"profiles": ["arista_eos", "cisco_ios", "cisco_nxos", "cisco_xe", "fortiadc", "fortinet", "juniper_junos", "juniper_junos_els", "linux", "ruckus_unleashed", null], "status": ["ok", "transport_error", "transport_error"], "cli_refused": false, "permission_refused": false, "template_refused": false, "refusal_hint": null},
+      {"profiles": ["extreme_exos"], "status": ["ok", "transport_error", "ok"], "cli_refused": false, "permission_refused": false, "template_refused": false, "refusal_hint": null}
+    ]
+  },
+  "real/fortiadc/fortiadc-kvm_7.6.7_schedule_20261114/slb_load_stored_pool_exec.txt": {
+    "profile": "fortiadc",
+    "rc": 0,
+    "matrix": [
+      {"profiles": ["arista_eos", "cisco_ios", "cisco_nxos", "cisco_xe", "fortiadc", "fortinet", "juniper_junos", "juniper_junos_els", "linux", "ruckus_unleashed", null], "status": ["ok", "transport_error", "transport_error"], "cli_refused": false, "permission_refused": false, "template_refused": false, "refusal_hint": null},
+      {"profiles": ["extreme_exos"], "status": ["ok", "transport_error", "ok"], "cli_refused": false, "permission_refused": false, "template_refused": false, "refusal_hint": null}
+    ]
+  },
+  "real/fortiadc/fortiadc-kvm_7.6.7_schedule_20261114/vs_schedule_full.txt": {
+    "profile": "fortiadc",
+    "rc": 0,
+    "matrix": [
+      {"profiles": ["arista_eos", "cisco_ios", "cisco_nxos", "cisco_xe", "fortiadc", "fortinet", "juniper_junos", "juniper_junos_els", "linux", "ruckus_unleashed", null], "status": ["ok", "transport_error", "transport_error"], "cli_refused": false, "permission_refused": false, "template_refused": false, "refusal_hint": null},
+      {"profiles": ["extreme_exos"], "status": ["ok", "transport_error", "ok"], "cli_refused": false, "permission_refused": false, "template_refused": false, "refusal_hint": null}
+    ]
+  },
+  "real/fortiadc/fortiadc-kvm_7.6.7_schedule_20261114/vs_schedule_stored_pool_full.txt": {
+    "profile": "fortiadc",
+    "rc": 0,
+    "matrix": [
+      {"profiles": ["arista_eos", "cisco_ios", "cisco_nxos", "cisco_xe", "fortiadc", "fortinet", "juniper_junos", "juniper_junos_els", "linux", "ruckus_unleashed", null], "status": ["ok", "transport_error", "transport_error"], "cli_refused": false, "permission_refused": false, "template_refused": false, "refusal_hint": null},
+      {"profiles": ["extreme_exos"], "status": ["ok", "transport_error", "ok"], "cli_refused": false, "permission_refused": false, "template_refused": false, "refusal_hint": null}
+    ]
+  },
+  "real/fortiadc/fortiadc-kvm_7.6.7_schedule_20261114/vs_stat_schedule_exec.txt": {
+    "profile": "fortiadc",
+    "rc": 0,
+    "matrix": [
+      {"profiles": ["arista_eos", "cisco_ios", "cisco_nxos", "cisco_xe", "fortiadc", "fortinet", "juniper_junos", "juniper_junos_els", "linux", "ruckus_unleashed", null], "status": ["ok", "transport_error", "transport_error"], "cli_refused": false, "permission_refused": false, "template_refused": false, "refusal_hint": null},
+      {"profiles": ["extreme_exos"], "status": ["ok", "transport_error", "ok"], "cli_refused": false, "permission_refused": false, "template_refused": false, "refusal_hint": null}
+    ]
+  },
+  "real/fortiadc/fortiadc-kvm_7.6.7_schedule_20261114/vs_stat_schedule_pty.txt": {
+    "profile": "fortiadc",
+    "rc": 0,
+    "matrix": [
+      {"profiles": ["arista_eos", "cisco_ios", "cisco_nxos", "cisco_xe", "fortiadc", "fortinet", "juniper_junos", "juniper_junos_els", "linux", "ruckus_unleashed", null], "status": ["ok", "transport_error", "transport_error"], "cli_refused": false, "permission_refused": false, "template_refused": false, "refusal_hint": null},
+      {"profiles": ["extreme_exos"], "status": ["ok", "transport_error", "ok"], "cli_refused": false, "permission_refused": false, "template_refused": false, "refusal_hint": null}
+    ]
+  },
+  "real/fortiadc/fortiadc-kvm_7.6.7_schedule_20261114/vs_stat_stored_pool_exec.txt": {
+    "profile": "fortiadc",
+    "rc": 0,
+    "matrix": [
+      {"profiles": ["arista_eos", "cisco_ios", "cisco_nxos", "cisco_xe", "fortiadc", "fortinet", "juniper_junos", "juniper_junos_els", "linux", "ruckus_unleashed", null], "status": ["ok", "transport_error", "transport_error"], "cli_refused": false, "permission_refused": false, "template_refused": false, "refusal_hint": null},
+      {"profiles": ["extreme_exos"], "status": ["ok", "transport_error", "ok"], "cli_refused": false, "permission_refused": false, "template_refused": false, "refusal_hint": null}
+    ]
+  },
+  "real/fortiadc/fortiadc-kvm_7.6.7_schedule_20261114/vs_stat_stored_pool_offwindow_exec.txt": {
+    "profile": "fortiadc",
+    "rc": 0,
+    "matrix": [
+      {"profiles": ["arista_eos", "cisco_ios", "cisco_nxos", "cisco_xe", "fortiadc", "fortinet", "juniper_junos", "juniper_junos_els", "linux", "ruckus_unleashed", null], "status": ["ok", "transport_error", "transport_error"], "cli_refused": false, "permission_refused": false, "template_refused": false, "refusal_hint": null},
+      {"profiles": ["extreme_exos"], "status": ["ok", "transport_error", "ok"], "cli_refused": false, "permission_refused": false, "template_refused": false, "refusal_hint": null}
+    ]
+  },
+  "real/fortinet/fortigate60f_7.6.8_autoupdate_204/autoupdate_versions.txt": {
+    "profile": "fortinet",
+    "rc": 0,
+    "matrix": [
+      {"profiles": ["arista_eos", "cisco_ios", "cisco_nxos", "cisco_xe", "fortiadc", "fortinet", "juniper_junos", "juniper_junos_els", "linux", "ruckus_unleashed", null], "status": ["ok", "transport_error", "transport_error"], "cli_refused": false, "permission_refused": false, "template_refused": false, "refusal_hint": null},
+      {"profiles": ["extreme_exos"], "status": ["ok", "transport_error", "ok"], "cli_refused": false, "permission_refused": false, "template_refused": false, "refusal_hint": null}
+    ]
+  },
   "real/fortinet/fortigate80f_8.0.2/system_interfaces.txt": {
     "profile": "fortinet",
     "rc": 0,
@@ -6230,6 +6422,38 @@
   },
   "real/fortinet/fortigate80f_8.0.2_build0251/managed_switch_mac_all.txt": {
     "profile": "fortinet",
+    "rc": 0,
+    "matrix": [
+      {"profiles": ["arista_eos", "cisco_ios", "cisco_nxos", "cisco_xe", "fortiadc", "fortinet", "juniper_junos", "juniper_junos_els", "linux", "ruckus_unleashed", null], "status": ["ok", "transport_error", "transport_error"], "cli_refused": false, "permission_refused": false, "template_refused": false, "refusal_hint": null},
+      {"profiles": ["extreme_exos"], "status": ["ok", "transport_error", "ok"], "cli_refused": false, "permission_refused": false, "template_refused": false, "refusal_hint": null}
+    ]
+  },
+  "real/fortios/fg60f_7.6.8_ipv6_20261114/01-version.txt": {
+    "profile": null,
+    "rc": 0,
+    "matrix": [
+      {"profiles": ["arista_eos", "cisco_ios", "cisco_nxos", "cisco_xe", "fortiadc", "fortinet", "juniper_junos", "juniper_junos_els", "linux", "ruckus_unleashed", null], "status": ["ok", "transport_error", "transport_error"], "cli_refused": false, "permission_refused": false, "template_refused": false, "refusal_hint": null},
+      {"profiles": ["extreme_exos"], "status": ["ok", "transport_error", "ok"], "cli_refused": false, "permission_refused": false, "template_refused": false, "refusal_hint": null}
+    ]
+  },
+  "real/fortios/fg60f_7.6.8_ipv6_20261114/02-ipv6-routing-table.txt": {
+    "profile": null,
+    "rc": 0,
+    "matrix": [
+      {"profiles": ["arista_eos", "cisco_ios", "cisco_nxos", "cisco_xe", "fortiadc", "fortinet", "juniper_junos", "juniper_junos_els", "linux", "ruckus_unleashed", null], "status": ["ok", "transport_error", "transport_error"], "cli_refused": false, "permission_refused": false, "template_refused": false, "refusal_hint": null},
+      {"profiles": ["extreme_exos"], "status": ["ok", "transport_error", "ok"], "cli_refused": false, "permission_refused": false, "template_refused": false, "refusal_hint": null}
+    ]
+  },
+  "real/fortios/fg60f_7.6.8_ipv6_20261114/03-lookup-loopback.txt": {
+    "profile": null,
+    "rc": 0,
+    "matrix": [
+      {"profiles": ["arista_eos", "cisco_ios", "cisco_nxos", "cisco_xe", "fortiadc", "fortinet", "juniper_junos", "juniper_junos_els", "linux", "ruckus_unleashed", null], "status": ["ok", "transport_error", "transport_error"], "cli_refused": false, "permission_refused": false, "template_refused": false, "refusal_hint": null},
+      {"profiles": ["extreme_exos"], "status": ["ok", "transport_error", "ok"], "cli_refused": false, "permission_refused": false, "template_refused": false, "refusal_hint": null}
+    ]
+  },
+  "real/fortios/fg60f_7.6.8_ipv6_20261114/04-lookup-documentation-address.txt": {
+    "profile": null,
     "rc": 0,
     "matrix": [
       {"profiles": ["arista_eos", "cisco_ios", "cisco_nxos", "cisco_xe", "fortiadc", "fortinet", "juniper_junos", "juniper_junos_els", "linux", "ruckus_unleashed", null], "status": ["ok", "transport_error", "transport_error"], "cli_refused": false, "permission_refused": false, "template_refused": false, "refusal_hint": null},

@@ -257,6 +257,11 @@ def main():
             for problem in problems:
                 sys.stderr.write("netops: audit " + problem + "\n")
             return 1 if problems else 0
+    except KeyboardInterrupt:
+        if args.command != "auditor":
+            raise
+        sys.stderr.write("netops: interrupted by the user\n")
+        return 130
     except Exception as error:
         detail = operation_message(error)
         if detail is None:

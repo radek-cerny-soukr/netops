@@ -11,6 +11,16 @@ from netops_helper.auth import PolicyScopeError
 REAL = Path(__file__).parent / 'fixtures/real/fortinet/fortigate80f_8.0.2_build0251/local_20261110'
 
 
+def test_vdom_vlan_projection_refuses_duplicate_set_vdom():
+    from netops_helper.fortios_vdom import VdomRefused
+    text = ('config system interface\n    edit "vlan10"\n'
+            '        set vdom "root"\n        set vdom "other"\n'
+            '        set vlanid 10\n        set interface "port1"\n    next\nend\n')
+    with pytest.raises(VdomRefused) as refused:
+        fg.vdom_configuration_view(text, 'root')
+    assert refused.value.code == 'vdom_membership_unverified'
+
+
 def fixture(name):
     return (REAL / (name + '.txt')).read_text()
 
