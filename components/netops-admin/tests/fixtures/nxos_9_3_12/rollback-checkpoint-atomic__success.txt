@@ -1,0 +1,16 @@
+ADVISORY: Rollback operation started...
+Modifying running configuration from another VSH terminal in parallel
+is not recommended, as this may lead to Rollback failure.
+
+Collecting Running-Config
+Generating Rollback patch for switch profile
+Rollback Patch is Empty
+Collecting Running-Config
+Generating Rollback Patch
+Executing Rollback Patch 
+During CR operation,will retain L3 configuration
+when vrf member change on interface
+Generating Running-config for verification
+Generating Rollback Patch
+
+Rollback completed successfully.

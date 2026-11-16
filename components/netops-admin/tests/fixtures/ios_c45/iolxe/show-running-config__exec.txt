@@ -1,0 +1,221 @@
+
+
+
+Building configuration...
+
+Current configuration : 4885 bytes
+!
+! Last configuration change at 01:57:46 CET Mon Nov 16 2026 by netops-admin
+!
+version 17.18
+service timestamps debug datetime msec
+service timestamps log datetime msec
+!
+hostname host06
+!
+boot-start-marker
+boot-end-marker
+!
+!
+no logging console
+no aaa new-model
+!
+!
+!
+clock timezone CET 1 0
+no ip icmp rate-limit unreachable
+!
+!
+!
+!
+!
+!
+!
+!
+!
+!
+no ip domain lookup
+ip domain name host13
+ip cef
+login on-success log
+no ipv6 cef
+!
+!
+!
+!
+!
+!
+!
+!
+!
+!
+crypto pki trustpoint TP-self-signed-2048001
+ enrollment selfsigned
+ subject-name cn=IOS-Self-Signed-Certificate-2048001
+ revocation-check none
+ rsakeypair TP-self-signed-2048001
+ hash sha512
+!
+!
+crypto pki certificate chain TP-self-signed-2048001
+ certificate self-signed 01
+  00000000 00000000 00000000 00000000
+  	quit
+!
+!
+archive
+ path unix:netops-archive
+ maximum 14
+memory free low-watermark processor 53651
+!
+!
+spanning-tree mode rapid-pvst
+!
+enable secret 9 <REDIGOVANO>
+!
+username netops-ro secret 9 <REDIGOVANO>
+username netops-admin privilege 15 secret 9 <REDIGOVANO>
+!
+!
+!
+!
+!
+lldp run
+! 
+!
+!
+!
+!
+!
+!
+!
+!
+!
+!
+!
+!
+!
+!
+!
+interface Loopback0
+ ip address 203.0.113.251 255.255.255.255
+ ip ospf 29 area 0
+!
+interface Ethernet0/0
+ ip address 192.0.2.57 255.255.255.0
+!
+interface Ethernet0/1
+ no ip address
+!
+interface Ethernet0/1.10
+ encapsulation dot1Q 10
+ ip address 198.51.100.7 255.255.255.0
+ ip ospf 29 area 0
+!
+interface Ethernet0/1.20
+ encapsulation dot1Q 20
+ ip address 203.0.113.7 255.255.255.0
+!
+interface Ethernet0/2
+ no ip address
+ shutdown
+!
+interface Ethernet0/3
+ no ip address
+ shutdown
+!
+interface Ethernet1/0
+ no ip address
+ shutdown
+!
+interface Ethernet1/1
+ no ip address
+ shutdown
+!
+interface Ethernet1/2
+ no ip address
+ shutdown
+!
+interface Ethernet1/3
+ no ip address
+ shutdown
+!
+interface Serial2/0
+ no ip address
+ shutdown
+ serial restart-delay 0
+!
+interface Serial2/1
+ no ip address
+ shutdown
+ serial restart-delay 0
+!
+interface Serial2/2
+ no ip address
+ shutdown
+ serial restart-delay 0
+!
+interface Serial2/3
+ no ip address
+ shutdown
+ serial restart-delay 0
+!
+interface Serial3/0
+ no ip address
+ shutdown
+ serial restart-delay 0
+!
+interface Serial3/1
+ no ip address
+ shutdown
+ serial restart-delay 0
+!
+interface Serial3/2
+ no ip address
+ shutdown
+ serial restart-delay 0
+!
+interface Serial3/3
+ no ip address
+ shutdown
+ serial restart-delay 0
+!
+router ospf 29
+ router-id 203.0.113.251
+ passive-interface Loopback0
+!
+ip forward-protocol nd
+!
+ip tcp synwait-time 5
+!
+ip http server
+ip http secure-server
+ip route 0.0.0.0 0.0.0.0 192.0.2.1
+ip ssh bulk-mode 131072
+no logging btrace
+!
+!
+!
+control-plane
+!
+!
+!
+line con 0
+ exec-timeout 0 0
+ privilege level 15
+ activation-character 13
+ logging synchronous
+line aux 0
+ exec-timeout 0 0
+ privilege level 15
+ activation-character 13
+ logging synchronous
+line vty 0 4
+ activation-character 13
+ login local
+ transport input ssh
+!
+!
+!
+!
+end

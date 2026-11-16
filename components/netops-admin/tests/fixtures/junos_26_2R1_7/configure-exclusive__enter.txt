@@ -1,0 +1,2 @@
+warning: uncommitted changes will be discarded on exit
+Entering configuration mode

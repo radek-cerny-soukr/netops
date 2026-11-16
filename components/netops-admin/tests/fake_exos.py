@@ -70,6 +70,8 @@ class FakeExos:
         self.powered_devices = set()
         self.poe_off_delay, self.poe_on_delay, self.pd_seconds = 1, 3, 5
         self.poe_stuck_off = False
+        # port -> a measured "show inline-power info detail" answer, given verbatim instead of the simulated one
+        self.poe_detail_measured = {}
         self.lldp_text = fixture("x440__03-lldp.out")
         self.fdb_text = fixture("x440__02-show-fdb.out")
 
@@ -326,6 +328,8 @@ class FakeExos:
         return "searching"
 
     def poe_detail(self, port):
+        if port in self.poe_detail_measured:
+            return self.poe_detail_measured[port]
         if port not in self.poe_ports:
             return "Port %s is not inline-power capable\n" % port
         text = fixture("x440__25-ip-info-detail-pre.out").replace("Port 10 ", "Port %-2s" % port, 1)

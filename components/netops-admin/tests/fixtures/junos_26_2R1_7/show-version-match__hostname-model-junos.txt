@@ -1,0 +1,3 @@
+Hostname: host01
+Model: ex9214
+Junos: 26.2R1.7

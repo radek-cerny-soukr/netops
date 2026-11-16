@@ -160,6 +160,8 @@ def _instance_lock_mount_device(descriptor):
     btrfs stat() reports an anonymous subvolume device, while both mountinfo
     and /proc/locks report the superblock device. Resolve the open descriptor
     so the mount lookup refers to the same file as fstat(), including bind mounts.
+    Of mounts with the same depth the last mountinfo line wins: a later mount on
+    the same mountpoint is on top of (overmounts) the earlier one.
     """
     try:
         path = Path(os.readlink(f"/proc/self/fd/{descriptor}"))
@@ -177,7 +179,7 @@ def _instance_lock_mount_device(descriptor):
         # proc escapes whitespace and backslashes in mount paths as octal bytes.
         mount = Path(os.fsdecode(re.sub(rb"\\(040|011|012|134)",
                                        lambda match: bytes([int(match[1], 8)]), fields[4])))
-        if not mount.is_absolute() or not path.is_relative_to(mount) or len(mount.parts) <= depth:
+        if not mount.is_absolute() or not path.is_relative_to(mount) or len(mount.parts) < depth:
             continue
         numbers = fields[2].split(b":")
         try:
@@ -190,11 +192,42 @@ def _instance_lock_mount_device(descriptor):
     return device
 
 
+def _process_has_open(pid, identity):
+    """True/False whether process `pid` has a descriptor open on the file `identity` (st_dev, st_ino).
+
+    None when this cannot be decided (pid 0 from another PID namespace, missing
+    permission to inspect its descriptors, an exited process).
+    """
+    if pid <= 0:
+        return None
+    directory = "/proc/" + str(pid) + "/fd"
+    try:
+        names = os.listdir(directory)
+    except OSError:
+        return None
+    for name in names:
+        try:
+            info = os.stat(directory + "/" + name)
+        except FileNotFoundError:
+            # The descriptor was closed after listdir().
+            continue
+        except OSError:
+            return None
+        if (info.st_dev, info.st_ino) == identity:
+            return True
+    return False
+
+
 def _instance_holder_pid(descriptor):
     """PID of the exclusive flock holder of instance.lock as visible in this PID namespace.
 
     /proc/locks shows the holder PID translated into the PID namespace of the reader
     and 0 when the holder runs in another container (`docker compose run`).
+    /proc/locks names a file by superblock device and inode only; on btrfs another
+    subvolume of the same superblock can hold a different file with the same inode
+    number. With more than one such record, the holder is the only candidate with a
+    descriptor open on this file while every other candidate verifiably has none;
+    anything less is ambiguous and returns None (refused, never accepted by order).
     """
     info = os.fstat(descriptor)
     file_device = (os.major(info.st_dev), os.minor(info.st_dev))
@@ -204,6 +237,7 @@ def _instance_holder_pid(descriptor):
             lines = handle.read(1048576).splitlines()
     except OSError:
         return None
+    candidates = []
     for line in lines:
         fields = line.split()
         if len(fields) < 6 or fields[1] == b"->" or fields[1] != b"FLOCK" or fields[3] != b"WRITE":
@@ -219,9 +253,15 @@ def _instance_holder_pid(descriptor):
                     mountinfo_read = True
                 if device != mount_device:
                     continue
-            return int(fields[4])
+            candidates.append(int(fields[4]))
         except ValueError:
             continue
+    if len(candidates) <= 1:
+        return candidates[0] if candidates else None
+    opened = [(pid, _process_has_open(pid, (info.st_dev, info.st_ino))) for pid in candidates]
+    confirmed = [pid for pid, result in opened if result is True]
+    if len(confirmed) == 1 and all(result is not None for _, result in opened):
+        return confirmed[0]
     return None
 
 

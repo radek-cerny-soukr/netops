@@ -1,0 +1,32 @@
+{
+  "platform": "ios",
+  "table": "vlan-membership",
+  "versions": [
+    "15.2(20200924:215240)"
+  ],
+  "exact_versions": true,
+  "ops": [
+    "update"
+  ],
+  "table_scoped_key": true,
+  "key_pattern": "^[A-Z][A-Za-z-]{1,24}[0-9]{1,3}(?:/[0-9]{1,3}){0,2}(?:\\.[0-9]{1,4})?$",
+  "protected_keys": [],
+  "attributes": {
+    "access-vlan": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 4094,
+      "default": "1",
+      "update": true,
+      "unset": false,
+      "referenced_update": true,
+      "required_on_create": false,
+      "undo_to_default": true
+    }
+  },
+  "fixed": {},
+  "volatile": [],
+  "reserved_values": {},
+  "inverse_identity_changes": {},
+  "rollback_evidence": "Measured in the GNS3 lab on IOSv 15.9(3)M12 (router), IOSvL2 15.2(20200924:215240) (switch), IOL XE 17.18.2 (router) and IOL-L2 XE 17.18.2 (switch) (task netops-provoz-20261116-310, ref/mereni-c4c5) and repeated end to end through Admin in task netops-20261116-315. Safeguard first: Admin sends 'configure terminal revert timer N' and 'end' before the change (N = safeguard_seconds rounded up to whole minutes, at least 2 (2-15); one minute is too short for the measured read and write times); IOS saves the running configuration to a new archive file (archive path flash: on IOS, unix: on IOL XE; 'archive' with 'path' and 'maximum' must be configured) and starts an absolute timer when the configuration mode ends. The change then runs line by line through 'configure terminal' in an interactive session (an SSH exec command of IOS has exit status 0 even when it is refused). Confirmation is 'configure confirm'; write memory runs only when no timer is pending, because during a pending timer it saves the unconfirmed state without a warning. An expired timer replaces the WHOLE running configuration with the archive (IOS XE at once, IOS within about 7 seconds), so a change of someone else made in the timer window is returned too; Admin accepts the return when the running configuration equals the state before (the ARCHIVE_DIFF log lines are evidence only while they are in the log buffer, which on IOL holds 4096 bytes). The timer belongs to the device: any privilege-15 session can confirm, extend or start the return, so a pending timer of anyone refuses the operation before the write (rollback_timer_pending), and Admin sends 'configure confirm' or 'configure revert now' only for the timer whose installation its own session proved (the new archive named in its own answer, then the time configured, minutes and user it recorded). Admin never reads the device clock (the IOSv clock was hours off and drifted): the time left of the own timer is counted on the monotonic clock of Admin from the moment before the timer was requested, 2 % shorter for the drift of the device clock. The timer state after a reload is not measured. The write account must log in with privilege 15; the check account (privilege 1) reads show interfaces description and show interfaces N switchport. Access VLAN of a static access port of a switch image only: 'switchport access vlan N', and 'switchport access vlan 1' for the return to VLAN 1. The VLAN must exist (show vlan id N): IOS would create a missing VLAN, and a VLAN of the normal range lives in vlan.dat, which the rollback does not remove. The management VLAN, a trunk, a routed port, a port-channel member, a port with an LLDP or CDP neighbor or with learned MAC addresses is refused."
+}

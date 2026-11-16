@@ -1,0 +1,24 @@
+vdom name is root
+	virtual-server: LAB_VS_SMTP, availability:DEAD
+		APP Response: 0
+		Client RTT: 0
+		Concurrent Connections: 0
+		Inbound Throughput: 0
+		Outbound Throughput: 0
+		Requests: 0
+		Server RTT: 0
+		real-server-pool: LAB_POOL_SMTP
+		id:1, hc_state: DOWN, last-state-change-time: 2026-11-13 01:58:35
+			APP Response: 0
+			Concurrent Connections: 0
+			Inbound Throughput: 0
+			Outbound Throughput: 0
+			Requests: 0
+			Server RTT: 0
+		id:2, hc_state: DOWN, last-state-change-time: 2026-11-13 01:58:56
+			APP Response: 0
+			Concurrent Connections: 0
+			Inbound Throughput: 0
+			Outbound Throughput: 0
+			Requests: 0
+			Server RTT: 0

@@ -93,7 +93,7 @@ class Generator:
         return "prefix" + self.pick(MARKERS) + canary
 
     def line(self):
-        kind = self.random.randrange(14)
+        kind = self.random.randrange(15)
         indent = self.pick(("", "    ", "\t"))
         if kind <= 2:
             return (indent + self.case(self.pick(("set", "encrypted"))) + self.pick(SPACES)
@@ -120,6 +120,29 @@ class Generator:
             return indent + "set " + self.pick(("password-policy", "passwords", "set-community")) + " " + self.value()
         if kind == 12:
             return self.pick(("unencrypted", "xset", "un", "\\n")) + self.case("set") + " password " + self.value()
+        if kind == 13:
+            # Task 302-r3: a typed `secret|password` line (type word, level or algorithm-type),
+            # an anchor of a later rule at the end of the line (or as the value itself) and the
+            # continuation of that rule on the next line; task 302-r4: also a value that holds an
+            # anchor word as its suffix or prefix; task 302-r5: also a long gap before the continuation.
+            value = self.pick(("$6$s$" + self.canary() + " ", self.canary() + " ", ""))
+            if self.random.randrange(3) == 0:
+                # Task 302-r4: a secret value with a random suffix / prefix from the anchor set.
+                anchor = self.case(self.pick(("set", "unset", "token", "encrypted", "md5", "-----BEGIN", "password",
+                                              "passwd", "community", "x:", "x=", "password:", "token=")))
+                value = self.pick(("$6$s$" + self.canary() + anchor, self.canary() + anchor, anchor + self.canary(),
+                                   anchor + "$6$s$" + self.canary(), self.canary() + anchor + self.canary())) + " "
+            line = (indent + self.case(self.pick(("secret", "password", "enable secret", "enable password",
+                                                  "enable algorithm-type scrypt secret")))
+                    + self.pick((" sha512 ", " scrypt ", " level 15 5 ", " level 3 ", " type10 ", " 5 ", " "))
+                    + value + self.case(self.pick(("set", "encrypted", "token", "password", "xset", "community"))))
+            gap = self.pick(("\n", "\r\n", " ", "\n "))
+            if self.random.randrange(10) == 0:
+                # Task 302-r5: a long gap between the anchor and its continuation, below, at and
+                # above the 4096-character window in which the continuation is recognized.
+                gap = self.pick(("\n", " ", "\r\n", "\n\t")) * self.pick((1, 2040, 4085, 4093, 4097, 4200, 5000))
+            return (line + gap + self.case(self.pick(("password", "passwd", "=", ":")))
+                    + self.pick((" ", "\t", "")) + self.value())
         return indent + "-----BEGIN PRIVATE KEY-----" + self.canary() + "\n-----END PRIVATE KEY-----"
 
     def snmp(self):

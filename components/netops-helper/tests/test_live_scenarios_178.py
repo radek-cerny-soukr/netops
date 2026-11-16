@@ -2,7 +2,8 @@
 
 1. ``config_diff`` of the ExtremeXOS, Cisco IOS, IOS XE, NX-OS and Arista EOS snapshots is a line diff along a
    shortest edit script, not positional: one inserted line is one ``+`` line, a device-rewritten header is one
-   ``-``/``+`` pair, nothing after them shifts.  FortiOS/FortiADC stay positional.
+   ``-``/``+`` pair, nothing after them shifts.  FortiADC stays positional; FortiOS uses the same line diff
+   since 1.0.10 (task 298).
 2. cEOS ``show mlag interfaces`` answering ``No MLAG ports configured`` is the complete empty member table.
 3. N1: a device refusal of the IOS/IOS XE/EXOS read is the same ``device-refused`` answer as on EOS/NX-OS, and an
    unsupported or unverifiable identity is ``config_platform_not_supported``, not ``-32603 Role operation failed``.
@@ -176,8 +177,9 @@ def test_edit_and_work_limits_refuse_instead_of_running_without_bound(monkeypatc
         _diff_text(near, _lines(*(f'line {n}' if n % 7 else f'x {n}' for n in range(400))))
 
 
-def test_fortios_compare_stays_positional(monkeypatch):
-    # FortiOS/FortiADC are unchanged (positional); the same insertion that is one '+' line above shifts here.
+def test_fortios_compare_is_a_line_diff(monkeypatch):
+    # Task 298: FortiOS uses the line diff too; the inserted object is its two '+' lines, nothing shifts
+    # (FortiADC stays positional: test_config_diff_fortios_line).
     monkeypatch.setattr(configuration, 'scope', lambda auth, platform='fortios': ('scope', platform))
 
     class Auth:
@@ -192,8 +194,7 @@ def test_fortios_compare_stays_positional(monkeypatch):
     configuration._SNAPSHOTS['cfg_' + 'b' * 32] = snapshot(other)
     text, changed, identical = configuration.compare(Auth(), 'cfg_' + 'a' * 32, 'cfg_' + 'b' * 32, platform='fortios')
     assert identical is False and len(changed) == 0
-    assert _text(text) == ('--- base\n+++ other\n-    edit "port1"\n+    edit "port0"\n-end\n+    edit "port1"\n'
-                           '+    next\n+end\n')
+    assert _text(text) == '--- base\n+++ other\n+    edit "port0"\n+    next\n'
 
 
 # ---------------------------------------------------- 1. line diff, public path with the 178 captures

@@ -2185,7 +2185,8 @@ def _fortiadc_logs(auth, recipe, address, interface, count, timeout, max_bytes, 
 
     raw_text = result["raw_output"]
     text = redact(raw_text, auth.secrets)
-    selected = redact(result["output"], auth.secrets)
+    # Cut to max_bytes below: the floor must hold in every prefix (task 302-r7).
+    selected = redact(result["output"], auth.secrets, cut_bytes=max_bytes)
     total = text.encode("utf-8")
     selected_bytes = selected.encode("utf-8")
     returned = selected_bytes[:max_bytes].decode("utf-8", "ignore")
@@ -2302,7 +2303,7 @@ def fortios_diagnostics(auth: TargetAuth, recipe: str, address: str, interface: 
                 raise ValueError("bounded FortiOS diagnostic failed; the session was closed") from None
             return _diagnostic_transport_failure(auth, recipe, code)
     if recipe == "logs":
-        text = redact(raw["output"], auth.secrets)
+        text = redact(raw["output"], auth.secrets, cut_bytes=max_bytes)  # cut below (task 302-r7)
         page = text.encode("utf-8")[:max_bytes].decode("utf-8", "ignore")
         return {"ok": raw["state"] in {"ok", "empty"}, "target": auth.alias, "recipe": recipe, "vdom": domain,
                 "identity": identity, "deadline_reached": timed_out, "cleanup": "verified",
@@ -2315,7 +2316,9 @@ def fortios_diagnostics(auth: TargetAuth, recipe: str, address: str, interface: 
                 "content_sha256": digest_text(text), "returned_bytes": len(page.encode("utf-8")),
                 "truncated": raw["truncated"] or page != text,
                 "untrusted_device_output": page}
-    cleaned = redact(raw, auth.secrets)
+    # Cut to max_bytes below: the floor must hold in every prefix (task 302-r7). The session
+    # projection keeps only numbers, addresses and fixed words of the redacted text.
+    cleaned = redact(raw, auth.secrets, cut_bytes=max_bytes)
     extra = {}
     omitted = False
     if recipe == "sessions":
@@ -2384,7 +2387,8 @@ def _fortiadc_diagnostics(auth, recipe, address, interface, count, timeout, max_
             if code is None:
                 raise ValueError("bounded FortiADC diagnostic failed; the session was closed") from None
             return _diagnostic_transport_failure(auth, recipe, code, platform="fortiadc")
-    cleaned = redact(raw, auth.secrets)
+    # Cut to max_bytes below: the floor must hold in every prefix (task 302-r7).
+    cleaned = redact(raw, auth.secrets, cut_bytes=max_bytes)
     returned = cleaned.encode("utf-8")[:max_bytes].decode("utf-8", "ignore")
     truncated = returned != cleaned
     return {"ok": True, "target": auth.alias, "platform": "fortiadc", "recipe": recipe,

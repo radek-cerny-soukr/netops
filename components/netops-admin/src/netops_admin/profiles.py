@@ -7,7 +7,7 @@ from importlib import resources
 
 from netops_admin.errors import Rejected
 
-PLATFORMS = ("fortios", "exos")
+PLATFORMS = ("fortios", "exos", "eos", "ios", "iosxe", "fortiadc", "nxos", "junos")
 OPS = ("create", "update", "delete")
 FORTIOS_80_AUTO_SCRIPT = (
     "; FortiOS 8.0 changed auto-script, which the cli-script safeguard runs: a Fortinet Technical Tip states that"

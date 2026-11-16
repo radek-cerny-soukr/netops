@@ -1,0 +1,2 @@
+NAME     LINE         TIME         IDLE          PID COMMENT
+netops-admin pts/3        Nov 16 01:04   .         24329 (192.0.2.36) session=ssh *

@@ -1,0 +1,48 @@
+*** Startup-config
+--- Running-config
+***************
+*** 14,23 ****
+--- 13,23 ----
+    limit-resource u6route-mem minimum 96 maximum 96
+    limit-resource m4route-mem minimum 58 maximum 58
+    limit-resource m6route-mem minimum 8 maximum 8
+  
+  cfs eth distribute
++ feature scheduler
+  feature ospf
+  feature interface-vlan
+  feature lldp
+  
+  username admin password 5 <REDIGOVANO>  role network-admin
+***************
+*** 153,162 ****
+--- 153,164 ----
+  interface Ethernet1/46
+  
+  interface Ethernet1/47
+  
+  interface Ethernet1/48
++   description netops-c6-b
++   shutdown
+  
+  interface Ethernet1/49
+  
+  interface Ethernet1/50
+  
+***************
+*** 203,207 ****
+--- 205,218 ----
+  router ospf 29
+    router-id 192.0.2.5
+  
+  
+  
++ scheduler job name netops-c6-2
++   rollback running-config checkpoint netops-c6-2 atomic
++   
++ end-job
++ 
++ scheduler schedule name netops-c6-2
++   job name netops-c6-2
++   
++ 

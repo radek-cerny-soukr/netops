@@ -1,0 +1,5 @@
+warning: uncommitted changes will be discarded on exit
+Entering configuration mode
+Users currently editing the configuration:
+  netops-admin terminal pts/0 (pid 43976) on since 2026-11-16 02:09:29 UTC
+      private [edit]

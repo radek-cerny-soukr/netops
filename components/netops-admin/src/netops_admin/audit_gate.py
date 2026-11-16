@@ -10,6 +10,10 @@ from netops_auditor.state import evaluation_complete
 from netops_admin.errors import Rejected
 
 PARSERS = {"fortios": l1_fortios, "exos": l1_exos}
+# Admin platforms for which the Auditor holds no rule catalog: the audit gate has nothing to evaluate there, it
+# reports 0 rules and 0 findings, and an audit policy is refused (it could not be enforced)
+WITHOUT_RULES = ("eos", "ios", "iosxe", "nxos", "junos")
+NO_POLICY = "the Auditor holds no rules for %s; an audit policy cannot be enforced on this platform"
 CHECKS = (checks_exos, checks_fortios)
 TENANT = "netops-admin"
 BLOCKING_SEVERITIES = ("high", "medium")
@@ -65,7 +69,17 @@ def summary(before) -> str:
     return "%d findings on the current configuration%s" % (finding_count(before), unevaluated_note(before))
 
 
+def _without_rules(platform, policy) -> bool:
+    if platform not in WITHOUT_RULES:
+        return False
+    if policy:
+        raise Rejected([NO_POLICY % platform])
+    return True
+
+
 def rule_status(platform: str, text: str, device: str, policy=None, table=None, before=None) -> tuple:
+    if _without_rules(platform, policy):
+        return [], {}
     parser = PARSERS.get(platform)
     if parser is None:
         raise Rejected(["the auditor holds no rules for %s" % platform])
@@ -131,6 +145,8 @@ def new_blocking(platform: str, before, after_text: str, device: str, policy=Non
 
 
 def evaluate(platform, text, policy, table, before=None):
+    if _without_rules(platform, policy):
+        return {}
     tree = PARSERS[platform].parse(text)
     coverage = management.coverage(platform, tree, policy)
     missing = sorted(name for name in _required(policy, table) if coverage.get(name) != "evaluated")
@@ -175,4 +191,6 @@ def check_policy(plan, policy, text, prior=None):
 
 
 def rule_count(platform: str) -> int:
+    if platform in WITHOUT_RULES:
+        return 0
     return len(load_catalog(platform))

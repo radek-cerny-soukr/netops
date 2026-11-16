@@ -6,7 +6,8 @@ replacement functions, ``_redact_credentials`` and the response flow
 (``ast.get_source_segment`` of ``git show 14c6a5a:.../sanitize.py``). The later layers
 (proxy ``_sanitize_object``, product ``netops.redaction.redact``, SNMP context marking
 and masking, terminal-control cleaning) are identical in 1.0.8 (61e7de3) and 14c6a5a
-and are bound in ``bind_layers``. ``redact_response(text, secrets, helper=...)`` with the
+and are bound in ``bind_layers``; the proxy runs without the 1.0.10 rule
+CISCO_TYPED_SECRET (``typed=False``, task 302-r3), its only rule change since 1.0.8. ``redact_response(text, secrets, helper=...)`` with the
 1.0.8 credential copy is the complete 1.0.8 chain.
 """
 # ruff: noqa
@@ -275,7 +276,7 @@ def _settle_response(value, secrets, *, helper=False):
     normalized = tuple(sorted({str(item) for item in secrets if len(str(item).encode("utf-8")) >= 3}, key=len, reverse=True))
     for _ in range(8):
         original = _redact_credentials(value, normalized) if helper else value
-        cleaned = product_redact(_sanitize_object(original, secrets), secrets)[0]
+        cleaned = product_redact(_sanitize_object(original, secrets, typed=False), secrets)[0]
         if cleaned == value:
             return value
         value = cleaned
@@ -311,7 +312,7 @@ def _snmp_response(value, secrets, *, helper=False):
     original = _mark_snmp(value) if _contains_snmp(value) else value
     if not helper:
         from netops_helper.proxy_sanitize import _sanitize_object
-        cleaned = _sanitize_object(original, secrets)
+        cleaned = _sanitize_object(original, secrets, typed=False)
         if (isinstance(original, Marked) and original.spans and cleaned == original
                 and not _needs_worker_before_mask(cleaned, secrets)):
             return _mask_snmp(cleaned)

@@ -837,9 +837,7 @@ def stored_plan_edit(runtime, change_id, edit):
     stored = runtime.store.operation(change_id)
     plan = stored["plan"]
     edit(plan)
-    plan["plan_sha256"] = execute.engine._digest({"commands": plan["commands"], "inverse": plan["inverse"],
-                                                  "before": plan["predicted"]["before"],
-                                                  "after": plan["predicted"]["after"]})
+    plan["plan_sha256"] = execute.engine.plan_digest(plan)
     runtime.store.save(stored)
 
 

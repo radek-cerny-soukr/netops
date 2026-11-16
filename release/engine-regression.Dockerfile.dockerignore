@@ -39,7 +39,6 @@
 !release/
 !release/engine_regression.py
 !release/notes-*.md
-!release/legacy-test-dispositions.json
 **/__pycache__
 **/*.pyc
 **/.pytest_cache

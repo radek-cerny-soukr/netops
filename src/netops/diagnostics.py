@@ -49,7 +49,7 @@ REASONS = {
     "fingerprint-component": "must be a string without U+001F, the finding fingerprint separator",
     "absolute": "must be an absolute path without NUL",
     "integer": "must be an integer in the documented range",
-    "admin-platform": "must be fortios, exos or fortiadc",
+    "admin-platform": "must be fortios, exos, eos, ios, iosxe, fortiadc, nxos or junos",
     "opt-in": "must be a list of distinct opt-in table names; the only table is firewall policy",
     "protected": "must map table names to lists of names",
     "distinct-names": "must be a list of distinct non-empty account names",

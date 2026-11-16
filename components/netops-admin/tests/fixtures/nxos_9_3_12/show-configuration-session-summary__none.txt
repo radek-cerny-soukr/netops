@@ -1,0 +1,5 @@
+Session Manager Database:
+--------------------------------------------------------------------
+Name                    Session Owner           Creation Time
+--------------------------------------------------------------------
+There are no active configuration sessions

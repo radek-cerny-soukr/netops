@@ -1,0 +1,16 @@
+{
+ "from": "1.0.9",
+ "to": "1.0.10",
+ "changes": [
+  {
+   "tool": "admin_apply",
+   "kind": "definition",
+   "reason": "The description of admin_apply names the FortiADC table that Admin 1.0.10 supports: load-balance pool/pool_member with the key POOL:MEMBER (pool member state, add and remove). Arguments, input schema and result of admin_apply are unchanged; the other new Admin platforms (EOS, Cisco IOS and IOS XE, NX-OS, Junos) use the existing tools without a definition change.",
+   "changed_keys": {
+    "/description": {
+     "sha256": "28a51d6cfeab26bbd11a7e6db932ae8513b1f8256aee92c4b913458afb6ad3d8"
+    }
+   }
+  }
+ ]
+}

@@ -1,0 +1,7 @@
+Session Manager Database:
+--------------------------------------------------------------------
+Name                    Session Owner           Creation Time
+--------------------------------------------------------------------
+netops-c6-s1            netops-admin            01:35:12 UTC Nov 16 2026
+
+Number of active configuration sessions = 1

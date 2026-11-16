@@ -1,0 +1,15 @@
+Operation            : Rollback to Checkpoint
+Checkpoint name      : netops-c6-3
+Rollback done By     : netops-admin
+Rollback mode        : atomic
+Verbose              : disabled
+Start Time           : Mon, 01:14:19 16 Nov 2026
+Start Time UTC       : Mon, 01:14:19 16 Nov 2026
+End Time             : Mon, 01:14:25 16 Nov 2026
+End Time UTC         : Mon, 01:14:25 16 Nov 2026
+Status               : Success
+
+Verification patch contains the following commands:
+---------------------------------------------------
+!!                                                                  
+! No changes

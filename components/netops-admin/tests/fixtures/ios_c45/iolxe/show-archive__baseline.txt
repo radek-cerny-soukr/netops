@@ -1,0 +1,18 @@
+The maximum archive configurations allowed is 14.
+There are currently no configuration saved.
+The next archive file will be named unix:netops-archive-<timestamp>-0
+ Archive #  Name
+   1         
+   2         
+   3         
+   4         
+   5         
+   6         
+   7         
+   8         
+   9         
+   10        
+   11        
+   12        
+   13        
+   14        

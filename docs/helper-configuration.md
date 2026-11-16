@@ -260,8 +260,17 @@ whole completed redacted content (for a filtered config_read, for the filtered
 content), returned_bytes/offset for the current page,
 and next_offset(null at the end). Config_diff accepts offset/limit for the same
 explicit pair of captures; it never rereads the device. Reconstruct text in
-page order before comparing its digest. FortiOS and FortiADC keep a bounded,
-positional line comparison, so insertions may produce several line changes.
+page order before comparing its digest. FortiADC keeps a bounded, positional
+line comparison, so insertions may produce several line changes. Since 1.0.10
+FortiOS uses the line comparison described below, with the same limits and
+`config_diff_limit_exceeded` refusal, so for a comparable pair of captures one
+inserted line is one `+` line. In the full profile hidden values are numbered
+`<REDACTED:credential#N>` markers; lines are matched with that number left out, so
+an added or removed hidden line is one `+`/`-` line and later unchanged hidden lines
+are not reported, while the listed lines keep the numbers of their own capture. The
+full profile does not show a changed hidden value (it keeps no `secrets_changed`
+records, so a pair differing only in a hidden value is `identical`); the minimal
+profile reports it through `secrets_changed`.
 FortiOS minimal hidden-value comparison remains keyed by private object identity;
 the five additional platforms use the line comparison described below.
 The separate secret_offset cursor starts at zero; next_secret_offset advances
@@ -330,8 +339,9 @@ counts of hidden or unverified lines can differ without making the pair
 incomparable. Each capture retains its own counts in `base_capture` and
 `other_capture`. A newly learned session secret that would change stored response
 text instead gives `config_snapshot_redaction_changed`; take fresh captures.
-FortiOS and FortiADC retain their earlier positional comparison and metadata
-comparability rules.
+FortiOS (line comparison since 1.0.10) and FortiADC (positional comparison)
+retain their earlier metadata comparability rules, except that a FortiOS
+full-profile pair may differ in `credential_redactions`.
 
 ## MLAG and vPC catalogue reads
 
@@ -734,7 +744,10 @@ credential_redactions, unverified_count, unsupported_format_count,
 unverified_fields and unverified_truncated; FortiOS captures also report
 identity_scope_verified. config_diff refuses captures whose section, firmware,
 redaction_profile, include_defaults or capture metadata differ, so both objects
-always carry the same values. The diff reads no device: the values are the ones
+carry the same values, with one exception: for a FortiOS full pair the
+credential_redactions count may differ, because adding or removing a secret line
+changes it and the diff shows that line as one -/+ line; each object reports the
+count of its own capture. The diff reads no device: the values are the ones
 recorded at capture time, and a repeated diff returns them until either capture
 expires after 24 hours or is evicted (at most 4 captures per target and 16 in
 total are retained). identical=true means only that the visible redacted

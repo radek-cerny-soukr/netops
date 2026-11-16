@@ -66,7 +66,15 @@ def test_shipped_profiles_load():
     assert set(loaded) == {("fortios", "firewall address"), ("exos", "vlan"), ("exos", "ports"),
                            ("fortios", "firewall addrgrp"), ("fortios", "system dhcp server/reserved-address"),
                            ("exos", "vlan-membership"), ("fortios", "firewall policy"),
-                           ("fortios", "firewall service custom"), ("exos", "inline-power")}
+                           ("fortios", "firewall service custom"), ("exos", "inline-power"),
+                           ("eos", "interface"), ("eos", "vlan-membership"),
+                           ("ios", "interface"), ("ios", "vlan-membership"),
+                           ("iosxe", "interface"), ("iosxe", "vlan-membership"),
+                           ("fortiadc", "load-balance pool/pool_member"),
+                           ("nxos", "interface"), ("nxos", "vlan-membership"),
+                           ("junos", "interface"), ("junos", "vlan-membership")}
+    assert loaded[("fortiadc", "load-balance pool/pool_member")].versions == ("7.6.7 build0676",)
+    assert loaded[("fortiadc", "load-balance pool/pool_member")].exact_versions
     assert loaded[("exos", "ports")].implicit_keys and loaded[("exos", "ports")].ops == ("update",)
     assert loaded[("fortios", "firewall address")].versions == ("8.0.0 build0167", "7.6.8 build3744", "7.6.7 build3704", "8.0.2 build0251")
     assert loaded[("fortios", "firewall policy")].versions == ("7.6.8 build3744", "8.0.2 build0251")
@@ -78,6 +86,21 @@ def test_shipped_profiles_load():
     assert loaded[("exos", "vlan")].versions == ("33.7.1.6", "33.6.1.14")
     assert loaded[("exos", "inline-power")].action == "poe-cycle"
     assert set(loaded[("exos", "ports")].attributes) == {"display-string", "admin-state"}
+    assert loaded[("eos", "interface")].versions == ("4.36.1F",) and loaded[("eos", "interface")].exact_versions
+    assert set(loaded[("eos", "interface")].attributes) == {"description", "admin-state"}
+    assert loaded[("eos", "vlan-membership")].ops == ("update",)
+    assert loaded[("nxos", "interface")].versions == ("9.3(12)",) and loaded[("nxos", "interface")].exact_versions
+    assert set(loaded[("nxos", "interface")].attributes) == {"description", "admin-state"}
+    assert loaded[("nxos", "vlan-membership")].ops == ("update",)
+    assert loaded[("ios", "interface")].versions == ("15.9(3)M12", "15.2(20200924:215240)")
+    assert loaded[("ios", "vlan-membership")].versions == ("15.2(20200924:215240)",)
+    assert loaded[("iosxe", "interface")].versions == ("17.18.2",) == loaded[("iosxe", "vlan-membership")].versions
+    assert all(loaded[(platform, table)].exact_versions for platform in ("ios", "iosxe")
+               for table in ("interface", "vlan-membership"))
+    assert loaded[("junos", "interface")].versions == ("26.2R1.7",) and loaded[("junos", "interface")].exact_versions
+    assert loaded[("junos", "interface")].implicit_keys and loaded[("junos", "vlan-membership")].implicit_keys
+    assert set(loaded[("junos", "interface")].attributes) == {"description", "admin-state"}
+    assert loaded[("junos", "vlan-membership")].attributes["access-vlan"].default == "default"
 
 
 def shipped():
@@ -90,7 +113,7 @@ def test_shipped_profile_texts_name_no_internal_documents_or_accounts():
     from importlib import resources
     directory = resources.files("netops_admin") / "profiles"
     names = sorted(entry.name for entry in directory.iterdir() if entry.name.endswith(".json"))
-    assert len(names) == 9
+    assert len(names) == 20
     for name in names:
         text = (directory / name).read_text(encoding="utf-8")
         for marker in ("docs/t167", "not releasable", "netops-test-", " branch "):
@@ -111,7 +134,7 @@ def test_shipped_profile_texts_name_no_internal_documents_or_accounts():
     (lambda data: data.update(inverse_identity_changes={"delete": ["subnet"]}), "must be a volatile"),
     (lambda data: data.update(reserved_values={"color": ["1"]}), "unknown attribute"),
     (lambda data: data.update(rollback_evidence=""), "measured rollback"),
-    (lambda data: data.update(platform="junos"), "unknown platform"),
+    (lambda data: data.update(platform="vyos"), "unknown platform"),
 ])
 def test_profile_validation_is_strict(mutate, fragment):
     data = copy.deepcopy(shipped())

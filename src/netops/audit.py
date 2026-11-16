@@ -50,10 +50,15 @@ def directory_lock(directory):
     collect|run``) append to the same directory. Every change of the directory
     set (local: retention, segment rotation, budget deletion and the segment
     append; syslog: queue append and removal after delivery; recovery) runs
-    under an exclusive ``flock`` of the directory itself, so two processes can
-    neither lose nor duplicate a record. The directory is locked instead of a
-    separate lock file, so the audit file set stays unchanged. Delivery to the
-    syslog receiver runs outside the lock.
+    under an exclusive ``flock`` of the directory itself, so two processes
+    cannot interleave changes of the stored files: a record is appended or a
+    queue file is removed whole. The directory is locked instead of a separate
+    lock file, so the audit file set stays unchanged. Delivery to the syslog
+    receiver runs outside the lock: the lock does not make delivery
+    exactly-once. A queue file is removed only after its hand-over, so a
+    crash in between repeats the delivery, and two processes delivering the
+    same queue could both send a record. The design assumes a single gateway
+    forwarder as the only deliverer.
     """
     descriptor = os.open(directory, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC)
     try:

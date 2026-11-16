@@ -1,0 +1,7 @@
+!Contextual Config Diffs:
+crypto pki certificate chain TP-self-signed-2048001
+ +certificate self-signed 01
+  +00000000 00000000 00000000 00000000
+  +	quit
+crypto pki certificate chain TP-self-signed-2048001
+ -certificate self-signed 01 nvram:IOS-Self-Sig#1.cer

@@ -1,0 +1,5 @@
+Interface               Admin Link Proto    Local                 Remote
+ge-0/0/2                down  down
+ge-0/0/2.0              up    down eth-switch
+
+# commit confirmed will be rolled back in 1 minute

@@ -9,6 +9,5 @@
 - [Verified platform support](verified-support.md) and [compatibility boundaries](compatibility-boundaries.md): exact host, firmware and model scope.
 - [Qualification](testing-1.0.md) (run from a source checkout of the release commit; the release files do not contain it) and [CIS Docker Benchmark mapping](security/cis-docker-benchmark.md).
 - [Current product changes](../CHANGELOG.md).
-- [Historical 0.x documentation](archive/0.x/ARCHIVE.md): exact original bytes and hash index; not current installation instructions.
 
 Existing device/parser/schema contracts continue to apply inside the new product. Core inventory and vault schemas, Admin safeguard/enrollment contracts and Auditor findings are maintained with their engine sources. Installation and release procedures in historical component documentation do not replace the NetOps 1.0 Docker quickstart.

@@ -1,0 +1,41 @@
+set version 26.2R1.7
+set system host-name host01
+set system root-authentication encrypted-password "<REDIGOVANO>"
+set system login user netops-admin uid 2000
+set system login user netops-admin class super-user
+set system login user netops-admin authentication encrypted-password "<REDIGOVANO>"
+set system login user netops-ro uid 2001
+set system login user netops-ro class read-only
+set system login user netops-ro authentication encrypted-password "<REDIGOVANO>"
+set system services ssh
+set system arp aging-timer 5
+set system syslog file interactive-commands interactive-commands any
+set system syslog file messages any notice
+set system syslog file messages authorization info
+set system processes dhcp-service traceoptions file dhcp_logfile
+set system processes dhcp-service traceoptions file size 10m
+set system processes dhcp-service traceoptions level all
+set system processes dhcp-service traceoptions flag packet
+set interfaces ge-0/0/0 unit 0 family ethernet-switching interface-mode trunk
+set interfaces ge-0/0/0 unit 0 family ethernet-switching vlan members D10
+set interfaces ge-0/0/0 unit 0 family ethernet-switching vlan members D20
+set interfaces ge-0/0/1 unit 0 family ethernet-switching interface-mode access
+set interfaces ge-0/0/1 unit 0 family ethernet-switching vlan members D20
+set interfaces ge-0/0/2 unit 0 family ethernet-switching interface-mode access
+set interfaces ge-0/0/2 unit 0 family ethernet-switching vlan members default
+set interfaces fxp0 unit 0 family inet address 192.0.2.56/24
+set interfaces irb unit 10 family inet address 198.51.100.6/24
+set interfaces irb unit 20 family inet address 203.0.113.6/24
+set interfaces lo0 unit 0 family inet address 192.0.2.6/32
+set multi-chassis mc-lag consistency-check
+set routing-options router-id 192.0.2.6
+set routing-options static route 0.0.0.0/0 next-hop 192.0.2.1
+set protocols router-advertisement interface fxp0.0
+set protocols ospf area 0.0.0.0 interface irb.10
+set protocols ospf area 0.0.0.0 interface lo0.0 passive
+set protocols lldp interface all
+set protocols lldp-med interface all
+set vlans D10 vlan-id 10
+set vlans D10 l3-interface irb.10
+set vlans D20 vlan-id 20
+set vlans D20 l3-interface irb.20

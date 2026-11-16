@@ -1,0 +1,18 @@
+{
+    "utcTime": 1794781830.560903,
+    "timezone": "UTC",
+    "localTime": {
+        "year": 2026,
+        "month": 11,
+        "dayOfMonth": 15,
+        "hour": 22,
+        "min": 30,
+        "sec": 30,
+        "dayOfWeek": 6,
+        "dayOfYear": 319,
+        "daylightSavingsAdjust": 0
+    },
+    "clockSource": {
+        "local": true
+    }
+}

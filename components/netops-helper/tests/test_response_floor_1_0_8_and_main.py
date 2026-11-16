@@ -21,7 +21,7 @@ import time
 import pytest
 
 from netops.redaction_spans import Marked, edits, replace, sub
-from netops_helper import sanitize
+from netops_helper import proxy_sanitize, sanitize
 from netops_helper.sanitize import redact_response
 
 HERE = pathlib.Path(__file__).parent
@@ -258,8 +258,11 @@ def _case(generator, unique):
     return "".join(parts)
 
 
-_ACCOUNT_TEXT = re.compile(r"(?i)username|account|(?:tacacs|radius)-server|\\u")
+# The texts the Helper's account rules may change (sanitize._ACCOUNT_HINT); since task 302-r2
+# `enable secret|password` is an account rule too and hides more than the main chain.
+_ACCOUNT_TEXT = re.compile(r"(?i)username|enable|account|(?:tacacs|radius)-server|\\u")
 _CONTROLS = re.compile(r"\x1b\[0m|[\x00-\x08\x0b-\x1f]")
+_TYPED = proxy_sanitize.CISCO_TYPED_SECRET
 
 
 def test_generated_inputs_keep_every_character_both_chains_hide():
@@ -273,8 +276,11 @@ def test_generated_inputs_keep_every_character_both_chains_hide():
         hidden_1_0_8, hidden_main, hidden_now, now, main = _check(text, secrets)
         checked += bool(hidden_1_0_8 or hidden_main)
         only_1_0_8 += bool(hidden_1_0_8 - hidden_main)
-        if not _ACCOUNT_TEXT.search(text) and not _ACCOUNT_TEXT.search(_CONTROLS.sub("", text)):
-            # Without account text both credential layers agree: the main result, unchanged.
+        if (not _ACCOUNT_TEXT.search(text) and not _ACCOUNT_TEXT.search(_CONTROLS.sub("", text))
+                and not _TYPED.search(text) and not _TYPED.search(_CONTROLS.sub("", text))):
+            # Without account text both credential layers agree and without a typed
+            # `secret|password` line both proxies agree (the main proxy has no
+            # CISCO_TYPED_SECRET, task 302-r3): the main result, unchanged.
             assert now == main, text
             same += 1
     assert checked > 1000 and only_1_0_8 > 20 and same > 300, (checked, only_1_0_8, same)

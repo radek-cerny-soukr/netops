@@ -1,6 +1,0 @@
-# Optional dependency of netops-auditor, needed only by src/netops_auditor/mcp_server.py.
-# The auditor itself is stdlib-only: collection, rule engine, store, suppressions and the CLI
-# run without anything from this file, and the component stays usable as a CLI without it.
-# fastmcp is pinned to the exact version netops-helper ships, so both MCP surfaces of the
-# netops family speak the same library.
-fastmcp==4.0.5

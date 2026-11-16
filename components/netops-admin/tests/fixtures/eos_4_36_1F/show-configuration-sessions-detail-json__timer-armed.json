@@ -1,0 +1,17 @@
+{
+    "sessions": {
+        "netops-c7-1": {
+            "state": "committed",
+            "completedTime": 1794781935.826158,
+            "commitUser": "netops-admin",
+            "description": "",
+            "instances": {}
+        }
+    },
+    "maxSavedSessions": 1,
+    "maxOpenSessions": 5,
+    "mergeOnCommit": false,
+    "saveToStartupConfigOnCommit": false,
+    "commitTimerSessionName": "netops-c7-1",
+    "commitTimerExpireTime": 1794782055.826083
+}

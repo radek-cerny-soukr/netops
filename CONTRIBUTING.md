@@ -1,6 +1,6 @@
 # Contributing to NetOps
 
-NetOps is one application, one version, one dependency closure and one Docker image. Components contain internal engine code and regression tests; they are not separately built, installed or released. Historical standalone material is clearly separated in docs/archive/0.x.
+NetOps is one application, one version, one dependency closure and one Docker image. Components contain internal engine code and regression tests; they are not separately built, installed or released.
 
 Preserve the fail-closed model. Describe the use case and security boundary before adding a mutation profile. Keep credentials, real addresses, host/device identifiers, private policies and captured device output out of commits, fixtures, issues and CI logs. Use documentation addresses and explicit synthetic input.
 

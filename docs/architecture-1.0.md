@@ -115,7 +115,7 @@ Check the receiver's effective service identity after privilege drop. Its certif
 
 The common MCP boundary preserves structured results and marks refused/failed operations with `isError: true`. Helper `ok: false`, Admin rejected/unknown/reverted/revert-failed execution outcomes, failed readiness and unknown operation lookups are errors. Successful `admin_status` reads of previously failed operations and Auditor queries with findings remain successful queries. Unknown writes must be investigated using request/change identity and actual device state, never retried automatically.
 
-Only root metadata declares the netops distribution/version and production dependency closure. Component directories are internal engines with regression tests and API references; their test support fixtures are not deployable components. Historical standalone metadata, installation procedures, images and SBOMs are archived.
+Only root metadata declares the netops distribution/version and production dependency closure. Component directories are internal engines with regression tests and API references; their test support fixtures are not deployable components. Historical standalone metadata, installation procedures, images and SBOMs are removed from the current source tree; they remain only in the repository history.
 
 ## Helper operation summaries
 

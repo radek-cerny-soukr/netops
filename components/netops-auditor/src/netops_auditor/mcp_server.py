@@ -104,11 +104,17 @@ class ReadOnlyStore(Store):
         )
         self._connection.row_factory = sqlite3.Row
         try:
-            # One deferred read transaction per tool call: every SELECT of the call
-            # reads the same committed state (the previous or the new run, never a
-            # mix), and a concurrent Auditor commit makes the reader wait up to the
-            # busy timeout instead of failing. The transaction is never written and
-            # ends with close().
+            # One read transaction per tool call, without a copy of the store: every
+            # SELECT of the call reads the same committed state (the previous or the new
+            # run, never a mix). The writer keeps the store in WAL (store._write_ahead_log),
+            # so this read transaction does not hold up the COMMIT of a concurrent collect,
+            # however long the call takes, and the COMMIT does not hold up this reader.
+            # Memory follows the rows the call reads (plus the SQLite page cache), not the
+            # size of the store.
+            # The connection is read-only (mode=ro) and the transaction ends with close().
+            # A store still in rollback-journal mode (not yet opened by a writer since an
+            # upgrade) is read the same way; there a COMMIT waits for the call, at most the
+            # busy timeout.
             self._connection.execute("BEGIN")
             version = schema_version(self._connection)
         except sqlite3.Error as error:

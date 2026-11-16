@@ -345,18 +345,20 @@ class AuditorStoreLock(RunningCollectBase):
                 os.close(descriptor)
 
     def btrfs_proc_files(self, info):
-        # Real proc formats: locks use hex 08:11, mountinfo decimal 8:17.
-        # A subvolume's anonymous stat device (0:52) is neither of these.
+        # Real proc formats: locks use hex 00:2d, mountinfo decimal 0:45. btrfs gives its
+        # superblock an anonymous device (major 0) and every subvolume another one, so the
+        # stat device of the lock (0:52) is neither of these. The parent mount is ext4 on
+        # an NVMe partition (259:3); the unrelated mount is a second btrfs (0:47).
         def mount_path(path):
             return (os.fsencode(path).replace(b"\\", b"\\134").replace(b" ", b"\\040")
                     .replace(b"\t", b"\\011").replace(b"\n", b"\\012"))
 
         state = mount_path(self.state)
-        mountinfo = (b"46 35 8:17 /@docker/volumes/netops/_data/gateway " + state + b"/gateway rw,relatime shared:22 - btrfs /dev/sdb1 rw,subvolid=256\n"
+        mountinfo = (b"46 35 0:45 /@docker/volumes/netops/_data/gateway " + state + b"/gateway rw,relatime shared:22 - btrfs /dev/nvme0n1p2 rw,subvolid=256\n"
                      b"35 25 0:31 / / rw,relatime - overlay overlay rw\n"
-                     b"45 35 8:16 /@docker/volumes/netops/_data " + state + b" rw,relatime - btrfs /dev/sdb1 rw,subvolid=256\n"
-                     b"47 35 8:18 /@unrelated " + state + b"/gateway-other rw,relatime - btrfs /dev/sdc1 rw,subvolid=257\n")
-        return {"/proc/locks": self.lock_record(info, major=8, minor=17),
+                     b"45 35 259:3 /docker/volumes/netops/_data " + state + b" rw,relatime - ext4 /dev/nvme0n1p3 rw\n"
+                     b"47 35 0:47 /@unrelated " + state + b"/gateway-other rw,relatime - btrfs /dev/sda1 rw,subvolid=257\n")
+        return {"/proc/locks": self.lock_record(info, major=0, minor=45),
                 "/proc/self/mountinfo": mountinfo,
                 "/proc/1/status": f"Name:\tpython\nUid:\t{self.uid}\t{self.uid}\t{self.uid}\t{self.uid}\n".encode(),
                 "/proc/1/cmdline": b"/usr/local/bin/python\0/usr/local/bin/netops\0serve\0"}
@@ -383,9 +385,9 @@ class AuditorStoreLock(RunningCollectBase):
             descriptor = operator._open_instance_lock()
             try:
                 info = SimpleNamespace(st_dev=os.makedev(0, 52), st_ino=os.fstat(descriptor).st_ino)
-                for pid, device, expected in ((holder.pid, (8, 17), holder.pid),
-                                              (1, (8, 16), None), (1, (8, 18), None),
-                                              (1, (9, 17), None), (1, (8, 19), None)):
+                for pid, device, expected in ((holder.pid, (0, 45), holder.pid),
+                                              (1, (259, 3), None), (1, (0, 47), None),
+                                              (1, (259, 45), None), (1, (0, 46), None)):
                     with self.subTest(pid=pid, device=device):
                         files = self.btrfs_proc_files(info)
                         files["/proc/locks"] = self.lock_record(info, pid=pid, major=device[0], minor=device[1])
@@ -394,7 +396,7 @@ class AuditorStoreLock(RunningCollectBase):
                             self.assert_instance_identity(descriptor, False)
                 files = self.btrfs_proc_files(info)
                 # A preceding unrelated lock must not mask the real instance.
-                files["/proc/locks"] = self.lock_record(info, major=8, minor=18) + files["/proc/locks"]
+                files["/proc/locks"] = self.lock_record(info, major=0, minor=47) + files["/proc/locks"]
                 with self.proc_files(files), patch.object(operator.os, "fstat", return_value=info):
                     self.assert_instance_identity(descriptor, True)
             finally:
@@ -406,14 +408,113 @@ class AuditorStoreLock(RunningCollectBase):
             try:
                 info = SimpleNamespace(st_dev=os.makedev(0, 52), st_ino=os.fstat(descriptor).st_ino)
                 for mountinfo in (PermissionError("mountinfo unavailable"), b"", b"malformed\n",
-                                  b"35 25 bad:device / / rw - btrfs /dev/sdb1 rw\n",
-                                  b"35 25 8:17 / /unrelated rw - btrfs /dev/sdb1 rw\n"):
+                                  b"35 25 bad:device / / rw - btrfs /dev/nvme0n1p2 rw\n",
+                                  b"35 25 0:45 / /unrelated rw - btrfs /dev/nvme0n1p2 rw\n"):
                     with self.subTest(mountinfo=mountinfo):
                         files = self.btrfs_proc_files(info)
                         files["/proc/self/mountinfo"] = mountinfo
                         with self.proc_files(files), patch.object(operator.os, "fstat", return_value=info):
                             self.assertIsNone(operator._instance_holder_pid(descriptor))
                             self.assert_instance_identity(descriptor, False)
+            finally:
+                os.close(descriptor)
+
+    @staticmethod
+    def fd_tables(tables):
+        """Fake /proc/<pid>/fd: {directory: {name: (st_dev, st_ino)} or OSError}; other paths are real."""
+        real_listdir, real_stat = os.listdir, os.stat
+
+        def listdir(path=".", *args, **kwargs):
+            if path in tables:
+                if isinstance(tables[path], OSError):
+                    raise tables[path]
+                return list(tables[path])
+            return real_listdir(path, *args, **kwargs)
+
+        def stat(path, *args, **kwargs):
+            directory, _, name = str(path).rpartition("/")
+            if directory in tables and not isinstance(tables[directory], OSError):
+                entry = tables[directory][name]
+                if isinstance(entry, OSError):
+                    raise entry
+                return SimpleNamespace(st_dev=entry[0], st_ino=entry[1])
+            return real_stat(path, *args, **kwargs)
+        stack = contextlib.ExitStack()
+        stack.enter_context(patch.object(operator.os, "listdir", side_effect=listdir))
+        stack.enter_context(patch.object(operator.os, "stat", side_effect=stat))
+        return stack
+
+    def test_btrfs_same_inode_in_another_subvolume_is_resolved_by_the_open_descriptor(self):
+        # Two FLOCK records with the same superblock device (0:45) and inode: one locks the
+        # instance lock (subvolume device 0:52), the other a file of another subvolume (0:53).
+        with self.environment(check_identity=True):
+            descriptor = operator._open_instance_lock()
+            try:
+                info = SimpleNamespace(st_dev=os.makedev(0, 52), st_ino=os.fstat(descriptor).st_ino)
+                ours, foreign = (info.st_dev, info.st_ino), (os.makedev(0, 53), info.st_ino)
+                gone = FileNotFoundError("closed meanwhile")
+                for gateway, other, expected, accepted in (
+                        ({"0": (os.makedev(0, 31), 7), "3": ours}, {"4": foreign, "9": gone}, 1, True),
+                        ({"3": foreign}, {"4": ours}, 42, False)):
+                    for order in ((42, 1), (1, 42)):
+                        with self.subTest(expected=expected, order=order):
+                            files = self.btrfs_proc_files(info)
+                            files["/proc/locks"] = b"".join(self.lock_record(info, pid=pid, major=0, minor=45) for pid in order)
+                            tables = {"/proc/1/fd": gateway, "/proc/42/fd": other}
+                            with self.proc_files(files), self.fd_tables(tables), \
+                                    patch.object(operator.os, "fstat", return_value=info):
+                                self.assertEqual(operator._instance_holder_pid(descriptor), expected)
+                                self.assert_instance_identity(descriptor, accepted)
+            finally:
+                os.close(descriptor)
+
+    def test_btrfs_same_inode_without_a_confirmed_descriptor_is_refused(self):
+        with self.environment(check_identity=True):
+            descriptor = operator._open_instance_lock()
+            try:
+                info = SimpleNamespace(st_dev=os.makedev(0, 52), st_ino=os.fstat(descriptor).st_ino)
+                ours, foreign = (info.st_dev, info.st_ino), (os.makedev(0, 53), info.st_ino)
+                denied = PermissionError(13, "Permission denied")
+                cases = (
+                    # The gateway's descriptors cannot be inspected (EACCES).
+                    ((42, 1), {"/proc/1/fd": denied, "/proc/42/fd": {"4": foreign}}),
+                    ((1, 42), {"/proc/1/fd": denied, "/proc/42/fd": {"4": foreign}}),
+                    # The gateway has the lock open, but the other candidate cannot be ruled out.
+                    ((1, 42), {"/proc/1/fd": {"3": ours}, "/proc/42/fd": denied}),
+                    ((1, 42), {"/proc/1/fd": {"3": ours}, "/proc/42/fd": {"4": denied}}),
+                    ((1, 0), {"/proc/1/fd": {"3": ours}}),
+                    # Both have the instance lock open, or neither has.
+                    ((1, 42), {"/proc/1/fd": {"3": ours}, "/proc/42/fd": {"4": ours}}),
+                    ((1, 42), {"/proc/1/fd": {"3": foreign}, "/proc/42/fd": {"4": foreign}}),
+                )
+                for order, tables in cases:
+                    with self.subTest(order=order, tables=tables):
+                        files = self.btrfs_proc_files(info)
+                        files["/proc/locks"] = b"".join(self.lock_record(info, pid=pid, major=0, minor=45) for pid in order)
+                        with self.proc_files(files), self.fd_tables(tables), \
+                                patch.object(operator.os, "fstat", return_value=info):
+                            self.assertIsNone(operator._instance_holder_pid(descriptor))
+                            self.assert_instance_identity(descriptor, False)
+            finally:
+                os.close(descriptor)
+
+    def test_btrfs_overmount_of_the_same_depth_uses_the_last_mountinfo_line(self):
+        with self.environment(check_identity=True):
+            descriptor = operator._open_instance_lock()
+            try:
+                info = SimpleNamespace(st_dev=os.makedev(0, 52), st_ino=os.fstat(descriptor).st_ino)
+                files = self.btrfs_proc_files(info)
+                # A later mount on the same mountpoint (another btrfs, superblock 0:48) hides line 46.
+                files["/proc/self/mountinfo"] += (b"52 35 0:48 /@netops/gateway " + os.fsencode(self.state)
+                                                  + b"/gateway rw,relatime - btrfs /dev/nvme1n1p1 rw,subvolid=258\n")
+                with self.proc_files(files), patch.object(operator.os, "fstat", return_value=info):
+                    self.assertEqual(operator._instance_lock_mount_device(descriptor), (0, 48))
+                for minor, expected in ((48, 1), (45, None)):
+                    with self.subTest(minor=minor):
+                        files["/proc/locks"] = self.lock_record(info, major=0, minor=minor)
+                        with self.proc_files(files), patch.object(operator.os, "fstat", return_value=info):
+                            self.assertEqual(operator._instance_holder_pid(descriptor), expected)
+                            self.assert_instance_identity(descriptor, expected == 1)
             finally:
                 os.close(descriptor)
 

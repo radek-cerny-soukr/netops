@@ -1,7 +1,0 @@
-config/inventory.json
-config/egress-policy.json
-config/runner.json
-config/container/certs/*.crt
-config/container/certs/*.pem
-config/container/ca/*.crt
-config/container/ca/*.pem

@@ -1,0 +1,18 @@
+Interface              IP-Address      OK? Method Status                Protocol
+Ethernet0/0            unassigned      YES unset  up                    up      
+Ethernet0/1            unassigned      YES unset  administratively down down    
+Ethernet0/2            unassigned      YES unset  administratively down down    
+Ethernet0/3            unassigned      YES unset  administratively down down    
+Ethernet1/0            unassigned      YES unset  administratively down down    
+Ethernet1/1            unassigned      YES unset  administratively down down    
+Ethernet1/2            unassigned      YES unset  administratively down down    
+Ethernet1/3            unassigned      YES unset  administratively down down    
+Ethernet2/0            unassigned      YES unset  up                    up      
+Ethernet2/1            unassigned      YES unset  up                    up      
+Ethernet2/2            unassigned      YES unset  up                    up      
+Ethernet2/3            unassigned      YES unset  up                    up      
+Ethernet3/0            unassigned      YES unset  up                    up      
+Ethernet3/1            unassigned      YES unset  up                    up      
+Ethernet3/2            unassigned      YES unset  up                    up      
+Ethernet3/3            unassigned      YES unset  up                    up      
+Vlan99                 192.0.2.58      YES NVRAM  up                    up      

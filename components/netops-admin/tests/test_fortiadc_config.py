@@ -30,8 +30,8 @@ def test_config_still_refuses_unknown_platforms(tmp_path):
         load_config(write_config(tmp_path, "cisco"))
 
 
-def test_plan_apply_adapters_refuse_fortiadc():
-    with pytest.raises(Rejected):
-        execute._adapter("fortiadc")
-    with pytest.raises(Rejected):
-        readiness.execute._adapter("fortiadc")
+def test_plan_apply_adapters_serve_fortiadc():
+    from netops_admin import engine, exec_fortiadc, fortiadc_plan
+    assert execute._adapter("fortiadc") is exec_fortiadc and readiness.execute._adapter("fortiadc") is exec_fortiadc
+    assert engine.adapter_for("fortiadc") is fortiadc_plan
+    assert exec_fortiadc.COMPENSATING is True

@@ -964,15 +964,24 @@ def store(auth, text, hidden, count, section, firmware, *, platform='fortios', p
 
 INCOMPARABLE = 'configuration snapshot section, firmware or profile mismatch'
 
-# config_diff of the ExtremeXOS, Cisco IOS, IOS XE, NX-OS and Arista EOS snapshots (task 186): a line diff
-# along a shortest edit script (Myers 1986, greedy forward pass with a stored furthest-reaching trace), not a
+# config_diff of the ExtremeXOS, Cisco IOS, IOS XE, NX-OS and Arista EOS snapshots (task 186) and, since
+# 1.0.10 (task 298), of the FortiOS snapshots (minimal and full redaction profile): a line diff along a
+# shortest edit script (Myers 1986, greedy forward pass with a stored furthest-reaching trace), not a
 # positional comparison, so one inserted line is one '+' line and a device-rewritten header line is one '-'/'+'
-# pair without shifting the rest.  FortiOS/FortiADC keep the positional comparison.  The inputs are the stored
+# pair without shifting the rest.  In the FortiOS minimal profile the hidden values stay outside the text
+# (constant '<REDACTED>' markers; their changes are the secrets_changed records, computed apart from the text).
+# In the FortiOS full profile the hidden values are numbered '<REDACTED:credential#N>' markers (StreamRedactor
+# ._credential), and an added or removed hidden line renumbers every later marker; there (task 298-r2) the lines
+# are matched with the marker number left out ('<REDACTED:credential>', only the marker is normalized, never a
+# value) while the diff writes the real lines of each snapshot, numbers included.  So the full profile shows an
+# added or removed hidden line, not a changed hidden value: it keeps no secrets_changed records (only the
+# minimal profile reports a changed value).  The output builder keeps its serialized-marker check, so the
+# redaction is unchanged.  Only FortiADC keeps the positional comparison.  The inputs are the stored
 # snapshots (bounded by the configuration capture limits); the line tables and the trace are charged to the
 # same configuration memory budget, and the edit script has fixed bounds: more than LINE_DIFF_MAX_EDITS
 # changed lines between the common head and tail, or more than LINE_DIFF_MAX_WORK steps, refuses the diff
 # with DiffLimitExceeded instead of running without bound.
-LINE_DIFF_PLATFORMS = frozenset(('extreme_exos', 'cisco_ios', 'cisco_xe', 'cisco_nxos', 'arista_eos'))
+LINE_DIFF_PLATFORMS = frozenset(('extreme_exos', 'cisco_ios', 'cisco_xe', 'cisco_nxos', 'arista_eos', 'fortios'))
 LINE_DIFF_MAX_EDITS = 3000
 LINE_DIFF_MAX_WORK = 20_000_000
 DIFF_LIMIT_EXCEEDED = ('configuration diff exceeds its comparison limit (at most %d changed lines); output withheld'
@@ -1017,15 +1026,31 @@ class DiffLimitExceeded(ValueError):
         super().__init__(message)
 
 
-def _line_ids(content, ids, lines, charged):
-    """The lines of ``content`` as small integers; equal lines share one id (and one stored bytes object)."""
+# FortiOS full profile (task 298-r2): the number of a credential marker is its order in the snapshot, not
+# configuration; the comparison key leaves it out.
+_CREDENTIAL_NUMBER = re.compile(rb'<REDACTED:credential#[1-9][0-9]*>')
+_CREDENTIAL_KEY = b'<REDACTED:credential>'
+
+
+def _line_ids(content, ids, lines, charged, originals=None):
+    """The lines of ``content`` as small integers; equal lines share one id (and one stored bytes object).
+
+    With ``originals`` (a dict, FortiOS full profile) a line is identified with its credential marker numbers
+    left out, and the real line of every such position of ``content`` is kept in ``originals`` for the output.
+    """
     sequence = array('i')
     for line in content.lines():
-        identity = ids.get(line)
+        key = line
+        if originals is not None and b'<REDACTED:credential#' in line:
+            key = _CREDENTIAL_NUMBER.sub(_CREDENTIAL_KEY, line)
+            if key != line:
+                originals[len(sequence)] = line
+                charged[0] += sys.getsizeof(line) + _LINE_ENTRY_BYTES
+        identity = ids.get(key)
         if identity is None:
-            identity = ids[line] = len(lines)
-            lines.append(line)
-            charged[0] += sys.getsizeof(line) + _LINE_ENTRY_BYTES
+            identity = ids[key] = len(lines)
+            lines.append(key)
+            charged[0] += sys.getsizeof(key) + _LINE_ENTRY_BYTES
         sequence.append(identity)
         if len(sequence) % _BUDGET_EVERY == 0:
             _budget(charged[0] + sys.getsizeof(sequence))   # the allocated size, growth headroom included
@@ -1148,11 +1173,18 @@ def _edit_script(a, b, charged, head=0, tail=0):
     return hunks
 
 
-def _line_diff(left, right, out, changed):
-    """Write the removed ('-') and added ('+') lines of right against left, in order, after the diff header."""
+def _line_diff(left, right, out, changed, normalize_credentials=False):
+    """Write the removed ('-') and added ('+') lines of right against left, in order, after the diff header.
+
+    ``normalize_credentials`` (FortiOS full profile): lines are compared with their credential marker numbers
+    left out; the written lines are the real lines of the side they come from.
+    """
     ids, lines, charged = {}, [], [0]
-    a = _line_ids(left, ids, lines, charged)
-    b = _line_ids(right, ids, lines, charged)
+    left_originals = right_originals = None
+    if normalize_credentials:
+        left_originals, right_originals = {}, {}
+    a = _line_ids(left, ids, lines, charged, left_originals)
+    b = _line_ids(right, ids, lines, charged, right_originals)
     ids = None
     n, m = len(a), len(b)
     head = 0
@@ -1165,9 +1197,12 @@ def _line_diff(left, right, out, changed):
     out.add(b'--- base\n+++ other\n')
     written = 0
     for deleted, inserted in hunks:
-        for sign, sequence, indexes in ((b'-', a, deleted), (b'+', b, inserted)):
+        for sign, sequence, originals, indexes in ((b'-', a, left_originals, deleted),
+                                                   (b'+', b, right_originals, inserted)):
             for index in indexes:
-                line = lines[sequence[head + index]]
+                line = originals.get(head + index) if originals else None
+                if line is None:
+                    line = lines[sequence[head + index]]
                 out.add(sign + line if line.endswith(b'\n') else sign + line + b'\n')
                 written += 1
                 if written % 1024 == 0:
@@ -1175,20 +1210,27 @@ def _line_diff(left, right, out, changed):
     _budget(charged[0] + out.memory_bytes + changed.memory_bytes)
 
 
-# Comparability of two snapshots of the same scope (task 194).  For the line diff platforms the capture
+# Comparability of two snapshots of the same scope (task 194).  For the EXOS/IOS family the capture
 # metadata also carries content summaries (unverified_count, credential_redactions, unsupported_format_count,
 # unverified_fields, unverified_truncated, configuration_complete and the visibility_limitations they imply),
 # which change with every added or removed hidden line; only the identity keys below take part, so such a
 # change is a diff (a redacted marker line), not a false config_snapshot_incomparable.  Section, firmware,
 # redaction profile (name and rule hash) and include_defaults still have to match.  FortiOS/FortiADC compare
-# the whole metadata as before.
+# the whole metadata as before (FortiOS also after its move to the line diff, task 298), except that a FortiOS
+# full-profile pair ignores credential_redactions: that count changes with every added or removed secret line,
+# which the line diff shows as one +/- line (task 298-r3).  The stored metadata itself is unchanged and is still
+# returned per capture in base_capture/other_capture.
 _IDENTITY_METADATA = frozenset(('config_scope', 'identity_scope_verified'))
+_IDENTITY_METADATA_PLATFORMS = frozenset(('extreme_exos', 'cisco_ios', 'cisco_xe', 'cisco_nxos', 'arista_eos'))
+_FORTIOS_FULL_CONTENT_METADATA = frozenset(('credential_redactions',))
 
 
 def _comparable_identity(snapshot, platform):
     metadata = snapshot.metadata
-    if platform in LINE_DIFF_PLATFORMS:
+    if platform in _IDENTITY_METADATA_PLATFORMS:
         metadata = tuple((key, value) for key, value in metadata if key in _IDENTITY_METADATA)
+    elif platform == 'fortios' and snapshot.profile != PROFILE:
+        metadata = tuple((key, value) for key, value in metadata if key not in _FORTIOS_FULL_CONTENT_METADATA)
     return snapshot.section, snapshot.firmware, snapshot.profile, snapshot.include_defaults, metadata
 
 
@@ -1233,7 +1275,8 @@ def compare(auth, base, other, *, platform='fortios', with_metadata=False, admit
     order_changed = left.hidden.order.digest() != right.hidden.order.digest()
     if not equal and platform in LINE_DIFF_PLATFORMS:
         try:
-            _line_diff(left.text, right.text, out, changed)
+            _line_diff(left.text, right.text, out, changed,
+                       normalize_credentials=platform == 'fortios' and left.profile != PROFILE)
         except ConfigurationBudgetError:
             # The line tables, trace or output of the new diff path exceed the memory budget (task 186-r2):
             # the same controlled refusal code as the edit bound, not an internal error.

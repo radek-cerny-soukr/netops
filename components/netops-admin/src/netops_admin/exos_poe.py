@@ -28,6 +28,29 @@ ON_WAIT_SECONDS = 60
 POLL_SECONDS = 2
 DELIVERING = "delivering"
 PD_NOT_BACK = "powered device not delivering after the cycle"
+# Time budget of one cycle from the margin check before the disable until the safeguard is removed. Measured in
+# task 171 (ops.log, ssh exec from the Admin host, 1 s resolution): a show command took at most 2 s, show
+# configuration at most 4 s. An interactive write (login and one line) was not timed on its own; it is budgeted
+# as two reads. The waits are the pauses of _observe; every read of a wait comes on top of its pauses.
+READ_SECONDS = 2
+SNAPSHOT_SECONDS = 4
+WRITE_SECONDS = 2 * READ_SECONDS
+
+
+def _wait_reads(seconds) -> int:
+    """Reads of one _observe wait that runs out: one at the start and one after every pause."""
+    return 1 + -(-seconds // POLL_SECONDS)
+
+
+# disable, enable and the safeguard removal; show configuration after the disable and after the enable;
+# the off wait and the on wait with all their reads (15 + 9 x 2 and 60 + 31 x 2): 175 s
+CYCLE_SECONDS = (3 * WRITE_SECONDS + 2 * SNAPSHOT_SECONDS
+                 + OFF_WAIT_SECONDS + _wait_reads(OFF_WAIT_SECONDS) * READ_SECONDS
+                 + ON_WAIT_SECONDS + _wait_reads(ON_WAIT_SECONDS) * READ_SECONDS)
+MARGIN_CODE = "safeguard_margin_insufficient"
+MARGIN_REASON = "safeguard margin insufficient"
+CYCLE_CONFIRMED = "cycle confirmed before the interruption; safeguard removed by recover"
+CYCLE_NOT_PROVEN = "interrupted; PoE cycle not proven"
 
 
 def request(device: str, port: str, reason: str, user_request: str, request_id: str):
@@ -37,16 +60,44 @@ def request(device: str, port: str, reason: str, user_request: str, request_id: 
     return parse_request(json.dumps(body).encode("utf-8"))
 
 
-def _platform(runtime, device_name):
+def _admissible(runtime, device_name):
+    """Platform and safeguard margin of the target, from the configuration only: no device read or write."""
     device = runtime.config.devices.get(device_name)
     if device is not None and device.platform != "exos":
         raise Rejected(["the PoE cycle exists only for ExtremeXOS switches"], reason_codes=["action_unsupported"])
+    if device is not None:
+        _margin(device)
+
+
+def required_safeguard_seconds(device) -> int:
+    """The smallest safeguard_seconds that leaves the confirm margin after a whole cycle."""
+    return CYCLE_SECONDS + device.confirm_margin_seconds + 1
+
+
+def _margin_refusal(device):
+    available = device.safeguard_seconds
+    return Rejected(["the PoE cycle can take up to %d s (disable, %d s off wait, enable, %d s on wait and the "
+                     "read-backs) and needs confirm_margin_seconds %d s on top, but the safeguard gives only %d s; set "
+                     "safeguard_seconds of device %s to at least %d"
+                     % (CYCLE_SECONDS, OFF_WAIT_SECONDS, ON_WAIT_SECONDS, device.confirm_margin_seconds, available,
+                        device.name, required_safeguard_seconds(device))],
+                    reason_codes=["safeguard_margin_insufficient"],
+                    reason_details=[{"code": MARGIN_CODE, "cycle_seconds": CYCLE_SECONDS,
+                                     "confirm_margin_seconds": device.confirm_margin_seconds,
+                                     "available_seconds": available,
+                                     "required_safeguard_seconds": required_safeguard_seconds(device)}])
+
+
+def _margin(device) -> None:
+    """Before any write: the whole cycle plus the confirm margin must fit inside the safeguard."""
+    if CYCLE_SECONDS + device.confirm_margin_seconds >= device.safeguard_seconds:
+        raise _margin_refusal(device)
 
 
 def preview(runtime, device_name: str, cycle_request) -> dict:
     """Every check of the cycle against the device, without any change."""
     try:
-        _platform(runtime, device_name)
+        _admissible(runtime, device_name)
         result, refused = execute._preview(runtime, device_name, cycle_request, action=ACTION)
     except Rejected as exc:
         if not isinstance(exc, execute.BudgetExhausted):
@@ -62,7 +113,7 @@ def preview(runtime, device_name: str, cycle_request) -> dict:
 
 def apply(runtime, device_name: str, cycle_request) -> dict:
     try:
-        _platform(runtime, device_name)
+        _admissible(runtime, device_name)
     except Rejected:
         execute._count_rejection(runtime)
         raise
@@ -87,6 +138,17 @@ def _shown(state) -> dict:
     return {name: state[name] for name in ("configured", "state", "class", "power", "fault") if name in (state or {})}
 
 
+def _refused(runtime, adapter, access, record, spec, reason, code) -> dict:
+    """Refuse the cycle before the disable: remove the installed safeguard; power was never touched."""
+    cleaned = adapter.remove_safeguard(access, record, spec)
+    execute._step(runtime, record, "safeguard_removed" if cleaned else "safeguard_removal_unverified")
+    if not cleaned:
+        return execute._finish(runtime, record, "unknown", "safeguard cleanup unverified")
+    if not execute._persist(runtime, adapter, access, record):
+        return execute._finish(runtime, record, "rejected", "not persisted", reason_code=code)
+    return execute._finish(runtime, record, "rejected", reason, reason_code=code)
+
+
 def run(runtime, adapter, access, record, plan, device, due) -> dict:
     step, finish, settle = execute._step, execute._finish, execute._settle_after_expiry
     spec, port = execute._spec(record), plan["key"]
@@ -97,6 +159,16 @@ def run(runtime, adapter, access, record, plan, device, due) -> dict:
         return settle(runtime, access, record, plan, "check identity unavailable", due)
     record["poe"] = {"before": _shown(before)}
     step(runtime, record, "poe_before", before["state"])
+    try:
+        remaining = (execute._fire_at(record) - adapter.clock(access)).total_seconds()
+    except Exception as exc:
+        step(runtime, record, "clock_unreadable", type(exc).__name__)
+        return _refused(runtime, adapter, access, record, spec, "device clock", "device_clock_unreadable")
+    margin = "%d s left, %d s cycle, %d s margin" % (remaining, CYCLE_SECONDS, device.confirm_margin_seconds)
+    if CYCLE_SECONDS + device.confirm_margin_seconds >= remaining:
+        step(runtime, record, "cycle_refused", margin)
+        return _refused(runtime, adapter, access, record, spec, MARGIN_REASON, MARGIN_CODE)
+    step(runtime, record, "margin_checked", margin)
     step(runtime, record, "change_start")
     try:
         access.apply(plan["commands"], spec)
@@ -215,3 +287,63 @@ def run(runtime, adapter, access, record, plan, device, due) -> dict:
             step(runtime, record, "saved_check_failed", "%d differences" % len(saved["differences"]))
             return finish(runtime, record, "confirmed", "foreign change during save", saved["differences"])
     return finish(runtime, record, "confirmed", None if pd_back else PD_NOT_BACK)
+
+
+def _journal_proves_cycle(record) -> bool:
+    """The journal shows power off, the verified enable and power on again, in that order, before confirm_start."""
+    names = [step.get("step") for step in record.get("steps", [])]
+    order = ("poe_off_observed", "poe_enable_verified", "poe_on_observed", "confirm_start")
+    if not all(name in names for name in order):
+        return False
+    places = [names.index(name) for name in order]
+    poe = record.get("poe") or {}
+    off, after = poe.get("off") or {}, poe.get("after") or {}
+    return (places == sorted(places) and (off.get("configured"), off.get("state")) == ("disabled", "disabled")
+            and after.get("configured") == "enabled" and after.get("state") not in (None, "disabled"))
+
+
+def recover_installed(runtime, adapter, access, record, plan, device) -> dict:
+    """Recover a cycle interrupted after confirm_start while its safeguard is still installed.
+
+    The cycle counts as done only on proof: the journal holds off -> on (see _journal_proves_cycle) and a fresh
+    read shows the configuration equal to before and the check account sees inline power configured enabled and
+    not disabled. Then the safeguard is removed and the result is confirmed. Without that proof the safeguard
+    restores power as for any interrupted change and the result says the cycle was not proven.
+    """
+    step, finish, spec = execute._step, execute._finish, execute._spec(record)
+    due = runtime.monotonic() + device.safeguard_seconds
+
+    def unproven(detail):
+        step(runtime, record, "cycle_unproven", detail)
+        return execute._settle_after_expiry(runtime, access, record, plan, CYCLE_NOT_PROVEN, due)
+
+    if not _journal_proves_cycle(record):
+        return unproven("the journal does not show power off and on again")
+    try:
+        state = exec_exos.poe_state(access, plan["key"], check=True)
+        text = access.snapshot().encode("utf-8")
+        configuration = engine.verify(plan, text, expect="before")
+    except Exception as exc:
+        return unproven("fresh read failed: %s" % type(exc).__name__)
+    record["poe"]["recovered"] = _shown(state)
+    if state["configured"] != "enabled" or state["state"] == "disabled":
+        return unproven("power not on: %s/%s" % (state["configured"], state["state"]))
+    if configuration["result"] != "match":
+        return unproven("configuration differs from before (%d differences)" % len(configuration["differences"]))
+    step(runtime, record, "cycle_proven", state["state"])
+    if not adapter.remove_safeguard(access, record, spec):
+        step(runtime, record, "safeguard_removal_unverified")
+        return finish(runtime, record, "unknown", "safeguard cleanup unverified")
+    step(runtime, record, "safeguard_removed")
+    try:
+        removed = engine.verify(plan, access.snapshot().encode("utf-8"), expect="before")
+    except Exception as exc:
+        step(runtime, record, "removal_check_failed", type(exc).__name__)
+        return finish(runtime, record, "unknown", "final check unavailable")
+    if removed["result"] != "match":
+        step(runtime, record, "removal_check_failed", "%d differences" % len(removed["differences"]))
+        return finish(runtime, record, "unknown", "foreign change after the safeguard was removed", removed["differences"])
+    if not execute._persist(runtime, adapter, access, record):
+        return finish(runtime, record, "confirmed", "not persisted")
+    pd_back = (record["poe"].get("before") or {}).get("state") != DELIVERING or state["state"] == DELIVERING
+    return finish(runtime, record, "confirmed", CYCLE_CONFIRMED if pd_back else PD_NOT_BACK)

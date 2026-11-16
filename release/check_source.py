@@ -105,7 +105,53 @@ def section(text, heading):
 LIVE_FIRMWARE = re.compile(r"\b(Forti[A-Za-z]+|[A-Z][A-Za-z]+)(?:-[A-Za-z0-9]+)? (\d+(?:\.\d+)+ build\d+)\b")
 LIVE_LINE = re.compile(r"^Live verification of NetOps (\S+) on \d{4}-\d{2}-\d{2}: .*$", re.M)
 
-def support_errors(readme, verified, version):
+TABLE_CELL_SPLIT = re.compile(r"(?<!\\)\|")
+
+def table_cells(line):
+    line = line.strip()
+    if len(line) < 2 or not (line.startswith("|") and line.endswith("|")):
+        return None
+    return [cell.strip() for cell in TABLE_CELL_SPLIT.split(line[1:-1])]
+
+def tested_client_results(clients, version):
+    """Result cells of the table under "**Tested for NetOps <version> (<date>)**", or None without that heading."""
+    heading = re.search(r"^\*\*Tested for NetOps " + re.escape(version) + r" \(\d{4}-\d{2}-\d{2}\)\*\*[^\n]*$", clients, re.M)
+    if not heading:
+        return None
+    lines = clients[heading.end():].split("\n")
+    while lines and not lines[0].strip():
+        lines.pop(0)
+    header = table_cells(lines[0]) if lines else None
+    separator = table_cells(lines[1]) if len(lines) > 1 else None
+    if (not header or "Result" not in header or not separator or len(separator) != len(header)
+            or not all(re.fullmatch(r":?-+:?", cell) for cell in separator)):
+        return []
+    column = header.index("Result")
+    results = []
+    for line in lines[2:]:
+        cells = table_cells(line)
+        if cells is None:
+            break
+        results.append(cells[column] if column < len(cells) else "")
+    return results
+
+def client_acceptance_errors(clients, version, notes_exist):
+    results = tested_client_results(clients, version)
+    tested = results is not None
+    deferred = ("**NetOps " + version + ":** the client acceptance (Codex CLI and Claude Code) runs once on the signed release candidate image; "
+                "its results are in the [release notes](release/notes-" + version + ".md#acceptance).")
+    pending = deferred in clients.splitlines()
+    if tested and pending:
+        return ["README claims and defers client results of " + version + ": Tested MCP clients has both a result table and the pending-acceptance line"]
+    if pending:
+        return [] if notes_exist else ["README defers client results of " + version + " to release/notes-" + version + ".md, which does not exist"]
+    if tested:
+        if any(re.match(r"(PASS|FAIL)\b", result) for result in results):
+            return []
+        return ["README Tested MCP clients for " + version + " has no client result"]
+    return ["README Tested MCP clients has neither a result table for NetOps " + version + " nor the exact pending-acceptance line of NetOps " + version]
+
+def support_errors(readme, verified, version, notes_exist=False):
     supported = section(readme, "## Supported devices and firmware")
     lines = [line for line in LIVE_LINE.finditer(supported) if line.group(1) == version]
     errors = [] if lines else ["README Supported devices has no live verification of NetOps " + version]
@@ -118,8 +164,7 @@ def support_errors(readme, verified, version):
                    for platform, firmware in pairs if not re.search(r"(?<![\w.])" + re.escape(firmware) + r"\b", rows.get(platform, ""))]
     if "NetOps " + version not in verified:
         errors.append("docs/verified-support.md does not name NetOps " + version)
-    if "NetOps " + version not in section(readme, "#### Tested MCP clients"):
-        errors.append("README Tested MCP clients does not name NetOps " + version)
+    errors += client_acceptance_errors(section(readme, "#### Tested MCP clients"), version, notes_exist)
     return errors
 CANDIDATE_BRANCH = re.compile(r"release/[^\s\"']*-candidate")
 
@@ -158,7 +203,8 @@ def check(root, release=False):
     readme_text = (root / "README.md").read_text(encoding="utf-8")
     errors.extend(readme_version_errors(readme_text, version))
     if release:
-        errors.extend(support_errors(readme_text, (root / "docs/verified-support.md").read_text(encoding="utf-8"), version))
+        errors.extend(support_errors(readme_text, (root / "docs/verified-support.md").read_text(encoding="utf-8"), version,
+                                       (root / "release" / ("notes-" + version + ".md")).is_file()))
     errors.extend(workflow_branch_errors({name: (root / ".github/workflows" / name).read_text(encoding="utf-8")
                                           for name in ("ci.yml", "candidate.yml", "codeql.yml")}, version))
     for role in ("core", "helper", "auditor", "admin"):

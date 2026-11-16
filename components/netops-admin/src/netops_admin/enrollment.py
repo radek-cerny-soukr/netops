@@ -12,6 +12,20 @@ from netops_admin.request import parse_request
 
 PROTOCOL = "netops-enrollment/1"
 PROBE_PREFIX = "netops-enroll-"
+# the object the self-test changes and leaves unconfirmed: FortiOS creates an address with the probe network,
+# ExtremeXOS a VLAN with the probe tag, EOS, IOS, IOS XE and NX-OS set the description of the probe interface (their
+# objects are only updated)
+PROBES = {
+    "fortios": lambda key, probe: ("firewall address", "create", {"subnet": probe}),
+    "exos": lambda key, probe: ("vlan", "create", {"tag": probe}),
+    "eos": lambda key, probe: ("interface", "update", {"description": key}),
+    "ios": lambda key, probe: ("interface", "update", {"description": key}),
+    "iosxe": lambda key, probe: ("interface", "update", {"description": key}),
+    "nxos": lambda key, probe: ("interface", "update", {"description": key}),
+    "junos": lambda key, probe: ("interface", "update", {"description": key}),
+}
+# platforms whose probe argument names the interface whose description the self-test changes
+INTERFACE_PROBES = ("eos", "ios", "iosxe", "nxos", "junos")
 
 
 def binding(device, accounts, firmware, config):
@@ -54,15 +68,32 @@ def run(runtime, device_name, probe):
                                            "op":"create","changes":changes}],
                               "operator enrollment self-test","operator enrollment self-test","enroll-"+secrets.token_hex(12))
         return execute._apply(runtime, device_name, request, execute.ANY_STATE, enrolling=True)
-    key = PROBE_PREFIX + secrets.token_hex(6)
-    table = "firewall address" if device.platform == "fortios" else "vlan"
-    changes = {"subnet": probe} if device.platform == "fortios" else {"tag": probe}
+    if device.platform == "fortiadc":
+        table, key, changes = fortiadc_probe(probe)
+        op = "create"
+    else:
+        key = PROBE_PREFIX + secrets.token_hex(6)
+        table, op, changes = PROBES.get(device.platform, PROBES["exos"])(key, probe)
+        if device.platform in INTERFACE_PROBES:
+            key = probe
     request = parse_request(json.dumps({
-        "device": device_name, "table": table, "op": "create", "key": key, "changes": changes,
+        "device": device_name, "table": table, "op": op, "key": key, "changes": changes,
         "reason": "operator enrollment self-test", "user_request": "operator enrollment self-test",
         "request_id": "enroll-" + secrets.token_hex(12),
     }).encode())
     return execute._apply(runtime, device_name, request, execute.ANY_STATE, enrolling=True)
+
+
+def fortiadc_probe(probe):
+    """FortiADC enrollment probe POOL:MEMBER:REAL_SERVER:PORT: an unused member number of a pool, created disabled
+    with a configured real server and a port that is not yet a member of that pool, and returned in the same run."""
+    parts = probe.split(":") if isinstance(probe, str) else []
+    if len(parts) != 4 or not all(parts):
+        raise Rejected(["the FortiADC enrollment probe must be POOL:MEMBER:REAL_SERVER:PORT, for example"
+                        " POOL_WEB:99:RS_WEB1:8081"])
+    pool, member, real_server, port = parts
+    changes = {"real-server": real_server, "pool-member-service-port": port, "status": "disable"}
+    return "load-balance pool/pool_member", "%s:%s" % (pool, member), changes
 
 
 def complete(runtime, device, access, record):
@@ -79,7 +110,7 @@ def complete(runtime, device, access, record):
         if engine.verify(plan, text.encode(), expect="before")["result"] != "match":
             raise Rejected(["enrollment cleanup did not restore the initial configuration"])
         observed = engine.observed_state(plan, adapter.observe(access, plan))
-        expected = plan["predicted"]["before"] if schema_runtime.is_plan(plan) else None
+        expected = plan["predicted"]["before"] if schema_runtime.is_plan(plan) or plan["op"] == "update" else None
         if observed != expected:
             raise Rejected(["the check account still sees the enrollment probe"])
         accounts = adapter.accounts_check(access, device, text)

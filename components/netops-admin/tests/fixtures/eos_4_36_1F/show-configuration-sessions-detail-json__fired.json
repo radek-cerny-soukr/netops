@@ -1,0 +1,7 @@
+{
+    "sessions": {},
+    "maxSavedSessions": 1,
+    "maxOpenSessions": 5,
+    "mergeOnCommit": false,
+    "saveToStartupConfigOnCommit": false
+}

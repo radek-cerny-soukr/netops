@@ -1,6 +1,6 @@
 FROM python:3.14.10-alpine3.24@sha256:5862d971d1f0ae26b258cefa4e893556b1d3aba81bd2ff30888704ad378bab67 AS base
 LABEL org.opencontainers.image.title="netops" \
-      org.opencontainers.image.version="1.0.9" \
+      org.opencontainers.image.version="1.0.10" \
       org.opencontainers.image.licenses="MIT"
 ENV PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1 \
     SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt \
@@ -48,7 +48,7 @@ RUN cc -Os -static -s -Wall -Wextra -Werror -o /dist/netops-start /build/start.c
 
 FROM base AS runtime
 COPY --from=builder /dist /dist
-RUN umask 022 && python -m pip install --root-user-action=ignore --no-deps --no-index --no-compile /dist/netops-1.0.9-py3-none-any.whl \
+RUN umask 022 && python -m pip install --root-user-action=ignore --no-deps --no-index --no-compile /dist/netops-1.0.10-py3-none-any.whl \
     && python -m pip check \
     && cp /usr/local/lib/python3.14/site-packages/netops_core/askpass.py /usr/local/bin/netops-askpass \
     && cp /dist/netops-start /usr/local/bin/netops-start \

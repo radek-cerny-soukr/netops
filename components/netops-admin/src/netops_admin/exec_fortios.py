@@ -15,6 +15,9 @@ class PromptSpec:
     continuation: bytes | None
     error: object
     typed: object = None
+    # seconds a line may take before its prompt returns (None: access.LINE_TIMEOUT_SECONDS); Junos commits take
+    # minutes
+    seconds: object = None
 
 
 def prompt_spec(hostname: str) -> PromptSpec:

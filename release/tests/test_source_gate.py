@@ -460,6 +460,11 @@ class ReleaseVersionText(unittest.TestCase):
                 self.assertIn(old, self.readme)
                 self.assertTrue(gate.readme_version_errors(self.readme.replace(old, new, 1), v))
 
+TESTED = ("**Tested for NetOps %s (2026-01-02)** against a build.\n\n| Client | Version | Platform | Model | Result |\n"
+          "|---|---|---|---|---|\n| Codex CLI | 1 | Linux | default | PASS |\n")
+PENDING = ("**NetOps %s:** the client acceptance (Codex CLI and Claude Code) runs once on the signed release candidate image; "
+           "its results are in the [release notes](release/notes-%s.md#acceptance).\n")
+
 class ReleaseSupportText(unittest.TestCase):
     def setUp(self):
         import re
@@ -467,8 +472,10 @@ class ReleaseSupportText(unittest.TestCase):
         self.verified = (ROOT / "docs/verified-support.md").read_text(encoding="utf-8")
         self.version = re.search(r"^Live verification of NetOps (\d+\.\d+\.\d+) on ", self.readme, re.M).group(1)
         self.line = next(line for line in self.readme.splitlines() if line.startswith("Live verification of NetOps "))
+        # as check_source.check: the pending-acceptance line is accepted only when the release notes exist
+        self.notes_exist = (ROOT / f"release/notes-{self.version}.md").is_file()
     def test_current_support_text_names_the_live_verification(self):
-        self.assertEqual(gate.support_errors(self.readme, self.verified, self.version), [])
+        self.assertEqual(gate.support_errors(self.readme, self.verified, self.version, self.notes_exist), [])
     def test_stale_or_incomplete_support_text_is_refused(self):
         # A synthetic section, so that the mutations do not depend on how many live lines and platforms
         # the current README names; the current README itself is checked by the test above.
@@ -476,7 +483,7 @@ class ReleaseSupportText(unittest.TestCase):
         line = "Live verification of NetOps %s on 2026-01-02: FortiOS 8.0.2 build0251 and FortiADC 7.6.7 build0676." % v
         readme = ("## Supported devices and firmware\n\n| Platform | Documented scope |\n|---|---|\n"
                   "| FortiOS | 8.0.2 build0251 |\n| FortiADC | FortiADC-KVM 7.6.7 build0676 |\n\n" + line + "\n\n"
-                  "## Next\n\n#### Tested MCP clients\n\nFor NetOps %s, no client application was tested.\n" % v)
+                  "## Next\n\n#### Tested MCP clients\n\n" + TESTED % v)
         verified = "Live verification of NetOps %s." % v
         self.assertEqual(gate.support_errors(readme, verified, v), [])
         build, first, last = "build0251", "8.0.2 build0251", "7.6.7 build0676"
@@ -493,6 +500,54 @@ class ReleaseSupportText(unittest.TestCase):
             with self.subTest(label=label):
                 self.assertNotEqual(changed + verified_text, readme + verified)
                 self.assertTrue(gate.support_errors(changed, verified_text, v))
+    def test_client_acceptance_states(self):
+        v = self.version
+        base = ("## Supported devices and firmware\n\n| Platform | Documented scope |\n|---|---|\n"
+                "| FortiOS | 8.0.2 build0251 |\n\n"
+                "Live verification of NetOps %s on 2026-01-02: FortiOS 8.0.2 build0251.\n\n## Next\n\n#### Tested MCP clients\n\n" % v)
+        verified = "Live verification of NetOps %s." % v
+        def errors(clients, notes=True, version=v):
+            return gate.support_errors(base + clients, verified, version, notes)
+        for label, clients, notes, ok in (
+                ("result table", TESTED % v, False, True),
+                ("pending line", PENDING % (v, v), True, True),
+                ("pending line, no notes file", PENDING % (v, v), False, False),
+                ("both", TESTED % v + "\n" + PENDING % (v, v), True, False),
+                ("neither", "For NetOps %s, no client application was tested.\n" % v, True, False),
+                ("table without result row", TESTED.split("|---")[0] % v, True, False),
+                ("pending line of another version", PENDING % ("0.9.9", "0.9.9"), True, False),
+                ("pending line altered", (PENDING % (v, v)).replace("runs once", "ran"), True, False),
+                ("empty Result cell", (TESTED % v).replace("| PASS |", "| |"), True, False),
+                ("row of empty cells only", (TESTED % v).replace("| Codex CLI | 1 | Linux | default | PASS |", "| | | | | |"), True, False),
+                ("result not PASS or FAIL", (TESTED % v).replace("| PASS |", "| skipped |"), True, False),
+                ("result only outside the Result column", (TESTED % v).replace("| Codex CLI | 1 | Linux | default | PASS |",
+                                                                               "| PASS | 1 | Linux | default | |"), True, False),
+                ("Result column moved, filled", (TESTED % v).replace("| Client | Version | Platform | Model | Result |",
+                    "| Result | Client | Version | Platform | Model |").replace("| Codex CLI | 1 | Linux | default | PASS |",
+                    "| PASS: 9 calls | Codex CLI | 1 | Linux | default |"), True, True),
+                ("Result PASS with detail", (TESTED % v).replace("| PASS |", "| PASS: Helper role, 9 calls matched |"), True, True),
+                ("Result FAIL", (TESTED % v).replace("| PASS |", "| FAIL: wrong token accepted |"), True, True),
+                ("one filled row among empty ones", (TESTED % v) + "| Claude Code | 2 | Linux | default | |\n", True, True),
+                ("table without Result column", (TESTED % v).replace("| Result |", "| Outcome |"), True, False)):
+            with self.subTest(label=label):
+                result = errors(clients, notes)
+                self.assertEqual(result == [], ok, result)
+        self.assertTrue(any("claims and defers" in e for e in errors(TESTED % v + PENDING % (v, v))))
+        self.assertIn("README Tested MCP clients for " + v + " has no client result",
+                      errors((TESTED % v).replace("| PASS |", "| |")))
+    def test_current_readme_has_a_client_result(self):
+        import re
+        clients = gate.section(self.readme, "#### Tested MCP clients")
+        self.assertEqual(gate.client_acceptance_errors(clients, self.version, self.notes_exist), [])
+        # either a result table with a PASS or FAIL result, or the exact pending-acceptance line with existing notes
+        results = gate.tested_client_results(clients, self.version)
+        pending = (PENDING % (self.version, self.version)).rstrip("\n") in clients.splitlines()
+        if results is not None:
+            self.assertFalse(pending)
+            self.assertTrue(any(re.match(r"(PASS|FAIL)\b", r) for r in results), results)
+        else:
+            self.assertTrue(pending)
+            self.assertTrue(self.notes_exist)
     def test_every_live_line_of_the_current_release_is_checked(self):
         import re
         lines = [line for line in self.readme.splitlines() if line.startswith("Live verification of NetOps %s " % self.version)]
@@ -504,8 +559,25 @@ class ReleaseSupportText(unittest.TestCase):
                 if stale is not None:
                     self.assertTrue(gate.support_errors(stale, self.verified, self.version))
     def test_support_text_is_checked_only_for_a_release(self):
-        import inspect
-        self.assertIn("release", inspect.signature(gate.check).parameters)
+        import shutil, subprocess, tempfile
+        temp = tempfile.TemporaryDirectory()
+        self.addCleanup(temp.cleanup)
+        root = Path(temp.name)
+        files = ["pyproject.toml", "src/netops/__init__.py", "scripts/check_release.py", "README.md", "docs/verified-support.md",
+                 ".github/workflows/ci.yml", ".github/workflows/candidate.yml", ".github/workflows/codeql.yml"]
+        for role in ("core", "helper", "auditor", "admin"):
+            files += ["components/netops-" + role + "/pyproject.toml", "components/netops-" + role + "/src/netops_" + role + "/__init__.py"]
+        for name in files:
+            (root / name).parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(ROOT / name, root / name)
+        clients = gate.section(self.readme, "#### Tested MCP clients")
+        self.assertTrue(clients)
+        (root / "README.md").write_text(self.readme.replace(clients, ""), encoding="utf-8")
+        subprocess.run(["git", "init", "-q", str(root)], check=True, capture_output=True)
+        subprocess.run(["git", "-C", str(root), "add", "."], check=True, capture_output=True)
+        section_errors = lambda errors: [e for e in errors if "Tested MCP clients" in e]
+        self.assertEqual(section_errors(gate.check(root, release=False)), [])
+        self.assertTrue(section_errors(gate.check(root, release=True)))
 
 class CandidateBranchTriggers(unittest.TestCase):
     def setUp(self):

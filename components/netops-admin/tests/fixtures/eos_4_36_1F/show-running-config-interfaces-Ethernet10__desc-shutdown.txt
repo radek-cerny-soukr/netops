@@ -1,0 +1,3 @@
+interface Ethernet10
+   description netops-c7-b
+   shutdown

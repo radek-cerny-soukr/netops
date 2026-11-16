@@ -1,0 +1,5 @@
+    Line       User       Host(s)              Idle       Location
+   0 con 0                idle                 00:01:08   
+*  2 vty 0     netops-adm idle                 00:00:00 203.0.113.252
+
+  Interface    User               Mode         Idle     Peer Address

@@ -24,20 +24,31 @@ X435_CONFIGURATION = GOLDEN / "X435-8P-4S" / "show-configuration" / "X435-8P-4S_
 INVENTORY = [str(number) for number in range(1, 17)]
 
 
-def make_runtime(tmp_path, device, protected=None, limits=None, firmware=FIRMWARE):
+def make_runtime(tmp_path, device, protected=None, limits=None, firmware=FIRMWARE, safeguard_seconds=180,
+                 confirm_margin_seconds=45):
     config = Config(
         state_dir=str(tmp_path / "state"), audit_file=str(tmp_path / "audit" / "audit.jsonl"),
         export_status_file=None, notify=None, limits=dict(limits or DEFAULT_LIMITS),
         devices={"sw": Device(
             name="sw", platform="exos", address="192.0.2.2", port=22,
             host_key_fingerprint="SHA256:" + "A" * 43, vault="/nonexistent/vault.json", credential="rw",
-            check_credential="ro", firmware=firmware, safeguard_seconds=180, confirm_margin_seconds=45,
+            check_credential="ro", firmware=firmware, safeguard_seconds=safeguard_seconds,
+            confirm_margin_seconds=confirm_margin_seconds,
             protected=dict(protected or {}), legacy_ssh="rsa-sha1", accounts=("admin", "netops-rw"),
         )},
     )
     runtime = execute.Runtime(config, lambda _device: device, sleep=device.advance)
     runtime.monotonic = lambda: device.uptime
     return certify(runtime, device, "sw")
+
+
+# a PoE cycle takes up to exos_poe.CYCLE_SECONDS (175 s) and needs the confirm margin (45 s) on top
+POE_SAFEGUARD_SECONDS = 240
+
+
+def poe_runtime(tmp_path, device, **options):
+    options.setdefault("safeguard_seconds", POE_SAFEGUARD_SECONDS)
+    return make_runtime(tmp_path, device, **options)
 
 
 def port_request(key="10", state="disabled", request_id="req-admin-0001"):
@@ -225,10 +236,14 @@ def test_configuration_cut_off_inside_the_vlan_module_refuses_the_disable():
         exec_exos.plan_prechecks(device, target, plan, cut)
     assert caught.value.reason_codes == ["port_usage_unreadable"]
     assert exec_exos.plan_prechecks(device, target, plan, text) == []
-    # enabling a port and the display string do not read the VLAN membership
+    # enabling a port needs the VLAN membership too (task 304-r2: an enabled uplink or LAG member can loop)
     device.ports_disabled.add("10")
     enabled = device.snapshot()
-    assert engine.build_plan("exos", _cut_inside_vlan_module(enabled).encode(), port_request(state="enabled"),
+    with pytest.raises(Rejected) as caught:
+        engine.build_plan("exos", _cut_inside_vlan_module(enabled).encode(), port_request(state="enabled"),
+                          firmware=FIRMWARE, ports=INVENTORY)
+    assert caught.value.reason_codes == ["port_usage_unreadable"]
+    assert engine.build_plan("exos", enabled.encode(), port_request(state="enabled"),
                              firmware=FIRMWARE, ports=INVENTORY)["commands"] == ["enable ports 10"]
 
 
@@ -475,17 +490,44 @@ def test_complete_empty_lldp_list_lets_the_disable_through(tmp_path):
     assert "port 10 has no LLDP neighbor and no learned MAC address" in result["prechecks"]
 
 
-def test_enabling_a_disabled_port_skips_the_usage_reads(tmp_path):
+def test_enabling_a_disabled_port_with_an_lldp_neighbor_is_refused(tmp_path):
+    # task 304-r2: the admin state is checked in both directions; port 7 has an LLDP neighbor in the fixture
     device = FakeExos()
     device.ports_disabled.add("7")
     device.ports_down.add("7")
-    record = execute.apply(make_runtime(tmp_path, device), "sw", port_request(key="7", state="enabled"))
+    with pytest.raises(Rejected) as caught:
+        execute.apply(make_runtime(tmp_path, device), "sw", port_request(key="7", state="enabled"))
+    assert caught.value.reason_codes == ["port_lldp_neighbor"]
+    assert device.applied_blocks == [] and device.ports_disabled == {"7"}
+
+
+def test_enabling_a_disabled_access_port_is_confirmed(tmp_path):
+    device = FakeExos()
+    device.ports_disabled.add("10")
+    device.ports_down.add("10")
+    record = execute.apply(make_runtime(tmp_path, device), "sw", port_request(key="10", state="enabled"))
     assert record["result"] == "confirmed" and not device.ports_disabled
+    assert "port 10 has no LLDP neighbor and no learned MAC address" in record["plan"]["prechecks"]
+
+
+@pytest.mark.parametrize(("line", "code"), [
+    ("configure vlan DATA add ports 5 tagged", "port_uplink"),
+    ("enable sharing 5 grouping 5-6 algorithm address-based L2", "port_lag_member"),
+])
+def test_enabling_a_disabled_uplink_or_aggregated_port_is_refused(line, code):
+    device = FakeExos()
+    device.ports_disabled.add("5")
+    text = device.snapshot().replace("configure vlan DATA add ports 1-4 untagged",
+                                     "configure vlan DATA add ports 1-4 untagged\n" + line)
+    with pytest.raises(Rejected) as caught:
+        engine.build_plan("exos", text.encode(), port_request(key="5", state="enabled"), firmware=FIRMWARE,
+                          ports=INVENTORY)
+    assert caught.value.reason_codes == [code]
 
 
 def test_protected_port_is_refused(tmp_path):
     device = FakeExos()
-    runtime = make_runtime(tmp_path, device, protected={"ports": ["10"]})
+    runtime = poe_runtime(tmp_path, device, protected={"ports": ["10"]})
     with pytest.raises(Rejected) as caught:
         execute.apply(runtime, "sw", port_request())
     assert caught.value.reason_codes == ["port_protected"]
@@ -500,7 +542,7 @@ def test_protected_port_is_refused(tmp_path):
 
 def test_poe_cycle_preview_reads_the_state_and_changes_nothing(tmp_path):
     device = FakeExos()
-    result = exos_poe.preview(make_runtime(tmp_path, device), "sw", cycle_request())
+    result = exos_poe.preview(poe_runtime(tmp_path, device), "sw", cycle_request())
     assert result["result"] == "ready", result
     assert result["operation"] == "poe-cycle" and result["table"] == "inline-power"
     assert result["cycle_commands"] == ["disable inline-power ports 10", "enable inline-power ports 10"]
@@ -511,7 +553,7 @@ def test_poe_cycle_preview_reads_the_state_and_changes_nothing(tmp_path):
 def test_poe_cycle_is_confirmed_with_the_configuration_unchanged(tmp_path):
     device = FakeExos()
     before = device.snapshot()
-    runtime = make_runtime(tmp_path, device)
+    runtime = poe_runtime(tmp_path, device)
     record = exos_poe.apply(runtime, "sw", cycle_request())
     assert record["result"] == "confirmed" and record["reason"] is None, record
     assert record["kind"] == "poe-cycle"
@@ -534,7 +576,7 @@ def test_poe_cycle_is_confirmed_with_the_configuration_unchanged(tmp_path):
 def test_powered_device_is_waited_for(tmp_path):
     device = FakeExos()
     device.powered_devices.add("10")
-    record = exos_poe.apply(make_runtime(tmp_path, device), "sw", cycle_request())
+    record = exos_poe.apply(poe_runtime(tmp_path, device), "sw", cycle_request())
     assert record["result"] == "confirmed" and record["reason"] is None
     assert record["poe"]["before"]["state"] == "delivering" and record["poe"]["after"]["state"] == "delivering"
 
@@ -548,7 +590,7 @@ def test_powered_device_that_does_not_return_is_reported(tmp_path):
             fake.pd_seconds = None
 
     device.on_apply = unplug
-    record = exos_poe.apply(make_runtime(tmp_path, device), "sw", cycle_request())
+    record = exos_poe.apply(poe_runtime(tmp_path, device), "sw", cycle_request())
     assert record["result"] == "confirmed" and record["reason"] == exos_poe.PD_NOT_BACK
     assert record["poe"]["after"]["state"] == "searching"
     assert not device.poe_disabled and clean(device)
@@ -562,7 +604,7 @@ def test_power_that_stays_off_is_settled_by_the_safeguard(tmp_path):
             fake.poe_stuck_off = True
 
     device.on_apply = stick
-    record = exos_poe.apply(make_runtime(tmp_path, device), "sw", cycle_request())
+    record = exos_poe.apply(poe_runtime(tmp_path, device), "sw", cycle_request())
     assert record["result"] == "reverted" and record["reason"] == "check identity mismatch", record
     assert not device.poe_disabled and clean(device)
 
@@ -575,7 +617,7 @@ def test_lost_readback_during_the_cycle_is_reverted_by_the_safeguard(tmp_path):
             fake.check_unreadable = True
 
     device.on_apply = lose_check_account
-    record = exos_poe.apply(make_runtime(tmp_path, device), "sw", cycle_request())
+    record = exos_poe.apply(poe_runtime(tmp_path, device), "sw", cycle_request())
     assert record["result"] == "reverted" and record["reason"] == "check identity unavailable", record
     assert not device.poe_disabled and not device.poe_off and clean(device)
     assert ["enable inline-power ports 10"] not in plain_blocks(device)
@@ -585,7 +627,7 @@ def test_failed_enable_is_left_to_the_safeguard(tmp_path):
     device = FakeExos()
     device.on_apply = lambda fake, steps: setattr(fake, "fail_at_line",
                                                   1 if steps == ["enable inline-power ports 10"] else None)
-    record = exos_poe.apply(make_runtime(tmp_path, device), "sw", cycle_request())
+    record = exos_poe.apply(poe_runtime(tmp_path, device), "sw", cycle_request())
     assert record["result"] == "reverted" and record["reason"] == "change failed", record
     assert "poe_enable_failed" in steps(record)
     assert not device.poe_disabled and not device.poe_off and clean(device)
@@ -593,7 +635,7 @@ def test_failed_enable_is_left_to_the_safeguard(tmp_path):
 
 def test_poe_cycle_on_a_port_without_poe_is_refused(tmp_path):
     device = FakeExos()
-    runtime = make_runtime(tmp_path, device)
+    runtime = poe_runtime(tmp_path, device)
     result = exos_poe.preview(runtime, "sw", cycle_request(port="13"))
     assert result["result"] == "rejected" and result["reason_codes"] == ["poe_not_capable"]
     with pytest.raises(Rejected) as caught:
@@ -630,7 +672,7 @@ def test_port_without_poe_gives_its_code_with_the_measured_exit_status(tmp_path)
 def test_other_failed_inline_power_queries_stay_refused_without_the_poe_code(tmp_path, rc, text):
     device = FakeExos()
     device.query_status = lambda command: (rc, text)
-    result = exos_poe.preview(make_runtime(tmp_path, device), "sw", cycle_request(port="13"))
+    result = exos_poe.preview(poe_runtime(tmp_path, device), "sw", cycle_request(port="13"))
     assert result["result"] == "rejected" and result.get("reason_codes") != ["poe_not_capable"], result
     assert device.applied_blocks == []
 
@@ -641,7 +683,7 @@ def test_poe_cycle_on_a_switch_without_poe_is_refused(tmp_path):
     original = device.query_status
     device.query_status = lambda command: ((0, fixture("x435__11-ip-info-all.out"))
                                            if command.startswith("show inline-power info ports") else original(command))
-    result = exos_poe.preview(make_runtime(tmp_path, device), "sw", cycle_request())
+    result = exos_poe.preview(poe_runtime(tmp_path, device), "sw", cycle_request())
     assert result["reason_codes"] == ["poe_unsupported"]
 
 
@@ -650,17 +692,17 @@ def test_poe_cycle_on_disabled_inline_power_is_refused(tmp_path):
     device.poe_disabled.add("10")
     device.poe_off.add("10")
     with pytest.raises(Rejected) as caught:
-        exos_poe.apply(make_runtime(tmp_path, device), "sw", cycle_request())
+        exos_poe.apply(poe_runtime(tmp_path, device), "sw", cycle_request())
     assert caught.value.reason_codes == ["poe_disabled"]
     device = FakeExos()
     device.poe_off.add("10")
-    result = exos_poe.preview(make_runtime(tmp_path / "second", device), "sw", cycle_request())
+    result = exos_poe.preview(poe_runtime(tmp_path / "second", device), "sw", cycle_request())
     assert result["reason_codes"] == ["poe_disabled"]
 
 
 def test_poe_cycle_has_no_undo(tmp_path):
     device = FakeExos()
-    runtime = make_runtime(tmp_path, device)
+    runtime = poe_runtime(tmp_path, device)
     record = exos_poe.apply(runtime, "sw", cycle_request())
     for call in (execute.undo, execute.preview_undo):
         with pytest.raises(Rejected) as caught:
@@ -671,7 +713,7 @@ def test_poe_cycle_has_no_undo(tmp_path):
 
 def test_inline_power_table_is_not_open_to_apply(tmp_path):
     device = FakeExos()
-    runtime = make_runtime(tmp_path, device)
+    runtime = poe_runtime(tmp_path, device)
     body = parse_request(request_bytes(table="inline-power", op="update", key="10",
                                        changes={"admin-state": "disabled"}))
     for call in (execute.apply, execute.preview):
@@ -683,7 +725,7 @@ def test_inline_power_table_is_not_open_to_apply(tmp_path):
 
 def test_poe_cycle_counts_against_the_change_budget(tmp_path):
     device = FakeExos()
-    runtime = make_runtime(tmp_path, device, limits=dict(DEFAULT_LIMITS, changes_per_device_per_hour=1))
+    runtime = poe_runtime(tmp_path, device, limits=dict(DEFAULT_LIMITS, changes_per_device_per_hour=1))
     assert exos_poe.apply(runtime, "sw", cycle_request())["result"] == "confirmed"
     with pytest.raises(BudgetExhausted) as caught:
         exos_poe.apply(runtime, "sw", cycle_request(request_id="req-poe-0003"))
@@ -692,7 +734,7 @@ def test_poe_cycle_counts_against_the_change_budget(tmp_path):
 
 def test_poe_cycle_needs_enrollment(tmp_path):
     device = FakeExos()
-    runtime = make_runtime(tmp_path, device)
+    runtime = poe_runtime(tmp_path, device)
     runtime.store.clear_enrollment("sw")
     with pytest.raises(Rejected) as caught:
         exos_poe.apply(runtime, "sw", cycle_request())
@@ -702,7 +744,7 @@ def test_poe_cycle_needs_enrollment(tmp_path):
 
 def test_repeated_request_id_returns_the_cycle_without_running_it_again(tmp_path):
     device = FakeExos()
-    runtime = make_runtime(tmp_path, device)
+    runtime = poe_runtime(tmp_path, device)
     first = exos_poe.apply(runtime, "sw", cycle_request())
     again = exos_poe.apply(runtime, "sw", cycle_request())
     assert again["change_id"] == first["change_id"] and len(plain_blocks(device)) == 3
@@ -720,12 +762,202 @@ def test_interrupted_cycle_is_settled_by_recover(tmp_path):
             raise Interrupted()
 
     device.on_apply = interrupt
-    runtime = make_runtime(tmp_path, device)
+    runtime = poe_runtime(tmp_path, device)
     with pytest.raises(Interrupted):
         exos_poe.apply(runtime, "sw", cycle_request())
     settled = execute.recover(runtime, "sw")
-    assert [record["result"] for record in settled] == ["reverted"]
+    assert [(record["result"], record["reason"]) for record in settled] == [("reverted", "interrupted")]
+    assert "cycle_proven" not in steps(settled[0]) and "cycle_unproven" not in steps(settled[0])
     assert not device.poe_disabled and not device.poe_off and clean(device)
+
+
+# ---- 1.0.10 B2: safeguard margin of the cycle ----------------------------------------------------------
+
+
+def test_cycle_budget_is_the_measured_reads_on_top_of_the_waits():
+    # task 171 ops.log: show commands at most 2 s, show configuration at most 4 s (1 s resolution)
+    assert (exos_poe.READ_SECONDS, exos_poe.SNAPSHOT_SECONDS, exos_poe.WRITE_SECONDS) == (2, 4, 4)
+    assert exos_poe._wait_reads(exos_poe.OFF_WAIT_SECONDS) == 9 and exos_poe._wait_reads(exos_poe.ON_WAIT_SECONDS) == 31
+    assert exos_poe.CYCLE_SECONDS == 3 * 4 + 2 * 4 + (15 + 9 * 2) + (60 + 31 * 2) == 175
+
+
+@pytest.mark.parametrize(("safeguard", "margin", "admitted"), [
+    (180, 45, False), (220, 45, False), (221, 45, True), (190, 15, False), (191, 15, True),
+])
+def test_cycle_without_margin_is_refused_before_any_read_or_write(tmp_path, safeguard, margin, admitted):
+    device = FakeExos()
+    runtime = make_runtime(tmp_path, device, safeguard_seconds=safeguard, confirm_margin_seconds=margin)
+    if admitted:
+        assert exos_poe.preview(runtime, "sw", cycle_request())["result"] == "ready"
+        record = exos_poe.apply(runtime, "sw", cycle_request())
+        assert record["result"] == "confirmed" and "margin_checked" in steps(record), record
+        return
+    for call in (exos_poe.preview, exos_poe.apply):
+        with pytest.raises(Rejected) as caught:
+            call(runtime, "sw", cycle_request())
+        assert caught.value.reason_codes == ["safeguard_margin_insufficient"]
+        assert "set safeguard_seconds of device sw to at least %d" % (176 + margin) in caught.value.reasons[0]
+        assert caught.value.reason_details[0]["required_safeguard_seconds"] == 176 + margin
+    assert device.applied_blocks == [] and runtime.store.records() == []
+    assert runtime.store.rejections_since(float("-inf")) == 2
+
+
+def _slow_install(monkeypatch, device, seconds):
+    """The safeguard installation takes the given time on the switch (fake clock), as a slow session would."""
+    original = exec_exos.install_safeguard
+
+    def install(access, record, plan, target, spec):
+        problems = original(access, record, plan, target, spec)
+        device.advance(seconds)
+        return problems
+
+    monkeypatch.setattr(exec_exos, "install_safeguard", install)
+
+
+def test_cycle_is_refused_on_the_switch_clock_before_power_is_touched(tmp_path, monkeypatch):
+    device = FakeExos()
+    before = device.snapshot()
+    _slow_install(monkeypatch, device, 30)
+    runtime = poe_runtime(tmp_path, device)
+    record = exos_poe.apply(runtime, "sw", cycle_request())
+    assert (record["result"], record["reason"]) == ("rejected", exos_poe.MARGIN_REASON), record
+    assert record["reason_codes"] == ["safeguard_margin_insufficient"]
+    names = steps(record)
+    assert names[names.index("poe_before"):] == ["poe_before", "cycle_refused", "safeguard_removed",
+                                                 "configuration_saved"]
+    assert record["steps"][names.index("cycle_refused")]["detail"] == "210 s left, 175 s cycle, 45 s margin"
+    assert not any(block[0].startswith(("disable inline-power", "enable inline-power"))
+                   for block in plain_blocks(device))
+    assert not device.poe_off and not device.history and clean(device) and device.snapshot() == before
+    assert runtime.store.blocked("sw") is None
+
+
+def test_enough_time_left_on_the_switch_clock_runs_the_cycle(tmp_path, monkeypatch):
+    device = FakeExos()
+    _slow_install(monkeypatch, device, 15)
+    record = exos_poe.apply(poe_runtime(tmp_path, device), "sw", cycle_request())
+    assert record["result"] == "confirmed" and record["reason"] is None, record
+    detail = record["steps"][steps(record).index("margin_checked")]["detail"]
+    assert detail == "225 s left, 175 s cycle, 45 s margin"
+    assert not device.history
+
+
+def test_unreadable_clock_refuses_the_cycle_and_removes_the_safeguard(tmp_path, monkeypatch):
+    device = FakeExos()
+    original = exec_exos.clock
+    calls = []
+
+    def clock(access):
+        calls.append(True)
+        if len(calls) > 1:
+            raise RuntimeError("show switch unavailable")
+        return original(access)
+
+    monkeypatch.setattr(exec_exos, "clock", clock)
+    record = exos_poe.apply(poe_runtime(tmp_path, device), "sw", cycle_request())
+    assert (record["result"], record["reason"], record["reason_codes"]) == (
+        "rejected", "device clock", ["device_clock_unreadable"])
+    assert "change_start" not in steps(record) and not device.poe_off and clean(device)
+
+
+# ---- 1.0.10 B2: recover of a cycle interrupted after confirm_start -------------------------------------
+
+
+class Interrupted(BaseException):
+    pass
+
+
+def _interrupted_after_confirm_start(tmp_path, port="8"):
+    """Run a cycle and stop the process inside the safeguard removal: confirm_start is journaled, the
+    safeguard is still installed."""
+    device = FakeExos()
+
+    def interrupt(fake, block):
+        if block and isinstance(block[0], str) and block[0].startswith("delete upm timer"):
+            fake.on_apply = None
+            raise Interrupted()
+
+    device.on_apply = interrupt
+    runtime = poe_runtime(tmp_path, device)
+    with pytest.raises(Interrupted):
+        exos_poe.apply(runtime, "sw", cycle_request(port=port))
+    record = runtime.store.running("sw")[0]
+    assert steps(record)[-1] == "confirm_start" and device.timers and device.profiles
+    return device, runtime
+
+
+def test_recover_confirms_a_proven_cycle_and_removes_the_safeguard(tmp_path):
+    device, runtime = _interrupted_after_confirm_start(tmp_path)
+    # measured on X435 port 8 after the cycle (task 171, A6): Configured Admin State enabled, searching
+    device.poe_detail_measured["8"] = fixture("x435__A6-ip-detail-post.out")
+    settled = execute.recover(runtime, "sw")
+    assert [(record["result"], record["reason"]) for record in settled] == [("confirmed", exos_poe.CYCLE_CONFIRMED)]
+    names = steps(settled[0])
+    assert names[names.index("recovery_start"):] == ["recovery_start", "cycle_proven", "safeguard_removed",
+                                                     "configuration_saved"]
+    recovered = settled[0]["poe"]["recovered"]
+    assert (recovered["configured"], recovered["state"]) == ("enabled", "searching")
+    assert not device.history, "the safeguard must not have fired"
+    assert clean(device) and not device.poe_disabled and runtime.store.blocked("sw") is None
+    assert [block for block in plain_blocks(device) if block[0].startswith("disable inline-power")] == [
+        ["disable inline-power ports 8"]]
+
+
+@pytest.mark.parametrize("measured", ["x435__57-ip-detail-en.out", "x435__52-ip-detail-dis.out"])
+def test_recover_without_fresh_proof_lets_the_safeguard_restore_power(tmp_path, measured):
+    device, runtime = _interrupted_after_confirm_start(tmp_path)
+    # measured on X435 port 8: 57 right after the enable (enabled, power still disabled), 52 after the disable
+    device.poe_detail_measured["8"] = fixture(measured)
+    settled = execute.recover(runtime, "sw")
+    assert [(record["result"], record["reason"]) for record in settled] == [("reverted", exos_poe.CYCLE_NOT_PROVEN)]
+    names = steps(settled[0])
+    assert "cycle_unproven" in names and "cycle_proven" not in names
+    assert settled[0]["steps"][names.index("cycle_unproven")]["detail"].startswith("power not on: ")
+    assert device.history, "power is restored by the safeguard"
+    assert clean(device) and not device.poe_disabled and not device.poe_off
+
+
+def test_recover_with_an_unreadable_check_account_does_not_claim_the_cycle(tmp_path):
+    device, runtime = _interrupted_after_confirm_start(tmp_path)
+    device.check_unreadable = True
+    settled = execute.recover(runtime, "sw")
+    assert [(record["result"], record["reason"]) for record in settled] == [("reverted", exos_poe.CYCLE_NOT_PROVEN)]
+    detail = settled[0]["steps"][steps(settled[0]).index("cycle_unproven")]["detail"]
+    assert detail == "fresh read failed: RuntimeError"
+    assert device.history and clean(device)
+
+
+def test_recover_without_the_journaled_off_and_on_does_not_claim_the_cycle(tmp_path):
+    device, runtime = _interrupted_after_confirm_start(tmp_path)
+    record = runtime.store.running("sw")[0]
+    record["steps"] = [step for step in record["steps"] if step["step"] != "poe_off_observed"]
+    runtime.store.save(record)
+    settled = execute.recover(runtime, "sw")
+    assert [(record["result"], record["reason"]) for record in settled] == [("reverted", exos_poe.CYCLE_NOT_PROVEN)]
+    assert settled[0]["steps"][steps(settled[0]).index("cycle_unproven")]["detail"] == \
+        "the journal does not show power off and on again"
+    assert device.history and clean(device)
+
+
+def test_recover_of_a_cycle_whose_safeguard_is_absent_is_unchanged(tmp_path):
+    device = FakeExos()
+
+    def interrupt(fake, block):
+        if block and block[0] == ("ask", "save configuration", b"(y/N)"):
+            fake.on_apply = None
+            raise Interrupted()
+
+    device.on_apply = interrupt
+    runtime = poe_runtime(tmp_path, device)
+    with pytest.raises(Interrupted):
+        exos_poe.apply(runtime, "sw", cycle_request())
+    assert clean(device)
+    settled = execute.recover(runtime, "sw")
+    assert [(record["result"], record["reason"]) for record in settled] == [
+        ("confirmed", "confirmed before the interruption")]
+    names = steps(settled[0])
+    assert names[names.index("recovery_start"):] == ["recovery_start", "configuration_saved"]
+    assert not device.history
 
 
 # ---- profile and doctor -------------------------------------------------------------------------------
@@ -756,7 +988,7 @@ def test_cli_poe_cycle_preview_and_apply(monkeypatch, tmp_path, capsys):
     from netops_admin import cli, config
 
     device = FakeExos()
-    runtime = make_runtime(tmp_path, device)
+    runtime = poe_runtime(tmp_path, device)
     monkeypatch.setattr(config, "load_config", lambda _path: runtime.config)
     monkeypatch.setattr(cli, "build_runtime", lambda _config: runtime)
     base = ["poe-cycle", "--config", str(tmp_path / "admin.json"), "--device", "sw", "--port", "10",

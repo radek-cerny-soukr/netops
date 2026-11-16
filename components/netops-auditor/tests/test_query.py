@@ -811,6 +811,9 @@ def test_no_query_writes_to_the_database(populated):
 
 
 def test_the_database_file_is_unchanged_after_the_store_is_closed(populated):
+    # The store is in WAL: fold the committed runs into the file first, so that the digest covers them
+    # and a later difference can only come from the queries.
+    assert populated.store._connection.execute("PRAGMA wal_checkpoint(TRUNCATE)").fetchone()[0] == 0
     before = digest(populated.path)
     every_result(populated, suppressions=(suppression(populated.loose),))
     populated.store.close()

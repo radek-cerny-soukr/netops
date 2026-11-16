@@ -1,0 +1,4 @@
+  Switchport: Enabled
+  Operational Mode: access
+  Access Mode VLAN: 10 (D10)
+  Trunking Native Mode VLAN: 1 (default)

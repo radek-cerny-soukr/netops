@@ -10,6 +10,7 @@ from netops_admin.engine import build_plan, verify
 from netops_admin.errors import Rejected, shown
 from netops_admin.jsontext import loads
 from netops_admin.membership import ports as port_list
+from netops_admin.profiles import PLATFORMS
 from netops_core.inputs import InputError, read_regular
 from netops_admin.request import parse_request
 
@@ -61,6 +62,10 @@ def _emit(document) -> None:
     sys.stdout.write(json.dumps(document, indent=2, sort_keys=True, ensure_ascii=True) + "\n")
 
 
+LEGACY = ("use preview, apply and undo with table load-balance pool/pool_member, which are journaled, audited and"
+          " need enroll; this command is not")
+LEGACY_NOTICE = ("netops-admin: %s is deprecated: it writes no Admin journal or audit record and needs no enroll; "
+                 "use preview, apply and undo with table load-balance pool/pool_member\n")
 EXIT_NOT_CONFIRMED = 4
 EXIT_NOT_READY = 5
 EXIT_CONFIRMED_BLOCKED = 6
@@ -215,7 +220,7 @@ def main(argv=None, *, require_export=True) -> int:
     parser.add_argument("--version", action="version", version="netops-admin %s" % __version__)
     commands = parser.add_subparsers(dest="command", required=True)
     plan = commands.add_parser("plan", help="validate a request against a snapshot and print the plan")
-    plan.add_argument("--platform", required=True, choices=("fortios", "exos"))
+    plan.add_argument("--platform", required=True, choices=PLATFORMS)
     plan.add_argument("--snapshot", required=True, type=Path)
     plan.add_argument("--request", required=True, type=Path)
     plan.add_argument("--firmware")
@@ -256,7 +261,9 @@ def main(argv=None, *, require_export=True) -> int:
     enroll = commands.add_parser("enroll", help="operator: test actual on-device rollback before enabling writes")
     enroll.add_argument("--config", required=True, type=Path)
     enroll.add_argument("--device", required=True)
-    enroll.add_argument("--probe", required=True, help="unused IPv4 subnet for FortiOS, unused VLAN tag for EXOS")
+    enroll.add_argument("--probe", required=True, help="unused IPv4 subnet for FortiOS, unused VLAN tag for EXOS, "
+                        "an unused Ethernet interface for EOS, IOS, IOS XE and NX-OS (its description is set and returned), "
+                        "POOL:MEMBER:REAL_SERVER:PORT (an unused member number, created disabled) for FortiADC")
     look = commands.add_parser("status", help="show the journal record of an operation")
     look.add_argument("--config", required=True, type=Path)
     look.add_argument("--change-id")
@@ -286,19 +293,21 @@ def main(argv=None, *, require_export=True) -> int:
     cycle.add_argument("--user-request", required=True, help="the request of the person, as written")
     cycle.add_argument("--request-id", required=True)
     cycle.add_argument("--preview", action="store_true", help="run every check of the cycle and print its plan, without any change")
-    member = commands.add_parser("pool-member", help="FortiADC: set the status of one real-server pool member and verify it")
+    member = commands.add_parser("pool-member", help="FortiADC (deprecated, " + LEGACY + "): set the status of one real-server pool member and verify it")
     member.add_argument("--config", required=True, type=Path)
     member.add_argument("--device", required=True)
     member.add_argument("--pool", required=True)
     member.add_argument("--member", required=True, help="the number of the pool member entry")
     member.add_argument("--status", required=True, help="one of: " + ", ".join(fortiadc.STATUSES))
-    added = commands.add_parser("pool-member-add", help="FortiADC: add a new real-server pool member created DISABLED and verify it")
+    added = commands.add_parser("pool-member-add", help="FortiADC (deprecated, " + LEGACY + "): add a new real-server pool member created DISABLED and verify it")
     for flag in ("--config", "--device", "--pool", "--member", "--real-server", "--service-port"):
         added.add_argument(flag, required=True, type=Path if flag == "--config" else str)
-    removed = commands.add_parser("pool-member-remove", help="FortiADC: remove one DISABLED or MAINTAIN pool member and verify it")
+    removed = commands.add_parser("pool-member-remove", help="FortiADC (deprecated, " + LEGACY + "): remove one DISABLED or MAINTAIN pool member and verify it")
     for flag in ("--config", "--device", "--pool", "--member"):
         removed.add_argument(flag, required=True, type=Path if flag == "--config" else str)
     args = parser.parse_args(argv)
+    if args.command in ("pool-member", "pool-member-add", "pool-member-remove"):
+        sys.stderr.write(LEGACY_NOTICE % args.command)
     try:
         if args.command == "pool-member":
             return _pool_member(args)

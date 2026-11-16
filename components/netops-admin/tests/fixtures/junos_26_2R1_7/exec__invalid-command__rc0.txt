@@ -1,0 +1,2 @@
+
+error: syntax error, expecting <command>: bogus-command

@@ -314,12 +314,6 @@ def prechecks(snapshot, profile, op: str, key: str, after) -> list:
 PORT_ACTION_FIRMWARE = ("33.7.1.6",)
 
 
-def _disabling(snapshot, table: str, key: str, after) -> bool:
-    entries = snapshot.ports if table == "ports" else snapshot.inline_power
-    before = entries.get(key).attributes if key in entries else {}
-    return (after or {}).get("admin-state") == "disabled" and before.get("admin-state") != "disabled"
-
-
 def touches_admin_state(snapshot, table: str, key: str, after) -> bool:
     entries = snapshot.ports if table == "ports" else snapshot.inline_power
     before = entries.get(key).attributes if key in entries else {}
@@ -336,18 +330,18 @@ def port_state_prechecks(snapshot, profile, key: str, after) -> None:
                        reason_codes=["port_action_not_measured"])
     if profile.table == "inline-power":
         return
-    if not _disabling(snapshot, profile.table, key, after):
-        return
+    # the port checks apply to the admin state in both directions: enabling a disabled uplink or LAG member can
+    # bring back a loop just as disabling it cuts traffic
     if not vlan_module_closed(snapshot):
         raise Rejected(["the configuration ends inside its vlan module; VLAN and link aggregation membership of port %s "
                         "cannot be read completely" % key], reason_codes=["port_usage_unreadable"])
     if key in membership.lag_ports(snapshot):
-        raise Rejected(["port %s belongs to a link aggregation; disabling it is refused" % key],
+        raise Rejected(["port %s belongs to a link aggregation; changing its admin state is refused" % key],
                        reason_codes=["port_lag_member"])
     _vlans, members, _descriptions = membership.model(snapshot)
     tagged = sorted(members.get(key, {}).get("tagged", ()))
     if tagged:
-        raise Rejected(["port %s carries tagged VLANs (%d); a trunk is treated as an uplink and is not disabled"
+        raise Rejected(["port %s carries tagged VLANs (%d); a trunk is treated as an uplink and its admin state is not changed"
                         % (key, len(tagged))], reason_codes=["port_uplink"])
 
 

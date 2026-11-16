@@ -1,0 +1,41 @@
+Nov 15 22:31:35 host01 ConfigAgent: %SYS-5-CONFIG_SESSION_ENTERED: User netops-ro entered configuration session netops-c7-ro on vty4 (192.0.2.36)
+Nov 15 22:31:36 host01 ConfigAgent: %SYS-5-CONFIG_SESSION_EXITED: User netops-ro exited configuration session netops-c7-ro on vty4 (192.0.2.36)
+Nov 15 22:31:36 host01 ConfigAgent: %SYS-5-CONFIG_SESSION_ABORTED: User netops-ro aborted configuration session netops-c7-ro on vty4 (192.0.2.36)
+Nov 15 22:31:37 host01 ConfigAgent: %SYS-5-CONFIG_E: Enter configuration mode by netops-ro on vty4 (192.0.2.36)
+Nov 15 22:31:38 host01 ConfigAgent: %SYS-5-CONFIG_I: Configured by netops-ro on vty4 (192.0.2.36)
+Nov 15 22:31:39 host01 ConfigAgent: %SYS-5-CONFIG_STARTUP: Startup config saved from system:/running-config by netops-ro on vty4 (192.0.2.36).
+Nov 15 22:32:07 host01 ConfigAgent: %SYS-5-CONFIG_SESSION_ENTERED: User netops-admin entered configuration session netops-c7-1 on vty4 (192.0.2.36)
+Nov 15 22:32:15 host01 ConfigAgent: %SYS-5-CONFIG_SESSION_COMMIT_TIMER_STARTED: User netops-admin committed session netops-c7-1 on vty4 (192.0.2.36), with timer 0:2:0(hr:min:sec)
+Nov 15 22:32:15 host01 Stp: %SPANTREE-6-STABLE_CHANGE: Stp state is now not stable
+Nov 15 22:32:15 host01 Stp: %SPANTREE-6-INTERFACE_DEL: Interface Ethernet10 has been removed from instance MST0
+Nov 15 22:32:15 host01 Stp: %SPANTREE-6-INTERFACE_ADD: Interface Ethernet10 has been added to instance MST0
+Nov 15 22:32:16 host01 ConfigAgent: %SYS-5-CONFIG_SESSION_COMMIT_SUCCESS: User netops-admin committed configuration session netops-c7-1 successfully on vty4 (192.0.2.36)
+Nov 15 22:32:16 host01 ConfigAgent: %SYS-5-CONFIG_SESSION_EXITED: User netops-admin exited configuration session netops-c7-1 on vty4 (192.0.2.36)
+Nov 15 22:32:35 host01 Stp: %SPANTREE-6-INTERFACE_STATE: Interface Ethernet10 instance MST0 moving from discarding to learning
+Nov 15 22:32:35 host01 Stp: %SPANTREE-6-INTERFACE_STATE: Interface Ethernet10 instance MST0 moving from learning to forwarding
+Nov 15 22:32:37 host01 ConfigAgent: %SYS-5-CONFIG_STARTUP: Startup config saved from system:/running-config by netops-admin on vty4 (192.0.2.36).
+Nov 15 22:32:39 host01 ConfigAgent: %SYS-5-CONFIG_SESSION_COMMIT_TIMER_COMPLETED: User netops-admin has confirmed the session netops-c7-1 on vty4 (192.0.2.36).
+Nov 15 22:32:44 host01 ConfigAgent: %SYS-5-CONFIG_SESSION_ENTERED: User netops-admin entered configuration session netops-c7-2 on vty4 (192.0.2.36)
+Nov 15 22:32:48 host01 Stp: %SPANTREE-6-INTERFACE_DEL: Interface Ethernet10 has been removed from instance MST0
+Nov 15 22:32:48 host01 Stp: %SPANTREE-6-INTERFACE_ADD: Interface Ethernet10 has been added to instance MST0
+Nov 15 22:32:48 host01 ConfigAgent: %SYS-5-CONFIG_SESSION_COMMIT_SUCCESS: User netops-admin committed configuration session netops-c7-2 successfully on vty4 (192.0.2.36)
+Nov 15 22:32:48 host01 ConfigAgent: %SYS-5-CONFIG_SESSION_EXITED: User netops-admin exited configuration session netops-c7-2 on vty4 (192.0.2.36)
+Nov 15 22:33:08 host01 Stp: %SPANTREE-6-INTERFACE_STATE: Interface Ethernet10 instance MST0 moving from discarding to learning
+Nov 15 22:33:08 host01 Stp: %SPANTREE-6-INTERFACE_STATE: Interface Ethernet10 instance MST0 moving from learning to forwarding
+Nov 15 22:33:13 host01 PhyEthtool-1: %ETH-4-SETPAUSEPARAMFAIL: Failed to set pause parameters on interface Management0 ([Errno 95] Operation not supported) (message repeated 2 times in 360.109 secs)
+Nov 15 22:33:18 host01 ConfigAgent: %SYS-5-CONFIG_SESSION_ENTERED: User netops-admin entered configuration session netops-c7-3 on vty4 (192.0.2.36)
+Nov 15 22:33:24 host01 ConfigAgent: %SYS-5-CONFIG_SESSION_COMMIT_TIMER_STARTED: User netops-admin committed session netops-c7-3 on vty4 (192.0.2.36), with timer 0:2:0(hr:min:sec)
+Nov 15 22:33:24 host01 Ebra: %LINEPROTO-5-UPDOWN: Line protocol on Interface Ethernet10 (netops-c7-b) (VRF default), changed state to down
+Nov 15 22:33:24 host01 Stp: %SPANTREE-6-INTERFACE_DEL: Interface Ethernet10 has been removed from instance MST0
+Nov 15 22:33:24 host01 ConfigAgent: %SYS-5-CONFIG_SESSION_COMMIT_SUCCESS: User netops-admin committed configuration session netops-c7-3 successfully on vty4 (192.0.2.36)
+Nov 15 22:33:24 host01 ConfigAgent: %SYS-5-CONFIG_SESSION_EXITED: User netops-admin exited configuration session netops-c7-3 on vty4 (192.0.2.36)
+Nov 15 22:33:54 host01 Stp: %SPANTREE-6-STABLE_CHANGE: Stp state is now stable
+Nov 15 22:34:54 host01 Lldp: %LLDP-5-NEIGHBOR_NEW: LLDP neighbor with chassisId 0000.5e00.5301 and portId "mgmt0" added on interface Management0
+Nov 15 22:35:05 host01 PhyEthtool-1: %ETH-4-POLLLINKSTATUSFAIL: Failed to poll link status on interface Management0 ([Errno 95] Operation not supported) (message repeated 304 times in 600.122 secs)
+Nov 15 22:35:24 host01 ConfigAgent: %SYS-3-CONFIG_SESSION_COMMIT_TIMER_TIMEDOUT: The commit timer on session netops-c7-3 has expired and running-config will be reverted to a previous checkpoint
+Nov 15 22:35:24 host01 Ebra: %LINEPROTO-5-UPDOWN: Line protocol on Interface Ethernet10 (VRF default), changed state to up
+Nov 15 22:35:24 host01 Stp: %SPANTREE-6-STABLE_CHANGE: Stp state is now not stable
+Nov 15 22:35:24 host01 Stp: %SPANTREE-6-INTERFACE_ADD: Interface Ethernet10 has been added to instance MST0
+Nov 15 22:35:25 host01 ConfigAgent: %SYS-4-CONFIG_SESSION_COMMIT_REVERTED: The commit of configuration session netops-c7-3 was reverted (cancel commit timer)
+Nov 15 22:35:25 host01 ConfigAgent: %SYS-5-CONFIG_SESSION_COMMIT_TIMER_CANCELED: The commit timer on session netops-c7-3 has been canceled
+Nov 15 22:35:25 host01 ConfigAgent: %SYS-5-CONFIG_SESSION_ABORTED: User root aborted configuration session netops-c7-3 on UnknownTty (UnknownIpAddr)

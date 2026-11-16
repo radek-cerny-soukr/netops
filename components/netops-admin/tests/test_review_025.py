@@ -37,14 +37,12 @@ def _changed(field, value):
         plan["predicted"][field.split(".")[1]] = value
     else:
         plan[field] = value
-    plan["plan_sha256"] = engine._digest({"commands": plan["commands"], "inverse": plan["inverse"],
-                                          "before": plan["predicted"]["before"],
-                                          "after": plan["predicted"]["after"]})
+    plan["plan_sha256"] = engine.plan_digest(plan)
     return plan
 
 
 @pytest.mark.parametrize("field, value", [
-    ("key", 5), ("key", None), ("key", ["x"]), ("platform", ["fortios"]), ("platform", "junos"),
+    ("key", 5), ("key", None), ("key", ["x"]), ("platform", ["fortios"]), ("platform", "vyos"),
     ("table", {"a": 1}), ("safeguard_id", 5), ("safeguard_id", True), ("op", "rename"), ("prechecks", "junk"),
     ("commands", [5]), ("inverse", "x"), ("firmware", 7), ("rest_sha256", None), ("reason_characters", True),
     ("predicted.before", "text"), ("predicted.before", ["x"]), ("predicted.after", 5),

@@ -21,6 +21,19 @@ DEVICE_FIELDS = frozenset((
     "check_address", "audit_policy", "schema", "opt_in",
 ))
 OPT_IN_TABLES = ("firewall policy", "firewall service custom")
+ADMIN_PLATFORMS = ("fortios", "exos", "eos", "ios", "iosxe", "fortiadc", "nxos", "junos")
+# platforms whose device entry must list the expected local accounts (the snapshot shows them)
+ACCOUNT_LIST_PLATFORMS = ("exos", "eos", "ios", "iosxe", "nxos", "junos")
+# platforms whose snapshot does not name the full firmware: the device entry states it and the prechecks compare it
+# with the live show version (Junos names it in the "set version" line of its snapshot)
+FIRMWARE_PLATFORMS = ("exos", "ios", "iosxe")
+PLATFORM_NAMES = {"exos": "ExtremeXOS", "eos": "EOS", "ios": "Cisco IOS", "iosxe": "Cisco IOS XE", "nxos": "NX-OS",
+                  "junos": "Junos"}
+# Junos commits the change with "commit confirmed 10" (the timer of the safeguard restarts with every commit
+# confirmed, so the change commit carries the same minutes); a commit took up to 150 s on the measured vJunos, so the
+# confirmation needs a margin that covers one commit with a reserve (exec_junos.py)
+JUNOS_SAFEGUARD_SECONDS = 600
+JUNOS_MIN_CONFIRM_MARGIN_SECONDS = 240
 NOTIFY_FIELDS = frozenset(("server", "topic_file", "timeout_seconds", "x509_strict"))
 DEFAULT_LIMITS = {
     "export_max_pending": 1000, "export_max_age_seconds": 900, "export_status_max_age_seconds": 120,
@@ -103,7 +116,7 @@ def _device(name, data) -> Device:
              "device %s has unknown fields" % name, field='config.devices[]', code='unknown-fields')
     for field in ("platform", "address", "host_key_fingerprint", "vault", "credential", "check_credential"):
         _require(field in data, "device %s needs %s" % (name, field), field="config.devices[]." + field, code='required')
-    _require(data["platform"] in ("fortios", "exos", "fortiadc"), "device %s platform must be fortios, exos or fortiadc" % name, field='config.devices[].platform', code='admin-platform')
+    _require(data["platform"] in ADMIN_PLATFORMS, "device %s platform must be fortios, exos, eos, ios, iosxe, fortiadc, nxos or junos" % name, field='config.devices[].platform', code='admin-platform')
     _require(PIN.fullmatch(str(data["host_key_fingerprint"])) is not None,
              "device %s host_key_fingerprint must be an OpenSSH SHA256 pin" % name, field='config.devices[].host_key_fingerprint', code='ssh-pin')
     protected = data.get("protected", {})
@@ -123,13 +136,13 @@ def _device(name, data) -> Device:
              field='config.devices[].protected', code='required')
     firmware = data.get("firmware")
     _require(firmware is None or isinstance(firmware, str), "device %s firmware must be a string" % name, field='config.devices[].firmware', code='text')
-    _require(data["platform"] != "exos" or firmware, "device %s: ExtremeXOS needs the firmware stated" % name, field='config.devices[].firmware', code='required')
+    _require(data["platform"] not in FIRMWARE_PLATFORMS or firmware, "device %s: %s needs the firmware stated" % (name, PLATFORM_NAMES.get(data["platform"])), field='config.devices[].firmware', code='required')
     legacy = data.get("legacy_ssh")
     _require(legacy is None or isinstance(legacy, str), "device %s legacy_ssh must be a profile name" % name, field='config.devices[].legacy_ssh', code='text')
     accounts = data.get("accounts", [])
     _require(isinstance(accounts, list) and all(isinstance(item, str) and item for item in accounts)
              and len(set(accounts)) == len(accounts), "device %s accounts must be distinct names" % name, field='config.devices[].accounts', code='distinct-names')
-    _require(data["platform"] != "exos" or accounts, "device %s: ExtremeXOS needs the expected accounts" % name, field='config.devices[].accounts', code='required')
+    _require(data["platform"] not in ACCOUNT_LIST_PLATFORMS or accounts, "device %s: %s needs the expected accounts" % (name, PLATFORM_NAMES.get(data["platform"])), field='config.devices[].accounts', code='required')
     check_address = data.get("check_address")
     _require(check_address is None or (isinstance(check_address, str) and check_address
                                         and check_address != data["address"]),
@@ -138,6 +151,12 @@ def _device(name, data) -> Device:
              "device %s: the check credential must be another account than the write credential" % name, field='config.devices[].check_credential', code='different-credential')
     safeguard = _integer(data.get("safeguard_seconds", 180), "safeguard_seconds", 60, SAFEGUARD_MAX_SECONDS, field="config.devices[].safeguard_seconds")
     margin = _integer(data.get("confirm_margin_seconds", 45), "confirm_margin_seconds", 15, safeguard - 15, field="config.devices[].confirm_margin_seconds")
+    _require(data["platform"] != "junos" or safeguard == JUNOS_SAFEGUARD_SECONDS,
+             "device %s: Junos needs safeguard_seconds %d (commit confirmed %d)" % (name, JUNOS_SAFEGUARD_SECONDS, JUNOS_SAFEGUARD_SECONDS // 60),
+             field="config.devices[].safeguard_seconds", code="integer")
+    _require(data["platform"] != "junos" or margin >= JUNOS_MIN_CONFIRM_MARGIN_SECONDS,
+             "device %s: Junos needs confirm_margin_seconds of at least %d (a commit took up to 150 s)" % (name, JUNOS_MIN_CONFIRM_MARGIN_SECONDS),
+             field="config.devices[].confirm_margin_seconds", code="integer")
     policy = None
     if "audit_policy" in data:
         try:

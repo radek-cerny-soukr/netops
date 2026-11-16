@@ -1,0 +1,9 @@
+user:admin
+        this user account has no expiry date
+        roles:network-admin 
+user:netops-ro
+        this user account has no expiry date
+        roles:network-operator 
+user:netops-admin
+        this user account has no expiry date
+        roles:network-admin 

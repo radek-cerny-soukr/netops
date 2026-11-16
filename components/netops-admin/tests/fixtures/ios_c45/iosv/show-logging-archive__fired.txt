@@ -1,0 +1,27 @@
+*Nov 14 18:45:55.460: %SYS-5-CONFIG_I: Configured from console by netops-admin on vty0 (203.0.113.253)
+*Nov 14 18:46:50.889: %SYS-5-CONFIG_I: Configured from console by netops-admin on vty0 (203.0.113.253)
+*Nov 14 18:47:26.666: %SYS-5-CONFIG_I: Configured from console by netops-admin on vty0 (203.0.113.253)
+*Nov 15 20:57:10.550: %SYS-5-CONFIG_I: Configured from console by netops-admin on vty0 (203.0.113.252)
+*Nov 15 22:04:34.596: %ARCHIVE_DIFF-5-ROLLBK_CNFMD_CHG_BACKUP: Backing up current running config to flash:netops-archive-Nov-15-22-04-32.127-0
+*Nov 15 22:04:34.597: %ARCHIVE_DIFF-5-ROLLBK_CNFMD_CHG_START_ABSTIMER: User: netops-admin(Priv: 15, View: 0): Scheduled to rollback to config flash:netops-archive-Nov-15-22-04-32.127-0 in 1 minutes
+*Nov 15 22:04:34.607: %ARCHIVE_DIFF-5-ROLLBK_CNFMD_CHG_WARNING_ABSTIMER: System will rollback to config flash:netops-archive-Nov-15-22-04-32.127-0 in one minute. Enter "configure confirm" if you wish to keep what you've configured
+*Nov 15 22:04:38.305: %SYS-5-CONFIG_I: Configured from console by netops-admin on vty0 (203.0.113.252)
+*Nov 15 22:04:58.629: %ARCHIVE_DIFF-5-ROLLBK_CNFMD_CHG_CONFIRM: User: netops-admin: Confirm the configuration change
+*Nov 15 22:05:25.154: %ARCHIVE_DIFF-5-ROLLBK_CNFMD_CHG_BACKUP: Backing up current running config to flash:netops-archive-Nov-15-22-05-22.375-1
+*Nov 15 22:05:25.155: %ARCHIVE_DIFF-5-ROLLBK_CNFMD_CHG_START_ABSTIMER: User: netops-admin(Priv: 15, View: 0): Scheduled to rollback to config flash:netops-archive-Nov-15-22-05-22.375-1 in 1 minutes
+*Nov 15 22:05:25.175: %ARCHIVE_DIFF-5-ROLLBK_CNFMD_CHG_WARNING_ABSTIMER: System will rollback to config flash:netops-archive-Nov-15-22-05-22.375-1 in one minute. Enter "configure confirm" if you wish to keep what you've configured
+*Nov 15 22:05:28.712: %SYS-5-CONFIG_I: Configured from console by netops-admin on vty0 (203.0.113.252)
+*Nov 15 22:05:31.854: %ARCHIVE_DIFF-5-ROLLBK_CNFMD_CHG_REVERTNOW: User: netops-admin: Rollback immediately.
+*Nov 15 22:05:31.855: %ARCHIVE_DIFF-5-ROLLBK_CNFMD_CHG_ROLLBACK_START: Start rolling to: flash:netops-archive-Nov-15-22-05-22.375-1
+*Nov 15 22:05:31.873: Rollback:Acquired Configuration lock.
+*Nov 15 22:05:48.520: %ARCHIVE_DIFF-5-ROLLBK_CNFMD_CHG_BACKUP: Backing up current running config to flash:netops-archive-Nov-15-22-05-45.707-2
+*Nov 15 22:05:48.521: %ARCHIVE_DIFF-5-ROLLBK_CNFMD_CHG_START_ABSTIMER: User: netops-admin(Priv: 15, View: 0): Scheduled to rollback to config flash:netops-archive-Nov-15-22-05-45.707-2 in 1 minutes
+*Nov 15 22:05:48.534: %ARCHIVE_DIFF-5-ROLLBK_CNFMD_CHG_WARNING_ABSTIMER: System will rollback to config flash:netops-archive-Nov-15-22-05-45.707-2 in one minute. Enter "configure confirm" if you wish to keep what you've configured
+*Nov 15 22:05:52.000: %SYS-5-CONFIG_I: Configured from console by netops-admin on vty0 (203.0.113.252)
+*Nov 15 22:05:54.217: %ARCHIVE_DIFF-5-ROLLBK_CNFMD_CHG_CONFIRM: User: netops-admin: Confirm the configuration change
+*Nov 15 22:06:06.617: %ARCHIVE_DIFF-5-ROLLBK_CNFMD_CHG_BACKUP: Backing up current running config to flash:netops-archive-Nov-15-22-06-01.303-3
+*Nov 15 22:06:06.617: %ARCHIVE_DIFF-5-ROLLBK_CNFMD_CHG_START_ABSTIMER: User: netops-admin(Priv: 15, View: 0): Scheduled to rollback to config flash:netops-archive-Nov-15-22-06-01.303-3 in 1 minutes
+*Nov 15 22:06:06.630: %ARCHIVE_DIFF-5-ROLLBK_CNFMD_CHG_WARNING_ABSTIMER: System will rollback to config flash:netops-archive-Nov-15-22-06-01.303-3 in one minute. Enter "configure confirm" if you wish to keep what you've configured
+*Nov 15 22:06:10.257: %SYS-5-CONFIG_I: Configured from console by netops-admin on vty0 (203.0.113.252)
+*Nov 15 22:07:06.627: %ARCHIVE_DIFF-5-ROLLBK_CNFMD_CHG_ROLLBACK_START: Start rolling to: flash:netops-archive-Nov-15-22-06-01.303-3
+*Nov 15 22:07:06.670: Rollback:Acquired Configuration lock.

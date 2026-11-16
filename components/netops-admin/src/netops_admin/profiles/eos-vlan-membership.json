@@ -1,0 +1,32 @@
+{
+  "platform": "eos",
+  "table": "vlan-membership",
+  "versions": [
+    "4.36.1F"
+  ],
+  "exact_versions": true,
+  "ops": [
+    "update"
+  ],
+  "table_scoped_key": true,
+  "key_pattern": "^[A-Z][A-Za-z-]{1,15}[0-9]{1,3}(?:/[0-9]{1,3}){0,2}$",
+  "protected_keys": [],
+  "attributes": {
+    "access-vlan": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 4094,
+      "default": "1",
+      "update": true,
+      "unset": false,
+      "referenced_update": true,
+      "required_on_create": false,
+      "undo_to_default": true
+    }
+  },
+  "fixed": {},
+  "volatile": [],
+  "reserved_values": {},
+  "inverse_identity_changes": {},
+  "rollback_evidence": "Measured on cEOSLab 4.36.1F-48405728.4361F (GNS3 lab, task netops-provoz-20261116-301, ref/c7-mereni) and repeated end to end through Admin in task netops-20261116-304. Safeguard first: Admin commits an empty configuration session netops-<id> with 'commit timer HH:MM:SS' before the change, so its checkpoint is the configuration before the change; the change then runs line by line through 'configure terminal' (EOS accepts it while the timer is pending, and refuses every other commit timer and the commit of any other session). Confirmation is 'configure session netops-<id> commit' and 'no configure session netops-<id>'; write memory runs only after it, because write memory during the pending timer saves the unconfirmed state. An expired timer returns the WHOLE running configuration to the checkpoint of the session, so a change of someone else made in the timer window is reverted too; the session then disappears and only the log proves the revert (CONFIG_SESSION_COMMIT_TIMER_TIMEDOUT and CONFIG_SESSION_COMMIT_REVERTED within 1 s of the expiry). EOS creates a missing VLAN or interface without an error; Admin refuses both before any write. The timer state after a reload of the switch is not measured. The write account must log in with privilege 15 (aaa authorization exec default local); the check account (privilege 1) reads show interfaces N status, description and switchport. Access VLAN of a static access port only: 'switchport access vlan N' / 'no switchport access vlan' (VLAN 1); the VLAN must exist (show vlan id N), a trunk, a routed port or a port-channel member is refused."
+}

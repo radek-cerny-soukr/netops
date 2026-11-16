@@ -13,7 +13,13 @@ WARNING = privileges.WARNING
 UNVERIFIED = privileges.UNVERIFIED
 ADVISORY = (OK, WARNING, UNVERIFIED)
 RIGHTS = ("write account rights", "check account rights")
-IDENTITY_PROBES = {"fortios": ("firewall address", "all"), "exos": ("vlan", "Default")}
+IDENTITY_PROBES = {"fortios": ("firewall address", "all"), "exos": ("vlan", "Default"), "eos": ("interface", "Ethernet1"),
+                   "nxos": ("interface", "Ethernet1/1"),
+                   "ios": ("interface", "description table"), "iosxe": ("interface", "description table"),
+                   "junos": ("interface", "ge-0/0/0"),
+                   "fortiadc": ("system status", "hostname")}
+RIGHTS_CHECKS = {"fortios": (lambda access, firmware: privileges.fortios_write(access, firmware), privileges.fortios_check),
+                 "fortiadc": (lambda access, firmware: privileges.fortiadc_write(access), privileges.fortiadc_check)}
 
 
 class _Report:
@@ -136,12 +142,7 @@ def _doctor(runtime, device_name: str, *, local=False) -> dict:
         result = _result(report, device, None)
         result.update(scope="local", local_ready=result["ready"], remote_readiness="unverified", ready=False)
         return result
-    try:
-        adapter = execute._adapter(device.platform)
-    except Rejected as refusal:
-        if device.platform == "fortiadc" and device.schema is None:
-            raise Rejected(refusal.reasons + _fortiadc_rights(runtime, device), reason_codes=refusal.reason_codes) from None
-        raise
+    adapter = execute._adapter(device.platform)
     report = _Report()
     _local(report, runtime, device)
     if device.schema is not None:
@@ -151,7 +152,7 @@ def _doctor(runtime, device_name: str, *, local=False) -> dict:
         result["operations"]=operations
         return result
     preflight = getattr(adapter, "safeguard_preflight", None)
-    rights = RIGHTS if device.platform == "fortios" else ()
+    rights = RIGHTS if device.platform in RIGHTS_CHECKS else ()
     remote = ("write account and host key", "firmware", "administrator accounts", "check account") + rights + (
               "leftover safeguards", "device prechecks") + (("webhook safeguard",) if preflight else ()) + (
               "audit policy", "enrollment")
@@ -180,8 +181,9 @@ def _doctor(runtime, device_name: str, *, local=False) -> dict:
     report.attempt("check account", lambda: _identity(adapter, access, table, key),
                    lambda _value: "reads %s %s" % (table, key))
     if rights:
-        report.rights(RIGHTS[0], lambda: privileges.fortios_write(access, firmware))
-        report.rights(RIGHTS[1], lambda: privileges.fortios_check(access))
+        write_rights, check_rights = RIGHTS_CHECKS[device.platform]
+        report.rights(RIGHTS[0], lambda: write_rights(access, firmware))
+        report.rights(RIGHTS[1], lambda: check_rights(access))
     report.attempt("leftover safeguards", lambda: _no_leftovers(adapter, access))
     report.attempt("device prechecks", lambda: _prechecks(adapter, access, device, text))
     if preflight is not None:
@@ -189,9 +191,12 @@ def _doctor(runtime, device_name: str, *, local=False) -> dict:
             report.attempt("webhook safeguard", lambda: preflight(access, device, text, firmware), str)
         else:
             report.skip("webhook safeguard")
-    report.attempt("audit policy", lambda: audit_gate.baseline(device.platform, _audited(adapter, access, device, text),
-                                                               device.name, device.audit_policy),
-                   audit_gate.summary)
+    if getattr(adapter, "AUDIT_RULES", True) is False:
+        report.add("audit policy", UNVERIFIED, adapter.AUDIT_NOT_RUN[2])
+    else:
+        report.attempt("audit policy", lambda: audit_gate.baseline(device.platform, _audited(adapter, access, device, text),
+                                                                   device.name, device.audit_policy),
+                       audit_gate.summary)
     if not (counted and firmware):
         report.skip("enrollment")
     else:
@@ -206,18 +211,6 @@ def _doctor(runtime, device_name: str, *, local=False) -> dict:
         else:
             report.add("enrollment", OK)
     return _result(report, device, firmware)
-
-
-def _fortiadc_rights(runtime, device):
-    report = _Report()
-    reached, access = report.attempt("credentials", lambda: runtime.access_factory(device))
-    if not reached:
-        report.skip(*RIGHTS)
-    else:
-        report.rights(RIGHTS[0], lambda: privileges.fortiadc_write(access))
-        report.rights(RIGHTS[1], lambda: privileges.fortiadc_check(access))
-    return ["%s: %s%s" % (item["check"], item["status"], "" if item["detail"] is None else " (%s)" % item["detail"])
-            for item in report.checks]
 
 
 def _audited(adapter, access, device, text):

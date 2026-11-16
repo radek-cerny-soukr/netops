@@ -1,0 +1,3 @@
+Exiting configuration mode
+
+# commit confirmed will be rolled back in 1 minute

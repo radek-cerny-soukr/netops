@@ -1,0 +1,3 @@
+   Line     User          Host(s) Idle     Location     
+-- -------- ------------- ------- -------- -------------
+*  1 vty 4  netops-admin  idle    0:00:03  192.0.2.36

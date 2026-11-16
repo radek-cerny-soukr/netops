@@ -1,0 +1,18 @@
+The maximum archive configurations allowed is 14.
+There are currently 1 archive configurations saved.
+The next archive file will be named flash:netops-archive-<timestamp>-1
+ Archive #  Name
+   1        flash:netops-archive-Nov-15-22-04-32.127-0 <- Most Recent
+   2         
+   3         
+   4         
+   5         
+   6         
+   7         
+   8         
+   9         
+   10        
+   11        
+   12        
+   13        
+   14        

@@ -18,6 +18,8 @@ numbers, states, column layout and error texts are unchanged. The mapping file w
 | `x435__21-p-info-pre.out`, `x435__32-p-info-dis.out` | `show ports N information detail` |
 | `*23-ip-info-pre.out`, `x435__51-ip-info-dis.out` | `show inline-power info ports N` (51: about 1 s after disable, still searching) |
 | `*25-ip-info-detail-pre.out`, `*52-ip-detail-dis.out` | `show inline-power info detail ports N` |
+| `x435__57-ip-detail-en.out` | `show inline-power info detail ports 8` about 1 s after `enable inline-power ports 8` (configured enabled, state still disabled) |
+| `x435__A6-ip-detail-post.out` | the same after the measurement, power on again (configured enabled, searching) |
 | `x435__59-ip-info-reset.out` | the same, during `reset inline-power ports N` (configured enabled, state disabled) |
 | `x440__84-ip-detail-now.out` | the same, after a UPM safeguard without `configure cli mode persistent` (configured disabled, state searching) |
 | `*27-ip-nopoe.out` | `show inline-power info ports N` on a port without PoE |
@@ -26,3 +28,7 @@ numbers, states, column layout and error texts are unchanged. The mapping file w
 | `x435__11-ip-info-all.out` | `show inline-power info ports all` (refused) |
 | `x435__47-disable-bad.out` | `disable ports 99` (refused) |
 | `*36-cfgvlan-dis.out`, `x435__44-cfgvlan-en.out` | `show configuration vlan` with and without `disable port N` |
+
+Added in 1.0.10 (task 305): `x435__57-ip-detail-en.out` and `x435__A6-ip-detail-post.out` are byte-for-byte copies of
+`ref/mereni-171/x435/57-ip-detail-en.out` and `A6-ip-detail-post.out`; their sha256 equals the `ops.log` entries of task
+171 (`ab9ce680…`, `1bf43a75…`). They hold no MAC address, address or system name, so they needed no anonymisation.

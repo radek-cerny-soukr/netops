@@ -1,0 +1,73 @@
+{
+  "platform": "fortiadc",
+  "table": "load-balance pool/pool_member",
+  "versions": [
+    "7.6.7 build0676"
+  ],
+  "exact_versions": true,
+  "table_scoped_key": true,
+  "ops": [
+    "create",
+    "update",
+    "delete"
+  ],
+  "key_pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,62}:[1-9][0-9]{0,8}$",
+  "protected_keys": [],
+  "attributes": {
+    "status": {
+      "type": "text",
+      "default": "enable",
+      "required_on_create": true,
+      "update": true,
+      "unset": false,
+      "referenced_update": true,
+      "max_length": 8,
+      "pattern": "^(enable|disable|maintain)$",
+      "undo_to_default": true
+    },
+    "real-server": {
+      "type": "text",
+      "required_on_create": true,
+      "update": false,
+      "unset": false,
+      "referenced_update": false,
+      "max_length": 63,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,62}$"
+    },
+    "pool-member-service-port": {
+      "type": "integer",
+      "default": "80",
+      "required_on_create": false,
+      "update": false,
+      "unset": false,
+      "referenced_update": false,
+      "minimum": 1,
+      "maximum": 65535,
+      "undo_to_default": true
+    },
+    "pool-member-cookie": {
+      "type": "text",
+      "required_on_create": false,
+      "update": false,
+      "unset": false,
+      "referenced_update": false,
+      "max_length": 63,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,62}$"
+    },
+    "pool-member-weight": {
+      "type": "integer",
+      "default": "1",
+      "required_on_create": false,
+      "update": false,
+      "unset": false,
+      "referenced_update": false,
+      "minimum": 1,
+      "maximum": 256
+    }
+  },
+  "fixed": {},
+  "volatile": [],
+  "reserved_values": {},
+  "inverse_identity_changes": {},
+  "rollback_evidence": "FortiADC-KVM 7.6.7 build0676 (standalone) has no on-device timed return that Admin uses: the CLI has no automation-stitch, scheduler or cron, and the documented alert policy of type schedule with a CLI script action was not measured (task 306). Admin returns an unverified change itself in the same run by writing the inverse (update: the previous status; create: delete of the new member; delete: create of the member from its read attributes) and verifying the snapshot before; recover does the same after an interruption. If the Admin process or its management path is lost after the write, nothing returns the change on the device until recover runs. Measured live on VM220 in task 306 (see docs/verified-support.md, FortiADC bounds)."
+}

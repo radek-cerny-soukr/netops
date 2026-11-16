@@ -39,6 +39,12 @@ FILE_RULES = {
     "enrollment.py": (EXECUTION_MODULES, {}),
     "exec_fortios.py": (EXECUTION_MODULES, {}),
     "exec_exos.py": (EXECUTION_MODULES, {}),
+    "exec_eos.py": (EXECUTION_MODULES, {}),
+    "exec_ios.py": (EXECUTION_MODULES, {}),
+    "exec_junos.py": (EXECUTION_MODULES, {}),
+    "exec_fortiadc.py": (EXECUTION_MODULES, {}),
+    "exec_nxos.py": (EXECUTION_MODULES, {}),
+    "fortiadc_plan.py": (PLANNING_MODULES, {}),
     "membership.py": (PLANNING_MODULES, {"netops_auditor.management": frozenset(("exos_model", "port_inventory", "ports"))}),
     "audit_gate.py": (PLANNING_MODULES, {"netops_auditor": frozenset(("checks_exos", "checks_fortios", "management")),
                                          "netops_auditor.engine": frozenset(("EVALUATED", "NOT_EVALUATED", "SECTION_MISSING", "evaluate", "load_catalog")),
@@ -69,7 +75,7 @@ FORBIDDEN_NAMES = frozenset(("eval", "exec", "compile", "__import__", "breakpoin
 FORBIDDEN_ATTRIBUTES = frozenset(("system", "popen", "spawnv", "spawnve", "execv", "execve", "fork"))
 DEPENDENCIES = ["netops-auditor==0.2.12", "netops-core==0.2.9"]
 COMPONENT = "netops-admin"
-PLATFORMS = frozenset(("fortios", "exos"))
+PLATFORMS = frozenset(("fortios", "exos", "eos", "ios", "iosxe", "fortiadc", "nxos", "junos"))
 RELEASE_SELECTOR = ("scripts", "create_release_artifacts.py")
 RELEASE_MANIFEST = "release-manifest.json"
 RELEASE_METADATA = frozenset((RELEASE_MANIFEST, "SHA256SUMS"))

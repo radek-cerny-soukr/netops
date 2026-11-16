@@ -1,0 +1,38 @@
+FortiADC-KVM # config system admin
+  edit "admin"
+    set is-system-admin yes
+    set password ENC dGVzdC1vbmx5LW5vdC1hLWhhc2g=
+    config  gui-dashboard
+      edit 1
+        set name Main
+        set widget keyExchangeMethod sslVersion sslTraffic logEvent serverLoadBalance globalLoadBalance security interfaceSummary vsSummary owasp 
+      next
+    end
+    config  global-gui-dashboard
+      edit 1
+        set name Main
+        set widget systemInfo resourcesUsage systemEvent interfaceDistribution securityFabric licenseInfo haInfo threatAnalytics 
+      next
+    end
+  next
+  edit "netops-read"
+    set vdom root 
+    set password ENC dGVzdC1vbmx5LW5vdC1hLWhhc2g=
+    set trusted-hosts 192.0.2.27/32 ::1/128 
+    set access-profile netops-read
+--More--              config  gui-dashboard
+      edit 1
+        set name Main
+        set widget keyExchangeMethod sslVersion sslTraffic logEvent serverLoadBalance globalLoadBalance security interfaceSummary vsSummary owasp 
+      next
+    end
+    config  global-gui-dashboard
+      edit 1
+        set name Main
+        set widget systemInfo resourcesUsage systemEvent interfaceDistribution securityFabric licenseInfo haInfo threatAnalytics 
+      next
+    end
+  next
+end
+
+FortiADC-KVM # 

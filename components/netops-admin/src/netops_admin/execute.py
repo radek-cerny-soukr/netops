@@ -9,7 +9,7 @@ import time
 
 from netops_core.target_lock import target_lock, TargetBusy, TargetLockError
 
-from netops_admin import audit, audit_gate, engine, exec_exos, exec_fortios, fortios, prediction, enrollment, schema_runtime, exec_schema_fortios
+from netops_admin import audit, audit_gate, engine, exec_eos, exec_exos, exec_fortiadc, exec_fortios, exec_ios, exec_junos, exec_nxos, fortios, prediction, enrollment, schema_runtime, exec_schema_fortios
 from netops_admin.schema_request import Transaction
 from netops_admin.blocking import BLOCKING_REASONS, BLOCKING_RESULTS, blocks
 from netops_admin.config import SAFEGUARD_MAX_SECONDS
@@ -24,7 +24,8 @@ EXPIRY_WAIT_SLACK_SECONDS = 60
 EXPIRY_WAIT_LIMIT_SECONDS = SAFEGUARD_MAX_SECONDS + EXPIRY_GRACE_SECONDS + EXPIRY_WAIT_SLACK_SECONDS
 READ_FLOOR_SECONDS = 1.0
 UNDELIVERED = ("pending", "failed", "sending")
-ADAPTERS = {"fortios": exec_fortios, "exos": exec_exos}
+ADAPTERS = {"fortios": exec_fortios, "exos": exec_exos, "eos": exec_eos, "ios": exec_ios, "iosxe": exec_ios, "fortiadc": exec_fortiadc, "nxos": exec_nxos,
+            "junos": exec_junos}
 FIRE_AT_FORMAT = "%Y-%m-%d %H:%M:%S"
 HOUR = 3600
 ANY_STATE = object()
@@ -33,7 +34,8 @@ REUSED_REQUEST = "request_id was already used for a different request"
 UNDO_DONE = ("undo of this change has already been performed; "
              "after a reverted change remove the object with regular administration")
 PLAN_SHA256 = re.compile(r"^[0-9a-f]{64}$")
-PLAN_CHANGED = "the fresh plan differs from the previewed plan"
+PLAN_CHANGED = ("the fresh plan differs from the previewed plan (another device or firmware, or the object"
+                " changed since the preview); run a new preview and approve its plan_sha256")
 NO_UNDO = "a PoE cycle returns the configuration to its state before the operation; it has no undo"
 
 
@@ -219,13 +221,63 @@ class _Deadline:
         self.unslept -= pause
 
 
+def _firing_slack(adapter) -> int:
+    # a platform whose return takes longer than the default slack names its own (Junos: minute granularity of the
+    # timer and the automatic rollback commit, exec_junos.FIRING_SLACK_SECONDS)
+    return getattr(adapter, "FIRING_SLACK_SECONDS", EXPIRY_WAIT_SLACK_SECONDS)
+
+
+def _watched(adapter) -> bool:
+    """The adapter watches its on-device timer on the monotonic clock of Admin and by reading the timer, never by
+    the device clock (TIMER_WATCH: IOS, IOS XE, NX-OS and Junos). The other adapters with an on-device safeguard
+    (FortiOS, ExtremeXOS, EOS) plan fire_at on the device clock; FortiADC has no on-device timer and returns by
+    compensation (_compensating)."""
+    return getattr(adapter, "TIMER_WATCH", False) is True
+
+
+def _timer_end(adapter, device, record, requested) -> float:
+    """The end of the own timer on the monotonic clock of Admin (watched adapters), counted from the moment before
+    it was requested, so never later than the device ends it. An adapter that observed a shorter lead of its timer
+    on the device itself (NX-OS: the schedule time against the creation of the checkpoint, both on the device
+    clock) records it in safeguard.lead_seconds; the shorter count applies."""
+    seconds = adapter.timer_seconds(device)
+    lead = (record.get("safeguard") or {}).get("lead_seconds")
+    if isinstance(lead, (int, float)) and not isinstance(lead, bool):
+        seconds = min(seconds, lead)
+    return requested + seconds
+
+
+def _restarted_end(adapter, device, record, requested, sent, answered) -> float:
+    """The end of the own timer after the change commit restarted it (Junos commit confirmed), on the monotonic clock
+    of Admin. The restart happened after the change session was started (sent) and before its answer (answered), so
+    the timer ends no earlier than sent plus the timer. An adapter that read both commit rows on the device records
+    in safeguard.restart_offset_seconds how much later than the start of the safeguard the restart came (both on the
+    device clock, shortened for its drift); counted from the moment before the safeguard was requested and never
+    past the answer of the session, it gives the later of the two lower bounds."""
+    seconds = adapter.timer_seconds(device)
+    start = sent
+    offset = (record.get("safeguard") or {}).get("restart_offset_seconds")
+    if isinstance(offset, (int, float)) and not isinstance(offset, bool) and offset > 0:
+        start = max(sent, min(requested + offset, answered))
+    return start + seconds
+
+
 def _wait_for_expiry(runtime, adapter, access, record, due) -> None:
+    if _watched(adapter):
+        # the state of the timer decides: it is read again and again until it is no longer the own pending one,
+        # limited on the monotonic clock of Admin (the longest timer plus grace and slack)
+        # (an adapter whose timed return takes longer names its own slack, Junos: FIRING_SLACK_SECONDS)
+        deadline = _Deadline(runtime, EXPIRY_WAIT_LIMIT_SECONDS - EXPIRY_WAIT_SLACK_SECONDS + _firing_slack(adapter),
+                             "the safeguard was not seen ended within the wait limit")
+        return _wait_for_proof(runtime, adapter, access, record, deadline)
     fire_at = _fire_at(record)
-    deadline = _Deadline(runtime, EXPIRY_WAIT_LIMIT_SECONDS, "the safeguard did not expire within the wait limit")
+    slack = _firing_slack(adapter)
+    deadline = _Deadline(runtime, EXPIRY_WAIT_LIMIT_SECONDS - EXPIRY_WAIT_SLACK_SECONDS + slack,
+                         "the safeguard did not expire within the wait limit")
     while True:
         remaining = (fire_at - deadline.read(access, adapter.clock)).total_seconds() + EXPIRY_GRACE_SECONDS
         if remaining <= 0:
-            deadline.tighten(max(runtime.monotonic(), due + EXPIRY_GRACE_SECONDS) + EXPIRY_WAIT_SLACK_SECONDS,
+            deadline.tighten(max(runtime.monotonic(), due + EXPIRY_GRACE_SECONDS) + slack,
                              "the safeguard was not seen fired within the wait limit")
             return _wait_for_proof(runtime, adapter, access, record, deadline)
         deadline.pause(remaining)
@@ -251,8 +303,135 @@ def _persist(runtime, adapter, access, record) -> bool:
     return True
 
 
+def _compensating(adapter) -> bool:
+    return getattr(adapter, "COMPENSATING", False) is True
+
+
+def _audited_rules(adapter) -> bool:
+    return getattr(adapter, "AUDIT_RULES", True) is not False
+
+
+def _compensate(runtime, adapter, access, record, plan, reason):
+    """Return an unverified change of a platform without an on-device timer: the inverse is written in this run.
+
+    The inverse is written only when the planned object is not in its state before; the result is then judged by a
+    fresh snapshot against the side before, as after an on-device return."""
+    _step(runtime, record, "compensation_start", reason)
+    try:
+        verdict = engine.verify(plan, access.snapshot().encode("utf-8"), expect="before")
+    except Exception as exc:
+        _step(runtime, record, "compensation_state_unreadable", type(exc).__name__)
+        verdict = None
+    if verdict is None or not verdict["object_matches"]:
+        try:
+            access.apply(plan["inverse"], _spec(record))
+            _step(runtime, record, "compensation_applied")
+        except Exception as exc:
+            _step(runtime, record, "compensation_failed",
+                  "%s after %d lines" % (type(exc).__name__, getattr(exc, "accepted_lines", 0)))
+        try:
+            verdict = engine.verify(plan, access.snapshot().encode("utf-8"), expect="before")
+        except Exception as exc:
+            _step(runtime, record, "revert_unverified", type(exc).__name__)
+            return _finish(runtime, record, "unknown", reason)
+    else:
+        _step(runtime, record, "compensation_not_needed", "the object is in its state before")
+    if verdict["result"] == "match":
+        _step(runtime, record, "compensation_verified")
+        return _finish(runtime, record, "reverted", reason)
+    if verdict["object_matches"]:
+        kept = reason if reason in BLOCKING_REASONS else "foreign change"
+        return _finish(runtime, record, "reverted", kept, verdict["differences"])
+    return _finish(runtime, record, "revert-failed", reason, verdict["differences"])
+
+
+# a failure that is returned by the expiry of the timer although the adapter can return at once: the enrollment
+# self-test is left unconfirmed on purpose, and recover decides by the state of the timer
+EXPIRY_ONLY_REASONS = ("enrollment self-test", "interrupted")
+
+
+def _keeps_safeguard(adapter) -> bool:
+    """The on-device safeguard is still installed after the immediate return of the adapter (NX-OS: configure replace
+    leaves the scheduler job, the schedule and the checkpoint, which are removed only after the return is proven);
+    IOS ends its own timer with configure revert now."""
+    return getattr(adapter, "REVERT_NOW_KEEPS_SAFEGUARD", False) is True
+
+
+def _revert_now(runtime, adapter, access, record, plan, reason):
+    """Return a failed change at once with the own on-device safeguard (IOS: configure revert now, NX-OS: configure
+    replace of the own saved file); None when the adapter could not prove it (the safeguard is not the own one or
+    is still pending, or the object is not seen in its state before while the safeguard is still armed), then the
+    caller waits for the expiry."""
+    _step(runtime, record, "revert_now_start", reason)
+    keeps = _keeps_safeguard(adapter)
+    try:
+        reverted = adapter.revert_now(access, record, _spec(record))
+    except Exception as exc:
+        _step(runtime, record, "revert_now_unverified", "%s; waiting for the expiry of the safeguard"
+              % type(exc).__name__)
+        return None
+    if not reverted:
+        _step(runtime, record, "revert_now_unverified", "waiting for the expiry of the safeguard")
+        return None
+    _step(runtime, record, "revert_now_done")
+    try:
+        verdict = engine.verify(plan, access.snapshot().encode("utf-8"), expect="before")
+    except Exception as exc:
+        _step(runtime, record, "revert_unverified", type(exc).__name__)
+        if keeps:
+            # the safeguard is still armed and returns the change at its time
+            return None
+        return _finish(runtime, record, "unknown", reason)
+    if keeps:
+        if not verdict["object_matches"]:
+            _step(runtime, record, "revert_unverified", "the object is not in its state before")
+            return None
+        cleaned = adapter.remove_safeguard(access, record, _spec(record))
+        _step(runtime, record, "safeguard_removed" if cleaned else "safeguard_removal_unverified")
+        if not cleaned:
+            return _finish(runtime, record, "unknown", "safeguard cleanup unverified")
+    if verdict["result"] == "match":
+        if not _persist(runtime, adapter, access, record):
+            return _finish(runtime, record, "reverted", "not persisted")
+        return _finish(runtime, record, "reverted", reason)
+    if verdict["object_matches"]:
+        kept = reason if reason in BLOCKING_REASONS else "foreign change"
+        return _finish(runtime, record, "reverted", kept, verdict["differences"])
+    return _finish(runtime, record, "revert-failed", reason, verdict["differences"])
+
+
+def _adopt_change_head(runtime, adapter, access, record, until) -> None:
+    """An adapter whose change commit becomes the head of its timer (Junos) records it again before the immediate
+    return when the read right after the change failed; the read may use only the time before `until` on the
+    monotonic clock of Admin (the end of the timer less the budget of the return), so the budget stays whole."""
+    deadline = _Deadline(runtime, until - runtime.monotonic(), "too little of the safeguard left to read its head")
+    try:
+        adopted = deadline.read(access, adapter.adopt_change_head, record)
+    except Exception as exc:
+        _step(runtime, record, "change_head_unverified", type(exc).__name__)
+        return
+    if adopted:
+        _step(runtime, record, "change_head_adopted", record["safeguard"].get("device_expiry"))
+
+
 def _settle_after_expiry(runtime, access, record, plan, reason, due):
     adapter = _adapter(plan["platform"], schema_runtime.is_plan(plan))
+    if _compensating(adapter):
+        return _compensate(runtime, adapter, access, record, plan, reason)
+    if getattr(adapter, "revert_now", None) is not None and reason not in EXPIRY_ONLY_REASONS:
+        # an adapter whose immediate return takes long (NX-OS configure replace) sets its budget: with less of the
+        # own timer left (due is its end on the monotonic clock of Admin) the timer is awaited first, so the return
+        # never runs together with the timed return of the device
+        budget = getattr(adapter, "REVERT_NOW_SECONDS", None)
+        if (getattr(adapter, "adopt_change_head", None) is not None and budget is not None
+                and due - runtime.monotonic() >= budget):
+            _adopt_change_head(runtime, adapter, access, record, due - budget)
+        if budget is not None and due - runtime.monotonic() < budget:
+            _step(runtime, record, "revert_now_skipped", "too little of the safeguard left; waiting for its expiry")
+        else:
+            settled = _revert_now(runtime, adapter, access, record, plan, reason)
+            if settled is not None:
+                return settled
     try:
         _wait_for_expiry(runtime, adapter, access, record, due)
         after_expiry = access.snapshot()
@@ -260,6 +439,13 @@ def _settle_after_expiry(runtime, access, record, plan, reason, due):
     except Exception as exc:
         _step(runtime, record, "revert_unverified", type(exc).__name__)
         return _finish(runtime, record, "unknown", reason)
+    if not verdict["object_matches"] and getattr(adapter, "REVERT_AFTER_EXPIRY", False) is True:
+        # the timed return ran but the object is not in its state before (a line written late, or a change of
+        # someone else after the return): the adapter returns to its own saved state before giving up
+        _step(runtime, record, "expiry_not_returned", "%d differences" % len(verdict["differences"]))
+        settled = _revert_now(runtime, adapter, access, record, plan, reason)
+        if settled is not None:
+            return settled
     if (verdict["result"] != "match" and not verdict["object_matches"] and not adapter.FIRING_OBSERVED
             and not adapter.safeguard_disarmed(access, record)):
         _step(runtime, record, "safeguard_kept", "firing not proven")
@@ -280,6 +466,34 @@ def _settle_after_expiry(runtime, access, record, plan, reason, due):
         kept = reason if reason in BLOCKING_REASONS else "foreign change"
         return _finish(runtime, record, "reverted", kept, verdict["differences"])
     return _finish(runtime, record, "revert-failed", reason, verdict["differences"])
+
+
+def _discard_installation(runtime, adapter, access, record, plan, reason):
+    """Remove the safeguard of a change that was never sent (unverified or interrupted installation): only the
+    objects whose creation the own session proved; the result is judged by a fresh snapshot against the side before.
+    What cannot be removed that way stays (unknown, the device is blocked); the adapter notes the manual procedure in
+    the journal record."""
+    try:
+        cleaned, detail = adapter.discard_installation(access, record, _spec(record))
+    except Exception as exc:
+        cleaned, detail = False, type(exc).__name__
+    if not cleaned:
+        _step(runtime, record, "safeguard_removal_unverified", detail)
+        return _finish(runtime, record, "unknown", reason if reason == "safeguard not verified"
+                       else "interrupted safeguard installation; manual cleanup needed")
+    _step(runtime, record, "safeguard_removed", detail)
+    try:
+        verdict = engine.verify(plan, access.snapshot().encode("utf-8"), expect="before")
+    except Exception as exc:
+        _step(runtime, record, "revert_unverified", type(exc).__name__)
+        return _finish(runtime, record, "unknown", reason)
+    if verdict["result"] == "match":
+        if not _persist(runtime, adapter, access, record):
+            return _finish(runtime, record, "reverted", "not persisted")
+        return _finish(runtime, record, "reverted", reason)
+    if verdict["object_matches"]:
+        return _finish(runtime, record, "reverted", "foreign change", verdict["differences"])
+    return _finish(runtime, record, "unknown", reason, verdict["differences"])
 
 
 def _undelivered(runtime, device_name: str, *, records=None) -> list:
@@ -483,6 +697,7 @@ def _preview(runtime, device_name: str, request, expected_before=ANY_STATE, undo
         "audit_unevaluated": audit_gate.unevaluated(audit_before),
         "audit_coverage": coverage,
         "safeguard_seconds": device.safeguard_seconds,
+        **({"return_mechanism": adapter.RETURN_MECHANISM} if _compensating(adapter) else {}),
     }, bool(missing)
 
 
@@ -537,7 +752,7 @@ def _prepared(runtime, device, adapter, request, expected_before, enrolling, mis
     else:
         plan = engine.build_plan(device.platform, before_text.encode("utf-8"), request,
                                  firmware=device.firmware, protected=device.protected, enrollment_probe=enrolling,
-                                 ports=ports, undo=undo)
+                                 ports=ports, undo=undo, device=device.name)
     try:
         reasons = adapter.plan_prechecks(access, device, plan, before_text)
     except Rejected:
@@ -568,8 +783,13 @@ def _prepared(runtime, device, adapter, request, expected_before, enrolling, mis
     try:
         policy = device.audit_policy
         plan["device"] = device.name
-        predicted_text = prediction.audited(prediction.snapshot_after(before_text, plan), plan)
-        if transaction:
+        predicted_text = (prediction.audited(prediction.snapshot_after(before_text, plan), plan)
+                          if transaction or _audited_rules(adapter) else None)
+        if not transaction and not _audited_rules(adapter):
+            rule, state, why = adapter.AUDIT_NOT_RUN
+            audit_before, coverage = {audit_gate.UNEVALUATED + rule: (rule, state, why)}, {rule: state}
+            predicted_findings = []
+        elif transaction:
             audit_before, _before_coverage = schema_runtime.audit_snapshot(plan, before_text, policy, None,
                                                                            audit_gate.BASELINE)
             predicted_findings, coverage = schema_runtime.after_audit(plan, audit_before, predicted_text, policy)
@@ -665,21 +885,50 @@ def _apply(runtime, device_name: str, request, expected_before, enrolling=False,
 
 def _execute(runtime, adapter, access, record, plan, device) -> dict:
     change_id, spec = record["change_id"], _spec(record)
-    try:
-        fire_at = adapter.clock(access) + datetime.timedelta(seconds=device.safeguard_seconds)
-    except Exception as exc:
-        _step(runtime, record, "clock_unreadable", type(exc).__name__)
-        return _finish(runtime, record, "rejected", "device clock", reason_code="device_clock_unreadable")
-    record["safeguard"] = {"fire_at": fire_at.strftime(FIRE_AT_FORMAT), "name": adapter.safeguard_label(change_id)}
+    if _compensating(adapter):
+        return _execute_compensating(runtime, adapter, access, record, plan, device)
+    watched = _watched(adapter)
+    if watched:
+        record["safeguard"] = {"fire_at": adapter.FIRE_AT_TEXT, "name": adapter.safeguard_label(change_id)}
+    else:
+        try:
+            fire_at = adapter.clock(access) + datetime.timedelta(seconds=device.safeguard_seconds)
+        except Exception as exc:
+            _step(runtime, record, "clock_unreadable", type(exc).__name__)
+            return _finish(runtime, record, "rejected", "device clock", reason_code="device_clock_unreadable")
+        record["safeguard"] = {"fire_at": fire_at.strftime(FIRE_AT_FORMAT), "name": adapter.safeguard_label(change_id)}
     _step(runtime, record, "safeguard_install")
+    requested = runtime.monotonic()
     try:
-        problems = adapter.install_safeguard(access, record, plan, device, spec)
+        if getattr(adapter, "INSTALL_JOURNAL", False) is True:
+            # the adapter notes in record["safeguard"] which objects its own session proved it created, line by line;
+            # each note is saved at once, so recover knows them after an interruption of the installation
+            problems = adapter.install_safeguard(access, record, plan, device, spec,
+                                                 journal=lambda: runtime.store.save(record))
+        else:
+            problems = adapter.install_safeguard(access, record, plan, device, spec)
     except Exception as exc:
         from netops_admin.access import AccessError
 
         cause = "AccessError: %s" % exc if isinstance(exc, AccessError) else type(exc).__name__
         problems = ["safeguard installation failed (%s)" % cause]
     due = runtime.monotonic() + device.safeguard_seconds
+    # the end of the own timer on the monotonic clock of Admin (watched adapters only), counted from before the
+    # request, so never later than the device ends it
+    timer_end = _timer_end(adapter, device, record, requested) if watched else None
+    if watched:
+        due = timer_end
+    if problems and watched:
+        # a timer whose installation the own session did not prove is never confirmed, returned or saved over
+        _step(runtime, record, "safeguard_not_verified", problems[0])
+        if record["safeguard"].get("install") == "refused":
+            return _finish(runtime, record, "rejected", "safeguard refused by the device",
+                           reason_code=getattr(adapter, "REFUSED_REASON_CODE", "rollback_timer_pending"))
+        if getattr(adapter, "discard_installation", None) is not None:
+            # an adapter whose unfinished installation can block the device (NX-OS: a job armed before its checkpoint
+            # holds it) removes at once what its own session proved it created, and nothing else
+            return _discard_installation(runtime, adapter, access, record, plan, "safeguard not verified")
+        return _finish(runtime, record, "unknown", "safeguard not verified")
     if problems:
         _step(runtime, record, "safeguard_not_verified", problems[0])
         cleaned = adapter.remove_safeguard(access, record, spec)
@@ -691,13 +940,46 @@ def _execute(runtime, adapter, access, record, plan, device) -> dict:
     if record.get("kind") == "poe-cycle":
         from netops_admin import exos_poe
         return exos_poe.run(runtime, adapter, access, record, plan, device, due)
+    if watched:
+        refused = adapter.before_write(access, record, timer_end - runtime.monotonic(), device)
+        if refused is not None:
+            _step(runtime, record, "change_not_written", refused)
+            return _settle_after_expiry(runtime, access, record, plan, "no time left to write", due)
+        guard = getattr(adapter, "line_guard_for", None)
+        if guard is not None:
+            # an adapter whose change session ends with a commit that restarts the timer (Junos) judges each line
+            # itself: the lines up to that commit need the time of the commit, the lines after it nothing more
+            access.line_guard = guard(plan["commands"], lambda: timer_end - runtime.monotonic())
+        else:
+            access.line_guard = lambda: adapter.line_allowed(timer_end - runtime.monotonic())
     _step(runtime, record, "change_start")
+    sent = runtime.monotonic()
     try:
-        access.apply(plan["commands"], spec)
+        try:
+            access.apply(plan["commands"], spec)
+        finally:
+            if watched:
+                access.line_guard = None
         _step(runtime, record, "change_applied")
     except Exception as exc:
         _step(runtime, record, "change_failed", "%s after %d lines" % (type(exc).__name__, getattr(exc, "accepted_lines", 0)))
         return _settle_after_expiry(runtime, access, record, plan, "change failed", due)
+    answered = runtime.monotonic()
+    rearmed = getattr(adapter, "safeguard_rearmed", None)
+    if rearmed is not None:
+        # the change commit restarted the device timer (Junos commit confirmed): its expiry moves with it
+        try:
+            problems = rearmed(access, record)
+        except Exception as exc:
+            problems = ["the timer after the change is unreadable (%s)" % type(exc).__name__]
+        runtime.store.save(record)
+        if problems:
+            _step(runtime, record, "safeguard_rearm_unverified", problems[0])
+            return _settle_after_expiry(runtime, access, record, plan, "safeguard not verified after the change", due)
+        _step(runtime, record, "safeguard_rearmed", record["safeguard"].get("device_expiry") or record["safeguard"]["fire_at"])
+        if watched:
+            # the restarted timer protects the readback and the confirmation (counted on the monotonic clock)
+            timer_end = due = _restarted_end(adapter, device, record, requested, sent, answered)
     cause = "administrator table"
     try:
         after_text = access.snapshot()
@@ -755,7 +1037,10 @@ def _execute(runtime, adapter, access, record, plan, device) -> dict:
     if record.get("kind") == "enrollment":
         return _settle_after_expiry(runtime, access, record, plan, "enrollment self-test", due)
     try:
-        remaining = (_fire_at(record) - adapter.clock(access)).total_seconds()
+        if watched:
+            remaining = timer_end - runtime.monotonic()
+        else:
+            remaining = (_fire_at(record) - adapter.clock(access)).total_seconds()
     except Exception:
         remaining = -1
     if remaining < device.confirm_margin_seconds:
@@ -799,6 +1084,57 @@ def _execute(runtime, adapter, access, record, plan, device) -> dict:
         if saved["result"] != "match":
             _step(runtime, record, "saved_check_failed", "%d differences" % len(saved["differences"]))
             return _finish(runtime, record, "confirmed", "foreign change during save", saved["differences"])
+    return _finish(runtime, record, "confirmed")
+
+
+def _execute_compensating(runtime, adapter, access, record, plan, device) -> dict:
+    """The change on a platform without an on-device timer (FortiADC): written, read back by the write and the check
+    account and confirmed; any failure after the write is returned by the inverse in this run (_compensate)."""
+    record["safeguard"] = {"fire_at": "none", "name": adapter.safeguard_label(record["change_id"]),
+                           "mechanism": adapter.RETURN_MECHANISM}
+    runtime.store.save(record)
+    _step(runtime, record, "compensation_armed", "no on-device timer; an unverified change is returned in this run")
+    _step(runtime, record, "change_start")
+    try:
+        access.apply(plan["commands"], _spec(record))
+        _step(runtime, record, "change_applied")
+    except Exception as exc:
+        _step(runtime, record, "change_failed", "%s after %d lines" % (type(exc).__name__, getattr(exc, "accepted_lines", 0)))
+        return _compensate(runtime, adapter, access, record, plan, "change failed")
+    cause = "administrator table"
+    try:
+        after_text = access.snapshot()
+        if adapter.accounts_check(access, device, after_text) != record["accounts"]:
+            raise Rejected(["the administrator accounts changed during the operation"])
+        cause = "postcheck rejected"
+        verdict = engine.verify(plan, after_text.encode("utf-8"), expect="after")
+    except Rejected as exc:
+        cause = getattr(exc, "category", cause)
+        _step(runtime, record, "postcheck_failed", cause)
+        return _compensate(runtime, adapter, access, record, plan, cause)
+    except Exception as exc:
+        _step(runtime, record, "postcheck_failed", type(exc).__name__)
+        return _compensate(runtime, adapter, access, record, plan, "postcheck unavailable")
+    if verdict["result"] != "match":
+        _step(runtime, record, "postcheck_failed", "%d differences" % len(verdict["differences"]))
+        record["postcheck_differences"] = verdict["differences"]
+        return _compensate(runtime, adapter, access, record, plan, "prediction mismatch")
+    _step(runtime, record, "postcheck_passed")
+    _step(runtime, record, "audit_not_run", adapter.AUDIT_NOT_RUN[2])
+    try:
+        seen = engine.observed_state(plan, adapter.observe(access, plan))
+    except Exception as exc:
+        _step(runtime, record, "check_identity_failed", type(exc).__name__)
+        return _compensate(runtime, adapter, access, record, plan, "check identity unavailable")
+    if seen != plan["predicted"]["after"]:
+        _step(runtime, record, "check_identity_failed", "state differs")
+        return _compensate(runtime, adapter, access, record, plan, "check identity mismatch")
+    _step(runtime, record, "check_identity_passed")
+    if record.get("kind") == "enrollment":
+        return _compensate(runtime, adapter, access, record, plan, "enrollment self-test")
+    _step(runtime, record, "confirm_start")
+    if not _persist(runtime, adapter, access, record):
+        return _finish(runtime, record, "confirmed", "not persisted")
     return _finish(runtime, record, "confirmed")
 
 
@@ -922,6 +1258,13 @@ def recover(runtime, device_name: str) -> list:
                 _step(runtime, record, "recovery_access_failed", type(exc).__name__)
                 settled.append(_finish(runtime, record, "unknown", "interrupted; device unreachable"))
                 continue
+            if (getattr(adapter, "discard_installation", None) is not None
+                    and "change_start" not in {step.get("step") for step in record.get("steps", [])}):
+                # the change was never sent: the safeguard (also an unfinished installation, which can block the
+                # device when its job runs) is removed at once, as far as the own session proved it created it
+                _step(runtime, record, "installation_interrupted", record["safeguard"].get("phase"))
+                settled.append(_discard_installation(runtime, adapter, access, record, plan, "interrupted"))
+                continue
             try:
                 present = not adapter.safeguard_absent(access, record)
                 disarmed = present and adapter.safeguard_disarmed(access, record)
@@ -935,6 +1278,12 @@ def recover(runtime, device_name: str) -> list:
                     continue
                 _step(runtime, record, "safeguard_removed")
                 present = False
+            if present and record.get("kind") == "poe-cycle" and any(
+                    step.get("step") == "confirm_start" for step in record.get("steps", [])):
+                # the cycle may be done although its safeguard is installed: confirmed only on fresh proof
+                from netops_admin import exos_poe
+                settled.append(exos_poe.recover_installed(runtime, adapter, access, record, plan, device))
+                continue
             if present:
                 settled.append(_settle_after_expiry(runtime, access, record, plan, "interrupted",
                                                     runtime.monotonic() + device.safeguard_seconds))
@@ -959,6 +1308,9 @@ def recover(runtime, device_name: str) -> list:
             elif is_before:
                 saved = _persist(runtime, adapter, access, record)
                 settled.append(_finish(runtime, record, "reverted", "interrupted" if saved else "not persisted"))
+            elif is_after and _compensating(adapter):
+                # no on-device timer returns it: the interrupted, unconfirmed change is returned now
+                settled.append(_compensate(runtime, adapter, access, record, plan, "interrupted"))
             elif is_after:
                 settled.append(_finish(runtime, record, "unknown",
                                        "interrupted; device state matches the after side but confirm_start is missing"))

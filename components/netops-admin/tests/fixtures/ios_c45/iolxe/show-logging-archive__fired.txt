@@ -1,0 +1,11 @@
+*Nov 16 00:53:58.673: %ARCHIVE_DIFF-5-ROLLBK_CNFMD_CHG_BACKUP: Backing up current running config to unix:netops-archive-Nov-16-00-53-58.469-2
+*Nov 16 00:53:58.673: %ARCHIVE_DIFF-5-ROLLBK_CNFMD_CHG_START_ABSTIMER: User: netops-admin(Priv: 15, View: 0): Scheduled to rollback to config unix:netops-archive-Nov-16-00-53-58.469-2 in 1 minutes
+*Nov 16 00:53:58.674: %ARCHIVE_DIFF-5-ROLLBK_CNFMD_CHG_WARNING_ABSTIMER: System will rollback to config unix:netops-archive-Nov-16-00-53-58.469-2 in one minute. Enter "configure confirm" if you wish to keep what you've configured
+*Nov 16 00:54:01.985: %SYS-5-CONFIG_I: Configured from console by netops-admin on vty0 (203.0.113.252)
+*Nov 16 00:54:03.706: %ARCHIVE_DIFF-5-ROLLBK_CNFMD_CHG_CONFIRM: User: netops-admin: Confirm the configuration change
+*Nov 16 00:54:10.444: %ARCHIVE_DIFF-5-ROLLBK_CNFMD_CHG_BACKUP: Backing up current running config to unix:netops-archive-Nov-16-00-54-09.974-3
+*Nov 16 00:54:10.444: %ARCHIVE_DIFF-5-ROLLBK_CNFMD_CHG_START_ABSTIMER: User: netops-admin(Priv: 15, View: 0): Scheduled to rollback to config unix:netops-archive-Nov-16-00-54-09.974-3 in 1 minutes
+*Nov 16 00:54:10.445: %ARCHIVE_DIFF-5-ROLLBK_CNFMD_CHG_WARNING_ABSTIMER: System will rollback to config unix:netops-archive-Nov-16-00-54-09.974-3 in one minute. Enter "configure confirm" if you wish to keep what you've configured
+*Nov 16 00:54:13.732: %SYS-5-CONFIG_I: Configured from console by netops-admin on vty0 (203.0.113.252)
+*Nov 16 00:55:10.445: %ARCHIVE_DIFF-5-ROLLBK_CNFMD_CHG_ROLLBACK_START: Start rolling to: unix:netops-archive-Nov-16-00-54-09.974-3
+*Nov 16 00:55:10.445: Rollback:Acquired Configuration lock.

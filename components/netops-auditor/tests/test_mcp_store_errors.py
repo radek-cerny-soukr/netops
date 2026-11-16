@@ -54,6 +54,9 @@ def test_a_locked_store_is_a_tool_error_with_a_store_message(tmp_path, capsys, m
 
     monkeypatch.setattr(sqlite3, "connect", connect)
     holder = real_connect(str(database), isolation_level=None)
+    # The store is in WAL, where BEGIN EXCLUSIVE does not keep readers out; a connection in
+    # exclusive locking mode does (it holds the store file itself), as a stuck tool would.
+    holder.execute("PRAGMA locking_mode = EXCLUSIVE")
     holder.execute("BEGIN EXCLUSIVE")
     try:
         with pytest.raises(ToolError) as error:
@@ -139,7 +142,7 @@ def test_one_mcp_call_returns_the_previous_or_the_new_run_never_a_mix(tmp_path, 
     reading, released, committing = threading.Event(), threading.Event(), threading.Event()
 
     def reader_trace(statement):
-        # Pause the reader inside its read transaction (opened by the schema check), before it reads the runs.
+        # Pause the reader inside its tool call, inside its read transaction, before it reads the runs.
         if reading.is_set() or "from runs" not in statement.lower():
             return
         reading.set()
@@ -177,9 +180,10 @@ def test_one_mcp_call_returns_the_previous_or_the_new_run_never_a_mix(tmp_path, 
     writer.start()
     try:
         assert committing.wait(30)
-        writer.join(0.5)
-        # The commit waits for the open read transaction of the paused MCP call.
-        assert writer.is_alive()
+        writer.join(60)
+        # The commit does not wait for the paused MCP call: in WAL its read transaction blocks no COMMIT.
+        assert not writer.is_alive()
+        assert reader.is_alive()
     finally:
         released.set()
         reader.join(30)

@@ -2,14 +2,16 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 
-from netops_admin import __version__, exos, fortios, membership
+from netops_admin import __version__, eos, exos, fortiadc_plan, fortios, ios, junos, membership, nxos
 from netops_admin.errors import SNAPSHOT_INCOMPLETE, SNAPSHOT_UNREADABLE, Rejected, SnapshotRejected
 from netops_admin.profiles import find_profile
 from netops_admin.request import canonical_value
 
 PLAN_FORMAT = "netops-admin-plan/1"
-ADAPTERS = {"fortios": fortios, "exos": exos}
+ADAPTERS = {"fortios": fortios, "exos": exos, "eos": eos, "ios": ios, "iosxe": ios, "fortiadc": fortiadc_plan, "nxos": nxos,
+            "junos": junos}
 MAX_SNAPSHOT_BYTES = 16 * 1024 * 1024
 PORT_TABLES = ("ports", "inline-power")
 REFERENCE_TEXT_ATTRIBUTES = {"vlan-membership": ("untagged",), "firewall policy": ("schedule",)}
@@ -180,8 +182,35 @@ def _digest(value) -> str:
     return hashlib.sha256(text.encode("ascii")).hexdigest()
 
 
+# 1.0.10 B4c: plan_sha256 binds the plan to its target - the configured device alias, the platform and the
+# firmware - besides the commands, the inverse and the predicted states, so an identical change previewed for
+# another device or another firmware has another plan_sha256. FortiOS and EOS read the firmware from the fresh
+# snapshot; ExtremeXOS, IOS and IOS XE have no full version in their snapshot and use the configured version, which
+# the prechecks verify against the live `show version` before any write.
+PLAN_DIGEST_SINCE = (1, 0, 10)
+
+
+def plan_digest(plan) -> str:
+    return _digest({"device": plan["device"], "platform": plan["platform"], "firmware": plan["firmware"],
+                    "commands": plan["commands"], "inverse": plan["inverse"],
+                    "before": plan["predicted"]["before"], "after": plan["predicted"]["after"]})
+
+
+def _legacy_plan_digest(plan) -> str | None:
+    # Journal records written by Admin before 1.0.10 carry the content-only digest; they stay readable for
+    # verify, recovery and undo. A preview hash of such a version never matches a fresh plan of this one.
+    # A plan stamped with the running version always needs the bound digest.
+    match = re.fullmatch(r"([0-9]+)\.([0-9]+)\.([0-9]+)(?:[^0-9].*)?", plan["admin_version"])
+    if (plan["admin_version"] == __version__ or match is None
+            or tuple(int(part) for part in match.groups()) >= PLAN_DIGEST_SINCE):
+        return None
+    return _digest({"commands": plan["commands"], "inverse": plan["inverse"],
+                    "before": plan["predicted"]["before"], "after": plan["predicted"]["after"]})
+
+
 def build_plan(platform: str, snapshot_raw: bytes, request, firmware: str | None = None,
-               protected: dict | None = None, enrollment_probe=False, ports=None, undo=False) -> dict:
+               protected: dict | None = None, enrollment_probe=False, ports=None, undo=False,
+               device: str | None = None) -> dict:
     from netops_admin.schema_request import Transaction
     if isinstance(request, Transaction):
         raise Rejected(["schema transaction planning requires schema-plan with a pinned library and calibration"])
@@ -314,7 +343,7 @@ def build_plan(platform: str, snapshot_raw: bytes, request, firmware: str | None
     if touched:
         raise Rejected(["the object holds a reference to protected object %s before or after the change"
                         % ", ".join(repr(name) for name in touched)])
-    if profile.table == "vlan-membership":
+    if platform == "exos" and profile.table == "vlan-membership":
         if key in (protected or {}).get("ports", []):
             raise Rejected(["the port is protected"])
         commands = membership.render(key, before, after)
@@ -337,7 +366,7 @@ def build_plan(platform: str, snapshot_raw: bytes, request, firmware: str | None
         "table": profile.table,
         "op": op,
         "key": key,
-        "device": request.device,
+        "device": device if device is not None else request.device,
         "request_id": request.request_id,
         "request_sha256": request.fingerprint(),
         "reason_characters": len(request.reason),
@@ -351,8 +380,9 @@ def build_plan(platform: str, snapshot_raw: bytes, request, firmware: str | None
         "ignored_attributes": sorted(profile.volatile),
         "inverse_identity_changes": list(profile.inverse_identity_changes.get(op, ())),
         "rollback_evidence": profile.rollback_evidence,
-        "plan_sha256": _digest({"commands": commands, "inverse": inverse, "before": before, "after": after}),
+        "plan_sha256": None,
     }
+    document["plan_sha256"] = plan_digest(document)
     if ports is not None:
         document["ports"] = sorted(snapshot.inventory, key=exos.port_order)
     return document
@@ -400,9 +430,7 @@ def _read_plan(plan) -> dict:
     if "ports" in plan and (plan["platform"] != "exos" or not isinstance(plan["ports"], list)
                             or not all(isinstance(port, str) for port in plan["ports"])):
         raise Rejected(["plan holds an invalid port list"])
-    expected = _digest({"commands": plan["commands"], "inverse": plan["inverse"],
-                        "before": predicted["before"], "after": predicted["after"]})
-    if expected != plan["plan_sha256"]:
+    if plan["plan_sha256"] not in (plan_digest(plan), _legacy_plan_digest(plan)):
         raise Rejected(["plan content does not match its plan_sha256"])
     return plan
 

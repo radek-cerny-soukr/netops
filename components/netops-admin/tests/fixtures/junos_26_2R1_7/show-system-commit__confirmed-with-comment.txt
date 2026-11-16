@@ -1,0 +1,36 @@
+0   2026-11-16 01:47:28 UTC by netops-admin via cli
+    netops-c8-confirm-undo
+1   2026-11-16 01:46:41 UTC by netops-admin via cli commit confirmed, rollback in 1mins
+    netops-c8-undo
+2   2026-11-16 01:44:48 UTC by netops-admin via cli
+3   2026-11-16 01:43:19 UTC by netops-admin via cli commit confirmed, rollback in 1mins
+    netops-c8-a2
+4   2026-11-16 01:40:12 UTC by netops-admin via cli
+    netops-c8-c rollback 1
+5   2026-11-16 00:36:24 UTC by netops-admin via cli
+6   2026-11-16 00:27:21 UTC by netops-admin via cli
+    netops-c8 priprava access portu ge-0/0/2 (trvala)
+7   2026-11-11 14:04:21 UTC by netops-admin via cli
+8   2026-11-09 01:47:07 UTC by netops-admin via cli
+    lab D5 temp revert part 3
+9   2026-11-09 01:42:10 UTC by netops-admin via cli
+    lab D5 temp revert part 2
+10  2026-11-09 01:40:53 UTC by netops-admin via cli
+    lab D5 temp revert part 1
+11  2026-11-09 01:23:46 UTC by netops-admin via cli
+    lab D5 temporary log class 4
+12  2026-11-09 01:19:29 UTC by netops-admin via cli
+    lab D5 temporary log class 3
+13  2026-11-09 01:18:24 UTC by netops-admin via cli
+    lab D5 temporary log class 2
+14  2026-11-09 01:15:13 UTC by netops-admin via cli
+    lab D5 temporary log class
+15  2026-11-09 01:05:26 UTC by netops-admin via cli
+    lab D5 temporary
+16  2026-11-08 23:32:13 UTC by root via cli
+    home-20261108-30
+17  2026-11-08 23:28:25 UTC by root via cli
+    home-20261108-30
+18  2026-11-08 22:49:51 UTC by root via button
+19  2026-11-08 22:42:40 UTC by root via other
+20  2026-06-19 19:30:08 UTC by root via other

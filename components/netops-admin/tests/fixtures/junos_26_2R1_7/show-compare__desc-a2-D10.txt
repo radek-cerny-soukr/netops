@@ -1,0 +1,5 @@
+[edit interfaces ge-0/0/2]
++   description netops-c8-a2;
+[edit interfaces ge-0/0/2 unit 0 family ethernet-switching vlan]
+-       members default;
++       members D10;

@@ -1,0 +1,14 @@
+Rollback Confirmed Change: rolling to:flash:netops-archive-Nov-16-01-04-37.477-1
+
+!Pass 1
+!List of Rollback Commands:
+interface GigabitEthernet1/0
+ no shutdown
+ no description netops-c45-c
+interface GigabitEthernet1/0
+ description netops-c45-a
+end
+
+
+Total number of passes: 1
+Rollback Done

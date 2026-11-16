@@ -1,0 +1,22 @@
+Operation            : Rollback to Checkpoint
+Checkpoint name      : netops-c6-5
+Rollback done By     : netops-admin
+Rollback mode        : atomic
+Verbose              : disabled
+Start Time           : Mon, 01:27:03 16 Nov 2026
+Start Time UTC       : Mon, 01:27:03 16 Nov 2026
+End Time             : Mon, 01:27:09 16 Nov 2026
+End Time UTC         : Mon, 01:27:09 16 Nov 2026
+Rollback Status      : Success
+
+Executing Patch:
+----------------
+`config t `
+`interface Ethernet1/48`
+`no switchport access vlan`
+`no shutdown`
+`no description netops-c6-e`
+`exit`
+`interface Ethernet1/48`
+`no shutdown`
+`exit`

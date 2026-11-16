@@ -1,0 +1,10 @@
+feature scheduler
+scheduler job name netops-c6-2
+  rollback running-config checkpoint netops-c6-2 atomic
+  
+scheduler job name netops-c6-5
+  rollback running-config checkpoint netops-c6-5 atomic
+  
+scheduler schedule name netops-c6-5
+  job name netops-c6-5
+  time start 2026:11:16:01:27

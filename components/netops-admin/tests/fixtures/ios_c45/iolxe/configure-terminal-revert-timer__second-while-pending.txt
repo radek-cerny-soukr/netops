@@ -1,0 +1,1 @@
+%Rollback Confirmed Change is already activated on a config

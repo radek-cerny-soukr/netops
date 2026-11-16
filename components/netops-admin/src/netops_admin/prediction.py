@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from netops_auditor import l1_fortios
 
-from . import engine, exos, fortios, membership
+from . import engine, eos, exos, fortios, ios, junos, membership, nxos
 from .profiles import find_profile
 
 
@@ -39,6 +39,14 @@ def snapshot_after(text, plan):
         return schema_runtime.snapshot_after(text, plan)
     state = plan["predicted"]["after"]
     key, table = plan["key"], plan["table"]
+    if plan["platform"] == "eos":
+        return eos.snapshot_after(text, plan)
+    if plan["platform"] == "nxos":
+        return nxos.snapshot_after(text, plan)
+    if plan["platform"] in ios.PLATFORMS:
+        return ios.snapshot_after(text, plan)
+    if plan["platform"] == "junos":
+        return junos.snapshot_after(text, plan)
     if plan["platform"] == "fortios":
         snapshot = fortios.load(text, plan["firmware"])
         tree = snapshot.root

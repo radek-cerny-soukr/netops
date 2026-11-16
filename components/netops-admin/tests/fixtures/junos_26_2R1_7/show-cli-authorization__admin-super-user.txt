@@ -1,0 +1,51 @@
+Current user: 'netops-admin' class 'super-user'
+Permissions:
+    access      -- Can view access configuration
+    access-control-- Can modify access configuration
+    admin       -- Can view user accounts
+    admin-control-- Can modify user accounts
+    clear       -- Can clear learned network info
+    configure   -- Can enter configuration mode
+    control     -- Can modify any config
+    edit        -- Can edit full files
+    field       -- Can use field debug commands
+    firewall    -- Can view firewall configuration
+    firewall-control-- Can modify firewall configuration
+    floppy      -- Can read and write the floppy
+    interface   -- Can view interface configuration
+    interface-control-- Can modify interface configuration
+    maintenance -- Can become the super-user
+    network     -- Can access the network
+    reset       -- Can reset/restart interfaces and daemons
+    rollback    -- Can rollback to previous configurations
+    routing     -- Can view routing configuration
+    routing-control-- Can modify routing configuration
+    secret      -- Can view secret statements
+    secret-control-- Can modify secret statements
+    security    -- Can view security configuration
+    security-control-- Can modify security configuration
+    shell       -- Can start a local shell
+    snmp        -- Can view SNMP configuration
+    snmp-control-- Can modify SNMP configuration
+    storage     -- Can view fibre channel storage protocol configuration
+    storage-control-- Can modify fibre channel storage protocol configuration
+    system      -- Can view system configuration
+    system-control-- Can modify system configuration
+    trace       -- Can view trace file settings
+    trace-control-- Can modify trace file settings
+    view        -- Can view current values and statistics
+    view-configuration-- Can view all configuration (not including secrets)
+    all-control -- Can modify any configuration
+    flow-tap    -- Can view flow-tap configuration
+    flow-tap-control-- Can modify flow-tap configuration
+    flow-tap-operation-- Can tap flows
+    idp-profiler-operation-- Can Profiler data
+    pgcp-session-mirroring-- Can view pgcp session mirroring configuration
+    pgcp-session-mirroring-control-- Can modify pgcp session mirroring configuration
+    unified-edge-- Can view unified edge configuration
+    unified-edge-control-- Can modify unified edge configuration
+Individual command authorization:
+    Allow regular expression: none
+    Deny regular expression: none
+    Allow configuration regular expression: none
+    Deny configuration regular expression: none

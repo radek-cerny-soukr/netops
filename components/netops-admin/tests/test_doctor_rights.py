@@ -5,7 +5,7 @@ from types import SimpleNamespace
 
 import pytest
 from fake_exos import FakeExos
-from fake_fortiadc import FakeFortiADC
+from fake_fortiadc_admin import FakeADC as FakeFortiADC
 from fake_fortios import FakeFortiOS
 from fake_webhook import FakeFortiOSWebhook
 from test_execute import make_runtime
@@ -20,7 +20,6 @@ from netops_admin.errors import Rejected
 WRITE = "write account rights"
 CHECK = "check account rights"
 TABLE = "Accounts and least privilege"
-NO_ADAPTER = "platform 'fortiadc' has no plan and apply adapter"
 
 
 class Fake768(FakeFortiOS):
@@ -44,11 +43,10 @@ def adc_runtime(tmp_path, device):
 
 
 def adc_doctor(tmp_path, device):
-    with pytest.raises(Rejected) as refused:
-        readiness.doctor(adc_runtime(tmp_path, device), "lab")
-    reasons = refused.value.reasons
-    assert reasons[0] == NO_ADAPTER
-    return {line.split(": ", 1)[0]: line.split(": ", 1)[1] for line in reasons[1:]}
+    # since 1.0.10 (task 306) FortiADC has a plan and apply adapter: doctor reports instead of refusing
+    report = readiness.doctor(adc_runtime(tmp_path, device), "lab")
+    return {item["check"]: item["status"] + ("" if item["detail"] is None else " (%s)" % item["detail"])
+            for item in report["checks"]}
 
 
 def adc_rights(line):
@@ -286,15 +284,15 @@ def test_exos_has_no_rights_check(tmp_path):
     assert WRITE not in found and CHECK not in found
 
 
-def test_adc_doctor_still_refuses_as_before(tmp_path):
+def test_adc_doctor_on_an_unreadable_device_skips_the_rights(tmp_path):
     device = FakeFortiADC()
     device.unreadable = True
     found = adc_doctor(tmp_path, device)
-    assert adc_rights(found[WRITE])[0] == readiness.UNVERIFIED
-    assert adc_rights(found[CHECK])[0] == readiness.UNVERIFIED
+    assert adc_rights(found[WRITE])[0] == readiness.SKIPPED
+    assert adc_rights(found[CHECK])[0] == readiness.SKIPPED
 
 
-def test_adc_doctor_refuses_on_the_command_line_and_in_mcp(tmp_path, monkeypatch, capsys):
+def test_adc_doctor_reports_on_the_command_line_and_in_mcp(tmp_path, monkeypatch, capsys):
     from test_mcp_server import call
 
     from netops_admin import mcp_server
@@ -303,18 +301,19 @@ def test_adc_doctor_refuses_on_the_command_line_and_in_mcp(tmp_path, monkeypatch
     monkeypatch.setattr(config_module, "load_config", lambda _path: runtime.config)
     monkeypatch.setattr(cli, "build_runtime", lambda *_args, **_kwargs: runtime)
     assert cli.main(["doctor", "--config", str(tmp_path / "admin.json"), "--device", "lab"],
-                    require_export=False) == cli.EXIT_REJECTED
-    assert '"ready"' not in capsys.readouterr().out
+                    require_export=False) == cli.EXIT_NOT_READY
+    assert '"ready": false' in capsys.readouterr().out
     monkeypatch.setattr(mcp_server, "_CONFIGURATION", runtime.config)
     monkeypatch.setattr(mcp_server, "build_runtime", lambda *_args, **_kwargs: runtime)
     answer = call("admin_doctor", {"device": "lab"})
-    assert answer["result"] == "rejected" and answer["reasons"][0] == NO_ADAPTER and "ready" not in answer
+    assert answer["platform"] == "fortiadc" and answer["ready"] is False
+    assert {item["check"]: item["status"] for item in answer["checks"]}[WRITE] == readiness.OK
 
 
 def test_adc_system_admin_write_account_is_ok(tmp_path):
     found = adc_doctor(tmp_path, FakeFortiADC())
     status, detail = adc_rights(found[WRITE])
-    assert status == readiness.OK and "system administrator" in detail and "pool-member" in detail
+    assert status == readiness.OK and "system administrator" in detail and "health precheck" in detail
     assert found["credentials"] == readiness.OK
 
 
@@ -340,7 +339,7 @@ def test_adc_read_check_account_is_ok(tmp_path):
         ("netops-check", 'show system admin "netops-check"'),
         ("netops-check", 'show system accprofile "netops-read"'),
     ]
-    assert device.applied_blocks == [] and device.queries == []
+    assert device.applied_blocks == []
 
 
 def test_adc_read_write_area_on_the_check_account_is_a_warning(tmp_path):

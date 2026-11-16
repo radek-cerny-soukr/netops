@@ -4,6 +4,7 @@ import json
 import os
 import re
 import sqlite3
+import time
 from datetime import datetime, timezone
 
 from .engine import RULE_STATES
@@ -15,10 +16,17 @@ SCHEMA_VERSION = 2
 PREVIOUS_SCHEMA_VERSION = 1
 MIGRATE_COMMAND = "netops-auditor migrate-store --store <file>"
 # Explicit busy timeout for every store connection (writer and read-only MCP reader).
-# The store keeps the rollback journal (no WAL): a writer holds the database only
-# for the short BEGIN IMMEDIATE ... COMMIT of one run, so readers and a second
-# writer wait for it instead of failing with "database is locked".
+# The store uses the write-ahead log (journal_mode=WAL, kept in the file; the writer
+# switches an older rollback-journal store once when it opens it, see _write_ahead_log).
+# In WAL a read-only MCP call keeps one read transaction for the whole call and reads
+# one committed state without copying the store; the COMMIT of a concurrent run does
+# not wait for that reader, and the reader does not wait for the COMMIT. Writers still
+# take turns (BEGIN IMMEDIATE ... COMMIT of one run): a second writer waits up to this
+# timeout instead of failing with "database is locked", and so does the one-time switch
+# to WAL while another connection holds the store.
 BUSY_TIMEOUT_SECONDS = 15.0
+JOURNAL_MODE = "wal"
+_RETRY_SECONDS = 0.05
 
 SCHEMA = (
     """CREATE TABLE IF NOT EXISTS runs (
@@ -260,6 +268,31 @@ def _initialize(connection) -> None:
         raise
 
 
+def _write_ahead_log(connection) -> None:
+    """Keep the store in WAL; an older rollback-journal store is switched once, data unchanged.
+
+    The switch needs the store for itself for a moment. SQLite answers "database is locked"
+    at once (without its busy handler) when another connection holds a write lock, so the
+    switch is retried until the busy timeout. The WAL files beside the store (-wal, -shm)
+    get the owner and mode of the store and belong to it (copy them with it). SQLite folds
+    the -wal into the store and removes both when the last connection closes cleanly; a
+    read-only reader that closes last leaves them for the next writer.
+    """
+    deadline = time.monotonic() + BUSY_TIMEOUT_SECONDS
+    while True:
+        try:
+            mode = connection.execute("PRAGMA journal_mode = WAL").fetchone()[0]
+            break
+        except sqlite3.OperationalError as error:
+            if "locked" not in str(error) or time.monotonic() >= deadline:
+                raise
+            time.sleep(_RETRY_SECONDS)
+    if str(mode).lower() != JOURNAL_MODE:
+        raise StoreError(
+            "store journal mode stays %s instead of %s; keep the store on a local file system" % (mode, JOURNAL_MODE)
+        )
+
+
 _SELECT_MIGRATED_FINDINGS = (
     "SELECT findings.id, findings.fingerprint, findings.rule_id, findings.rule_version,"
     " findings.device, findings.object_key, runs.tenant FROM findings"
@@ -452,6 +485,8 @@ class Store:
             self._connection.row_factory = sqlite3.Row
             self._connection.execute("PRAGMA foreign_keys = ON")
             _initialize(self._connection)
+            if str(path) not in ("", ":memory:"):
+                _write_ahead_log(self._connection)
         except StoreError:
             self._connection.close()
             raise

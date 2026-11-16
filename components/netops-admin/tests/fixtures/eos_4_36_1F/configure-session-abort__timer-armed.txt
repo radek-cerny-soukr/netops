@@ -1,0 +1,1 @@
+Commit timer canceled, reverting running-config to a previous checkpoint...done

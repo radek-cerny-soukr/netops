@@ -116,7 +116,7 @@ def fortios_check(access):
 def fortiadc_write(access):
     fields = _read(access, _admin_command(access.credential.login), False, FORTIADC_FIELD, entry=True)
     if fields.get("is-system-admin") == "yes":
-        return OK, "system administrator, which pool-member needs"
+        return OK, "system administrator, which the pool member health precheck (vs_stat) and pool-member need"
     if "access-profile" not in fields:
         raise Rejected(["the administrator entry of %s shows no local access profile" % access.credential.login])
     return OK, "access profile %s" % fields["access-profile"]

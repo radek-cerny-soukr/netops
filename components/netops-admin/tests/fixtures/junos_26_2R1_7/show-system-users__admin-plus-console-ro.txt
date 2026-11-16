@@ -1,0 +1,4 @@
+12:15AM  up 7 days,  1:57, 2 users, load averages: 15.54, 18.77, 17.70
+USER     TTY      FROM                              LOGIN@  IDLE WHAT
+netops-ro u0      -                                Tue03AM 5days login [pam] (l
+netops-adm pts/0  192.0.2.36                    12:15AM     - -cli (cli)    

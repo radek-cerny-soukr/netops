@@ -1,0 +1,3 @@
+[edit interfaces ge-0/0/2 description]
+  'description netops-c8-p5-b'
+    warning: statement exists (discarding old value, replacing with 'netops-c8-p5-a')

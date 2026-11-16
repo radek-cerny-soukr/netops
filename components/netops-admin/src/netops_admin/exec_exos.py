@@ -68,9 +68,7 @@ def _port_prechecks(access, device, plan, snapshot_text) -> None:
     else:
         plan["prechecks"].append("port %s now: port state %s, link state %s"
                                  % (key, shown["port_state"], shown["link_state"]))
-    if (plan["predicted"]["after"] or {}).get("admin-state") != "disabled" \
-            or (plan["predicted"]["before"] or {}).get("admin-state") == "disabled":
-        return
+    # called only when the admin state changes; the checks below apply to enabling as well as disabling
     snapshot = exos.Snapshot(snapshot_text, device.firmware)
     if not exos.vlan_module_closed(snapshot):
         raise Rejected(["the configuration ends inside its vlan module; VLAN membership of port %s cannot be read "
@@ -82,10 +80,10 @@ def _port_prechecks(access, device, plan, snapshot_text) -> None:
         raise Rejected(["port %s is a member of a management VLAN of the audit policy" % key],
                        reason_codes=["port_management_vlan"])
     if key in exos.lldp_ports(access.query(exos.QUERY_LLDP)):
-        raise Rejected(["port %s has an LLDP neighbor (uplink or managed device); disabling it is refused" % key],
+        raise Rejected(["port %s has an LLDP neighbor (uplink or managed device); changing its admin state is refused" % key],
                        reason_codes=["port_lldp_neighbor"])
     if key in exos.fdb_ports(access.query(exos.QUERY_FDB)):
-        raise Rejected(["port %s has learned MAC addresses; disabling a port in use is refused" % key],
+        raise Rejected(["port %s has learned MAC addresses; changing the admin state of a port in use is refused" % key],
                        reason_codes=["port_learned_mac"])
     plan["prechecks"].append("port %s has no LLDP neighbor and no learned MAC address" % key)
 

@@ -1,0 +1,8 @@
+Current user: 'netops-ro   ' class 'read-only'
+Permissions:
+    view        -- Can view current values and statistics
+Individual command authorization:
+    Allow regular expression: none
+    Deny regular expression: none
+    Allow configuration regular expression: none
+    Deny configuration regular expression: none

@@ -1,0 +1,4 @@
+Interface       Admin Link Description
+ge-0/0/2        up    down netops-c8-a2
+
+# commit confirmed will be rolled back in 1 minute

@@ -9,10 +9,17 @@ from netops_admin import schema_runtime
 from netops_admin.errors import Rejected
 
 QUERY_TIMEOUT_SECONDS = 60.0
+# vJunos under load answered ssh exec reads in more than 60 s (task 319; the measurement of task 308 saw 121 s until
+# the SSH banner), the same limit as a collected snapshot
+JUNOS_QUERY_TIMEOUT_SECONDS = 180.0
 SNAPSHOT_TIMEOUT_SECONDS = 180.0
 LINE_TIMEOUT_SECONDS = 30.0
 LOGIN_TIMEOUT_SECONDS = 30.0
 PASSWORD_PROMPT = b"password:"
+EOS_SNAPSHOT = "show running-config"
+NXOS_SNAPSHOT = "show running-config"
+IOS_SNAPSHOT = "show running-config"
+JUNOS_SNAPSHOT = "show configuration | display set"
 HOSTNAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
 
 
@@ -25,6 +32,17 @@ class AccessError(Exception):
 class DeviceAccess:
     read_seconds = None
     last_stderr = ""
+    # set only for an adapter that watches its on-device timer (TIMER_WATCH: IOS, IOS XE, NX-OS and Junos; Junos
+    # through its line_guard_for, see execute.py): a callable that answers whether the next configuration line may
+    # still be sent; None (every other platform) sends every line as before
+    line_guard = None
+    # the answers of the lines of the last apply (decoded, in order); an adapter that needs the output of its own
+    # session as evidence (IOS: the archive named by "configure terminal revert timer") reads them
+    last_answers = ()
+    # set only by an adapter that notes what its own session created (NX-OS safeguard installation): called with the
+    # number and the decoded answer of every line the device accepted, right after it; None (every other platform
+    # and every other session) calls nothing
+    line_answered = None
 
     def __init__(self, device):
         self.device = device
@@ -52,6 +70,32 @@ class DeviceAccess:
         return self._host_key_lines[address]
 
     def snapshot(self) -> str:
+        if self.device.platform == "eos":
+            # one ssh exec command with privilege 15 at login (measured on cEOSLab 4.36.1F); the plan adapter
+            # refuses an answer without its first line "! Command: show running-config" or its last line "end"
+            return self._query(self.credential, EOS_SNAPSHOT)
+        if self.device.platform == "nxos":
+            # one ssh exec command of the write account (network-admin); NX-OS prints no "end", so the plan
+            # adapter refuses an answer without its header or without interface mgmt0, line vty and boot nxos
+            return self._query(self.credential, NXOS_SNAPSHOT)
+        if self.device.platform in ("ios", "iosxe"):
+            # one ssh exec command of the write account (privilege 15 at login, measured on IOSv, IOSvL2, IOL XE and
+            # IOL-L2 XE); the plan adapter refuses an answer without "Building configuration..." and the configuration
+            # size or without its last line "end", and an exec answer "Line has invalid autocommand" (exit status 0)
+            return self._query(self.credential, IOS_SNAPSHOT)
+        if self.device.platform == "junos":
+            # one ssh exec command of the write account (measured on vJunos-switch 26.2R1.7: the answer has no pager,
+            # starts with "set version" and its status is 0 even for an error); the plan adapter refuses anything else
+            return self._query(self.credential, JUNOS_SNAPSHOT)
+        if self.device.platform == "fortiadc":
+            # the Auditor collector has no FortiADC steps: Admin composes the four sections it plans against
+            from netops_admin import exec_fortiadc
+            try:
+                return exec_fortiadc.snapshot(self)
+            except Rejected:
+                raise
+            except Exception as exc:
+                raise AccessError("snapshot collection failed: %s" % exc) from None
         try:
             taken, _events = collect.collect_ssh(
                 self.device.name, self.device.platform, self.device.address, self.device.port,
@@ -90,11 +134,12 @@ class DeviceAccess:
     def _query(self, credential, command: str, any_status: bool = False, address=None,
                with_stderr: bool = False, with_status: bool = False):
         address = address or self.device.address
+        limit = JUNOS_QUERY_TIMEOUT_SECONDS if self.device.platform == "junos" else QUERY_TIMEOUT_SECONDS
         try:
             result = ssh.run_command(
                 address, self.device.port, None, credential, self._host_key(address), command,
                 legacy_ssh=self.device.legacy_ssh, timeout_seconds=(
-                    QUERY_TIMEOUT_SECONDS if self.read_seconds is None else min(QUERY_TIMEOUT_SECONDS, self.read_seconds)),
+                    limit if self.read_seconds is None else min(limit, self.read_seconds)),
             )
         except ssh.SshError as exc:
             raise AccessError("query failed: %s" % exc) from None
@@ -142,37 +187,46 @@ class DeviceAccess:
         prompts = [spec.anchor] + ([spec.continuation] if spec.continuation else [])
         if any(_step(step)[0] == "password" for step in steps) and getattr(self.credential, "kind", None) != "password":
             raise AccessError("the administrator password prompt needs a password write credential")
-        accepted, frames = 0, []
+        accepted, frames, answers = 0, [], []
+        self.last_answers = answers
+        guard, answered = self.line_guard, self.line_answered
         try:
             with self._session() as shell:
                 self._login(shell, spec)
                 for number, step in enumerate(steps, 1):
                     kind, text, pattern = _step(step)
+                    if guard is not None and not guard():
+                        raise AccessError("line %d was not sent: the safeguard of the device has too little time left"
+                                          % number, accepted)
                     _enter(frames, text)
                     shell.send(spec.typed(text) if spec.typed else text)
                     if kind == "raw":
                         accepted += 1
                         continue
+                    seconds = _line_seconds(spec, text)
                     if kind == "ask":
-                        _index, data = shell.expect([pattern], LINE_TIMEOUT_SECONDS)
+                        _index, data = shell.expect([pattern], seconds)
                     else:
                         index, data = shell.expect(([PASSWORD_PROMPT] if kind == "password" else []) + prompts,
-                                                   LINE_TIMEOUT_SECONDS)
+                                                   seconds)
                         if kind == "password" and index == 0:
                             shell.send(self.credential.use())
-                            index, answer = shell.expect(prompts, LINE_TIMEOUT_SECONDS)
+                            index, answer = shell.expect(prompts, seconds)
                             data += answer
                         elif kind == "password":
                             index -= 1
                         if index == 0:
-                            _tail_index, tail = shell.expect(list(spec.ends), LINE_TIMEOUT_SECONDS)
+                            _tail_index, tail = shell.expect(list(spec.ends), seconds)
                             data += tail
+                    answers.append(data.decode("utf-8", "replace"))
                     marker = spec.error(data.decode("utf-8", "replace"))
                     if marker is not None:
                         raise AccessError("line %d%s was refused by the device: %s"
                                           % (number, _where(frames), _answer(spec, data, marker)), accepted)
                     _leave(frames, text)
                     accepted += 1
+                    if answered is not None:
+                        answered(number, answers[-1])
         except session.SessionError as exc:
             raise AccessError("interactive session failed after %d lines: %s" % (accepted, exc), accepted) from None
         return accepted
@@ -195,6 +249,11 @@ class DeviceAccess:
         except session.SessionError as exc:
             raise AccessError("interactive session failed while generating the API key: %s" % exc) from None
         return (asked + answer).decode("utf-8", "replace")
+
+
+def _line_seconds(spec, text) -> float:
+    limit = getattr(spec, "seconds", None)
+    return LINE_TIMEOUT_SECONDS if limit is None else float(limit(text))
 
 
 def _enter(frames, text):

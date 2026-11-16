@@ -1,0 +1,8 @@
+                                                                  ^
+syntax error.
+netops-admin@host01# set interfaces ge-0/0/2 description netops c8bez
+                                                                  ^
+syntax error.
+netops-admin@host01# set interfaces ge-0/0/2 description netops c8bezuvozovek
+                                                                  ^
+syntax error.

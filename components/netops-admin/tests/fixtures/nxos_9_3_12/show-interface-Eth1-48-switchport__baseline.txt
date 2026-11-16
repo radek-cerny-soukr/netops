@@ -1,0 +1,12 @@
+Name: Ethernet1/48
+  Switchport: Enabled
+  Switchport Monitor: Not enabled 
+  Switchport Isolated : Not enabled 
+  Switchport Block Multicast: Not enabled 
+  Switchport Block Unicast: Not enabled 
+  Operational Mode: access
+  Access Mode VLAN: 1 (default)
+  Trunking Native Mode VLAN: 1 (default)
+  Trunking VLANs Allowed: 1-4094
+  Voice VLAN: none
+  Extended Trust State : not trusted [COS = 0]

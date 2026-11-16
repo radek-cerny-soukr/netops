@@ -1,0 +1,22 @@
+Collecting Running-Config
+Generating Rollback Patch
+
+!!                                                                  
+
+interface Ethernet1/48
+
+  no shutdown
+
+  no description netops-c6-b
+
+  exit
+
+interface Ethernet1/48
+
+  no shutdown
+
+configure terminal
+
+no scheduler schedule name netops-c6-2
+
+no scheduler job name netops-c6-2

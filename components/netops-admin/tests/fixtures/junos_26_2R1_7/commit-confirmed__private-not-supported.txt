@@ -1,0 +1,1 @@
+error: commit confirmed not supported for private configuration

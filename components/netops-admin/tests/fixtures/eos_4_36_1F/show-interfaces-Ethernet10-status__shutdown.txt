@@ -1,0 +1,2 @@
+Port       Name        Status       Vlan     Duplex Speed  Type            Flags Encapsulation
+Et10       netops-c7-b disabled     1        full   1G     EbraTestPhyPort                   

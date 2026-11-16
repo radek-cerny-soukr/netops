@@ -122,15 +122,17 @@ def test_a_collect_refused_at_acceptance_keeps_only_the_events_of_its_collection
 def test_a_store_locked_while_the_baseline_is_written_records_no_run(tmp_path, capsys, monkeypatch):
     database = tmp_path / "audit.sqlite"
     real_connect = sqlite3.connect
-    holders, seen = [], []
+    holders, commits = [], []
 
     def lock(statement):
-        if statement.startswith("INSERT OR IGNORE INTO baseline"):
-            seen.append(statement)
-        if statement == "COMMIT" and seen and not holders:
+        # WAL: only a writer blocks a writer. The run is one BEGIN IMMEDIATE ... COMMIT (baseline included),
+        # so another connection takes the write lock right before it: after the schema transaction (the first
+        # COMMIT on the fresh store) has ended, the next BEGIN IMMEDIATE is the run's.
+        if statement == "COMMIT":
+            commits.append(statement)
+        if statement == "BEGIN IMMEDIATE" and commits and not holders:
             holder = real_connect(str(database), isolation_level=None)
-            holder.execute("BEGIN")
-            holder.execute("SELECT count(*) FROM runs").fetchone()
+            holder.execute("BEGIN IMMEDIATE")
             holders.append(holder)
 
     def connect(*args, **keywords):
@@ -148,7 +150,7 @@ def test_a_store_locked_while_the_baseline_is_written_records_no_run(tmp_path, c
             for holder in holders:
                 holder.execute("ROLLBACK")
                 holder.close()
-    assert holders and seen
+    assert holders
     assert (code, out) == (cli.EXIT_ERROR, "")
     assert counts(database) == (0, 0, 0, 0)
     assert err.startswith("error: store ") and err.count("\n") == 1
