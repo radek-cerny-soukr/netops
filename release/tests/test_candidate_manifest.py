@@ -124,6 +124,14 @@ class CandidateManifest(unittest.TestCase):
         self.write("digest-amd64.txt", "latest")
         self.assertEqual(self.run_tool()[0], 1)
 
+    def test_other_product_series_rejected(self):
+        for version in ("0.9.9", "1.1.0", "2.0.0", "1.0.11rc1"):
+            with self.subTest(version=version):
+                rc, _, err = self.run_tool(version=version)
+                self.assertEqual(rc, 1)
+                self.assertIn("version must be 1.0.x", err)
+                self.assertFalse(os.path.exists(self.release))
+
     def test_env_without_or_with_two_image_lines_rejected(self):
         self.write("env.example", "NETOPS_PORT=8443\n")
         rc, _, err = self.run_tool()
@@ -151,6 +159,28 @@ class CandidateManifest(unittest.TestCase):
     def test_missing_sbom_rejected(self):
         os.remove(os.path.join(self.d, "sbom-arm64.cdx.json"))
         self.assertEqual(self.run_tool()[0], 1)
+
+
+class DailyReleaseVersion(unittest.TestCase):
+    def test_latest_tag_is_checked_before_download_or_scan(self):
+        workflow = os.path.join(HERE, "..", "..", ".github", "workflows", "cve-daily.yml")
+        with open(workflow, encoding="utf-8") as stream:
+            text = stream.read()
+        start = text.index('          version="${tag#v}"\n')
+        end = text.index("          mkdir -p out\n", start)
+        self.assertLess(end, text.index('          gh release download "$tag"', start))
+        self.assertLess(end, text.index("          grype db update", start))
+        script = 'set -euo pipefail\ntag="$1"\n' + text[start:end] + 'printf "accepted:%s\\n" "$version"\n'
+        for tag, accepted in (("v1.0.11", True), ("1.0.0", True), ("v0.9.9", False),
+                              ("v1.1.0", False), ("v2.0.0", False), ("v1.0.11rc1", False),
+                              ("v1.0.11\n", False), ("v1x0x11", False)):
+            with self.subTest(tag=tag):
+                proc = subprocess.run(["bash", "--noprofile", "--norc", "-c", script, "daily-version", tag],
+                                      capture_output=True, text=True, timeout=10)
+                self.assertEqual(proc.returncode, 0 if accepted else 1, proc.stderr)
+                self.assertEqual(proc.stdout, "accepted:" + tag.removeprefix("v") + "\n" if accepted else "")
+                if not accepted:
+                    self.assertIn("expected 1.0.x", proc.stderr)
 
 
 if __name__ == "__main__":

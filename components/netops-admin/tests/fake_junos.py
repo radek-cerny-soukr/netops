@@ -5,7 +5,8 @@ netops-provoz-20261116-308). The configuration starts from the reconstructed lab
 commit history and the commit confirmed timer follow the measured behaviour: configure exclusive works on the shared
 candidate and drops it at exit, every commit confirmed restarts the timer, commit check and a plain commit confirm it,
 the timer expires 0-60 s after its minutes and the automatic rollback is committed as "root via other" a while later,
-and a confirmation that starts before the expiry wins the race.
+returning the configuration before the newest commit confirmed (task netops-20261116-378), and a confirmation that
+starts before the expiry wins the race.
 """
 from __future__ import annotations
 
@@ -303,8 +304,10 @@ class FakeJunos:
         if minutes is None:
             self.timer = None
             return "commit complete"
-        target = self.timer["target"] if self.timer is not None else before
-        self.timer = {"minutes": minutes, "expire": self.epoch + minutes * 60 + self.expiry_delay, "target": target}
+        # measured in task 378: the expiry returns the configuration before the NEWEST commit confirmed (after an
+        # empty safeguard, a change and an inverse each committed with commit confirmed, the change came back), not
+        # the configuration before the first one
+        self.timer = {"minutes": minutes, "expire": self.epoch + minutes * 60 + self.expiry_delay, "target": before}
         return ("commit confirmed will be automatically rolled back in %d minutes unless confirmed\ncommit complete"
                 % minutes)
 

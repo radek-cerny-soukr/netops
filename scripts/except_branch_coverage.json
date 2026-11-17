@@ -1,8 +1,8 @@
 {
   "components": {
     "netops-admin": {
-      "branches": 67,
-      "covered": 60,
+      "branches": 83,
+      "covered": 74,
       "min_percent": 89,
       "modules": {
         "netops_admin/audit.py": {
@@ -12,9 +12,9 @@
           "min_percent": 100
         },
         "netops_admin/execute.py": {
-          "branches": 44,
-          "branches_in_source": 44,
-          "covered": 40,
+          "branches": 60,
+          "branches_in_source": 60,
+          "covered": 54,
           "min_percent": 90
         },
         "netops_admin/notify.py": {
@@ -32,27 +32,27 @@
       }
     },
     "netops-auditor": {
-      "branches": 81,
-      "covered": 62,
-      "min_percent": 76,
+      "branches": 77,
+      "covered": 61,
+      "min_percent": 79,
       "modules": {
         "netops_auditor/cli.py": {
-          "branches": 45,
-          "branches_in_source": 45,
-          "covered": 31,
-          "min_percent": 68
+          "branches": 43,
+          "branches_in_source": 43,
+          "covered": 30,
+          "min_percent": 69
         },
         "netops_auditor/collect.py": {
           "branches": 22,
           "branches_in_source": 22,
-          "covered": 18,
-          "min_percent": 81
+          "covered": 19,
+          "min_percent": 86
         },
         "netops_auditor/store.py": {
-          "branches": 14,
-          "branches_in_source": 14,
-          "covered": 13,
-          "min_percent": 92
+          "branches": 12,
+          "branches_in_source": 12,
+          "covered": 12,
+          "min_percent": 100
         }
       }
     },
@@ -82,21 +82,21 @@
       }
     },
     "netops-helper": {
-      "branches": 180,
-      "covered": 174,
-      "min_percent": 96,
+      "branches": 235,
+      "covered": 229,
+      "min_percent": 97,
       "modules": {
         "netops_helper/engine.py": {
-          "branches": 106,
-          "branches_in_source": 106,
-          "covered": 106,
+          "branches": 159,
+          "branches_in_source": 159,
+          "covered": 159,
           "min_percent": 100
         },
         "netops_helper/proxy.py": {
-          "branches": 74,
-          "branches_in_source": 74,
-          "covered": 68,
-          "min_percent": 91
+          "branches": 76,
+          "branches_in_source": 76,
+          "covered": 70,
+          "min_percent": 92
         }
       }
     }

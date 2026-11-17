@@ -14,7 +14,7 @@ try:
 except ModuleNotFoundError:
     sys.stderr.write(
         "netops-auditor mcp: the MCP surface needs fastmcp, which the auditor does not install"
-        " itself; install the pin in requirements-mcp.txt. The command line"
+        " itself; run it from the complete NetOps image, which contains it. The command line"
         " runs without it.\n"
     )
     raise SystemExit(2) from None
@@ -125,9 +125,8 @@ class ReadOnlyStore(Store):
         if version != SCHEMA_VERSION:
             self._connection.close()
             raise ConfigurationError(
-                "%s names %s, which holds schema version %d instead of %d; this server never"
-                " writes, so the store is migrated with the CLI"
-                % (STORE_VARIABLE, location, version, SCHEMA_VERSION)
+                "%s names %s, which holds schema version %d instead of %d; this store format is"
+                " not supported" % (STORE_VARIABLE, location, version, SCHEMA_VERSION)
             )
 
 

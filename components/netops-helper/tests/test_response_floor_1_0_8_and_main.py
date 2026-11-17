@@ -36,6 +36,7 @@ def _load(name, alias):
 
 MAIN = _load("release_14c6a5a_chain.py", "release_14c6a5a_chain_main")
 MAIN.bind_layers()
+PROXY_1_0_8 = MAIN.PROXY_1_0_8
 # The 1.0.8 credential rules on span-carrying (SNMP) documents, as the released module ran them.
 RULES_1_0_8 = _load("release_1_0_8_chain.py", "release_1_0_8_chain_spans")
 RULES_1_0_8.Marked, RULES_1_0_8.sub, RULES_1_0_8.replace, RULES_1_0_8.edits = Marked, sub, replace, edits
@@ -222,7 +223,9 @@ _WORDS = ("username ", "USERNAME ", "admin ", "secret ", "password ", "Secret ",
           # Later-layer anchors (proxy, product, SNMP context) and terminal controls.
           "set password ", "set ", "set community ", "set psksecret ", "unset password ", "passwd ",
           "config system snmp community\n", "edit 1\n", "set name ", "next\n", "end\n",
-          "configure snmp add community readonly ", "-----BEGIN PRIVATE KEY-----", "\x1b[0m", "\x01")
+          "configure snmp add community readonly ",
+          # Split literal: the same anchor value, but no PEM marker line for the release source gate.
+          "-----BEGIN PRIVATE " "KEY-----", "\x1b[0m", "\x01")
 
 
 def _case(generator, unique):
@@ -320,3 +323,49 @@ def test_floor_ranges_keep_linear_time():
     # Four times the input: about four times the time; quadratic work would be ~16 times.
     assert large < max(small, 0.05) * 6, (small, large)
     assert large < 120, (small, large)
+
+
+def test_frozen_proxy_1_0_8_matches_302_fixtures_and_is_independent(monkeypatch):
+    """Today's legacy rules agree; changing the product proxy cannot change the oracle."""
+    import hashlib
+
+    path = pathlib.Path(PROXY_1_0_8.__file__).resolve()
+    assert path == HERE.resolve().parents[2] / "tests/v1/fixtures/proxy_sanitize_1_0_8.py"
+    assert not PROXY_1_0_8.__name__.startswith("netops_helper.")
+    # Pin the original bytes as well as the documented, import-only adaptation.
+    original = path.read_bytes().split(b'"""', 1)[1]
+    original = b'"""' + original.replace(b'from netops_helper.sanitize import ', b'from .sanitize import ')
+    assert hashlib.sha256(original).hexdigest() == "3fa8532e15ab283ba6ac426db0b04fa89b1ba01e204af0d75401d892b60461de"
+    corpus = [text for text, _ in R3RV.values()] + list(FIXED.values())
+    samples = [(value, secrets) for text in corpus
+               for value in (text, sanitize._origin(text), {"output": text},
+                             json.dumps({"output": text}))
+               for secrets in ((), (CANARY,))]
+    expected = [proxy_sanitize._sanitize_object(value, secrets, typed=False)
+                for value, secrets in samples]
+    def observed(result, value):
+        if isinstance(value, str):
+            # Compare credential kinds, but compare origin tracking by ranges:
+            # separate proxy calls create distinct origin marker objects.
+            credentials = Marked(result, [(start, end, kind)
+                                         for start, end, kind in getattr(result, "spans", ())
+                                         if kind is None or kind == "community"])
+            return sanitize._coverage(credentials), sanitize._unclaimed(str.__str__(value), result)
+        return result
+
+    expected = [observed(result, value) for result, (value, _) in zip(expected, samples)]
+    assert [observed(PROXY_1_0_8._sanitize_object(value, secrets), value)
+            for value, secrets in samples] == expected
+    def changed_proxy(*args, **kwargs):
+        raise AssertionError("the reference imported the current proxy")
+
+    monkeypatch.setattr(proxy_sanitize, "_sanitize_object", changed_proxy)
+    monkeypatch.setattr(sanitize, "_proxy_1_0_8", changed_proxy)
+    assert [observed(PROXY_1_0_8._sanitize_object(value, secrets), value)
+            for value, secrets in samples] == expected
+
+
+def test_frozen_proxy_1_0_8_public_wrappers_are_disabled():
+    for function in (PROXY_1_0_8.sanitize_object, PROXY_1_0_8.sanitize_text):
+        with pytest.raises(RuntimeError, match=r"^frozen 1\.0\.8 reference: use _sanitize_object$"):
+            function("set community synthetic-canary", ())

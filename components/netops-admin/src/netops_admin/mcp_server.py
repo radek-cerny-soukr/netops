@@ -13,7 +13,7 @@ try:
 except ModuleNotFoundError:
     sys.stderr.write(
         "netops-admin mcp: the MCP surface needs fastmcp, which netops-admin does not install itself;"
-        " install the pin in requirements-mcp.txt. The command line runs without it.\n"
+        " run it from the complete NetOps image, which contains it. The command line runs without it.\n"
     )
     raise SystemExit(2) from None
 

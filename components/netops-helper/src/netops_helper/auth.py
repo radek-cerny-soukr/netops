@@ -54,7 +54,6 @@ class EgressScopeError(PolicyScopeError):
 
 
 LEGACY_SSH_PROFILES = ("rsa-sha1", "rsa-sha1-dh14")
-ENVELOPE_VERSION = "0.3.0"
 CREDENTIAL_KINDS = ("password", "ssh-key")
 _CATALOG_PLATFORMS = {"fortios": "fortinet", "exos": "extreme_exos"}
 ADMIN_BOUNDED_PLATFORMS = frozenset({"fortinet", "fortiadc", "ruckus_unleashed"})

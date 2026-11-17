@@ -214,7 +214,7 @@ def test_apply_without_a_plan_hash_and_repeat_with_any_hash(served):
 def test_schema_apply_has_no_plan_binding():
     async def run():
         async with fastmcp.Client(mcp_server.mcp) as client:
-            return {tool.name: tool.inputSchema for tool in await client.list_tools()}
+            return {tool.name: tool.input_schema for tool in await client.list_tools()}
 
     schemas = asyncio.run(run())
     assert "expected_plan_sha256" in schemas["admin_apply"]["properties"]

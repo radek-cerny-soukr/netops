@@ -29,7 +29,7 @@ COMMIT = "a" * 40
 IMAGE = "ghcr.io/radek-cerny-soukr/netops"
 A = "sha256:" + "1" * 64
 B = "sha256:" + "2" * 64
-V = "1.0.10"
+V = "1.0.11"
 ARCHES = ("amd64", "arm64")
 SUITES = ("blackbox", "redteam", "failclosed", "syslog", "device", "token-output")
 BLIND_INSTALL_ROWS = ("blind-install-fedora-amd64", "blind-install-debian-amd64")
@@ -45,8 +45,8 @@ INSTALL_CHECKS = ("cosign-verify-blob", "sha256sum-check", "container-healthy", 
                   "unauthenticated-401", "mcp-tools-list", "audit-without-token")
 UPGRADE_CHECKS = ("upgrade-steps-from-docs", "health-ready", "version-is-candidate", "data-preserved", "token-preserved", "ca-preserved")
 UPGRADE_ROW = "blind-upgrade-amd64"
-FROM_VERSION = "1.0.9"
-FROM_IMAGE = IMAGE + "@sha256:94cec4ff7ec7d83710e0acf3e39ba5209212a01ec7d17ba3fbc610d89af7ce51"
+FROM_VERSION = "1.0.10"
+FROM_IMAGE = IMAGE + "@sha256:1635727983f1d000ad9ec424e8339846e6b700f919cd77406c074ef18efbc8f4"
 
 
 def release_docs():
@@ -463,7 +463,7 @@ class SignTool(unittest.TestCase):
 
     def test_blind_report_must_name_the_candidate_version(self):
         for row in BLIND_ROWS:
-            for value in ("1.0.9", V + " ", "v" + V, 103, None, MISSING):
+            for value in ("1.0.10", V + " ", "v" + V, 103, None, MISSING):
                 with self.subTest(row=row, value=value):
                     report = default_report(row)
                     if value is MISSING:
@@ -476,9 +476,9 @@ class SignTool(unittest.TestCase):
                     self.assertEqual(rc, 1, out)
                     self.assertRegex(out, r"(?m)^acceptance %s\s+FAIL\s+report does not name version %s" % (re.escape(row), re.escape(V)))
 
-    def test_blind_upgrade_must_start_from_the_1_0_5_release_image(self):
-        cases = [("from_version", v) for v in ("1.0.10", "1.0.4", FROM_VERSION + " ", "v" + FROM_VERSION, 102, None, MISSING)]
-        cases += [("from_image", v) for v in (IMAGE + "@" + A, IMAGE + ":1.0.9", IMAGE + "@sha256:" + "0" * 64, FROM_IMAGE.split("@")[1],
+    def test_blind_upgrade_must_start_from_the_previous_release_image(self):
+        cases = [("from_version", v) for v in ("1.0.11", "1.0.4", FROM_VERSION + " ", "v" + FROM_VERSION, 102, None, MISSING)]
+        cases += [("from_image", v) for v in (IMAGE + "@" + A, IMAGE + ":1.0.10", IMAGE + "@sha256:" + "0" * 64, FROM_IMAGE.split("@")[1],
                                               FROM_IMAGE.upper(), FROM_IMAGE + " ", None, MISSING)]
         for field, value in cases:
             with self.subTest(field=field, value=value):
@@ -512,22 +512,163 @@ class SignTool(unittest.TestCase):
                     self.assertEqual(rc, 1, out)
                     self.assertRegex(out, r"(?m)^acceptance %s\s+FAIL\s+%s" % (re.escape(row), re.escape(text)))
 
-    def test_tool_signs_only_1_0_10_and_later(self):
+    def test_tool_signs_only_the_1_0_x_series_from_1_0_11(self):
         global V
         saved = V
         try:
-            for version, expected in (("1.0.9", 1), ("1.0.4", 1), ("0.9.9", 1), ("1.0.10", 0), ("1.0.11", 0), ("1.1.0", 0)):
+            for version, expected in (("1.0.10", 1), ("1.0.4", 1), ("0.9.9", 1), ("0.2.12", 1), ("1.1.0", 1), ("2.0.0", 1),
+                                      ("1.0.11", 0), ("1.0.12", 0)):
                 with self.subTest(version=version):
                     V = version
                     self.reports = {row: default_report(row) for row in ROWS + list(OPTIONAL_ROWS)}
                     rc, out = self.run_tool()
                     self.assertEqual(rc, expected, out)
                     if expected:
-                        self.assertRegex(out, r"(?m)^manifest\s+FAIL\s+this signing tool signs netops 1\.0\.10 and later, not %s" % re.escape(version))
+                        self.assertRegex(out, r"(?m)^manifest\s+FAIL\s+this signing tool signs the netops 1\.0\.x series from 1\.0\.11 on, not %s" % re.escape(version))
+                        self.assert_complete_failed_table(out, sums=False)
                     else:
                         self.assertIn("OVERALL: PASS", out)
         finally:
             V = saved
+
+    TABLE_AREAS = ("candidate directory", "snapshot", "checksums", "manifest", "pinned image", "registry",
+                   "vulnerabilities amd64", "vulnerabilities arm64", "acceptance", "release documentation")
+
+    def assert_complete_failed_table(self, out, sums=True):
+        # The table is printed with every area, one OVERALL FAIL and no PowerShell error outside the table.
+        for area in self.TABLE_AREAS:
+            # Acceptance has one row per report ("acceptance <row>") or one "acceptance" row when it cannot run.
+            self.assertRegex(out, r"(?m)^%s%s\s+(PASS|FAIL|NOT RUN)\s" % (re.escape(area), r"( \S+)?" if area == "acceptance" else ""))
+        self.assertEqual(len(re.findall(r"(?m)^OVERALL:", out)), 1, out)
+        self.assertRegex(out, r"(?m)^OVERALL: FAIL   checksum list SHA-256 [0-9a-f]{64}$" if sums else r"(?m)^OVERALL: FAIL$")
+        self.assertIn("Signing refused: every row must be PASS.", out)
+        for error in ("check stopped", "cannot be found on this object", "PropertyNotFound", "Exception", "At /tool.ps1"):
+            self.assertNotIn(error, out)
+
+    def test_missing_arm64_platform_fails_in_the_table(self):
+        def no_arm64(manifest, arch):
+            del manifest["image"]["platforms"]["arm64"]
+
+        def amd64_gate_ok(gate, arch):
+            if arch == "amd64":
+                gate["status"] = "ok"
+        for label in ("arm64 only", "arm64, amd64 gate and documentation"):
+            with self.subTest(case=label):
+                self.patches = {"manifest": no_arm64}
+                self.source = None
+                if label != "arm64 only":
+                    self.patches["gate"] = amd64_gate_ok
+                    self.source = {n: c for n, c in release_docs().items() if n != "release/notes-%s.md" % V}
+                rc, out = self.run_tool()
+                self.assertEqual(rc, 1, out)
+                self.assert_complete_failed_table(out)
+                self.assertRegex(out, r"(?m)^checksums\s+PASS")
+                self.assertRegex(out, r"(?m)^manifest\s+FAIL\s+platform arm64 missing or malformed")
+                self.assertRegex(out, r"(?m)^vulnerabilities arm64\s+FAIL\s+platform arm64 missing or malformed")
+                self.assertRegex(out, r"(?m)^pinned image\s+PASS")
+                self.assertRegex(out, r"(?m)^registry\s+FAIL\s+index platforms differ from the candidate manifest: no image\.platforms\.arm64\.digest")
+                for row in ROWS:
+                    self.assertRegex(out, r"(?m)^acceptance %s\s+PASS" % re.escape(row))
+                if label == "arm64 only":
+                    self.assertRegex(out, r"(?m)^vulnerabilities amd64\s+PASS")
+                    self.assertRegex(out, r"(?m)^release documentation\s+PASS")
+                else:
+                    self.assertRegex(out, r"(?m)^vulnerabilities amd64\s+FAIL\s+gate status ok")
+                    self.assertRegex(out, r"(?m)^release documentation\s+FAIL\s+release/notes-%s\.md is missing" % re.escape(V))
+
+    def test_missing_manifest_key_fails_its_checks_and_the_others_still_run(self):
+        index = "index platforms differ from the candidate manifest"
+        not_repo = "image  is not ghcr.io/radek-cerny-soukr/netops"
+        identity = "the release manifest has no valid version, source.commit and image.index_digest"
+        cases = (
+            (("schema",), {"manifest": "unknown schema, product or version"}),
+            (("product",), {"manifest": "unknown schema, product or version"}),
+            (("source",), {"manifest": "repository or commit invalid", "acceptance": identity}),
+            (("source", "commit"), {"manifest": "repository or commit invalid", "acceptance": identity}),
+            (("image",), {"manifest": "index digest invalid", "pinned image": "the release manifest has no valid image.name",
+                          "registry": not_repo, "vulnerabilities amd64": "platform amd64 missing or malformed",
+                          "vulnerabilities arm64": "platform arm64 missing or malformed", "acceptance": identity}),
+            (("image", "name"), {"pinned image": "the release manifest has no valid image.name", "registry": not_repo,
+                                 "vulnerabilities amd64": "the release manifest has no valid image.name",
+                                 "vulnerabilities arm64": "the release manifest has no valid image.name"}),
+            (("image", "index_digest"), {"manifest": "index digest invalid", "pinned image": "the release manifest has no valid image.name",
+                                         "registry": "index digest invalid", "acceptance": identity}),
+            (("image", "platforms"), {"manifest": "platform amd64 missing or malformed; platform arm64 missing or malformed",
+                                      "registry": index + ": no image.platforms.amd64.digest, image.platforms.arm64.digest",
+                                      "vulnerabilities amd64": "platform amd64 missing or malformed",
+                                      "vulnerabilities arm64": "platform arm64 missing or malformed"}),
+            (("image", "platforms", "amd64"), {"manifest": "platform amd64 missing or malformed", "registry": index,
+                                               "vulnerabilities amd64": "platform amd64 missing or malformed"}),
+            (("image", "platforms", "arm64", "digest"), {"manifest": "platform arm64 missing or malformed", "registry": index,
+                                                         "vulnerabilities arm64": "platform arm64 missing or malformed"}),
+            (("image", "platforms", "arm64", "files"), {"manifest": "platform arm64 files.sbom file or sha256 missing or malformed",
+                                                        "vulnerabilities arm64": "platform arm64 files.sbom file or sha256 missing or malformed"}),
+            (("image", "platforms", "arm64", "files", "gate"), {"manifest": "platform arm64 files.gate file or sha256 missing or malformed",
+                                                                "vulnerabilities arm64": "platform arm64 files.gate file or sha256 missing or malformed"}),
+            (("image", "platforms", "arm64", "files", "scan", "file"), {"manifest": "platform arm64 files.scan file or sha256 missing or malformed",
+                                                                        "vulnerabilities arm64": "platform arm64 files.scan file or sha256 missing or malformed"}),
+            (("image", "platforms", "amd64", "files", "gate", "sha256"), {"manifest": "platform amd64 files.gate file or sha256 missing or malformed",
+                                                                          "vulnerabilities amd64": "platform amd64 files.gate file or sha256 missing or malformed"}),
+            (("release_files",), {"manifest": "release_files.compose.yaml differs from the checksum list"}),
+            (("release_files", "env.example"), {"manifest": "release_files.env.example differs from the checksum list"}),
+        )
+        for path, failed in cases:
+            with self.subTest(missing=".".join(path)):
+                def remove(manifest, arch, path=path):
+                    target = manifest
+                    for key in path[:-1]:
+                        target = target[key]
+                    del target[path[-1]]
+                self.patches = {"manifest": remove}
+                rc, out = self.run_tool()
+                self.assertEqual(rc, 1, out)
+                self.assert_complete_failed_table(out)
+                for area in ("candidate directory", "snapshot", "checksums", "manifest", "pinned image", "registry",
+                             "vulnerabilities amd64", "vulnerabilities arm64", "release documentation"):
+                    if area in failed:
+                        self.assertRegex(out, r"(?m)^%s\s+FAIL\s+%s" % (re.escape(area), re.escape(failed[area])))
+                    else:
+                        self.assertRegex(out, r"(?m)^%s\s+PASS" % re.escape(area))
+                if "acceptance" in failed:
+                    self.assertRegex(out, r"(?m)^acceptance\s+FAIL\s+%s" % re.escape(failed["acceptance"]))
+                else:
+                    for row in ROWS:
+                        self.assertRegex(out, r"(?m)^acceptance %s\s+PASS" % re.escape(row))
+
+    def test_missing_manifest_version_prints_the_failed_table(self):
+        self.patches = {"manifest": lambda manifest, arch: manifest.pop("version")}
+        rc, out = self.run_tool()
+        self.assertEqual(rc, 1, out)
+        self.assert_complete_failed_table(out, sums=False)
+        self.assertRegex(out, r"(?m)^manifest\s+FAIL\s+the release manifest has no valid version")
+        self.assertRegex(out, r"(?m)^checksums\s+FAIL\s+not checked: the release manifest has no valid supported version")
+        for area in ("pinned image", "registry", "vulnerabilities amd64", "vulnerabilities arm64", "acceptance"):
+            self.assertRegex(out, r"(?m)^%s\s+FAIL\s+not checked: no verified checksum list" % re.escape(area))
+        self.assertRegex(out, r"(?m)^release documentation\s+FAIL\s+not checked: the release manifest has no valid supported version")
+
+    def test_descriptor_outside_the_checksum_list_fails_before_reading(self):
+        gate = "netops-%s-linux-arm64-gate.json" % V
+        for label, change, text in (
+                ("unlisted path", {"file": "../outside/gate.json"}, "../outside/gate.json differs from the checksum list"),
+                ("unlisted name", {"file": "netops-%s-linux-arm64-other.json" % V}, "netops-%s-linux-arm64-other.json differs from the checksum list" % V),
+                ("other SHA-256", {"sha256": "0" * 64}, gate + " differs from the checksum list")):
+            with self.subTest(case=label):
+                self.patches = {"manifest": lambda manifest, arch, change=change: manifest["image"]["platforms"]["arm64"]["files"]["gate"].update(change)}
+                rc, out = self.run_tool()
+                self.assertEqual(rc, 1, out)
+                self.assert_complete_failed_table(out)
+                self.assertRegex(out, r"(?m)^manifest\s+FAIL\s+%s" % re.escape(text))
+                self.assertRegex(out, r"(?m)^vulnerabilities arm64\s+FAIL\s+%s" % re.escape(text))
+                self.assertRegex(out, r"(?m)^vulnerabilities amd64\s+PASS")
+
+    def test_missing_platform_is_never_signed_even_with_confirmation(self):
+        self.patches = {"manifest": lambda manifest, arch: manifest["image"]["platforms"].pop("arm64")}
+        rc, out = self.run_tool(check_only=False, stdin="SIGN\n")
+        self.assertEqual(rc, 1, out)
+        self.assert_complete_failed_table(out)
+        self.assertEqual(self.cosign_log, [])
+        self.assertFalse(os.path.lexists(os.path.join(self.dir, BUNDLE)))
+        self.assertNotIn("Sign %s with your GitHub identity" % SUMS, out)
 
     def test_read_json_decodes_utf8_whatever_the_default_encoding(self):
         rc, out, snapdir = self.run_function(
@@ -566,17 +707,17 @@ class SignTool(unittest.TestCase):
     def test_null_matches_fail(self):
         self.build()
         for arch in ARCHES:
-            name = "netops-1.0.10-linux-%s-grype.json" % arch
+            name = "netops-1.0.11-linux-%s-grype.json" % arch
             scan = json.loads(Path(self.dir, name).read_text())
             scan["matches"] = None
             self.write(name, scan)
-        manifest = json.loads(Path(self.dir, "netops-1.0.10-manifest.json").read_text())
+        manifest = json.loads(Path(self.dir, "netops-1.0.11-manifest.json").read_text())
         for arch in ARCHES:
-            name = "netops-1.0.10-linux-%s-grype.json" % arch
+            name = "netops-1.0.11-linux-%s-grype.json" % arch
             manifest["image"]["platforms"][arch]["files"]["scan"]["sha256"] = sha(__import__('pathlib').Path(os.path.join(self.dir, name)).read_bytes())
-        self.write("netops-1.0.10-manifest.json", manifest)
-        lines = ["%s  %s" % (sha(__import__('pathlib').Path(os.path.join(self.dir, n)).read_bytes()), n) for n in sorted(os.listdir(self.dir)) if n != "netops-1.0.10-SHA256SUMS"]
-        self.write("netops-1.0.10-SHA256SUMS", "\n".join(lines) + "\n")
+        self.write("netops-1.0.11-manifest.json", manifest)
+        lines = ["%s  %s" % (sha(__import__('pathlib').Path(os.path.join(self.dir, n)).read_bytes()), n) for n in sorted(os.listdir(self.dir)) if n != "netops-1.0.11-SHA256SUMS"]
+        self.write("netops-1.0.11-SHA256SUMS", "\n".join(lines) + "\n")
         rc, out = self.run_tool(build=False)
         self.assertEqual(rc, 1, out)
         self.assertIn("matches is not a JSON array", out)
@@ -608,7 +749,7 @@ class SignTool(unittest.TestCase):
         self.assert_refused("not in the signed checksum list")
 
     def test_traversal_absolute_and_duplicate_lines_fail(self):
-        for line in ("%s  ../outside.json" % ("0" * 64), "%s  /etc/passwd" % ("0" * 64), "%s  netops-1.0.10-manifest.json" % ("0" * 64)):
+        for line in ("%s  ../outside.json" % ("0" * 64), "%s  /etc/passwd" % ("0" * 64), "%s  netops-1.0.11-manifest.json" % ("0" * 64)):
             self.extra_lines = [line]
             self.assert_refused("checksums")
 
@@ -628,13 +769,13 @@ class SignTool(unittest.TestCase):
     def test_bundle_name_link_fails(self):
         for target in ("compose.yaml", "missing-target"):
             self.build()
-            os.symlink(target, os.path.join(self.dir, "netops-1.0.10-SHA256SUMS.sigstore.json"))
+            os.symlink(target, os.path.join(self.dir, "netops-1.0.11-SHA256SUMS.sigstore.json"))
             rc, out = self.run_tool(build=False)
             self.assertEqual(rc, 1, out)
             self.assertIn("is a link or reparse point", out)
 
     def test_linked_sums_and_manifest_fail_before_reading(self):
-        for name in ("netops-1.0.10-SHA256SUMS", "netops-1.0.10-manifest.json"):
+        for name in ("netops-1.0.11-SHA256SUMS", "netops-1.0.11-manifest.json"):
             self.build()
             path = os.path.join(self.dir, name)
             os.rename(path, path + ".real")
@@ -645,7 +786,7 @@ class SignTool(unittest.TestCase):
 
     def test_directory_in_candidate_fails(self):
         self.build()
-        os.mkdir(os.path.join(self.dir, "netops-1.0.10-SHA256SUMS.sigstore.json"))
+        os.mkdir(os.path.join(self.dir, "netops-1.0.11-SHA256SUMS.sigstore.json"))
         rc, out = self.run_tool(build=False)
         self.assertEqual(rc, 1, out)
         self.assertIn("is a directory", out)
@@ -659,7 +800,7 @@ class SignTool(unittest.TestCase):
 
     def test_existing_bundle_passes_check_but_is_never_overwritten(self):
         self.build()
-        self.write("netops-1.0.10-SHA256SUMS.sigstore.json", "{}")
+        self.write("netops-1.0.11-SHA256SUMS.sigstore.json", "{}")
         rc, out = self.run_tool(build=False)
         self.assertEqual(rc, 0, out)
         rc, out = self.run_tool(check_only=False, stdin="SIGN\n", build=False)
@@ -669,7 +810,7 @@ class SignTool(unittest.TestCase):
 
     def test_manifest_version_with_path_fails(self):
         self.build()
-        path = os.path.join(self.dir, "netops-1.0.10-manifest.json")
+        path = os.path.join(self.dir, "netops-1.0.11-manifest.json")
         manifest = json.loads(Path(path).read_text())
         manifest["version"] = "../" + V
         with open(path, "w") as stream:
@@ -680,7 +821,7 @@ class SignTool(unittest.TestCase):
 
     def test_tampered_file_fails(self):
         self.build()
-        self.write("netops-1.0.10-linux-arm64.cdx.json", '{"x":1}')
+        self.write("netops-1.0.11-linux-arm64.cdx.json", '{"x":1}')
         rc, out = self.run_tool(build=False)
         self.assertEqual(rc, 1, out)
         self.assertIn("SHA-256 differs", out)
@@ -692,15 +833,15 @@ class SignTool(unittest.TestCase):
     def test_scan_of_other_digest_fails(self):
         self.digests = {"amd64": A, "arm64": B}
         self.build()
-        scan_name = "netops-1.0.10-linux-amd64-grype.json"
+        scan_name = "netops-1.0.11-linux-amd64-grype.json"
         scan = json.loads(Path(self.dir, scan_name).read_text())
         scan["source"]["target"]["userInput"] = IMAGE + "@" + B
         self.write(scan_name, scan)
-        manifest = json.loads(Path(self.dir, "netops-1.0.10-manifest.json").read_text())
+        manifest = json.loads(Path(self.dir, "netops-1.0.11-manifest.json").read_text())
         manifest["image"]["platforms"]["amd64"]["files"]["scan"]["sha256"] = sha(__import__('pathlib').Path(os.path.join(self.dir, scan_name)).read_bytes())
-        self.write("netops-1.0.10-manifest.json", manifest)
-        lines = ["%s  %s" % (sha(__import__('pathlib').Path(os.path.join(self.dir, n)).read_bytes()), n) for n in sorted(os.listdir(self.dir)) if n != "netops-1.0.10-SHA256SUMS"]
-        self.write("netops-1.0.10-SHA256SUMS", "\n".join(lines) + "\n")
+        self.write("netops-1.0.11-manifest.json", manifest)
+        lines = ["%s  %s" % (sha(__import__('pathlib').Path(os.path.join(self.dir, n)).read_bytes()), n) for n in sorted(os.listdir(self.dir)) if n != "netops-1.0.11-SHA256SUMS"]
+        self.write("netops-1.0.11-SHA256SUMS", "\n".join(lines) + "\n")
         rc, out = self.run_tool(build=False)
         self.assertEqual(rc, 1, out)
         self.assertIn("raw scan is not of", out)
@@ -859,11 +1000,11 @@ class SignTool(unittest.TestCase):
     def test_unpinned_env_fails(self):
         self.build()
         self.write("env.example", "NETOPS_IMAGE=%s:latest\n" % IMAGE)
-        manifest = json.loads(Path(self.dir, "netops-1.0.10-manifest.json").read_text())
+        manifest = json.loads(Path(self.dir, "netops-1.0.11-manifest.json").read_text())
         manifest["release_files"]["env.example"] = sha(__import__('pathlib').Path(os.path.join(self.dir, "env.example")).read_bytes())
-        self.write("netops-1.0.10-manifest.json", manifest)
-        lines = ["%s  %s" % (sha(__import__('pathlib').Path(os.path.join(self.dir, n)).read_bytes()), n) for n in sorted(os.listdir(self.dir)) if n != "netops-1.0.10-SHA256SUMS"]
-        self.write("netops-1.0.10-SHA256SUMS", "\n".join(lines) + "\n")
+        self.write("netops-1.0.11-manifest.json", manifest)
+        lines = ["%s  %s" % (sha(__import__('pathlib').Path(os.path.join(self.dir, n)).read_bytes()), n) for n in sorted(os.listdir(self.dir)) if n != "netops-1.0.11-SHA256SUMS"]
+        self.write("netops-1.0.11-SHA256SUMS", "\n".join(lines) + "\n")
         rc, out = self.run_tool(build=False)
         self.assertEqual(rc, 1, out)
         self.assertIn("does not pin", out)

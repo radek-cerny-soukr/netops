@@ -197,11 +197,12 @@ def plan_digest(plan) -> str:
 
 
 def _legacy_plan_digest(plan) -> str | None:
-    # Journal records written by Admin before 1.0.10 carry the content-only digest; they stay readable for
+    # Journal records written by Admin 1.0.x before 1.0.10 carry the content-only digest; they stay readable for
     # verify, recovery and undo. A preview hash of such a version never matches a fresh plan of this one.
     # A plan stamped with the running version always needs the bound digest.
     match = re.fullmatch(r"([0-9]+)\.([0-9]+)\.([0-9]+)(?:[^0-9].*)?", plan["admin_version"])
     if (plan["admin_version"] == __version__ or match is None
+            or tuple(int(part) for part in match.groups()[:2]) != (1, 0)
             or tuple(int(part) for part in match.groups()) >= PLAN_DIGEST_SINCE):
         return None
     return _digest({"commands": plan["commands"], "inverse": plan["inverse"],

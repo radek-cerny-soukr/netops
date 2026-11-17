@@ -531,30 +531,6 @@ def test_run_survives_every_broken_suppression_file(tmp_path, capsys):
     clean(failures)
 
 
-def test_migrate_suppressions_survives_every_broken_input_and_output(tmp_path, capsys):
-    _, document = _suppressions(capsys, tmp_path, 1)
-    failures = {}
-    for index, (name, text) in enumerate(json_shapes(document).items()):
-        source = written(tmp_path, "old-%d.json" % index, text)
-        argv = ["migrate-suppressions", "--input", source, "--output", str(tmp_path / ("new-%d.json" % index)),
-                "--tenant", TENANT]
-        found = in_process(capsys, argv, COMMAND_CODES)
-        if found:
-            failures[name] = found
-    cases = {}
-    for name, data in byte_shapes(json.dumps(document, indent=1)).items():
-        source = written(tmp_path, name + ".old", data)
-        cases[name] = ["migrate-suppressions", "--input", source, "--output", str(tmp_path / (name + ".new")),
-                       "--tenant", TENANT]
-    valid = written(tmp_path, "valid-old.json", json.dumps(document))
-    for name, path in path_shapes(tmp_path, json.dumps(document).encode("utf-8")).items():
-        cases["input " + name] = ["migrate-suppressions", "--input", path, "--output",
-                                  str(tmp_path / ("input-%s.new" % name)), "--tenant", TENANT]
-        cases["output " + name] = ["migrate-suppressions", "--input", valid, "--output", path, "--tenant", TENANT]
-    failures.update(matrix(cases, COMMAND_CODES))
-    clean(failures)
-
-
 def _sarif(capsys, tmp_path):
     text = SAMPLES["fortios"]().replace("set allowaccess ping\n", "set allowaccess ping https ssh\n", 1)
     config = written(tmp_path, "sarif.conf", text)
@@ -635,9 +611,8 @@ def test_every_store_command_survives_a_broken_store(tmp_path, capsys):
     for name, path in store_shapes(tmp_path, database).items():
         cases["run " + name] = (run_argv("fortios", config, "--store", path), RUN_CODES)
         cases["status " + name] = (["status", "--tenant", TENANT, "--device", DEVICE, "--store", path], STATUS_CODES)
-        cases["migrate " + name] = (["migrate-store", "--store", path], COMMAND_CODES)
     failures = {}
-    for codes in (RUN_CODES, STATUS_CODES, COMMAND_CODES):
+    for codes in (RUN_CODES, STATUS_CODES):
         selected = {name: argv for name, (argv, wanted) in cases.items() if wanted is codes}
         failures.update(matrix(selected, codes))
     clean(failures)
@@ -772,15 +747,11 @@ def test_every_command_line_argument_is_refused_or_accepted_without_a_traceback(
     config, database = _store(capsys, tmp_path)
     sarif_path = written(tmp_path, "valid.sarif", json.dumps(_trimmed_sarif(_sarif(capsys, tmp_path))))
     inventory = written(tmp_path, "inventory.json", json.dumps(inventory_document(config)))
-    old = written(tmp_path, "old.json", json.dumps(_suppressions(capsys, tmp_path, 1)[1]))
     commands = {
         "run": (run_argv("fortios", config, "--store", str(database), "--json"), RUN_CODES),
         "collect": (collect_argv(inventory, DEVICE, "--max-response-bytes", "1000", "--json"), RUN_CODES),
         "status": (["status", "--tenant", TENANT, "--device", DEVICE, "--store", str(database),
                     "--stale-after-hours", "26"], STATUS_CODES),
-        "migrate-store": (["migrate-store", "--store", str(database)], COMMAND_CODES),
-        "migrate-suppressions": (["migrate-suppressions", "--input", old, "--output", str(tmp_path / "new.json"),
-                                  "--tenant", TENANT], COMMAND_CODES),
         "merge-sarif": (["merge-sarif", "--output", str(tmp_path / "merged.sarif"), sarif_path], COMMAND_CODES),
         "none": ([], COMMAND_CODES),
         "unknown": (["unknown-command"], COMMAND_CODES),
@@ -791,7 +762,6 @@ def test_every_command_line_argument_is_refused_or_accepted_without_a_traceback(
             found = in_process(capsys, argv, codes)
             if found:
                 failures["%s %s" % (command, name)] = found
-            (tmp_path / "new.json").unlink(missing_ok=True)
     clean(failures)
 
 

@@ -8,13 +8,10 @@ import time
 from datetime import datetime, timezone
 
 from .engine import RULE_STATES
-from .findings import FingerprintError, fingerprint_of
 from .state import evaluation_complete
 
 MOMENT_FORMAT = "%Y-%m-%dT%H:%M:%SZ"
 SCHEMA_VERSION = 2
-PREVIOUS_SCHEMA_VERSION = 1
-MIGRATE_COMMAND = "netops-auditor migrate-store --store <file>"
 # Explicit busy timeout for every store connection (writer and read-only MCP reader).
 # The store uses the write-ahead log (journal_mode=WAL, kept in the file; the writer
 # switches an older rollback-journal store once when it opens it, see _write_ahead_log).
@@ -227,7 +224,13 @@ def schema_version(connection, *, require_complete=True) -> int:
         for name, expected in SCHEMA_TYPES.items():
             if name.lower() not in objects:
                 raise _SchemaObjectError("store schema object %s: expected %s, missing; open writable (auditor run or auditor status)" % (name, expected))
-    return int(connection.execute("PRAGMA user_version").fetchone()[0]) or PREVIOUS_SCHEMA_VERSION
+    version = int(connection.execute("PRAGMA user_version").fetchone()[0])
+    if version == 0:
+        raise _SchemaObjectError(
+            "store holds audit tables without a schema version, expected %d; this store format is not supported"
+            % SCHEMA_VERSION
+        )
+    return version
 
 
 def checked_schema(connection) -> int:
@@ -235,9 +238,7 @@ def checked_schema(connection) -> int:
     if version in (0, SCHEMA_VERSION):
         return version
     raise StoreError(
-        "store schema version %d, expected %d: the fingerprint of a finding carries the tenant"
-        " since version %d; migrate the store with %s"
-        % (version, SCHEMA_VERSION, SCHEMA_VERSION, MIGRATE_COMMAND)
+        "store schema version %d, expected %d; this store format is not supported" % (version, SCHEMA_VERSION)
     )
 
 
@@ -291,86 +292,6 @@ def _write_ahead_log(connection) -> None:
         raise StoreError(
             "store journal mode stays %s instead of %s; keep the store on a local file system" % (mode, JOURNAL_MODE)
         )
-
-
-_SELECT_MIGRATED_FINDINGS = (
-    "SELECT findings.id, findings.fingerprint, findings.rule_id, findings.rule_version,"
-    " findings.device, findings.object_key, runs.tenant FROM findings"
-    " LEFT JOIN runs ON runs.id = findings.run_id ORDER BY findings.id"
-)
-
-_SELECT_MIGRATED_BASELINE = "SELECT id, tenant, fingerprint FROM baseline ORDER BY id"
-
-
-def _migrated_findings(connection) -> tuple:
-    mapping, count = {}, 0
-    for row in connection.execute(_SELECT_MIGRATED_FINDINGS).fetchall():
-        tenant = row["tenant"]
-        if not isinstance(tenant, str) or not tenant.strip():
-            raise StoreError(
-                "finding %d belongs to no run that names a tenant, the store cannot be migrated"
-                % row["id"]
-            )
-        try:
-            fresh = fingerprint_of(
-                row["rule_id"], row["rule_version"], tenant, row["device"], row["object_key"]
-            )
-        except FingerprintError as error:
-            raise StoreError("finding %d cannot be migrated: %s" % (row["id"], error)) from None
-        mapping[(tenant, row["fingerprint"])] = fresh
-        connection.execute("UPDATE findings SET fingerprint = ? WHERE id = ?", (fresh, row["id"]))
-        count += 1
-    return mapping, count
-
-
-def _migrated_baseline(connection, mapping) -> int:
-    count = 0
-    for row in connection.execute(_SELECT_MIGRATED_BASELINE).fetchall():
-        fresh = mapping.get((row["tenant"], row["fingerprint"]))
-        if fresh is None:
-            raise StoreError(
-                "baseline entry %d names a fingerprint no finding of its tenant carries, the store"
-                " cannot be migrated" % row["id"]
-            )
-        connection.execute("UPDATE baseline SET fingerprint = ? WHERE id = ?", (fresh, row["id"]))
-        count += 1
-    return count
-
-
-def migrate(path) -> dict:
-    try:
-        return _migrate(path)
-    except sqlite3.Error as error:
-        raise StoreError("store %s cannot be migrated: %s" % (path, error)) from None
-
-
-def _migrate(path) -> dict:
-    connection = sqlite3.connect(str(path), isolation_level=None, timeout=BUSY_TIMEOUT_SECONDS)
-    connection.row_factory = sqlite3.Row
-    try:
-        version = schema_version(connection, require_complete=False)
-        if version == 0:
-            raise StoreError("store %s holds no audit schema" % path)
-        if version == SCHEMA_VERSION:
-            raise StoreError("store %s already holds schema version %d" % (path, SCHEMA_VERSION))
-        if version != PREVIOUS_SCHEMA_VERSION:
-            raise StoreError(
-                "store %s holds schema version %d, the migration reads version %d"
-                % (path, version, PREVIOUS_SCHEMA_VERSION)
-            )
-        connection.execute("BEGIN IMMEDIATE")
-        try:
-            schema_version(connection, require_complete=False)
-            mapping, findings = _migrated_findings(connection)
-            baseline = _migrated_baseline(connection, mapping)
-            connection.execute("PRAGMA user_version = %d" % SCHEMA_VERSION)
-            connection.execute("COMMIT")
-        except BaseException:
-            _rollback(connection)
-            raise
-    finally:
-        connection.close()
-    return {"findings": findings, "baseline": baseline}
 
 
 def _now_utc() -> str:

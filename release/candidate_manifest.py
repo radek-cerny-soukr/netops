@@ -11,7 +11,7 @@ from sbom_gate import SBOMError, validate_sbom
 
 DIGEST = re.compile(r"sha256:[0-9a-f]{64}")
 COMMIT = re.compile(r"[0-9a-f]{40}")
-VERSION = re.compile(r"[0-9]+\.[0-9]+\.[0-9]+")
+VERSION = re.compile(r"1\.0\.[0-9]+")
 ARCHES = ("amd64", "arm64")
 INDEX_TYPES = {"application/vnd.oci.image.index.v1+json", "application/vnd.docker.distribution.manifest.list.v2+json"}
 ORDER = {"pass": 0, "needs-assessment": 1, "fail": 2, "unknown": 3}
@@ -65,7 +65,7 @@ def build(args):
     if not DIGEST.fullmatch(args.index_digest):
         raise ManifestError("index digest malformed")
     if not VERSION.fullmatch(args.version):
-        raise ManifestError("version must be X.Y.Z")
+        raise ManifestError("version must be 1.0.x")
     digests = {}
     for arch in ARCHES:
         with open(os.path.join(args.dir, "digest-%s.txt" % arch), encoding="utf-8") as stream:

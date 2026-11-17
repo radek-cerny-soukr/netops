@@ -16,6 +16,17 @@ The image contains no AI agents. Any MCP client that supports Streamable HTTP wi
 
 **Start here:** [NetOps 1.0 quickstart](docs/quickstart-1.0.md)
 
+## What's new in 1.0.11
+
+NetOps 1.0.11 follows NetOps 1.0.10. It removes the remaining conversion paths for data from before NetOps 1.0, returns a failed Junos change at once with a plain commit that the device timer cannot undo and describes an installation without sudo rights. Only 1.0.10 is accepted as the previous release; upgrade 1.0.9 to 1.0.10 first ([upgrade guide](docs/quickstart-1.0.md#upgrade-from-the-previous-release)).
+
+- **Admin Junos immediate return.** After a failed write or readback, Admin commits the inverse lines with a plain commit (`netops-<id>-revert`) instead of `commit confirmed`, so an interrupted return no longer lets the device timer bring the change back. After a Junos operation of 1.0.10 that ended `revert-failed` or `unknown`, check the port as described in the manual check of the [Admin configuration](docs/admin-configuration.md#juniper-junos-interface-description-admin-state-and-access-vlan).
+- **Conversions from before NetOps 1.0 removed.** The Auditor commands `auditor migrate-store` and `auditor migrate-suppressions` are removed, and a store or suppression file in the format before NetOps 1.0 is refused before any write. Admin refuses a plan written by Admin 0.x (`plan content does not match its plan_sha256`); run a new preview.
+- **Quickstart without sudo.** Docker and `jq` are set up by the host administrator, and cosign is installed as a program of the own account in `~/.local/bin`.
+- **Upgrade.** Upgrade only from 1.0.10 by restoring its backup into a separate 1.0.11 instance; do not run `init` on the restored state. Enrollments made with 1.0.10 stay valid: a device needs `admin enroll` again only when its device entry, its accounts, its firmware or the Admin notification or status file settings change.
+
+See the [1.0.11 release notes](release/notes-1.0.11.md) and the [changelog](CHANGELOG.md). The sections for 1.0.10, 1.0.9, 1.0.8 and 1.0.7 below are kept as history.
+
 ## What's new in 1.0.10
 
 NetOps 1.0.10 follows NetOps 1.0.9. It brings Arista EOS, FortiADC, Cisco IOS, IOS XE, NX-OS and Juniper Junos into the common Admin, makes FortiOS `config_diff` line-based, binds Admin `plan_sha256` to the device and firmware, runs the Auditor store in WAL mode, tightens the ExtremeXOS PoE cycle safeguard budget and recover, and hides typed Cisco-style hashes and whole account values in responses while keeping everything that 1.0.8 hid hidden. Only 1.0.9 is accepted as the previous release; upgrade 1.0.8 to 1.0.9 first ([upgrade guide](docs/quickstart-1.0.md#upgrade-from-the-previous-release)).
@@ -265,7 +276,7 @@ Docs: [Auditor operator workflows](docs/quickstart-1.0.md#auditor-operator-workf
 Admin is enabled by default (`init --disable-admin` omits its worker and MCP tools) and refuses device changes until it is configured and the device is enrolled. Supported change scope:
 
 - **FortiOS:** firewall address, address group and DHCP reservation; firewall policy as an [opt-in table](docs/admin-configuration.md#opt-in-table-firewall-policy), disabled by default per device.
-- **ExtremeXOS:** VLAN, port display string and port VLAN membership.
+- **ExtremeXOS:** VLAN, port display string, port admin state and port VLAN membership; PoE cycle of one port with the operator command `admin poe-cycle` ([ExtremeXOS port admin state and PoE cycle](docs/admin-configuration.md#extremexos-port-admin-state-and-poe-cycle)).
 - **FortiADC:** load-balance pool member status, add (created disabled) and remove (disabled or maintain, never the last member), FortiADC-KVM 7.6.7 build0676 only; returned by a compensating write, not by an on-device safeguard ([FortiADC pool member](docs/admin-configuration.md#fortiadc-pool-member)). The older `pool-member*` operator commands are deprecated.
 - **Cisco IOS and IOS XE:** interface description and admin state; access VLAN on the switch images ([Cisco IOS and IOS XE](docs/admin-configuration.md#cisco-ios-and-ios-xe-interface-description-admin-state-and-access-vlan)).
 - **Cisco NX-OS:** interface description, admin state and access VLAN ([Cisco NX-OS](docs/admin-configuration.md#cisco-nx-os-interface-description-admin-state-and-access-vlan)).
@@ -310,6 +321,8 @@ Compatibility is scoped to the exact platform, firmware build, model, account po
 | Linux | Documented distribution, architecture and permission requirements (Helper); the `switch_read` tables were measured live on Ubuntu 24.04.5 with a development build that read `ip_interface` from `ip address show`; the released parsers are tested with captured CLI output of Ubuntu 24.04.5, Debian 13 and Proxmox VE hosts |
 
 Auditor catalogs cover FortiOS, ExtremeXOS and FortiADC. Admin MCP execution (MCP tools and the profile command `netops-admin apply`) is limited to the FortiOS, ExtremeXOS, Cisco IOS, IOS XE, NX-OS, Arista EOS, Juniper Junos and FortiADC profiles listed above; on FortiADC the return is a compensating write in the same run or by `admin recover`, not an on-device safeguard, and the older command-line `pool-member`, `pool-member-add` and `pool-member-remove` commands are deprecated ([FortiADC bounds](docs/verified-support.md#fortiadc-bounds)). A read catalogue on another platform does not imply Admin support there. The opt-in FortiOS `managed_switch_stacking` and `managed_switch_poe` queries are unverified on stacking- or PoE-capable hardware. The seven `wifi_*` reads for a read-only FortiOS account (`wifi_ap_status`, `wifi_vap_status`, `wifi_neighbors`, `wifi_controller_status`, `wifi_controller_statistics`, `wifi_rf_analysis`, `wifi_events`) and `wifi_triage` were measured on FortiGate-80F 8.0.2 build0251 with two FortiAP only, on 2026-11-08; the SSH reads list no live client and no client RSSI; optional [read-only Wi-Fi REST enrollment](docs/fortios-wifi-rest.md) adds `wifi_clients`, `wifi_aps_live`, `wifi_rogue` and live RSSI/SNR in triage, and the five `diagnose wireless-controller` queries remain for an `admin-bounded` account ([measurement](components/netops-helper/docs/vendor-cli-references/fortinet-fortios.md#wi-fi-reads-for-a-read-only-account-measured)).
+
+Live verification of NetOps 1.0.11 on 2026-11-16: a locally built image of the development 1.0.11 source before the release candidate, Admin with its separately enrolled write and check accounts; no other change of 1.0.11 was verified live. On vJunos-switch 26.2R1.7 (ELS) in the GNS3 lab (test port ge-0/0/2), the expiry of `commit confirmed` after an immediate return and after an interrupted session was measured through the device command line: it returns the configuration before the newest `commit confirmed`. After the fix, Admin passed the operator command line scenarios on the same switch, including a forced readback failure returned at once with a plain commit (`reverted`), with the configuration equal before and after; the MCP tools were not called in these runs. The quickstart cosign block without sudo was run once on Debian 13 lab machines (amd64 and arm64) under an account that also had sudo rights; an account without them was not used. Details are in [verified support](docs/verified-support.md#live-verification-of-netops-1011) and the [release notes](release/notes-1.0.11.md#changes-in-1011).
 
 Live verification of NetOps 1.0.10 on 2026-11-16: development builds of the 1.0.10 source before the release candidate, Admin with its separately enrolled write and check accounts, measured on 2026-11-15 and 2026-11-16 as dated in each sentence. On 2026-11-15, Admin on cEOSLab 4.36.1F in the GNS3 lab passed the operator command line scenarios. On 2026-11-16, Admin on IOSv 15.9(3)M12, IOSvL2 15.2(20200924:215240), IOL XE 17.18.2 and IOL-L2 XE 17.18.2, on a Nexus 9000v with NX-OS 9.3(12) and on vJunos-switch 26.2R1.7 (ELS) in the GNS3 lab passed the operator command line scenarios and, after the safeguard fixes, repeated runs including a forced readback failure (IOS and IOS XE on IOSvL2 and IOL XE); the MCP tools were not called in these runs. On 2026-11-16, Admin on FortiADC-KVM 7.6.7 build0676 (standalone) changed pool members through the common Admin path, including MCP `admin_preview`, `admin_apply` with `expected_plan_sha256` and `admin_undo_preview`, SIGKILL and `admin recover`, with the full configuration equal before and after. Details, and later fixes covered by automated tests only, are in [verified support](docs/verified-support.md#live-verification-of-netops-1010) and the [release notes](release/notes-1.0.10.md#changes-in-1010).
 
@@ -371,7 +384,7 @@ Details: [Architecture](docs/architecture-1.0.md) · [Security policy](SECURITY.
 
 This is a shortened version of the [quickstart](docs/quickstart-1.0.md). Follow the full document for a new host: it installs the prerequisites step by step for Debian, Ubuntu, Fedora Server and Raspberry Pi OS, and covers rootless Docker, syslog receivers, backup, restore, upgrades and removal.
 
-**0. Prerequisites.** The host meets the [minimum requirements](#minimum-requirements). Docker Engine with the Compose plugin from [Docker's repository](https://docs.docker.com/engine/install/), and an account that can run `docker info` (root, the `docker` group or rootless Docker); on Fedora, SELinux support enabled in the Docker daemon (`"selinux-enabled": true`) before the first start, so that `docker info` lists `name=selinux`. Further `curl`, `jq` and cosign 2.5 or newer; the quickstart installs the official Sigstore 3.x release (checked with v3.1.4) and says what to do when its download from GitHub fails. See quickstart steps [1–4](docs/quickstart-1.0.md#1-install-docker-engine), which also say how steps [3](docs/quickstart-1.0.md#3-give-your-account-access-to-docker) and [4](docs/quickstart-1.0.md#4-install-curl-jq-and-cosign) run without a terminal.
+**0. Prerequisites.** The host meets the [minimum requirements](#minimum-requirements). Docker Engine with the Compose plugin from [Docker's repository](https://docs.docker.com/engine/install/), and an account that can run `docker info` (root, the `docker` group or rootless Docker); on Fedora, SELinux support enabled in the Docker daemon (`"selinux-enabled": true`) before the first start, so that `docker info` lists `name=selinux`. Further `curl`, `jq` and cosign 2.5 or newer; the quickstart installs the official Sigstore 3.x release (checked with v3.1.4) and says what to do when its download from GitHub fails. See quickstart steps [1–4](docs/quickstart-1.0.md#1-install-docker-engine), which also say how steps [3](docs/quickstart-1.0.md#3-give-your-account-access-to-docker) and [4](docs/quickstart-1.0.md#4-install-curl-jq-and-cosign) run without a terminal. Without sudo rights, the host administrator prepares Docker and `jq`, and cosign runs as a program of your account ([step 4](docs/quickstart-1.0.md#4-install-curl-jq-and-cosign)).
 
 **1. Download and verify.** In the instance directory `~/netops` download the five release files and verify them. The block stops at the first failed download or check, and it downloads nothing into a directory that already holds the `.env` of an instance. The block sets the instance directory to mode 700, including an existing directory:
 
@@ -380,14 +393,14 @@ mkdir -p -m 700 ~/netops && cd ~/netops &&
 if test -e .env; then echo 'netops: ~/netops already holds .env; nothing downloaded' >&2; false; fi &&
 chmod 700 . &&
 (
-  for f in compose.yaml env.example netops-1.0.10-manifest.json netops-1.0.10-SHA256SUMS netops-1.0.10-SHA256SUMS.sigstore.json; do
-    curl -fLO "https://github.com/radek-cerny-soukr/netops/releases/download/v1.0.10/$f" || exit 1
+  for f in compose.yaml env.example netops-1.0.11-manifest.json netops-1.0.11-SHA256SUMS netops-1.0.11-SHA256SUMS.sigstore.json; do
+    curl -fLO "https://github.com/radek-cerny-soukr/netops/releases/download/v1.0.11/$f" || exit 1
   done
 ) &&
-cosign verify-blob --bundle netops-1.0.10-SHA256SUMS.sigstore.json \
+cosign verify-blob --bundle netops-1.0.11-SHA256SUMS.sigstore.json \
   --certificate-identity 325383355+radek-cerny-soukr@users.noreply.github.com \
-  --certificate-oidc-issuer https://github.com/login/oauth netops-1.0.10-SHA256SUMS &&
-sha256sum -c --ignore-missing netops-1.0.10-SHA256SUMS
+  --certificate-oidc-issuer https://github.com/login/oauth netops-1.0.11-SHA256SUMS &&
+sha256sum -c --ignore-missing netops-1.0.11-SHA256SUMS
 ```
 
 cosign must print `Verified OK`, and sha256sum `OK` for `compose.yaml`, `env.example` and the release manifest; cosign authenticates the checksum list using the signature bundle. After a failed download or check, run the same block again: it downloads all five files again and overwrites those of the failed attempt. An empty `~/netops` left by a failed first attempt does no harm: the block reuses the directory, and nothing needs to be deleted.
@@ -418,7 +431,7 @@ cd ~/netops &&
 docker compose pull --quiet < /dev/null && docker compose run --rm -T netops init --audit local --accept-local-audit < /dev/null && docker compose up -d --wait < /dev/null && docker compose ps < /dev/null
 ```
 
-**4. Export the CA and the token.** The block is the same in a terminal and in a script:
+**4. Export the CA and the token.** The block is the same in a terminal and in a script. Compose messages between its lines go to standard error and do not enter `netops-ca.pem` or `NETOPS_TOKEN`:
 
 ```sh
 cd ~/netops &&
@@ -430,7 +443,7 @@ test -n "$NETOPS_TOKEN" && printf 'NETOPS_TOKEN is set (%s characters)\n' "${#NE
 docker compose run --rm -T netops connection < /dev/null
 ```
 
-The block prints `NETOPS_TOKEN is set (64 characters)` and the MCP URL, without printing the token. Compose writes its own messages to standard error, so `netops-ca.pem` and `NETOPS_TOKEN` receive only the output of NetOps. The token stays in the shell: in a script, run this block and the token requests of quickstart [step 9](docs/quickstart-1.0.md#9-check-the-instance-without-an-mcp-client) in the same script file.
+The block prints `NETOPS_TOKEN is set (64 characters)` and the MCP URL, without printing the token. The token stays in the shell: in a script, run this block and the token requests of quickstart [step 9](docs/quickstart-1.0.md#9-check-the-instance-without-an-mcp-client) in the same script file.
 
 **5. Check without an MCP client.**
 
@@ -443,7 +456,7 @@ curl -sS -o /dev/null -w '%{http_code}\n' --cacert netops-ca.pem \
   -X POST https://localhost:8443/mcp -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'
 ```
 
-They print `ready`, `1.0.10` and `401`: a request without the token is refused. Use the URL printed by `connection` when it is not `https://localhost:8443/mcp`. [Step 9](docs/quickstart-1.0.md#9-check-the-instance-without-an-mcp-client) adds requests with the token, including the MCP tool list, and how to find them in the audit.
+They print `ready`, `1.0.11` and `401`: a request without the token is refused. Use the URL printed by `connection` when it is not `https://localhost:8443/mcp`. [Step 9](docs/quickstart-1.0.md#9-check-the-instance-without-an-mcp-client) adds requests with the token, including the MCP tool list, and how to find them in the audit.
 
 **6. Connect a client.** Use the URL printed by `connection`.
 
@@ -473,7 +486,8 @@ Other MCP clients must enable normal CA/SAN verification. Never disable TLS veri
 
 #### Tested MCP clients
 
-**NetOps 1.0.10:** the client acceptance (Codex CLI and Claude Code) runs once on the signed release candidate image; its results are in the [release notes](release/notes-1.0.10.md#acceptance).
+**NetOps 1.0.11:** the client acceptance (Codex CLI and Claude Code) runs once on the signed release candidate image; its results are in the [release notes](release/notes-1.0.11.md#acceptance).
+Until 1.0.11 is released, this acceptance is deferred to the release candidate: the release notes describe the required checks and hold no client results yet; the results are added there with the release.
 
 **Tested for NetOps 1.0.9 (2026-11-15)** against a local amd64 build of the 1.0.9 source at commit 243c14f, which differs from the final source only in tests, documentation and the evidence text of one Admin profile; the release image is checked again by the release acceptance:
 
@@ -516,21 +530,21 @@ See [Helper configuration](docs/helper-configuration.md), [Admin configuration](
 
 ## Releases and upgrades
 
-This README describes NetOps 1.0.10, the current release. What changed is in the [1.0.10 release notes](release/notes-1.0.10.md) and the [changelog](CHANGELOG.md), which also lists the earlier releases. To upgrade a 1.0.9 instance, follow [Upgrade from the previous release](docs/quickstart-1.0.md#upgrade-from-the-previous-release); to return to the unchanged 1.0.9 instance after an upgrade, follow [Rollback](docs/quickstart-1.0.md#rollback). Only 1.0.9 is accepted as the previous release: upgrade 1.0.8 to 1.0.9 first.
+This README describes NetOps 1.0.11, the current release. What changed is in the [1.0.11 release notes](release/notes-1.0.11.md) and the [changelog](CHANGELOG.md), which also lists the earlier releases. To upgrade a 1.0.10 instance, follow [Upgrade from the previous release](docs/quickstart-1.0.md#upgrade-from-the-previous-release); to return to the unchanged 1.0.10 instance after an upgrade, follow [Rollback](docs/quickstart-1.0.md#rollback). Only 1.0.10 is accepted as the previous release: upgrade 1.0.9 to 1.0.10 first.
 
-Existing inventory and credentials need no manual edits; Admin devices can need a new enrollment or changed Admin settings, as listed under [Upgrade from 1.0.9](release/notes-1.0.10.md#upgrade-from-109). The [upgrade guide](docs/quickstart-1.0.md#upgrade-from-the-previous-release) explains keyboard-interactive authentication and connection spacing; the [1.0.10 release notes](release/notes-1.0.10.md#changes-in-1010) list the changes.
+Existing inventory and credentials need no manual edits. For the upgrade from 1.0.10 to 1.0.11, Admin enrollments from 1.0.10 stay valid when device and Admin configuration, accounts, firmware and notification settings stay unchanged. The [upgrade guide](docs/quickstart-1.0.md#upgrade-from-the-previous-release) explains keyboard-interactive authentication and connection spacing; the [1.0.11 release notes](release/notes-1.0.11.md#changes-in-1011) list the changes.
 
 
 ## Verification and release
 
 A release is the maintainer's personally signed checksum list together with the assets it covers. A candidate branch, digest, build or CI run without that signature is not a release.
 
-- **Signature:** `netops-1.0.10-SHA256SUMS` is signed with Sigstore (`netops-1.0.10-SHA256SUMS.sigstore.json`); certificate identity `325383355+radek-cerny-soukr@users.noreply.github.com`, OIDC issuer `https://github.com/login/oauth`.
+- **Signature:** `netops-1.0.11-SHA256SUMS` is signed with Sigstore (`netops-1.0.11-SHA256SUMS.sigstore.json`); certificate identity `325383355+radek-cerny-soukr@users.noreply.github.com`, OIDC issuer `https://github.com/login/oauth`.
 - **Covered assets:** `compose.yaml`, `env.example`, the release manifest (image index and per-architecture digests), the acceptance manifest, the per-architecture SBOMs, vulnerability scans and scan gate results, the vulnerability assessments and the acceptance reports (`acceptance-*.json`). The signed checksum list itself is the complete list of covered files.
 - **Build once:** every release candidate is built once in GitHub Actions and the same digests are tested, accepted and published without a rebuild. The wheel inside the image is built with `SOURCE_DATE_EPOCH` set to the time of the source commit (`git log -1 --format=%ct`), so two builds of the same commit produce a byte-identical wheel; the Dockerfile refuses to build the wheel without it.
 - **Building behind TLS inspection:** if a proxy or firewall decrypts TLS (for example FortiGate deep inspection), `docker build` stops at the first download: `apk` prints `TLS: server certificate not trusted` and `ERROR: Not continuing due to stale/unavailable repositories.`, and pip prints `ERROR: Could not find a version that satisfies the requirement <package>==<version> (from versions: none)`. Pass a CA bundle that contains the inspection CA as a BuildKit secret, for example the system bundle of a Debian or Ubuntu host that trusts that CA: `docker build --secret id=extra_ca,src=/etc/ssl/certs/ca-certificates.crt --build-arg SOURCE_DATE_EPOCH="$(git log -1 --format=%ct)" .` The file is added to the image's own bundle only while the download steps run and is not stored in any image layer. Without the secret the build runs the same commands as before, and with or without it the wheel is byte-identical. The tester image of [Qualification](docs/testing-1.0.md) accepts the same secret; see [Source checkout problems](docs/testing-1.0.md#source-checkout-problems).
-- **Vulnerabilities:** each architecture is scanned; a fixable High or Critical finding blocks the release unless a dated assessment records that the fixed version is not yet released, and every other finding ships with a written assessment (`netops-1.0.10-vulnerability-assessments.json`). Open findings without a fix available for the base image are listed in the release notes ([Known dependency findings](release/notes-1.0.10.md#known-dependency-findings)) with their assessments. The digests of the latest release are rescanned daily against its assessments.
-- **Acceptance of 1.0.10:** the acceptance is proportional to the change, and the [release notes](release/notes-1.0.10.md#acceptance) list its checks. Their results are the acceptance reports (`acceptance-*.json`) covered by the signed checksum list; the maintainer signs only a release whose required reports pass. The acceptance of 1.0.9 is described in its [release notes](release/notes-1.0.9.md#acceptance).
+- **Vulnerabilities:** each architecture is scanned; a fixable High or Critical finding blocks the release unless a dated assessment records that the fixed version is not yet released, and every other finding ships with a written assessment (`netops-1.0.11-vulnerability-assessments.json`). Open findings without a fix available for the base image are listed in the release notes ([Known dependency findings](release/notes-1.0.11.md#known-dependency-findings)) with their assessments. The digests of the latest release are rescanned daily against its assessments.
+- **Acceptance of 1.0.11:** the acceptance is proportional to the change, and the [release notes](release/notes-1.0.11.md#acceptance) list its checks. Their results are the acceptance reports (`acceptance-*.json`) covered by the signed checksum list; the maintainer signs only a release whose required reports pass. The acceptance of 1.0.10 is described in its [release notes](release/notes-1.0.10.md#acceptance).
 
 Use the image digest and configuration files from one signed release manifest. Qualification from a source checkout is described in [Qualification](docs/testing-1.0.md).
 

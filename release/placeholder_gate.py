@@ -6,7 +6,7 @@ import re
 import sys
 
 PLACEHOLDER = re.compile(r"TODO\(([^)\s]{0,64})\)?")
-VERSION = re.compile(r"[0-9]+\.[0-9]+\.[0-9]+")
+VERSION = re.compile(r"1\.0\.[0-9]+")
 SKIPPED = {".git", "node_modules"}
 ARCHIVE = os.path.join("docs", "archive")
 
@@ -61,7 +61,7 @@ def main():
     parser.add_argument("--root", default=os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
     args = parser.parse_args()
     if not VERSION.fullmatch(args.version):
-        parser.error("--version must be X.Y.Z")
+        parser.error("--version must be 1.0.x")
     errors, pending = check(os.path.abspath(args.root), args.version, args.candidate)
     for item in pending:
         print("PENDING " + item)

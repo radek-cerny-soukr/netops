@@ -5,23 +5,26 @@ is committed before the change and verified by its row "rollback pending" in sho
 by line in an interactive session (an ssh exec batch continues after an error and its answer is always status 0):
 configure exclusive, an empty candidate, the set and delete lines, show | compare and again "commit confirmed N",
 which restarts the timer from the new commit (measured: an expiry then returns the change as well). Admin never sends
-commit check, and it never commits the change or the inverse lines of an immediate return with a plain commit while
-the timer is pending, because a plain commit and commit check both confirm it (measured; commit check leaves no trace
-at all); both use commit confirmed. The only plain commit during the pending timer is the confirmation of the proven
-own timer: "commit comment \"netops-<id>-ok\"" in configure exclusive; the row "rollback pending" must then be gone.
-It is sent after the readback of the change with at least confirm_margin_seconds left, or as the end of an immediate
-return (started with at least REVERT_NOW_SECONDS left): at once when no change commit exists yet (a snapshot then
-checks the state before), otherwise after the inverse commit confirmed and a snapshot proving the state before. An
-expired timer is an automatic rollback committed as "root via other" above the change (with the broadcast "Commit was
-not confirmed; automatic rollback complete"); Admin proves it with that commit row.
+commit check, and it never commits the change with a plain commit while the timer is pending, because a plain commit
+and commit check both confirm it (measured; commit check leaves no trace at all). The plain commits during the pending
+timer end the proven own timer: the confirmation "commit comment \"netops-<id>-ok\"" in configure exclusive, sent
+after the readback of the change with at least confirm_margin_seconds left, and the immediate return (started with at
+least REVERT_NOW_SECONDS left): the confirmation of the empty safeguard when no change commit exists yet (a snapshot
+then checks the state before), otherwise the inverse lines committed with "commit comment \"netops-<id>-revert\"";
+the row "rollback pending" must then be gone. An expired timer is an automatic rollback committed as "root via other"
+above the change (with the broadcast "Commit was not confirmed; automatic rollback complete"); Admin proves it with
+that commit row. The rollback returns the configuration before the NEWEST commit confirmed, not before the first one
+(measured in task 378: after an empty safeguard, a change and an inverse each committed with commit confirmed, the
+expiry brought the change back); with the empty safeguard first and the change as the only later commit confirmed,
+that is the state before the change.
 
 Ownership (review pattern 1 of IOS and NX-OS). Junos gives a pending commit confirmed no owner: every commit of any
 session confirms it, also of the same account. A pending row is Admin's own only with proof from its own session:
 the own install session answered "commit complete" and right after it the newest commit row (record 0) is the own
 comment netops-<id> of the write account with "rollback pending"; Admin records that row (time, user, comment) as the
-safeguard and every later own commit confirmed (the change, an immediate return) as its head. A plain commit (the
-confirmation) or another own commit is sent only while the newest row is exactly the recorded head above the recorded
-safeguard row. In the session itself the answer of "show | compare" carries the banner "# commit confirmed will be
+safeguard and the later own commit confirmed (the change) as its head. A plain commit (the confirmation, the
+immediate return) or another own commit is sent only while the newest row is exactly the recorded head above the
+recorded safeguard row. In the session itself the answer of "show | compare" carries the banner "# commit confirmed will be
 rolled back in N minutes" while any commit confirmed is pending (measured): the safeguard commit is not sent when the
 banner is there (someone else's timer appeared after the prechecks; refused, nothing changed), the confirmation and
 the immediate return are not sent when it is gone (the own timer ended; a commit during the automatic rollback would
@@ -38,17 +41,21 @@ commit restarts the timer: its end moves by the device time between the safeguar
 the device clock), never past the answer of the session (execute._restarted_end).
 
 Immediate return (review pattern 3). A failed write or readback of a normal operation is returned at once while the
-own timer is pending with SESSION_BUDGET_SECONDS left (execute.REVERT_NOW_SECONDS): when no own change commit exists
-yet, the empty safeguard needs no return; else the inverse set/delete lines of the plan are committed with "commit
-confirmed N comment \"netops-<id>-revert\"", still under the timer. execute.py then proves the state before by a fresh
-snapshot and only then confirms; otherwise the timer returns it. When the read after the change commit failed, the
-change row becomes the head before the return only by a new read (adopt_change_head). Chosen over "rollback N": the
-inverse was measured (P3e, undo in the E2E of task 319) and touches only the planned object, while the index of
-rollback N moves with every commit (measured: rollback 1 is wrong after a confirmation) and a rollback during a
-pending timer was not measured.
+own timer is pending with SESSION_BUDGET_SECONDS left (exec_junos.REVERT_NOW_SECONDS): when no own change commit exists
+yet, the empty safeguard needs no return and is confirmed; else the inverse set/delete lines of the plan are committed
+with the plain "commit comment \"netops-<id>-revert\"", which ends the own timer and keeps the inverse. It is not
+committed with commit confirmed: an inverse under a timer is undone by its expiry, which returns the state before the
+newest commit confirmed, so an interrupted return (no confirmation after the inverse) brought the change back
+(measured in task 378, S1). execute.py then judges the state by a fresh snapshot against the state before (reverted,
+revert-failed, or unknown when it is not readable). When the read after the change commit failed, the change row
+becomes the head before the return only by a new read (adopt_change_head). Chosen over "rollback N": the inverse was
+measured (P3e, undo in the E2E of task 319) and touches only the planned object, while the index of rollback N moves
+with every commit (measured: rollback 1 is wrong after a confirmation) and a rollback during a pending timer was not
+measured.
 
 Recover (review pattern 4) decides by show system commit only: armed while a rollback is pending at or above the own
-safeguard row, fired with "root via other" above it and nothing pending, disarmed with the own "-ok" row above it.
+safeguard row, ended with "root via other" or the own plain "-revert" row above it and nothing pending, disarmed with
+the own "-ok" row above it.
 
 Timing (measured on the lab, where the vJunos runs under load 15-26): a commit takes 15-150 s (a change session took
 126-235 s in task 319), the timer counts whole minutes from the commit row and expires 0-60 s after N minutes, the
@@ -108,10 +115,11 @@ COMMIT_BUDGET_SECONDS = 180
 READBACK_BUDGET_SECONDS = 90
 # the restart of the timer is counted from two commit rows of whole seconds on the device clock
 RESTART_SLACK_SECONDS = 15
-# the immediate return commits the inverse under the own timer: started only with a whole session left
+# the immediate return commits the inverse while the own timer is pending: started only with a whole session left
 REVERT_NOW_SECONDS = SESSION_BUDGET_SECONDS
-# the inverse commit leaves the own timer pending; execute.py confirms it only after the state before is proven
-REVERT_NOW_KEEPS_SAFEGUARD = True
+# the inverse is committed with a plain commit, which ends the own timer (an inverse under the timer is undone by its
+# expiry, measured in task 378); execute.py judges the state by a fresh snapshot and confirms nothing afterwards
+REVERT_NOW_KEEPS_SAFEGUARD = False
 
 
 def _line_seconds(text: str) -> float:
@@ -451,11 +459,17 @@ def _pending(commits, label) -> bool:
     return index is not None and any(commit.pending for commit in commits[:index + 1])
 
 
+def _own_plain(commit, comment, login) -> bool:
+    """A plain (not commit confirmed) commit of the write account with the given own comment."""
+    return commit.comment == comment and not commit.confirmed and not commit.pending and (
+        login is None or commit.user == login)
+
+
 def _settled(commits, label, login) -> bool:
     """No rollback is pending and the end of the own timer is proven above the own safeguard row: the own
-    confirmation (netops-<id>-ok of the write account) or the automatic rollback (root via other). A timer that ended
-    without either (an automatic rollback still running, or a commit of someone else that confirmed it) is not
-    settled."""
+    confirmation (netops-<id>-ok of the write account), the own immediate return (the plain netops-<id>-revert of the
+    write account) or the automatic rollback (root via other). A timer that ended without any of them (an automatic
+    rollback still running, or a commit of someone else that confirmed it) is not settled."""
     if commits[0].pending:
         return False
     index = _label_index(commits, label)
@@ -463,6 +477,7 @@ def _settled(commits, label, login) -> bool:
         return False
     above = commits[:index]
     return (any(commit.comment == _confirmation(label) and (login is None or commit.user == login) for commit in above)
+            or any(_own_plain(commit, _reverting(label), login) for commit in above)
             or any((commit.user, commit.via) == ("root", "other") for commit in above))
 
 
@@ -515,14 +530,18 @@ def safeguard_absent(access, record) -> bool:
 
 
 def revert_now(access, record, spec) -> bool:
-    """Return a failed change at once under the own timer (execute.py sends it only with REVERT_NOW_SECONDS left).
+    """Return a failed change at once while the own timer is pending (execute.py sends it only with
+    REVERT_NOW_SECONDS left).
 
     Only while the own timer is pending (_owned). When the head is still the empty safeguard itself, no change commit
     exists and the configuration is the one of the empty safeguard: the return is its confirmation (execute.py then
-    proves the state before by a fresh snapshot). Else the inverse lines of the plan are committed with "commit confirmed N comment netops-<id>-revert"
-    (the empty candidate must still show the banner of the pending timer); the new row must then be pending right
-    above the head and becomes the head. True when the return is under the own timer, False otherwise (then
-    execute.py waits for the expiry)."""
+    proves the state before by a fresh snapshot). Else the inverse lines of the plan are committed with the plain
+    "commit comment netops-<id>-revert" (the empty candidate must still show the banner of the pending timer), which
+    ends the own timer and keeps the inverse: the timer must not stay pending over the inverse, because its expiry
+    returns the state before the newest commit confirmed and an inverse committed with commit confirmed then brings
+    the change back (measured in task 378). The new row must be that plain own row right above the head with no
+    rollback pending; it becomes the head. True when the return is committed, False otherwise (then execute.py waits
+    for the end of the timer: its expiry, or the own -revert row when the commit went through unseen)."""
     item = record.get("safeguard") or {}
     label = safeguard_label(record["change_id"])
     try:
@@ -533,7 +552,7 @@ def revert_now(access, record, spec) -> bool:
             # no own change commit exists: the configuration is the one of the empty safeguard (the state before),
             # so the return is its confirmation; when that cannot be proven the timer returns it
             return remove_safeguard(access, record, spec)
-        change = 'commit confirmed %d comment "%s"' % (CONFIRM_MINUTES, _reverting(label))
+        change = 'commit comment "%s"' % _reverting(label)
         lines = [change if _commit_line(line) else line for line in record["plan"]["inverse"]]
         if lines.count(change) != 1 or lines[:3] != [junos.SCREEN, junos.ENTER, junos.COMPARE_EMPTY]:
             return False
@@ -545,11 +564,9 @@ def revert_now(access, record, spec) -> bool:
     except Exception:
         return False
     newest, login = commits[0], _login(access)
-    if not (newest.comment == _reverting(label) and newest.pending and newest.minutes == CONFIRM_MINUTES
-            and (login is None or newest.user == login) and len(commits) > 1 and _same(commits[1], item.get("head"))):
+    if not (_own_plain(newest, _reverting(label), login) and len(commits) > 1 and _same(commits[1], item.get("head"))):
         return False
     item["head"] = _row(newest)
-    item["device_expiry"] = _expiry(newest)
     return True
 
 
@@ -568,10 +585,12 @@ def safeguard_disarmed(access, record) -> bool:
 
 
 def safeguard_fired(access, record) -> bool:
-    """The timer expired and Junos rolled back: no rollback is pending and the automatic rollback is committed as
-    "root via other" above the safeguard (measured; a confirmation that wins the race leaves no such row). Decided by
-    show system commit only, never by the device clock; unreadable is not fired (execute.py keeps reading until its
-    wait limit on the monotonic clock of Admin)."""
+    """The own timer ended without a confirmation: no rollback is pending and above the safeguard the automatic
+    rollback is committed as "root via other" (measured; a confirmation that wins the race leaves no such row), or the
+    own plain -revert row of an immediate return that went through although its answer was not seen (it ended the
+    timer, so no expiry follows; the fresh snapshot of execute.py then judges the state). Decided by show system
+    commit only, never by the device clock; unreadable is not fired (execute.py keeps reading until its wait limit on
+    the monotonic clock of Admin)."""
     label = safeguard_label(record["change_id"])
     try:
         commits = history(access)
@@ -580,7 +599,9 @@ def safeguard_fired(access, record) -> bool:
     index = _label_index(commits, label)
     if index is None or _pending(commits, label):
         return False
-    return any((commit.user, commit.via) == ("root", "other") for commit in commits[:index])
+    login = _login(access)
+    return any((commit.user, commit.via) == ("root", "other") or _own_plain(commit, _reverting(label), login)
+               for commit in commits[:index])
 
 
 def persist(access, spec) -> bool:
@@ -607,4 +628,3 @@ def observe(access, plan):
 
 def foreign_sessions(access, device) -> int:
     return junos.users(_read(access, QUERY_USERS))
-

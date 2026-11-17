@@ -123,12 +123,14 @@ def _passed(result, gate: str) -> bool:
     return ("gate_%s=passed" % gate) in _lines(result)
 
 def _only_gate_failed(result, *gates: str) -> None:
+    assert set(gates) <= set(GATE_NAMES), gates
     assert result.returncode != 0, result.stdout + result.stderr
     assert _lines(result)[-1] == "auditor_gates=failed"
     for other in GATE_NAMES:
         if other not in gates:
             assert _passed(result, other), result.stdout
     for gate in gates:
+        assert _details(result, gate), result.stdout
         assert not _passed(result, gate), result.stdout
 
 def test_synthetic_tree_passes(tmp_path):
@@ -189,7 +191,7 @@ def test_real_address_in_a_fixture_is_rejected(tmp_path):
         encoding="utf-8",
     )
     result = _run(root)
-    _only_gate_failed(result, "fixtures_synthetic", "release_content")
+    _only_gate_failed(result, "fixtures_synthetic")
     details = _details(result, "fixtures_synthetic")
     expected = "tests/fixtures/rules/%s/negative.conf:2" % identifier
     assert any(expected in detail and PUBLIC_DNS_SAMPLE in detail for detail in details), details
@@ -199,7 +201,7 @@ def test_real_address_outside_the_rule_fixtures_is_rejected(tmp_path):
     path = root / "tests" / "fixtures" / "loose.conf"
     path.write_text(_text(("set gateway %s" % RFC1918_TEST_ADDRESS,)), encoding="utf-8")
     result = _run(root)
-    _only_gate_failed(result, "fixtures_synthetic", "release_content")
+    _only_gate_failed(result, "fixtures_synthetic")
     details = _details(result, "fixtures_synthetic")
     assert any(
         "tests/fixtures/loose.conf:1" in detail and RFC1918_TEST_ADDRESS in detail
@@ -233,7 +235,7 @@ def test_real_domain_in_a_fixture_is_rejected(tmp_path):
         encoding="utf-8",
     )
     result = _run(root)
-    _only_gate_failed(result, "fixtures_synthetic", "release_content")
+    _only_gate_failed(result, "fixtures_synthetic")
     details = _details(result, "fixtures_synthetic")
     expected = "tests/fixtures/rules/%s/positive.conf:2" % identifier
     assert any(
@@ -284,7 +286,7 @@ def test_private_key_material_is_rejected(tmp_path):
         encoding="utf-8",
     )
     result = _run(root)
-    _only_gate_failed(result, "fixtures_synthetic", "release_content")
+    _only_gate_failed(result, "fixtures_synthetic")
     details = _details(result, "fixtures_synthetic")
     expected = "tests/fixtures/rules/%s/positive.conf:2" % identifier
     assert any(

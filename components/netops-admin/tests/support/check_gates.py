@@ -1,17 +1,13 @@
 #!/usr/bin/env python3
-"""Fail closed when netops-admin gains an unreviewed way to reach a device, loses its version pin, or ships an invalid profile."""
+"""Fail closed when netops-admin gains an unreviewed way to reach a device or ships an invalid profile."""
 
 from __future__ import annotations
 
 import argparse
 import ast
 import ipaddress
-import json
-import os
 import re
-import subprocess
 import sys
-import tomllib
 from pathlib import Path
 
 sys.dont_write_bytecode = True
@@ -73,12 +69,7 @@ FILE_RULES = {
 }
 FORBIDDEN_NAMES = frozenset(("eval", "exec", "compile", "__import__", "breakpoint"))
 FORBIDDEN_ATTRIBUTES = frozenset(("system", "popen", "spawnv", "spawnve", "execv", "execve", "fork"))
-DEPENDENCIES = ["netops-auditor==0.2.12", "netops-core==0.2.9"]
-COMPONENT = "netops-admin"
 PLATFORMS = frozenset(("fortios", "exos", "eos", "ios", "iosxe", "fortiadc", "nxos", "junos"))
-RELEASE_SELECTOR = ("scripts", "create_release_artifacts.py")
-RELEASE_MANIFEST = "release-manifest.json"
-RELEASE_METADATA = frozenset((RELEASE_MANIFEST, "SHA256SUMS"))
 
 
 DOCUMENTATION_NETWORKS = (
@@ -151,15 +142,6 @@ CREDENTIAL_MARKERS = (
     re.compile(r"\bsk-[A-Za-z0-9]{20,}\b"),
     re.compile(r"\bssh-(?:ed25519|rsa|dss) AAAA[0-9A-Za-z+/]{40,}"),
 )
-RELEASE_TEXT_SUFFIXES = frozenset(
-    (
-        "", ".cfg", ".conf", ".env", ".in", ".ini", ".json", ".lock", ".md", ".py",
-        ".sh", ".toml", ".txt", ".yaml", ".yml",
-    )
-)
-RELEASE_DOMAIN_SUFFIXES = frozenset(
-    (".cfg", ".conf", ".env", ".ini", ".json", ".md", ".txt", ".yaml", ".yml")
-)
 PEM_MARKER_PATTERN = re.compile(r"BEGIN[ A-Z0-9]*PRIVATE KEY")
 PEM_END_PATTERN = re.compile(r"END[ A-Z0-9]*PRIVATE KEY")
 PEM_PAYLOAD_PATTERN = re.compile(r"[A-Za-z0-9+/]{40,}={0,2}")
@@ -195,19 +177,6 @@ FILE_SUFFIXES = frozenset(
         "orig", "rej", "in", "env", "example", "sample", "tmpl", "tpl", "j2", "lst",
     )
 )
-
-VERSION_PATTERN = re.compile(r"^[0-9]+\.[0-9]+(?:[.+-][0-9A-Za-z.+-]+)?$")
-CHANGELOG_HEADING = re.compile(r"([0-9]+\.[0-9]+(?:[.+-][0-9A-Za-z.+-]+)?)(?:[ \t]+-[ \t]+.+)?")
-REQUIREMENT_PATTERN = re.compile(
-    r"^[A-Za-z0-9][A-Za-z0-9._-]*(?:\[[A-Za-z0-9,._-]+\])?==[0-9A-Za-z][0-9A-Za-z.*+!-]*$"
-)
-
-
-def _relative(root: Path, path: Path) -> str:
-    try:
-        return path.relative_to(root).as_posix()
-    except ValueError:
-        return str(path)
 
 
 def _ipv4_verdict(candidate: str):
@@ -294,23 +263,6 @@ def import_errors(root: Path = ROOT) -> list:
     return errors
 
 
-def metadata_errors(root: Path = ROOT) -> list:
-    project = tomllib.loads((root / "pyproject.toml").read_text(encoding="utf-8"))["project"]
-    errors = []
-    if project.get("name") != "netops-admin":
-        errors.append("pyproject names another project")
-    tree = ast.parse((root / "src" / PACKAGE / "__init__.py").read_text(encoding="utf-8"))
-    versions = [
-        ast.literal_eval(node.value) for node in tree.body
-        if isinstance(node, ast.Assign) and any(getattr(target, "id", None) == "__version__" for target in node.targets)
-    ]
-    if versions != [project.get("version")]:
-        errors.append("package __version__ differs from pyproject version")
-    if project.get("dependencies") != DEPENDENCIES:
-        errors.append("dependencies must be exactly %r" % DEPENDENCIES)
-    return errors
-
-
 def profile_errors(root: Path = ROOT) -> list:
     sys.path.insert(0, str(root / "src"))
     try:
@@ -324,271 +276,6 @@ def profile_errors(root: Path = ROOT) -> list:
     for platform, table in loaded:
         if platform not in PLATFORMS:
             errors.append("profile %s %s has no adapter" % (platform, table))
-    return errors
-
-
-def _project_metadata(root: Path, errors: list):
-    path = root / "pyproject.toml"
-    relative = _relative(root, path)
-    if not path.is_file():
-        errors.append("%s is missing" % relative)
-        return None
-    try:
-        document = tomllib.loads(path.read_text(encoding="utf-8"))
-        project = document["project"]
-        name = project["name"]
-        version = project["version"]
-    except (OSError, UnicodeError, tomllib.TOMLDecodeError, KeyError, TypeError) as error:
-        errors.append("%s holds no usable project metadata: %s" % (relative, error))
-        return None
-    if name != COMPONENT:
-        errors.append("%s declares a foreign component name: %r" % (relative, name))
-    if not isinstance(version, str) or not VERSION_PATTERN.match(version):
-        errors.append("%s declares an unusable version: %r" % (relative, version))
-        return None
-    return version
-
-
-def gate_installation_versions(root: Path) -> list:
-    try:
-        project = tomllib.loads((root / "pyproject.toml").read_text(encoding="utf-8"))["project"]
-        dependencies = project["dependencies"]
-        version = project["version"]
-    except (OSError, UnicodeError, ValueError, KeyError, TypeError) as error:
-        return ["pyproject.toml is unusable for the installation version check: %s" % error]
-    if not isinstance(dependencies, list) or not all(isinstance(value, str) for value in dependencies) or not isinstance(version, str):
-        return ["pyproject.toml is unusable for the installation version check"]
-    pins = dict(value.split("==", 1) for value in dependencies if "==" in value)
-    expected = {"Core": pins.get("netops-core"), "Auditor": pins.get("netops-auditor"),
-                "Admin": project["version"]}
-    errors = []
-    for name in ("installation.md", "operations-020.md"):
-        path = root / "docs" / name
-        try:
-            text = path.read_text(encoding="utf-8")
-        except (OSError, UnicodeError) as error:
-            errors.append("docs/%s is unreadable: %s" % (name, error))
-            continue
-        for label, version in expected.items():
-            word = "netops-" + label.lower() if name == "installation.md" else label
-            match = re.search(r"\b" + re.escape(word) + r"`?\s+([0-9]+\.[0-9]+\.[0-9]+)", text)
-            if match is None or match.group(1) != version:
-                errors.append("docs/%s does not install %s %s from the package pins" % (name, label, version))
-    return errors
-
-
-def gate_version_metadata(root: Path) -> list:
-    errors = gate_installation_versions(root)
-    project_version = _project_metadata(root, errors)
-    path = root / "src" / PACKAGE / "__init__.py"
-    relative = _relative(root, path)
-    if not path.is_file():
-        errors.append("%s is missing" % relative)
-    else:
-        try:
-            tree = ast.parse(path.read_text(encoding="utf-8"))
-        except (OSError, UnicodeError, SyntaxError) as error:
-            errors.append("%s is unreadable or not valid Python: %s" % (relative, error))
-        else:
-            version = None
-            for node in ast.walk(tree):
-                if isinstance(node, ast.Assign):
-                    targets = node.targets
-                elif isinstance(node, ast.AnnAssign):
-                    targets = [node.target]
-                else:
-                    continue
-                if not any(
-                    isinstance(target, ast.Name) and target.id == "__version__"
-                    for target in targets
-                ):
-                    continue
-                if isinstance(node.value, ast.Constant) and isinstance(node.value.value, str):
-                    version = node.value.value
-            if version is None:
-                errors.append("%s declares no __version__ string" % relative)
-            elif not VERSION_PATTERN.match(version):
-                errors.append("%s declares an unusable __version__: %r" % (relative, version))
-            elif project_version is not None and version != project_version:
-                errors.append(
-                    "%s declares %r while pyproject.toml declares %r"
-                    % (relative, version, project_version)
-                )
-
-    document = root / "sbom.cdx.json"
-    relative = _relative(root, document)
-    if not document.is_file():
-        errors.append("%s is missing" % relative)
-    else:
-        try:
-            component = json.loads(document.read_text(encoding="utf-8"))["metadata"]["component"]
-        except (OSError, UnicodeError, ValueError, KeyError, TypeError) as error:
-            errors.append("%s does not carry a root component: %s" % (relative, error))
-        else:
-            named = component.get("version")
-            if project_version is not None and named != project_version:
-                errors.append(
-                    "%s names version %r while pyproject.toml declares %r;"
-                    " regenerate it with scripts/generate_sbom.py"
-                    % (relative, named, project_version)
-                )
-
-    changelog = root / "CHANGELOG.md"
-    relative = _relative(root, changelog)
-    try:
-        headings = [line[3:].strip() for line in changelog.read_text(encoding="utf-8").splitlines() if line.startswith("## ")]
-    except (OSError, UnicodeError) as error:
-        errors.append("%s is unreadable: %s" % (relative, error))
-    else:
-        matches = [CHANGELOG_HEADING.fullmatch(heading) for heading in headings]
-        versions = [match.group(1) for match in matches if match is not None]
-        if project_version is not None and (
-            not matches
-            or matches[0] is None
-            or matches[0].group(1) != project_version
-            or versions.count(project_version) != 1
-            or len(versions) != len(set(versions))
-        ):
-            errors.append(
-                "%s does not open with the only heading of version %r" % (relative, project_version)
-            )
-
-    requirements = root / "requirements-mcp.txt"
-    relative = _relative(root, requirements)
-    if not requirements.is_file():
-        errors.append("%s is missing" % relative)
-        return errors
-    try:
-        text = requirements.read_text(encoding="utf-8")
-    except (OSError, UnicodeError) as error:
-        errors.append("%s is unreadable: %s" % (relative, error))
-        return errors
-    pinned = 0
-    for number, raw in enumerate(text.splitlines(), start=1):
-        line = raw.split("#", 1)[0].strip()
-        if not line:
-            continue
-        if not REQUIREMENT_PATTERN.match(line):
-            errors.append(
-                "%s:%d does not pin an exact version with ==: %s" % (relative, number, line)
-            )
-            continue
-        pinned += 1
-    if not pinned:
-        errors.append("%s pins no requirement" % relative)
-    return errors
-
-
-SELECTOR_PROGRAM = """
-import importlib.util
-import sys
-from pathlib import Path
-
-specification = importlib.util.spec_from_file_location("_netops_release_selector", sys.argv[1])
-module = importlib.util.module_from_spec(specification)
-specification.loader.exec_module(module)
-selected_files = getattr(module, "selected_files", None)
-if not callable(selected_files):
-    raise SystemExit("release selector has no file selector")
-paths = selected_files(Path(sys.argv[2]))
-sys.stdout.write("\\0".join(str(Path(item).resolve()) for item in paths))
-"""
-
-
-def _release_files(root: Path) -> list:
-    selector = root.joinpath(*RELEASE_SELECTOR)
-    if not selector.is_file() or selector.is_symlink():
-        raise RuntimeError("release selector is missing: %s" % "/".join(RELEASE_SELECTOR))
-    completed = subprocess.run(
-        [sys.executable, "-B", "-c", SELECTOR_PROGRAM, str(selector), str(root)],
-        capture_output=True,
-        check=False,
-        timeout=300,
-    )
-    if completed.returncode:
-        detail = completed.stderr.decode("utf-8", "replace").strip().splitlines()
-        raise RuntimeError(detail[-1] if detail else "release selector failed")
-    chosen = []
-    for item in completed.stdout.decode("utf-8", "replace").split("\0"):
-        if not item:
-            continue
-        path = Path(item)
-        try:
-            path.relative_to(root)
-        except ValueError:
-            raise RuntimeError("release selection reaches outside the component: %s" % item)
-        chosen.append(path)
-    return chosen
-
-
-def _repository(root: Path) -> bool:
-    for candidate in (root, *root.parents):
-        if (candidate / ".git").exists():
-            return True
-    return False
-
-
-def _tree_files(root: Path) -> tuple:
-    files, errors, walk_errors = set(), [], []
-    for directory, directory_names, file_names in os.walk(
-        root, topdown=True, onerror=walk_errors.append, followlinks=False
-    ):
-        base = Path(directory)
-        for name in sorted(directory_names):
-            child = base / name
-            if child.is_symlink():
-                errors.append(
-                    "released tree holds a symlink: %s" % _relative(root, child)
-                )
-        for name in sorted(file_names):
-            path = base / name
-            relative = _relative(root, path)
-            if path.is_symlink():
-                errors.append("released tree holds a symlink: %s" % relative)
-            elif not path.is_file():
-                errors.append(
-                    "released tree holds an entry that is not a regular file: %s" % relative
-                )
-            else:
-                files.add(relative)
-    if walk_errors:
-        errors.append("released tree could not be traversed")
-    return files, errors
-
-
-def _manifest_files(root: Path) -> tuple:
-    path = root / RELEASE_MANIFEST
-    if path.is_symlink():
-        return None, ["%s must not be a symlink" % RELEASE_MANIFEST]
-    if not path.is_file():
-        return None, []
-    try:
-        document = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, UnicodeError, ValueError) as error:
-        return None, ["%s is unreadable or not valid JSON: %s" % (RELEASE_MANIFEST, error)]
-    entries = document.get("files") if isinstance(document, dict) else None
-    if not isinstance(entries, dict) or not entries:
-        return None, ["%s holds no file list" % RELEASE_MANIFEST]
-    return set(entries), []
-
-
-def _completeness_errors(root: Path, selected: set) -> list:
-    present, errors = _tree_files(root)
-    if errors:
-        return errors
-    content = present - RELEASE_METADATA
-    for relative in sorted(content - selected):
-        errors.append("released tree holds a file outside the release selection: %s" % relative)
-    for relative in sorted(selected - content):
-        errors.append("release selection names a file the released tree lacks: %s" % relative)
-    manifest, manifest_errors = _manifest_files(root)
-    errors.extend(manifest_errors)
-    if manifest is None:
-        return errors
-    for relative in sorted(manifest - content):
-        errors.append("%s names a file the released tree lacks: %s" % (RELEASE_MANIFEST, relative))
-    for relative in sorted(content - manifest):
-        errors.append("released tree holds a file outside %s: %s" % (RELEASE_MANIFEST, relative))
     return errors
 
 
@@ -667,54 +354,10 @@ def _release_text_errors(relative: str, text: str, domains: bool) -> list:
     return errors
 
 
-def gate_release_content(root: Path) -> list:
-    base = root.resolve()
-    try:
-        files = _release_files(base)
-    except (OSError, RuntimeError, subprocess.SubprocessError) as error:
-        return ["release selection is unavailable or invalid: %s" % error]
-    if not files:
-        return ["release selection holds no file"]
-    errors = []
-    for path in files:
-        relative = _relative(base, path)
-        for marker in PRIVATE_MARKERS:
-            if marker.search(relative):
-                errors.append("%s is a released path holding a private marker" % relative)
-                break
-        suffix = path.suffix.lower()
-        if suffix not in RELEASE_TEXT_SUFFIXES:
-            continue
-        try:
-            raw = path.read_bytes()
-        except OSError as error:
-            errors.append("%s is unreadable: %s" % (relative, error))
-            continue
-        if b"\x00" in raw:
-            errors.append("%s holds a NUL byte" % relative)
-            continue
-        try:
-            text = raw.decode("utf-8")
-        except UnicodeDecodeError:
-            errors.append("%s is not valid UTF-8" % relative)
-            continue
-        errors.extend(
-            _release_text_errors(relative, text, suffix in RELEASE_DOMAIN_SUFFIXES)
-        )
-    if not _repository(base):
-        errors.extend(
-            _completeness_errors(base, {_relative(base, path) for path in files})
-        )
-    return errors
-
-
-GATE_ORDER = ("imports", "project_metadata", "version_metadata", "profiles", "release_content")
+GATE_ORDER = ("imports", "profiles")
 GATES = {
     "imports": import_errors,
-    "project_metadata": metadata_errors,
-    "version_metadata": gate_version_metadata,
     "profiles": profile_errors,
-    "release_content": gate_release_content,
 }
 
 

@@ -210,8 +210,6 @@ def test_store_that_is_not_a_database_is_a_store_error(tmp_path, capsys):
     assert (code, out) == (cli.EXIT_ERROR, "") and err.startswith("error: store: ")
     code, out, err = invoke(capsys, ["status", "--tenant", TENANT, "--device", DEVICE, "--store", str(fake)])
     assert (code, out) == (cli.EXIT_ERROR, "") and err.startswith("error: store: ")
-    code, out, err = invoke(capsys, ["migrate-store", "--store", str(fake)])
-    assert (code, out) == (cli.EXIT_ERROR, "") and err.startswith("error: store: ")
     with pytest.raises(StoreError):
         Store(fake)
     with pytest.raises(mcp_server.ConfigurationError):

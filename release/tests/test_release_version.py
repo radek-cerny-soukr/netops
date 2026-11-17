@@ -22,8 +22,8 @@ class ReleaseVersion(unittest.TestCase):
 
     def test_signing_gate_requires_the_current_predecessor(self):
         tool = (ROOT / 'release/sign/netops-release-sign.ps1').read_text()
-        self.assertIn('$MinimumVersion = [version]"1.0.10"', tool)
-        self.assertIn('$UpgradeFromVersion = "1.0.9"', tool)
+        self.assertIn('$MinimumVersion = [version]"1.0.11"', tool)
+        self.assertIn('$UpgradeFromVersion = "1.0.10"', tool)
         image = re.search(r'(?m)^FROM_IMAGE=(.+)$', (ROOT / 'release/acceptance/release.env').read_text())[1]
         self.assertIn(f'$UpgradeFromImage = "{image}"', tool)
 
@@ -32,17 +32,18 @@ class ReleaseVersion(unittest.TestCase):
         spec = importlib.util.spec_from_file_location('release_verify_version', here / 'verify_state.py')
         verify = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(verify)
-        path = here / 'api-changes-1.0.9-1.0.10.json'
-        self.assertTrue(path.is_file(), f'{path.name} is missing: declare the MCP API changes of 1.0.9 -> 1.0.10')
-        items, problems, info = verify.load_api_changes(path, {'FROM_VERSION': '1.0.9', 'TO_VERSION': '1.0.10'})
+        path = here / 'api-changes-1.0.10-1.0.11.json'
+        self.assertTrue(path.is_file(), f'{path.name} is missing: declare the MCP API changes of 1.0.10 -> 1.0.11')
+        items, problems, info = verify.load_api_changes(path, {'FROM_VERSION': '1.0.10', 'TO_VERSION': '1.0.11'})
         self.assertEqual(problems, [])
-        # 1.0.10 changes only the description of admin_apply (the FortiADC pool member table of Admin).
-        self.assertEqual(sorted((item['tool'], item['kind']) for item in items), [('admin_apply', 'definition')])
-        self.assertEqual(sorted(info['changes'][0]['changed_keys']), ['/description'])
+        # The lab MCP capture of released 1.0.10 and the 1.0.11 build (task 386) shows no MCP API change:
+        # no (tool, kind) item and therefore no changed_keys.
+        self.assertEqual(sorted((item['tool'], item['kind']) for item in items), [])
+        self.assertEqual([change.get('changed_keys') for change in info['changes']], [])
         self.assertEqual(info['file'], path.name)
         env = (here / 'release.env').read_text()
-        self.assertIn('TO_IMAGE=netops-candidate:1.0.10', env)
-        self.assertIn('FROM_IMAGE=ghcr.io/radek-cerny-soukr/netops@sha256:94cec4ff7ec7d83710e0acf3e39ba5209212a01ec7d17ba3fbc610d89af7ce51', env)
+        self.assertIn('TO_IMAGE=netops-candidate:1.0.11', env)
+        self.assertIn('FROM_IMAGE=ghcr.io/radek-cerny-soukr/netops@sha256:1635727983f1d000ad9ec424e8339846e6b700f919cd77406c074ef18efbc8f4', env)
 
 
 if __name__ == '__main__':

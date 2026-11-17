@@ -29,9 +29,7 @@ from .state import STATE_GONE, STATE_NEW, STATE_OPEN_KNOWN, STATE_SUPPRESSED, cl
 from .state import STATE_NOT_EVALUATED, coverage, evaluation_complete, last_evaluated, stored_statuses
 from .state import AGE_FRESH, AGE_STALE, age_state, suppressions_for_device
 from .store import Store, StoreError
-from .store import migrate as migrate_store
 from .suppressions import MOMENT_FORMAT, SuppressionError, load_for_tenant
-from .suppressions import migrate_file as migrate_suppressions
 
 PLATFORMS = {
     "exos": (checks_exos, l1_exos),
@@ -165,14 +163,6 @@ def _parser() -> argparse.ArgumentParser:
     )
     freshness.add_argument("--json", action="store_true", dest="as_json")
     freshness.set_defaults(handler=_command_status)
-    waivers = commands.add_parser("migrate-suppressions")
-    waivers.add_argument("--input", required=True, dest="source")
-    waivers.add_argument("--output", required=True, dest="destination")
-    waivers.add_argument("--tenant", required=True)
-    waivers.set_defaults(handler=_command_migrate_suppressions)
-    database = commands.add_parser("migrate-store")
-    database.add_argument("--store", required=True)
-    database.set_defaults(handler=_command_migrate_store)
     combined = commands.add_parser("merge-sarif")
     combined.add_argument("--output", required=True)
     combined.add_argument("inputs", nargs="+")
@@ -920,18 +910,6 @@ def _command_collect(args) -> int:
     return _exit_code(report)
 
 
-def _command_migrate_suppressions(args) -> int:
-    try:
-        count = migrate_suppressions(args.source, args.destination, args.tenant)
-    except SuppressionError as error:
-        raise Failure("suppressions: %s" % error)
-    sys.stdout.write(
-        "migrated %d suppressions of tenant %s into %s\n"
-        % (count, args.tenant, args.destination)
-    )
-    return EXIT_OK
-
-
 def _write_regular(path, data: bytes) -> None:
     descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_NONBLOCK | os.O_CLOEXEC | os.O_NOFOLLOW, 0o600)
     try:
@@ -971,19 +949,6 @@ def _command_merge_sarif(args) -> int:
         raise Failure("cannot write SARIF %s: %s" % (args.output, error))
     results = len(merged["runs"][0]["results"])
     sys.stdout.write("merged %d results from %d files into %s\n" % (results, len(documents), args.output))
-    return EXIT_OK
-
-
-def _command_migrate_store(args) -> int:
-    path = _store_path(args.store, True)
-    try:
-        counts = migrate_store(path)
-    except StoreError as error:
-        raise Failure("store: %s" % error)
-    sys.stdout.write(
-        "migrated %d findings and %d baseline entries in %s\n"
-        % (counts["findings"], counts["baseline"], path)
-    )
     return EXIT_OK
 
 

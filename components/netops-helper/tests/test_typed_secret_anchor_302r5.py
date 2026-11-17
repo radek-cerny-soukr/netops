@@ -101,7 +101,7 @@ def _helper_chain(value):
 def _old_helper_chain(text):
     """The same path with the released 1.0.8 Helper credential rules and proxy."""
     helper = FLOOR.RULES_1_0_8._redact_credentials(text, ())
-    return _shown(product_redact(S._proxy_1_0_8(str.__str__(helper), ()))[0])
+    return _shown(product_redact(FLOOR.PROXY_1_0_8._sanitize_object(str.__str__(helper), ()))[0])
 
 
 def _paths(text):

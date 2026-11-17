@@ -1,0 +1,7 @@
+0   2026-11-16 19:37:20 UTC by netops-admin via cli commit confirmed, rollback in 2mins
+    netops-t378s1-revert
+    rollback pending
+1   2026-11-16 19:35:11 UTC by netops-admin via cli commit confirmed, rollback in 2mins
+    netops-change
+2   2026-11-16 19:33:11 UTC by netops-admin via cli commit confirmed, rollback in 2mins
+    netops-t378s1

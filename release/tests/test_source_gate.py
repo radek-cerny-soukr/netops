@@ -349,6 +349,20 @@ class SharedProductBoundaries(unittest.TestCase):
         p.write_text('__version__ = "9.0.0"\n')
         self.assertIn("installed product version differs from project metadata",gate.check(self.root))
 
+    def test_product_version_series(self):
+        import re
+        metadata = self.root / "pyproject.toml"
+        original = metadata.read_text()
+        for version, allowed in (("1.0.0", True), ("1.0.11", True),
+                                 ("0.9.9", False), ("1.1.0", False), ("2.0.0", False)):
+            with self.subTest(version=version):
+                metadata.write_text(re.sub(r'(?m)^version = "[^"]+"$',
+                                           'version = "' + version + '"', original))
+                (self.root / "src/netops/__init__.py").write_text('__version__ = "' + version + '"\n')
+                errors = gate.check(self.root)
+                self.assertEqual("product version must be 1.0.x" not in errors, allowed)
+                self.assertNotIn("installed product version differs from project metadata", errors)
+
     def test_engines_cannot_declare_separate_distributions(self):
         p=self.root/"components/netops-core/pyproject.toml"
         p.write_text(p.read_text()+'\n[project]\nname = "separate-package"\nversion = "1.0.0"\n')

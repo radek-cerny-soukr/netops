@@ -348,8 +348,10 @@ def test_access_vlan_is_confirmed_and_undone(tmp_path):
 
 
 def test_lost_check_account_is_returned_at_once_by_the_inverse_under_the_timer(tmp_path):
-    # review pattern 3: a failed readback is returned at once (inverse set/delete committed with commit confirmed
-    # under the own timer, the state before proven by a fresh snapshot, only then confirmed), not after the expiry
+    # review pattern 3: a failed readback is returned at once while the own timer is pending, not after the expiry:
+    # the inverse set/delete lines are committed with a plain commit, which ends the own timer and keeps the inverse
+    # (task 378: an inverse committed with commit confirmed is undone by the expiry), then a fresh snapshot proves
+    # the state before
     device = FakeJunos()
 
     def lose_check_account(fake, block):
@@ -362,15 +364,18 @@ def test_lost_check_account_is_returned_at_once_by_the_inverse_under_the_timer(t
     assert record["result"] == "reverted" and record["reason"] == "check identity unavailable", steps(record)
     label = record["safeguard"]["name"]
     assert device.lines == BASELINE.rstrip("\n").split("\n") and not device.pending()
-    assert [item["comment"] for item in device.history[:4]] == [label + "-ok", label + "-revert", "netops-change",
-                                                                 label]
+    assert [item["comment"] for item in device.history[:3]] == [label + "-revert", "netops-change", label]
+    assert device.history[0]["minutes"] is None and not device.history[0]["pending"]
     assert device.applied_blocks[3] == [SCREEN, ENTER, EMPTY, "delete interfaces ge-0/0/2 disable",
                                         "delete interfaces ge-0/0/2 description", COMPARE,
-                                        'commit confirmed 10 comment "%s-revert"' % label, LEAVE]
-    assert device.applied_blocks[4] == [SCREEN, ENTER, EMPTY, 'commit comment "%s-ok"' % label, LEAVE]
+                                        'commit comment "%s-revert"' % label, LEAVE]
+    assert len(device.applied_blocks) == 4
     names = steps(record)
-    assert names.index("revert_now_start") < names.index("revert_now_done") < names.index("safeguard_removed")
-    assert not any(item["via"] == "other" for item in device.history[:4]) and device.broadcasts == []
+    assert names.index("revert_now_start") < names.index("revert_now_done") and "safeguard_removed" not in names
+    assert not any(item["via"] == "other" for item in device.history[:3]) and device.broadcasts == []
+    # the inverse is kept: nothing is pending any more, so no expiry can bring the change back
+    device.advance(1200)
+    assert device.lines == BASELINE.rstrip("\n").split("\n") and device.history[0]["comment"] == label + "-revert"
 
 
 def test_check_account_mismatch_is_returned(tmp_path):
@@ -774,7 +779,8 @@ def test_a_foreign_timer_of_the_same_account_after_the_change_is_never_confirmed
     assert record["result"] == "revert-failed", (record["reason"], steps(record))
     assert "confirm_unverified" in steps(record) and "revert_now_unverified" in steps(record)
     assert len(device.applied_blocks) == 3
-    assert not any(line in ('commit comment "%s-ok"' % label, 'commit confirmed 10 comment "%s-revert"' % label)
+    assert not any(line in ('commit comment "%s-ok"' % label, 'commit comment "%s-revert"' % label,
+                            'commit confirmed 10 comment "%s-revert"' % label)
                    for block in device.applied_blocks for line in block)
 
 
@@ -1039,14 +1045,13 @@ def _fail_first_history_after_change(device):
 def _returned_at_once(device, record):
     label = record["safeguard"]["name"]
     assert device.lines == BASELINE.rstrip("\n").split("\n") and not device.pending()
-    assert [item["comment"] for item in device.history[:4]] == [label + "-ok", label + "-revert", "netops-change",
-                                                                 label]
+    assert [item["comment"] for item in device.history[:3]] == [label + "-revert", "netops-change", label]
     assert device.applied_blocks[3] == [SCREEN, ENTER, EMPTY, "delete interfaces ge-0/0/2 description", COMPARE,
-                                        'commit confirmed 10 comment "%s-revert"' % label, LEAVE]
-    assert not any(item["via"] == "other" for item in device.history[:4]) and device.broadcasts == []
+                                        'commit comment "%s-revert"' % label, LEAVE]
+    assert len(device.applied_blocks) == 4
+    assert not any(item["via"] == "other" for item in device.history[:3]) and device.broadcasts == []
     names = steps(record)
-    assert names.index("change_head_adopted") < names.index("revert_now_start") < names.index("revert_now_done") \
-        < names.index("safeguard_removed")
+    assert names.index("change_head_adopted") < names.index("revert_now_start") < names.index("revert_now_done")
     assert "revert_now_unverified" not in names and "revert_now_skipped" not in names
 
 
@@ -1112,8 +1117,9 @@ def test_a_foreign_commit_above_the_safeguard_is_never_adopted(tmp_path, landing
 
     def above(fake, step):
         if step == CHANGE and landing == "foreign-above-change":
-            # a commit confirmed keeps the target of the pending timer (FakeJunos._commit): the state before
-            _foreign_pending(fake, comment="netops-change", target=fake.timer["target"])
+            # the expiry returns the state before the newest commit confirmed (task 378): the foreign one, which
+            # holds the own change
+            _foreign_pending(fake, comment="netops-change")
 
     device.before_line, device.after_line = land, above
     record = execute.apply(make_runtime(tmp_path, device), NAME, request())
@@ -1121,9 +1127,213 @@ def test_a_foreign_commit_above_the_safeguard_is_never_adopted(tmp_path, landing
     names = steps(record)
     assert "change_head_adopted" not in names and "revert_now_unverified" in names, (record["reason"], names)
     assert record["safeguard"]["head"] == record["safeguard"]["commit"]
-    assert not any(line in ('commit comment "%s-ok"' % label, 'commit confirmed 10 comment "%s-revert"' % label)
+    assert not any(line in ('commit comment "%s-ok"' % label, 'commit comment "%s-revert"' % label,
+                            'commit confirmed 10 comment "%s-revert"' % label)
                    for block in device.applied_blocks for line in block)
     assert record["result"] != "confirmed" and not device.pending()
     assert (device.history[0]["user"], device.history[0]["via"]) == ("root", "other")
     assert state["failed"] == (1 if landing == "foreign-above-change" else 0)
+    if landing == "foreign-above-change":
+        # the foreign timer returned the state with the own change; Admin reports it truthfully
+        assert record["result"] == "revert-failed", (record["reason"], names)
+        assert "description netops-c8b-test" in device.interface("ge-0/0/2")
+    else:
+        assert device.lines == BASELINE.rstrip("\n").split("\n")
+
+
+# ---- task 378: the expiry returns the state before the NEWEST commit confirmed (measured on vJunos 26.2R1.7) ----
+
+S1_LABEL, S2_LABEL = "netops-t378s1", "netops-t378s2"
+
+
+def _rows(commits):
+    return [(commit.user, commit.via, commit.minutes, commit.comment, commit.pending) for commit in commits]
+
+
+def _fake_rows(device, count):
+    return [(item["user"], item["via"], item["minutes"], item["comment"], item["pending"])
+            for item in device.history[:count]]
+
+
+def _measured_port(name):
+    return [line[len("set interfaces ge-0/0/2 "):] for line in fixture(name).split("\n") if line]
+
+
+def _measured_sequence(device, label, change, inverse_committed):
+    """The measured command sequence of task 378 on the fake (the lines of exec_junos, commit confirmed 2): an empty
+    safeguard, the description change, the inverse committed or the session ended right before its commit."""
+    spec = exec_junos.prompt_spec(device.hostname)
+    device.apply([SCREEN, ENTER, EMPTY, 'commit confirmed 2 comment "%s"' % label, LEAVE], spec)
+    device.apply([SCREEN, ENTER, EMPTY, 'set interfaces ge-0/0/2 description "%s"' % change, COMPARE,
+                  'commit confirmed 2 comment "netops-change"', LEAVE], spec)
+    changed = list(device.lines)
+    inverse = [SCREEN, ENTER, EMPTY, "delete interfaces ge-0/0/2 description", COMPARE]
+    device.apply(inverse + (['commit confirmed 2 comment "%s-revert"' % label, LEAVE] if inverse_committed else []),
+                 spec)
+    return changed
+
+
+def test_measured_expiry_after_an_inverse_commit_confirmed_brings_the_change_back():
+    # S1, measured: the inverse committed with commit confirmed and then no confirmation (the process interrupted);
+    # the expiry returned the state before the inverse, i.e. the change, not the state before the safeguard
+    assert _measured_port("show-configuration-interfaces-ge-0-0-2-display-set__t378-baseline.txt") == \
+        FakeJunos().interface("ge-0/0/2")
+    pending = junos.commits(fixture("show-system-commit__t378-s1-inverse-pending.txt"))
+    assert _rows(pending) == [("netops-admin", "cli", 2, S1_LABEL + "-revert", True),
+                              ("netops-admin", "cli", 2, "netops-change", False),
+                              ("netops-admin", "cli", 2, S1_LABEL, False)]
+    assert exec_junos.pending_banner(fixture("commit-confirmed-2__t378-s1-inverse-restarts-timer.txt"))
+    assert _measured_port("show-configuration-interfaces-ge-0-0-2-display-set__t378-s1-inverse-pending.txt") == \
+        _measured_port("show-configuration-interfaces-ge-0-0-2-display-set__t378-baseline.txt")
+    fired = junos.commits(fixture("show-system-commit__t378-s1-after-expiry-change-back.txt"))
+    measured_after = _measured_port(
+        "show-configuration-interfaces-ge-0-0-2-display-set__t378-s1-after-expiry-change-back.txt")
+    assert measured_after[0] == "description t378-s1-change"
+    assert fixture("show-system-rollback-compare-1-0__t378-s1-after-expiry-change-back.txt").split("\n")[1] == \
+        "+   description t378-s1-change;"
+    assert fixture("show-system-rollback-compare-2-0__t378-s1-after-expiry-equals-change.txt").strip() == ""
+    # the model gives the same rows and the same port
+    device = FakeJunos()
+    changed = _measured_sequence(device, S1_LABEL, "t378-s1-change", inverse_committed=True)
+    assert _fake_rows(device, 3) == _rows(pending)
+    assert device.interface("ge-0/0/2") == _measured_port(
+        "show-configuration-interfaces-ge-0-0-2-display-set__t378-s1-inverse-pending.txt")
+    device.advance(600)
+    assert _fake_rows(device, 4) == _rows(fired) and not device.pending()
+    assert device.interface("ge-0/0/2") == measured_after and device.lines == changed
+
+
+def test_measured_expiry_without_the_inverse_commit_returns_the_state_before():
+    # S2, measured: the session of the inverse ended before its commit; the expiry returned the state before the
+    # change commit, which is the state before the empty safeguard
+    pending = junos.commits(fixture("show-system-commit__t378-s2-session-ended-change-pending.txt"))
+    assert _rows(pending) == _rows(junos.commits(fixture("show-system-commit__t378-s2-change-pending.txt")))
+    assert _rows(pending) == [("netops-admin", "cli", 2, "netops-change", True),
+                              ("netops-admin", "cli", 2, S2_LABEL, False)]
+    assert fixture("show-compare__t378-s2-inverse-not-committed.txt").split("\n")[1] == \
+        "-   description t378-s2-change;"
+    fired = junos.commits(fixture("show-system-commit__t378-s2-after-expiry-returned.txt"))
+    assert fixture("show-system-rollback-compare-1-0__t378-s2-after-expiry-returned.txt").split("\n")[1] == \
+        "-   description t378-s2-change;"
+    device = FakeJunos()
+    _measured_sequence(device, S2_LABEL, "t378-s2-change", inverse_committed=False)
+    assert _fake_rows(device, 2) == _rows(pending)
+    device.advance(600)
+    assert _fake_rows(device, 3) == _rows(fired) and not device.pending()
+    assert device.interface("ge-0/0/2") == _measured_port(
+        "show-configuration-interfaces-ge-0-0-2-display-set__t378-s2-after-expiry-returned.txt")
     assert device.lines == BASELINE.rstrip("\n").split("\n")
+
+
+def test_measured_histories_of_task_378_drive_the_end_of_the_timer():
+    # the measured histories read through the adapter (fake transport answering the measured text): pending is armed,
+    # root via other above the own safeguard is the end of the timer, whose state only the snapshot judges
+    class Answer:
+        def __init__(self, name, label):
+            self.text = fixture(name).replace(label, exec_junos.safeguard_label(record["change_id"]))
+            self.credential = None
+
+        def query(self, command):
+            assert command == exec_junos.QUERY_COMMITS
+            return self.text
+
+    record = {"change_id": "78" * 16}
+    label = exec_junos.safeguard_label(record["change_id"])
+    for name, measured in (("show-system-commit__t378-s1-inverse-pending.txt", S1_LABEL),
+                           ("show-system-commit__t378-s2-change-pending.txt", S2_LABEL)):
+        armed = Answer(name, measured)
+        assert not exec_junos.safeguard_fired(armed, record) and not exec_junos.safeguard_absent(armed, record)
+        assert exec_junos.leftovers(armed) == ([label + "-revert"] if "s1" in name else ["netops-change"])
+    for name, measured in (("show-system-commit__t378-s1-after-expiry-change-back.txt", S1_LABEL),
+                           ("show-system-commit__t378-s2-after-expiry-returned.txt", S2_LABEL)):
+        ended = Answer(name, measured)
+        assert exec_junos.safeguard_fired(ended, record) and exec_junos.safeguard_absent(ended, record)
+        assert not exec_junos.safeguard_disarmed(ended, record)
+    # the own immediate return of the fixed adapter: the plain -revert row (layout of a measured plain commit row)
+    # above the change ends the own timer, nothing is pending and no expiry follows
+    returned = Answer("show-system-commit__t378-s2-change-pending.txt", S2_LABEL)
+    returned.text = "0   2026-11-16 19:51:40 UTC by netops-admin via cli\n    %s-revert\n" % label + "\n".join(
+        "%-3d%s" % (int(row[:3]) + 1, row[3:]) if row[:1].isdigit() else row
+        for row in returned.text.split("\n") if row.strip() != "rollback pending")
+    assert _rows(junos.commits(returned.text))[:2] == [("netops-admin", "cli", None, label + "-revert", False),
+                                                       ("netops-admin", "cli", 2, "netops-change", False)]
+    assert exec_junos.safeguard_fired(returned, record) and exec_junos.safeguard_absent(returned, record)
+    foreign = Answer("show-system-commit__t378-s2-change-pending.txt", S2_LABEL)
+    foreign.text = returned.text.replace("by netops-admin via cli\n    %s-revert" % label,
+                                         "by operator via cli\n    %s-revert" % label, 1)
+    foreign.credential = type("Credential", (), {"login": "netops-admin"})()
+    assert not exec_junos.safeguard_fired(foreign, record) and not exec_junos.safeguard_absent(foreign, record)
+
+
+def _interrupt_after_the_inverse(device):
+    """The process is killed right after the commit of the immediate return answered (the next snapshot)."""
+    class Interrupted(BaseException):
+        pass
+
+    original = device.snapshot
+
+    def snapshot():
+        if (device.history[0]["comment"] or "").endswith("-revert"):
+            raise Interrupted()
+        return original()
+
+    device.snapshot = snapshot
+    return Interrupted
+
+
+def test_an_interrupted_immediate_return_keeps_the_state_before_and_recover_proves_it(tmp_path):
+    # task 378, S1 on the fixed adapter: the inverse is committed with a plain commit, so a process killed right after
+    # it leaves no pending timer that could bring the change back; recover sends nothing and reports reverted
+    device = FakeJunos()
+
+    def lose_check_account(fake, block):
+        if CHANGE in block:
+            fake.check_unreadable = True
+
+    device.on_apply = lose_check_account
+    interrupted = _interrupt_after_the_inverse(device)
+    runtime = make_runtime(tmp_path, device)
+    with pytest.raises(interrupted):
+        execute.apply(runtime, NAME, request(request_id="req-kill-378"))
+    record = runtime.store.running(NAME)[0]
+    label = record["safeguard"]["name"]
+    assert "revert_now_done" in steps(record) and not device.pending()
+    assert [item["comment"] for item in device.history[:3]] == [label + "-revert", "netops-change", label]
+    device.advance(1200)
+    assert device.lines == BASELINE.rstrip("\n").split("\n") and device.history[0]["comment"] == label + "-revert"
+    del device.snapshot
+    device.check_unreadable = False
+    blocks = len(device.applied_blocks)
+    settled = execute.recover(runtime, NAME)
+    assert [item["result"] for item in settled] == ["reverted"], [steps(item) for item in settled]
+    assert settled[0]["reason"] == "interrupted" and len(device.applied_blocks) == blocks
+    assert device.lines == BASELINE.rstrip("\n").split("\n") and not device.pending()
+
+
+def test_an_unreadable_state_after_the_immediate_return_is_unknown_and_stays_returned(tmp_path):
+    # the snapshot after the plain inverse commit fails: the state is not proven, so the result is unknown (the
+    # operator checks the port by hand, docs), and no timer is left that could bring the change back
+    from netops_admin.access import AccessError
+
+    device = FakeJunos()
+
+    def lose_check_account(fake, block):
+        if CHANGE in block:
+            fake.check_unreadable = True
+
+    original = device.snapshot
+
+    def snapshot():
+        if (device.history[0]["comment"] or "").endswith("-revert") and not getattr(device, "seen", False):
+            device.seen = True
+            raise AccessError("query failed: ssh: connection reset")
+        return original()
+
+    device.on_apply = lose_check_account
+    device.snapshot = snapshot
+    record = execute.apply(make_runtime(tmp_path, device), NAME, request())
+    assert record["result"] == "unknown" and record["reason"] == "check identity unavailable", steps(record)
+    assert "revert_unverified" in steps(record) and not device.pending()
+    device.advance(1200)
+    assert device.lines == BASELINE.rstrip("\n").split("\n")
+    assert not any(item["via"] == "other" for item in device.history[:3])

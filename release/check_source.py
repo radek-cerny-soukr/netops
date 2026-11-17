@@ -196,6 +196,8 @@ def check(root, release=False):
             errors.append("unreadable tracked text: " + relative)
     project = tomllib.loads((root / "pyproject.toml").read_text())["project"]
     version = project["version"]
+    if not re.fullmatch(r"1\.0\.[0-9]+", version):
+        errors.append("product version must be 1.0.x")
     product_tree = ast.parse((root / "src/netops/__init__.py").read_text())
     product_versions = [node.value.value for node in product_tree.body if isinstance(node, ast.Assign) and isinstance(node.value, ast.Constant) and any(isinstance(target, ast.Name) and target.id == "__version__" for target in node.targets)]
     if product_versions != [version]:

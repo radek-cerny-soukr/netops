@@ -210,7 +210,7 @@ def test_an_anchor_token_is_hidden_and_its_continuation_stays_hidden(name):
     text = ANCHOR_VALUES[name]
     # Task 302-r6: the typed rule hides the token; what the 1.0.8 proxy and the product hid after
     # it stays hidden through the proxy's floor.
-    assert CANARY not in product_redact(S._proxy_1_0_8(text, ()))[0]
+    assert CANARY not in product_redact(FLOOR.PROXY_1_0_8._sanitize_object(text, ()))[0]
     assert CANARY not in product_redact(sanitize_text(text))[0], sanitize_text(text)
     for context, value in _contexts(text):
         # The proxy and the product alone hide the canary wherever the 1.0.6 ones did (the
@@ -259,8 +259,8 @@ def test_proxy_hides_only_the_value_token():
     assert product_redact(sanitize_text(REVIEW["bare-sha512"]))[0] == (
         "secret <REDACTED> <REDACTED> set\npasswd [REDACTED]")
     # The released proxy rules: no CISCO_TYPED_SECRET.
-    assert S._proxy_1_0_8("secret sha512 $6$s$h set", ()) == "secret <REDACTED> $6$s$h set"
-    assert S._proxy_1_0_8({"a": ["secret sha512 $6$s$h"]}, ()) == {"a": ["secret <REDACTED> $6$s$h"]}
+    assert FLOOR.PROXY_1_0_8._sanitize_object("secret sha512 $6$s$h set", ()) == "secret <REDACTED> $6$s$h set"
+    assert FLOOR.PROXY_1_0_8._sanitize_object({"a": ["secret sha512 $6$s$h"]}, ()) == {"a": ["secret <REDACTED> $6$s$h"]}
 
 
 def test_typed_changes_records_only_a_change():

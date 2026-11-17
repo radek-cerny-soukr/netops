@@ -4,14 +4,11 @@ from types import SimpleNamespace
 
 import pytest
 
-from netops_auditor.findings import Finding, fingerprint_of, fingerprint_v1
+from netops_auditor.findings import Finding, fingerprint_of
 from netops_auditor.store import (
-    MIGRATE_COMMAND,
-    PREVIOUS_SCHEMA_VERSION,
     SCHEMA_VERSION,
     Store,
     StoreError,
-    migrate,
     schema_version,
 )
 
@@ -1076,27 +1073,7 @@ def test_channel_events_run_id_is_a_foreign_key():
 OTHER_TENANT = "tenant-b"
 
 
-def downgraded(path):
-    connection = sqlite3.connect(str(path), isolation_level=None)
-    connection.row_factory = sqlite3.Row
-    for row in connection.execute(
-        "SELECT id, rule_id, rule_version, device, object_key FROM findings"
-    ).fetchall():
-        connection.execute(
-            "UPDATE findings SET fingerprint = ? WHERE id = ?",
-            (fingerprint_v1(row["rule_id"], row["rule_version"], row["device"], row["object_key"]), row["id"]),
-        )
-    for row in connection.execute("SELECT id, rule_id, object_key, device FROM baseline").fetchall():
-        connection.execute(
-            "UPDATE baseline SET fingerprint = ? WHERE id = ?",
-            (fingerprint_v1(row["rule_id"], 1, row["device"], row["object_key"]), row["id"]),
-        )
-    connection.execute("PRAGMA user_version = 0")
-    connection.close()
-    return path
-
-
-def version_one_store(tmp_path, name="v1.sqlite3"):
+def incompatible_store(tmp_path, user_version, name="old.sqlite3"):
     path = tmp_path / name
     with Store(path) as store:
         for tenant in (TENANT, OTHER_TENANT):
@@ -1104,7 +1081,17 @@ def version_one_store(tmp_path, name="v1.sqlite3"):
             second = make_finding(rule_id="L1-002", object_key="firewall policy/2", tenant=tenant)
             run_id = record(store, (item, second), tenant=tenant)
             store.accept_baseline(tenant, DEVICE, run_id, "operator", "prevzato")
-    return downgraded(path)
+    connection = sqlite3.connect(str(path), isolation_level=None)
+    connection.execute("PRAGMA user_version = %d" % user_version)
+    connection.close()
+    return path
+
+
+def user_version(path):
+    connection = sqlite3.connect(str(path))
+    version = connection.execute("PRAGMA user_version").fetchone()[0]
+    connection.close()
+    return version
 
 
 def fingerprints(path, table):
@@ -1127,87 +1114,34 @@ def test_a_fresh_store_carries_the_schema_version(tmp_path):
     connection.close()
 
 
-def test_opening_a_version_1_store_is_refused_and_names_the_migration(tmp_path):
-    path = version_one_store(tmp_path)
-    before = fingerprints(path, "findings")
+@pytest.mark.parametrize("version", [0, 1, SCHEMA_VERSION + 1], ids=["unlabeled", "old", "unknown"])
+def test_opening_an_incompatible_store_is_refused_without_changing_data(tmp_path, version):
+    path = incompatible_store(tmp_path, version)
+    before = (fingerprints(path, "findings"), fingerprints(path, "baseline"))
     with pytest.raises(StoreError) as caught:
         Store(path)
-    assert "schema version %d" % PREVIOUS_SCHEMA_VERSION in str(caught.value)
-    assert MIGRATE_COMMAND in str(caught.value)
-    assert fingerprints(path, "findings") == before
+    assert "not supported" in str(caught.value)
+    assert "migrat" not in str(caught.value)
+    assert (fingerprints(path, "findings"), fingerprints(path, "baseline")) == before
+    assert user_version(path) == version
 
 
-def test_migration_recomputes_every_fingerprint_from_the_tenant_of_its_run(tmp_path):
-    path = version_one_store(tmp_path)
-    before = fingerprints(path, "findings")
-    assert len({fingerprint for _, fingerprint in before}) == 2
-    counts = migrate(path)
-    assert counts == {"findings": 4, "baseline": 4}
-    after = fingerprints(path, "findings")
-    assert len(after) == len(before) == 4
-    assert len({fingerprint for _, fingerprint in after}) == 4
-    for tenant, fingerprint in after:
-        assert fingerprint in (
-            fingerprint_of("L1-001", 1, tenant, DEVICE, "firewall policy/1"),
-            fingerprint_of("L1-002", 1, tenant, DEVICE, "firewall policy/2"),
-        )
-
-
-def test_migration_keeps_the_baseline_pointing_at_the_same_findings(tmp_path):
-    path = version_one_store(tmp_path)
-    migrate(path)
-    with Store(path) as store:
-        for tenant in (TENANT, OTHER_TENANT):
-            run = store.last_run(tenant, DEVICE)
-            stored = store.findings_for_run(tenant, run["id"])
-            assert len(stored) == 2
-            assert store.baseline_fingerprints(tenant, DEVICE) == frozenset(
-                item["fingerprint"] for item in stored
-            )
-        assert store.baseline_fingerprints(TENANT, DEVICE) != store.baseline_fingerprints(
-            OTHER_TENANT, DEVICE
-        )
-
-
-def test_migration_is_an_explicit_step_that_runs_once(tmp_path):
-    path = version_one_store(tmp_path)
-    migrate(path)
-    with pytest.raises(StoreError, match="already holds schema version"):
-        migrate(path)
-    with Store(path) as store:
-        assert schema_version(store._connection) == SCHEMA_VERSION
-
-
-def stored_fingerprints(path):
-    connection = sqlite3.connect(str(path))
-    rows = connection.execute("SELECT fingerprint FROM findings ORDER BY id").fetchall()
-    connection.close()
-    return tuple(row[0] for row in rows)
-
-
-def test_migration_refuses_a_finding_whose_run_names_no_tenant(tmp_path):
-    path = version_one_store(tmp_path)
-    before = stored_fingerprints(path)
-    connection = sqlite3.connect(str(path), isolation_level=None)
-    connection.execute("UPDATE findings SET run_id = 9999 WHERE id = 1")
-    connection.close()
-    with pytest.raises(StoreError, match="belongs to no run that names a tenant"):
-        migrate(path)
-    connection = sqlite3.connect(str(path))
-    assert connection.execute("PRAGMA user_version").fetchone()[0] == 0
-    connection.close()
-    assert stored_fingerprints(path) == before
-
-
-def test_migration_needs_a_store_that_holds_the_schema(tmp_path):
-    empty = tmp_path / "empty.sqlite3"
-    empty.touch()
-    with pytest.raises(StoreError, match="holds no audit schema"):
-        migrate(empty)
+def test_a_failed_initialization_is_rolled_back(tmp_path):
+    path = tmp_path / "foreign.sqlite3"
+    with sqlite3.connect(path) as con:
+        con.execute("CREATE TABLE baseline (x)")
+        con.execute("INSERT INTO baseline VALUES ('kept')")
+    with sqlite3.connect(path) as con:
+        before = tuple(con.iterdump())
+    with pytest.raises(StoreError, match="not a readable audit database"):
+        Store(path)
+    with sqlite3.connect(path) as con:
+        assert tuple(con.iterdump()) == before
+    assert user_version(path) == 0
 
 
 @pytest.mark.parametrize("name", ["runs", "findings", "baseline", "channel_events", "rule_status", "findings_run_id"])
-@pytest.mark.parametrize("mode", ["open", "readonly", "migrate"])
+@pytest.mark.parametrize("mode", ["open", "readonly"])
 def test_schema_rejects_wrong_object_type_without_changing_data(tmp_path, name, mode):
     path = tmp_path / "audit.db"
     with Store(path) as store:
@@ -1218,16 +1152,12 @@ def test_schema_rejects_wrong_object_type_without_changing_data(tmp_path, name, 
     else:
         con.execute("ALTER TABLE %s RENAME TO saved_%s" % (name, name))
     con.execute("CREATE VIEW %s AS SELECT 1 AS harmless" % name)
-    if mode == "migrate":
-        con.execute("PRAGMA user_version = 1")
     con.commit()
     before = tuple(con.iterdump())
     con.close()
     with pytest.raises((StoreError, sqlite3.DatabaseError), match=rf"{name}.*expected.*(table|index).*(view)"):
         if mode == "open":
             Store(path).close()
-        elif mode == "migrate":
-            migrate(path)
         else:
             with sqlite3.connect(path.as_uri() + "?mode=ro", uri=True) as ro:
                 schema_version(ro)
@@ -1266,23 +1196,6 @@ def test_readonly_server_opens_valid_store_and_reports_wrong_object(tmp_path, na
     with pytest.raises(ConfigurationError, match=rf"{name}.*expected table.*view"):
         ReadOnlyStore(path)
     assert path.read_bytes() == before
-
-
-def test_migration_of_incomplete_version_one_store(tmp_path):
-    path = version_one_store(tmp_path)
-    with sqlite3.connect(path) as con:
-        con.execute("DROP TABLE rule_status")
-        con.execute("DROP TABLE channel_events")
-        con.execute("DROP INDEX baseline_tenant_device_fingerprint")
-        con.execute("PRAGMA user_version = 1")
-    assert migrate(path) == {"findings": 4, "baseline": 4}
-    with Store(path) as store:
-        for tenant in (TENANT, OTHER_TENANT):
-            run = store.last_run(tenant, DEVICE)
-            findings = store.findings_for_run(tenant, run["id"])
-            assert len(findings) == 2
-            assert store.baseline_fingerprints(tenant, DEVICE) == frozenset(item["fingerprint"] for item in findings)
-        assert schema_version(store._connection) == SCHEMA_VERSION
 
 
 def test_readonly_missing_object_offers_writable_repair(tmp_path):

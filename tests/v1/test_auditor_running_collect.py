@@ -553,7 +553,7 @@ class AuditorStoreLock(RunningCollectBase):
         with self.environment(), patch.object(operator.os, "geteuid", return_value=self.uid + 1), \
                 self.assertRaisesRegex(OperatorAccessError, "default container user"):
             operator.role_cli("auditor", ["collect", "--device", DEVICE])
-        for arguments in (["import-snapshot", "--name", "example"], ["migrate-store", "--store", "x"]):
+        for arguments in (["import-snapshot", "--name", "example"],):
             with self.subTest(arguments=arguments), self.environment() as stack:
                 self.as_root(stack)
                 with self.assertRaisesRegex(OperatorAccessError, "^Stop the running instance"):

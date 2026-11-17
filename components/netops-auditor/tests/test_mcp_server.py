@@ -589,7 +589,7 @@ def test_configure_rejects_a_suppression_file_without_a_tenant(audited, tmp_path
     with pytest.raises(mcp_server.ConfigurationError) as error:
         mcp_server.configure(_environment(audited, unbound))
     assert "missing document fields: tenant" in str(error.value)
-    assert "migrate-suppressions" in str(error.value)
+    assert "migrat" not in str(error.value)
 
 
 def test_configure_rejects_a_version_1_suppression_file(audited, tmp_path):
@@ -597,18 +597,26 @@ def test_configure_rejects_a_version_1_suppression_file(audited, tmp_path):
     old.write_text(json.dumps({"version": 1, "suppressions": []}), encoding="utf-8")
     with pytest.raises(mcp_server.ConfigurationError) as error:
         mcp_server.configure(_environment(audited, old))
-    assert "version 1 is refused" in str(error.value)
-    assert "migrate-suppressions" in str(error.value)
+    assert "unknown suppression file version 1" in str(error.value)
+    assert "migrat" not in str(error.value)
 
 
-def test_configure_rejects_a_store_that_was_never_migrated(audited):
+@pytest.mark.parametrize("version,reason", [
+    (0, "without a schema version"),
+    (1, "schema version 1 instead of %d" % SCHEMA_VERSION),
+    (SCHEMA_VERSION + 1, "schema version %d instead of %d" % (SCHEMA_VERSION + 1, SCHEMA_VERSION)),
+], ids=["unlabeled", "old", "unknown"])
+def test_configure_rejects_an_unsupported_store_without_changing_it(audited, version, reason):
     connection = sqlite3.connect(str(audited.path), isolation_level=None)
-    connection.execute("PRAGMA user_version = 0")
+    connection.execute("PRAGMA user_version = %d" % version)
     connection.close()
+    before = audited.path.read_bytes()
     with pytest.raises(mcp_server.ConfigurationError) as error:
         mcp_server.configure(_environment(audited))
-    assert "schema version 1" in str(error.value)
-    assert "instead of %d" % SCHEMA_VERSION in str(error.value)
+    assert reason in str(error.value)
+    assert "not supported" in str(error.value)
+    assert "migrat" not in str(error.value)
+    assert audited.path.read_bytes() == before
 
 
 def test_configure_accepts_a_suppression_file_bound_to_its_own_tenant(audited, tmp_path):

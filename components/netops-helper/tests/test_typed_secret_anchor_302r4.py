@@ -236,7 +236,7 @@ def test_proxy_hides_the_continuation_before_the_value():
             "\tSET Password\rprefixSH2CNRY0227112Q\n")
     output = _proxy_worker(text)
     assert "CNRY0227112Q" not in output and "CNRY0227105Q" not in output, output
-    old = _shown(product_redact(S._proxy_1_0_8(text, ()))[0])
+    old = _shown(product_redact(FLOOR.PROXY_1_0_8._sanitize_object(text, ()))[0])
     assert "CNRY0227111Q" in old or "CNRY0227111Q" not in output, output
     assert sanitize_text("secret sha512 $6$s$syntheticset\npasswd x") == (
         "secret <REDACTED> <REDACTED>\npasswd <REDACTED>")
@@ -269,7 +269,7 @@ R3_ANCHORS = {
 def test_whole_anchor_token_with_a_continuation_keeps_the_1_0_8_floor(name):
     text = R3_ANCHORS[name]
     # Task 302-r6: the token is hidden; the continuation stays hidden through the proxy's floor.
-    assert CANARY not in product_redact(S._proxy_1_0_8(text, ()))[0]
+    assert CANARY not in product_redact(FLOOR.PROXY_1_0_8._sanitize_object(text, ()))[0]
     assert CANARY not in product_redact(sanitize_text(text))[0], sanitize_text(text)
     for context, value in _contexts(text):
         assert CANARY not in _proxy_worker(value) or context == "line-crlf", (context, _proxy_worker(value))

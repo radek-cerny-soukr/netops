@@ -6,22 +6,46 @@ replacement functions, ``_redact_credentials`` and the response flow
 (``ast.get_source_segment`` of ``git show 14c6a5a:.../sanitize.py``). The later layers
 (proxy ``_sanitize_object``, product ``netops.redaction.redact``, SNMP context marking
 and masking, terminal-control cleaning) are identical in 1.0.8 (61e7de3) and 14c6a5a
-and are bound in ``bind_layers``; the proxy runs without the 1.0.10 rule
-CISCO_TYPED_SECRET (``typed=False``, task 302-r3), its only rule change since 1.0.8. ``redact_response(text, secrets, helper=...)`` with the
+and are bound in ``bind_layers``; the proxy is the frozen 1.0.8 test fixture
+(task 377), independent of current proxy rules. Its public ``sanitize_object`` and
+``sanitize_text`` wrappers are disabled here: they delegate to the current response
+chain; reference callers must use ``_sanitize_object`` instead.
+``redact_response(text, secrets, helper=...)`` with the
 1.0.8 credential copy is the complete 1.0.8 chain.
 """
 # ruff: noqa
 from __future__ import annotations
 
+import importlib.util
+import pathlib
 import json
 import re
 
 from netops.redaction_spans import Marked, edits, sub, replace, mask, loads, dumps
 
 
+_PROXY_PATH = pathlib.Path(__file__).resolve().parents[3] / "tests/v1/fixtures/proxy_sanitize_1_0_8.py"
+_PROXY_SPEC = importlib.util.spec_from_file_location("frozen_proxy_1_0_8", _PROXY_PATH)
+PROXY_1_0_8 = importlib.util.module_from_spec(_PROXY_SPEC)
+_PROXY_SPEC.loader.exec_module(PROXY_1_0_8)
+
+
+def _unsupported_frozen_public_api(*args, **kwargs):
+    raise RuntimeError("frozen 1.0.8 reference: use _sanitize_object")
+
+
+PROXY_1_0_8.sanitize_object = _unsupported_frozen_public_api
+PROXY_1_0_8.sanitize_text = _unsupported_frozen_public_api
+# The current differential harness carries origin/floor ranges (introduced in 302).
+# Bind its span arithmetic, just as RULES_1_0_8 does; keep every proxy rule frozen.
+from netops_helper import sanitize as _tracked_spans
+for _name in ("edits", "sub", "replace", "loads", "dumps"):
+    setattr(PROXY_1_0_8, _name, getattr(_tracked_spans, _name))
+
+
 def bind_layers():
     """The later layers, unchanged since 1.0.8; bound at call time."""
-    from netops_helper import sanitize, proxy_sanitize
+    from netops_helper import sanitize
     globals().update(_mark_snmp=sanitize._mark_snmp, _mask_snmp=sanitize._mask_snmp,
                      strip_terminal_controls=sanitize.strip_terminal_controls)
 
@@ -271,12 +295,11 @@ def _redact_credentials(value: str, normalized: tuple[str, ...]) -> str:
 def _settle_response(value, secrets, *, helper=False):
     """Run the pre-SNMP layers to a fixed point on the same document."""
     from netops.redaction import redact as product_redact
-    from netops_helper.proxy_sanitize import _sanitize_object
 
     normalized = tuple(sorted({str(item) for item in secrets if len(str(item).encode("utf-8")) >= 3}, key=len, reverse=True))
     for _ in range(8):
         original = _redact_credentials(value, normalized) if helper else value
-        cleaned = product_redact(_sanitize_object(original, secrets, typed=False), secrets)[0]
+        cleaned = product_redact(PROXY_1_0_8._sanitize_object(original, secrets), secrets)[0]
         if cleaned == value:
             return value
         value = cleaned
@@ -308,11 +331,9 @@ def _needs_worker_before_mask(value, secrets):
 def _snmp_response(value, secrets, *, helper=False):
     # Context is captured before legacy rules can consume quotes or block headers.
     # Track only actual credential ranges through their unchanged legacy chain.
-    from netops_helper.proxy_sanitize import _contains_snmp
-    original = _mark_snmp(value) if _contains_snmp(value) else value
+    original = _mark_snmp(value) if PROXY_1_0_8._contains_snmp(value) else value
     if not helper:
-        from netops_helper.proxy_sanitize import _sanitize_object
-        cleaned = _sanitize_object(original, secrets, typed=False)
+        cleaned = PROXY_1_0_8._sanitize_object(original, secrets)
         if (isinstance(original, Marked) and original.spans and cleaned == original
                 and not _needs_worker_before_mask(cleaned, secrets)):
             return _mask_snmp(cleaned)

@@ -9,7 +9,9 @@ import os
 import sqlite3
 import stat
 import threading
+import time
 import tracemalloc
+from types import SimpleNamespace
 
 import pytest
 
@@ -19,7 +21,7 @@ from netops_auditor import mcp_server
 from netops_auditor import store as store_module
 from netops_auditor.findings import Finding
 from netops_auditor.mcp_server import ReadOnlyStore
-from netops_auditor.store import SCHEMA_VERSION, Store, migrate
+from netops_auditor.store import SCHEMA_VERSION, Store
 from test_mcp_server import (  # noqa: F401  (fixtures)
     DEVICE,
     RULES_VERSION,
@@ -28,7 +30,6 @@ from test_mcp_server import (  # noqa: F401  (fixtures)
     audited,
     clean_configuration,
 )
-from test_store import version_one_store
 
 WAIT_SECONDS = 0.5
 BULK_DEVICE = "fw-bulk.example.invalid"
@@ -121,16 +122,49 @@ def test_an_older_rollback_journal_store_is_switched_once_without_data_loss(audi
     assert _dump(path) == before
 
 
-def test_a_migrated_older_store_is_switched_to_wal_without_data_loss(tmp_path):
-    path = version_one_store(tmp_path)
+def test_a_nonempty_v2_rollback_journal_store_of_two_tenants_is_switched_to_wal_without_data_loss(tmp_path):
+    path = tmp_path / "older.sqlite3"
+    with Store(path) as store:
+        for tenant in (TENANT, "tenant-b"):
+            run_id = store.record_run(
+                tenant, DEVICE, "sha-" + tenant, "history/%s.conf" % tenant, RULES_VERSION,
+                (_finding("L1-001", "firewall policy/1", tenant=tenant),
+                 _finding("L1-002", "firewall policy/2", tenant=tenant)),
+            )
+            store.accept_baseline(tenant, DEVICE, run_id, "operator", "prevzato")
     _to_rollback_journal(path)
-    assert migrate(path) == {"findings": 4, "baseline": 4}
-    migrated = _dump(path)
-    assert migrated[1] == SCHEMA_VERSION
+    older = _dump(path)
+    assert older[1] == SCHEMA_VERSION
     with Store(path) as store:
         assert store._connection.execute("PRAGMA journal_mode").fetchone()[0] == "wal"
-    assert _dump(path) == migrated
+        for tenant in (TENANT, "tenant-b"):
+            assert len(store.baseline_entries(tenant, DEVICE)) == 2
+    assert _dump(path) == older
     assert _header_versions(path) == (2, 2)
+
+
+def test_the_switch_to_wal_waits_for_another_writer_without_data_loss(audited, monkeypatch):
+    path = audited.path
+    _to_rollback_journal(path)
+    before = _dump(path)
+    holder = sqlite3.connect(str(path), isolation_level=None)
+    holder.execute("BEGIN IMMEDIATE")
+    waits = []
+
+    def release(seconds):
+        waits.append(seconds)
+        holder.execute("ROLLBACK")
+        holder.close()
+
+    monkeypatch.setattr(store_module, "time", SimpleNamespace(monotonic=time.monotonic, sleep=release))
+    try:
+        with Store(path) as writer:
+            assert writer._connection.execute("PRAGMA journal_mode").fetchone()[0] == "wal"
+    finally:
+        holder.close()
+    assert waits == [store_module._RETRY_SECONDS]
+    assert _header_versions(path) == (2, 2)
+    assert _dump(path) == before
 
 
 def test_the_read_only_reader_reads_the_wal_store_and_a_concurrent_commit_passes(audited, short_busy_timeout):

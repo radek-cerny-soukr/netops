@@ -1,0 +1,2 @@
+[edit interfaces ge-0/0/2]
++   description t378-s1-change;

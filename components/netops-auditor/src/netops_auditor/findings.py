@@ -35,12 +35,6 @@ def fingerprint_of(rule_id, rule_version, tenant, device, object_key) -> str:
     )
 
 
-def fingerprint_v1(rule_id, rule_version, device, object_key) -> str:
-    return _digest(
-        ("rule_id", rule_id), ("rule_version", str(rule_version)), ("device", device), ("object_key", object_key)
-    )
-
-
 @dataclass(frozen=True)
 class Finding:
     rule_id: str

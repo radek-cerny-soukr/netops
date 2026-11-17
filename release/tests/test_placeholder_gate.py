@@ -21,14 +21,14 @@ class PlaceholderGate(unittest.TestCase):
 
     def clean(self):
         return {
-            "CHANGELOG.md": "# NetOps changelog\n\n## 9.8.7 - 2026-10-26\n\n- Fixed.\n\n## 9.8.6 - 2026-10-25\n",
-            "README.md": "Acceptance of 9.8.7: blind runs.\n",
-            "release/notes-9.8.7.md": "NetOps 9.8.7.\n\n## Acceptance\n\nBlind runs.\n",
+            "CHANGELOG.md": "# NetOps changelog\n\n## 1.0.11 - 2026-10-26\n\n- Fixed.\n\n## 1.0.10 - 2026-10-25\n",
+            "README.md": "Acceptance of 1.0.11: blind runs.\n",
+            "release/notes-1.0.11.md": "NetOps 1.0.11.\n\n## Acceptance\n\nBlind runs.\n",
             "docs/testing.md": "Release acceptance.\n",
             "docs/archive/0.x/old.md": "TODO(historical): kept as it was.\n",
         }
 
-    def run_gate(self, files, version="9.8.7", extra=()):
+    def run_gate(self, files, version="1.0.11", extra=()):
         proc = subprocess.run([sys.executable, "-B", GATE, "--version", version, "--root", self.tree(files), *extra],
                               capture_output=True, text=True, timeout=60)
         return proc.returncode, proc.stdout
@@ -40,11 +40,11 @@ class PlaceholderGate(unittest.TestCase):
 
     def test_open_placeholders_fail_and_name_the_file(self):
         cases = (
-            ("CHANGELOG.md", "# NetOps changelog\n\n## 9.8.7 - TODO(release-date)\n", "TODO(release-date)"),
-            ("release/notes-9.8.7.md", "## Acceptance\n\nTODO(acceptance-9.8.7): describe it.\n", "TODO(acceptance-9.8.7)"),
-            ("release/notes-9.8.7.md", "Text. TODO(LOW-1) TODO(LOW-2): extend this.\n", "TODO(LOW-2)"),
-            ("README.md", "- **Acceptance:** TODO(acceptance-9.8.7): describe it.\n", "TODO(acceptance-9.8.7)"),
-            ("docs/testing.md", "the runs of 9.8.7, TODO(acceptance-9.8.7): the runs.\n", "TODO(acceptance-9.8.7)"),
+            ("CHANGELOG.md", "# NetOps changelog\n\n## 1.0.11 - TODO(release-date)\n", "TODO(release-date)"),
+            ("release/notes-1.0.11.md", "## Acceptance\n\nTODO(acceptance-1.0.11): describe it.\n", "TODO(acceptance-1.0.11)"),
+            ("release/notes-1.0.11.md", "Text. TODO(LOW-1) TODO(LOW-2): extend this.\n", "TODO(LOW-2)"),
+            ("README.md", "- **Acceptance:** TODO(acceptance-1.0.11): describe it.\n", "TODO(acceptance-1.0.11)"),
+            ("docs/testing.md", "the runs of 1.0.11, TODO(acceptance-1.0.11): the runs.\n", "TODO(acceptance-1.0.11)"),
             ("components/x/docs/tools.md", "TODO(\n", "TODO()"),
         )
         for name, content, expected in cases:
@@ -59,34 +59,34 @@ class PlaceholderGate(unittest.TestCase):
 
     def test_missing_notes_or_undated_changelog_fail(self):
         files = self.clean()
-        del files["release/notes-9.8.7.md"]
+        del files["release/notes-1.0.11.md"]
         rc, out = self.run_gate(files)
         self.assertEqual(rc, 1, out)
-        self.assertIn("notes-9.8.7.md is missing", out)
-        rc, out = self.run_gate(self.clean(), version="9.8.8")
+        self.assertIn("notes-1.0.11.md is missing", out)
+        rc, out = self.run_gate(self.clean(), version="1.0.12")
         self.assertEqual(rc, 1, out)
-        self.assertIn("no dated section ## 9.8.8", out)
-        self.assertIn("notes-9.8.8.md is missing", out)
+        self.assertIn("no dated section ## 1.0.12", out)
+        self.assertIn("notes-1.0.12.md is missing", out)
 
     def test_candidate_stage_tolerates_only_the_acceptance_and_release_date_placeholders(self):
         files = self.clean()
-        files["CHANGELOG.md"] = "# NetOps changelog\n\n## 9.8.7 - TODO(release-date)\n\n- Fixed.\n"
-        files["README.md"] = "- **Acceptance of 9.8.7:** TODO(acceptance-9.8.7): describe it.\n"
-        files["release/notes-9.8.7.md"] = "## Acceptance\n\nTODO(acceptance-9.8.7): describe it.\n"
+        files["CHANGELOG.md"] = "# NetOps changelog\n\n## 1.0.11 - TODO(release-date)\n\n- Fixed.\n"
+        files["README.md"] = "- **Acceptance of 1.0.11:** TODO(acceptance-1.0.11): describe it.\n"
+        files["release/notes-1.0.11.md"] = "## Acceptance\n\nTODO(acceptance-1.0.11): describe it.\n"
         rc, out = self.run_gate(files, extra=("--candidate",))
         self.assertEqual(rc, 0, out)
         self.assertIn("placeholder_gate=PASS", out)
         self.assertIn("PENDING CHANGELOG.md:3: TODO(release-date)", out)
-        self.assertIn("PENDING README.md:1: TODO(acceptance-9.8.7)", out)
-        self.assertIn("PENDING release/notes-9.8.7.md:3: TODO(acceptance-9.8.7)", out)
+        self.assertIn("PENDING README.md:1: TODO(acceptance-1.0.11)", out)
+        self.assertIn("PENDING release/notes-1.0.11.md:3: TODO(acceptance-1.0.11)", out)
         rc, out = self.run_gate(files)
         self.assertEqual(rc, 1, out)
         self.assertIn("placeholder_gate=FAIL", out)
         cases = (
-            ("README.md", "TODO(acceptance-9.8.6): old.\n", "README.md:1: open placeholder TODO(acceptance-9.8.6)"),
-            ("README.md", "TODO(acceptance-9.8.7 unclosed.\n", "README.md:1: open placeholder TODO(acceptance-9.8.7)"),
+            ("README.md", "TODO(acceptance-1.0.10): old.\n", "README.md:1: open placeholder TODO(acceptance-1.0.10)"),
+            ("README.md", "TODO(acceptance-1.0.11 unclosed.\n", "README.md:1: open placeholder TODO(acceptance-1.0.11)"),
             ("README.md", "Released on TODO(release-date).\n", "README.md:1: open placeholder TODO(release-date)"),
-            ("CHANGELOG.md", "# NetOps changelog\n\n## 9.8.6 - TODO(release-date)\n", "CHANGELOG.md has no dated section ## 9.8.7"),
+            ("CHANGELOG.md", "# NetOps changelog\n\n## 1.0.10 - TODO(release-date)\n", "CHANGELOG.md has no dated section ## 1.0.11"),
             ("docs/testing.md", "TODO(LOW-1): extend this.\n", "docs/testing.md:1: open placeholder TODO(LOW-1)"),
         )
         for name, content, expected in cases:
@@ -98,24 +98,24 @@ class PlaceholderGate(unittest.TestCase):
                 self.assertIn("placeholder_gate=FAIL", out)
                 self.assertIn(expected, out)
         changed = dict(files)
-        del changed["release/notes-9.8.7.md"]
+        del changed["release/notes-1.0.11.md"]
         rc, out = self.run_gate(changed, extra=("--candidate",))
         self.assertEqual(rc, 1, out)
-        self.assertIn("notes-9.8.7.md is missing", out)
+        self.assertIn("notes-1.0.11.md is missing", out)
 
     def test_markdown_that_is_not_utf8_fails_with_the_file_and_without_a_traceback(self):
         cases = (
             ("docs/testing.md", b"Release acceptance.\n\xff\n", "FAIL docs/testing.md: not valid UTF-8 at byte 20"),
-            ("CHANGELOG.md", b"# NetOps changelog\n\n## 9.8.7 - 2026-10-26\n\n- Fixed \xe8.\n", "FAIL CHANGELOG.md: not valid UTF-8 at byte 51"),
+            ("CHANGELOG.md", b"# NetOps changelog\n\n## 1.0.11 - 2026-10-26\n\n- Fixed \xe8.\n", "FAIL CHANGELOG.md: not valid UTF-8 at byte 52"),
         )
         for name, content, expected in cases:
             with self.subTest(name=name):
                 files = self.clean()
-                files["README.md"] = "Acceptance of 9.8.7: TODO(LOW-9) blind runs.\n"
+                files["README.md"] = "Acceptance of 1.0.11: TODO(LOW-9) blind runs.\n"
                 root = self.tree(files)
                 with open(os.path.join(root, name), "wb") as stream:
                     stream.write(content)
-                proc = subprocess.run([sys.executable, "-B", GATE, "--version", "9.8.7", "--root", root],
+                proc = subprocess.run([sys.executable, "-B", GATE, "--version", "1.0.11", "--root", root],
                                       capture_output=True, text=True, timeout=60)
                 self.assertEqual(proc.returncode, 1, proc.stdout + proc.stderr)
                 self.assertEqual(proc.stderr, "")
@@ -127,7 +127,7 @@ class PlaceholderGate(unittest.TestCase):
         root = self.tree(self.clean())
         with open(os.path.join(root, "docs/testing.md"), "wb") as stream:
             stream.write(b"one\r\ntwo\rTODO(LOW-3): three.\n")
-        proc = subprocess.run([sys.executable, "-B", GATE, "--version", "9.8.7", "--root", root],
+        proc = subprocess.run([sys.executable, "-B", GATE, "--version", "1.0.11", "--root", root],
                               capture_output=True, text=True, timeout=60)
         self.assertEqual(proc.returncode, 1, proc.stdout)
         self.assertIn("FAIL docs/testing.md:3: open placeholder TODO(LOW-3)", proc.stdout)
@@ -140,8 +140,10 @@ class PlaceholderGate(unittest.TestCase):
         self.assertIn("placeholder_gate=PASS", out)
 
     def test_invalid_version_is_refused(self):
-        rc, out = self.run_gate(self.clean(), version="9.8")
-        self.assertNotEqual(rc, 0, out)
+        for version in ("1.0", "0.9.9", "1.1.0", "2.0.0", "1.0.11rc1"):
+            with self.subTest(version=version):
+                rc, out = self.run_gate(self.clean(), version=version)
+                self.assertEqual(rc, 2, out)
 
     def test_candidate_workflow_runs_the_gate_for_its_version(self):
         with open(WORKFLOW, encoding="utf-8") as stream:

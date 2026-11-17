@@ -3,17 +3,15 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from netops_auditor.findings import Finding, fingerprint_of, fingerprint_v1
+from netops_auditor.findings import Finding, fingerprint_of
 from netops_auditor.suppressions import (
     FILE_VERSION,
-    MIGRATE_COMMAND,
     Suppression,
     SuppressionError,
     active_fingerprints,
     expired,
     load as load_suppressions,
     load_for_tenant,
-    migrate_file,
 )
 
 RULE_ID = "L1-001"
@@ -82,27 +80,9 @@ def write(tmp_path, items, version=FILE_VERSION, extra=None, name="suppressions.
     return path
 
 
-def v1_entry(
-    rule_id=RULE_ID,
-    rule_version=RULE_VERSION,
-    device=DEVICE,
-    object_key=OBJECT_KEY,
-    reason=REASON,
-    author=AUTHOR,
-    created=CREATED,
-    expires=EXPIRES,
-):
-    return {
-        "fingerprint": fingerprint_v1(rule_id, rule_version, device, object_key),
-        "rule_id": rule_id,
-        "rule_version": rule_version,
-        "device": device,
-        "object_key": object_key,
-        "reason": reason,
-        "author": author,
-        "created": created,
-        "expires": expires,
-    }
+def v1_entry():
+    # A version 1 item had no tenant in its fingerprint; the loader refuses the version first.
+    return dict(entry(), fingerprint="0" * 64)
 
 
 def write_v1(tmp_path, items, tenant=None, name="v1.json"):
@@ -160,21 +140,20 @@ def test_unknown_file_version_is_an_error(tmp_path):
             load(write(tmp_path, [entry()], version=version))
 
 
-def test_a_version_1_file_is_refused_and_names_the_migration(tmp_path):
+def test_a_version_1_file_is_refused_as_an_unsupported_version(tmp_path):
     path = write_v1(tmp_path, [v1_entry()])
     with pytest.raises(SuppressionError) as caught:
         load(path)
-    assert "version 1 is refused" in str(caught.value)
-    assert "migrate-suppressions" in str(caught.value)
-    assert MIGRATE_COMMAND in str(caught.value)
+    assert "unknown suppression file version 1, expected %d" % FILE_VERSION in str(caught.value)
+    assert "migrat" not in str(caught.value)
 
 
-def test_a_file_without_a_tenant_is_refused_and_names_the_migration(tmp_path):
+def test_a_file_without_a_tenant_is_refused(tmp_path):
     path = write(tmp_path, [entry()], tenant=None)
     with pytest.raises(SuppressionError) as caught:
         load(path)
     assert "missing document fields: tenant" in str(caught.value)
-    assert MIGRATE_COMMAND in str(caught.value)
+    assert "migrat" not in str(caught.value)
 
 
 def test_document_must_be_an_object_with_a_list_of_suppressions(tmp_path):
@@ -438,140 +417,3 @@ def test_other_offsets_see_the_same_boundary(tmp_path):
     local = timezone(timedelta(hours=2))
     assert one.is_active(BEFORE.astimezone(local)) is True
     assert one.is_active(EXPIRES_AT.astimezone(local)) is False
-
-
-def test_migration_rewrites_every_fingerprint_for_the_tenant(tmp_path):
-    source = write_v1(tmp_path, [v1_entry(), v1_entry(object_key="firewall policy/2")])
-    target = tmp_path / "v2.json"
-    assert migrate_file(source, target, TENANT_A) == 2
-    loaded = load(target, TENANT_A)
-    assert len(loaded) == 2
-    assert loaded[0].fingerprint == fingerprint_of(
-        RULE_ID, RULE_VERSION, TENANT_A, DEVICE, OBJECT_KEY
-    )
-    assert loaded[1].fingerprint == fingerprint_of(
-        RULE_ID, RULE_VERSION, TENANT_A, DEVICE, "firewall policy/2"
-    )
-    assert [one.reason for one in loaded] == [REASON, REASON]
-    assert [one.author for one in loaded] == [AUTHOR, AUTHOR]
-    assert loaded[0].created == CREATED_AT and loaded[0].expires == EXPIRES_AT
-
-
-def test_migration_round_trips_the_same_document_for_two_tenants(tmp_path):
-    source = write_v1(tmp_path, [v1_entry()])
-    ours, theirs = tmp_path / "a.json", tmp_path / "b.json"
-    migrate_file(source, ours, TENANT_A)
-    migrate_file(source, theirs, TENANT_B)
-    first = load(ours, TENANT_A)[0]
-    second = load(theirs, TENANT_B)[0]
-    assert (first.device, first.object_key) == (second.device, second.object_key)
-    assert first.fingerprint != second.fingerprint
-    with pytest.raises(SuppressionError, match="bound to tenant"):
-        load(ours, TENANT_B)
-
-
-def test_migration_never_touches_the_file_it_reads(tmp_path):
-    source = write_v1(tmp_path, [v1_entry()])
-    before = source.read_bytes()
-    migrate_file(source, tmp_path / "v2.json", TENANT_A)
-    assert source.read_bytes() == before
-    with pytest.raises(SuppressionError, match="never writes back into"):
-        migrate_file(source, source, TENANT_A)
-    assert source.read_bytes() == before
-
-
-def test_migration_never_writes_over_an_existing_file(tmp_path):
-    source = write_v1(tmp_path, [v1_entry()])
-    target = write_raw(tmp_path, "keep me", name="v2.json")
-    with pytest.raises(SuppressionError, match="the migration never writes over a file"):
-        migrate_file(source, target, TENANT_A)
-    assert target.read_text(encoding="utf-8") == "keep me"
-
-
-def test_migration_prints_nothing_of_the_document_it_reads(tmp_path):
-    secret = "CANARY-REASON-MUST-NOT-LEAK"
-    broken = v1_entry(reason=secret)
-    broken["expires"] = "2026-12-31"
-    source = write_v1(tmp_path, [broken])
-    with pytest.raises(SuppressionError) as caught:
-        migrate_file(source, tmp_path / "v2.json", TENANT_A)
-    assert secret not in str(caught.value)
-    assert "created and expires must be ISO 8601 UTC" in str(caught.value)
-    tampered = v1_entry()
-    tampered["device"] = "fw-b.example.invalid"
-    source = write_v1(tmp_path, [tampered], name="tampered.json")
-    with pytest.raises(SuppressionError, match="fingerprint does not match components") as caught:
-        migrate_file(source, tmp_path / "tampered-v2.json", TENANT_A)
-    assert "fw-b.example.invalid" not in str(caught.value)
-
-
-def test_migration_reads_a_version_1_document_only(tmp_path):
-    source = write(tmp_path, [entry()])
-    with pytest.raises(SuppressionError, match="the migration reads version 1"):
-        migrate_file(source, tmp_path / "again.json", TENANT_A)
-
-
-def test_migration_refuses_a_document_bound_to_another_tenant(tmp_path):
-    source = write_v1(tmp_path, [v1_entry()], tenant=TENANT_A)
-    with pytest.raises(SuppressionError, match="%s.*%s" % (TENANT_A, TENANT_B)):
-        migrate_file(source, tmp_path / "v2.json", TENANT_B)
-
-
-def test_migration_needs_a_tenant(tmp_path):
-    source = write_v1(tmp_path, [v1_entry()])
-    for value in (None, "", "   ", 1, True):
-        with pytest.raises(SuppressionError, match="tenant must be a non-empty string"):
-            migrate_file(source, tmp_path / "v2.json", value)
-
-
-def test_migration_refuses_a_destination_that_is_a_symbolic_link(tmp_path):
-    source = write_v1(tmp_path, [v1_entry()])
-    elsewhere = tmp_path / "elsewhere.json"
-    link = tmp_path / "v2.json"
-    link.symlink_to(elsewhere)
-    with pytest.raises(SuppressionError, match="is a symbolic link"):
-        migrate_file(source, link, TENANT_A)
-    assert not elsewhere.exists()
-
-
-def test_migration_refuses_a_destination_that_appears_while_it_works(tmp_path, monkeypatch):
-    import netops_auditor.suppressions as module
-
-    source = write_v1(tmp_path, [v1_entry()])
-    target = tmp_path / "v2.json"
-    original = module._migrated_item
-
-    def racing(index, item, tenant):
-        target.write_text("reviewed content of another process", encoding="utf-8")
-        return original(index, item, tenant)
-
-    monkeypatch.setattr(module, "_migrated_item", racing)
-    with pytest.raises(SuppressionError, match="the migration never writes over a file"):
-        migrate_file(source, target, TENANT_A)
-    assert target.read_text(encoding="utf-8") == "reviewed content of another process"
-
-
-def test_migration_leaves_no_partial_file_behind(tmp_path):
-    source = write_v1(tmp_path, [v1_entry()])
-    target = tmp_path / "v2.json"
-    assert migrate_file(source, target, TENANT_A) == 1
-    assert sorted(one.name for one in tmp_path.iterdir()) == sorted(
-        [source.name, target.name]
-    )
-    assert json.loads(target.read_text(encoding="utf-8"))["version"] == FILE_VERSION
-
-
-@pytest.mark.parametrize("mask", (0o077, 0o022, 0o000))
-def test_migration_output_is_private_under_any_normal_umask(tmp_path, mask):
-    import os
-    import stat
-
-    source = write_v1(tmp_path, [v1_entry()])
-    target = tmp_path / "v2.json"
-    before = os.umask(mask)
-    try:
-        assert migrate_file(source, target, TENANT_A) == 1
-    finally:
-        os.umask(before)
-    assert stat.S_IMODE(target.stat().st_mode) == 0o600
-    assert len(load(target, TENANT_A)) == 1

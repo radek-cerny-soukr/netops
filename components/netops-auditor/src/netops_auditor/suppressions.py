@@ -1,23 +1,16 @@
 from __future__ import annotations
 
-import json
-import os
-import tempfile
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
 from . import jsontext
-from .findings import FingerprintError, checked_component, fingerprint_of, fingerprint_v1
+from .findings import FingerprintError, checked_component, fingerprint_of
 from .inputs import InputError, read_regular
 
 FILE_VERSION = 2
 MAX_SUPPRESSIONS_BYTES = 4 * 1024 * 1024
-PREVIOUS_FILE_VERSION = 1
 MOMENT_FORMAT = "%Y-%m-%dT%H:%M:%SZ"
-MIGRATE_COMMAND = (
-    "netops-auditor migrate-suppressions --input <old file> --output <new file> --tenant <tenant>"
-)
 DOCUMENT_FIELDS = ("version", "tenant", "suppressions")
 TEXT_FIELDS = ("rule_id", "device", "object_key", "reason", "author")
 ITEM_FIELDS = (
@@ -166,12 +159,6 @@ def _read(path: Path) -> dict:
 def _document(path: Path) -> dict:
     document = _read(path)
     version = document["version"]
-    if not isinstance(version, bool) and version == PREVIOUS_FILE_VERSION:
-        raise SuppressionError(
-            "suppression file %s: version %d is refused, a fingerprint carries the tenant since"
-            " version %d; migrate the file with %s"
-            % (path, PREVIOUS_FILE_VERSION, FILE_VERSION, MIGRATE_COMMAND)
-        )
     if isinstance(version, bool) or version != FILE_VERSION:
         raise SuppressionError(
             "suppression file %s: unknown suppression file version %r, expected %d" % (path, version, FILE_VERSION)
@@ -180,8 +167,7 @@ def _document(path: Path) -> dict:
     if "tenant" in missing:
         raise SuppressionError(
             "suppression file %s: missing document fields: tenant; a suppression file binds to one"
-            " tenant, which the fingerprint carries; migrate an older file with %s"
-            % (path, MIGRATE_COMMAND)
+            " tenant, which the fingerprint carries" % path
         )
     if missing:
         raise SuppressionError("suppression file %s: missing document fields: %s" % (path, ", ".join(missing)))
@@ -230,113 +216,6 @@ def load(path, tenant) -> tuple:
 def load_for_tenant(path, tenant) -> tuple:
     location = Path(path).expanduser()
     return location, load(location, tenant)
-
-
-def _migrated_item(index: int, item, tenant: str) -> dict:
-    _shape(index, item)
-    for name in TEXT_FIELDS:
-        if not isinstance(item[name], str) or not item[name].strip():
-            raise SuppressionError("suppression %d: %s must be a non-empty string" % (index, name))
-    if isinstance(item["rule_version"], bool) or not isinstance(item["rule_version"], int):
-        raise SuppressionError("suppression %d: rule_version must be an integer" % index)
-    try:
-        created = _checked_moment(index, "created", item["created"])
-        expires = _checked_moment(index, "expires", item["expires"])
-    except SuppressionError:
-        raise SuppressionError(
-            "suppression %d: created and expires must be ISO 8601 UTC %s" % (index, MOMENT_FORMAT)
-        ) from None
-    if created >= expires:
-        raise SuppressionError("suppression %d: created is not before expires" % index)
-    components = (item["rule_id"], item["rule_version"], item["device"], item["object_key"])
-    try:
-        previous = fingerprint_v1(*components)
-    except FingerprintError as error:
-        raise SuppressionError("suppression %d: %s" % (index, error)) from None
-    if item["fingerprint"] != previous:
-        raise SuppressionError("suppression %d: fingerprint does not match components" % index)
-    migrated = {name: item[name] for name in ITEM_FIELDS}
-    migrated["fingerprint"] = fingerprint_of(
-        item["rule_id"], item["rule_version"], tenant, item["device"], item["object_key"]
-    )
-    return migrated
-
-
-def _published(target: Path, text: str) -> None:
-    try:
-        handle, temporary = tempfile.mkstemp(
-            dir=target.parent, prefix="." + target.name + ".", suffix=".part"
-        )
-    except OSError as error:
-        raise SuppressionError("cannot write suppression file %s: %s" % (target, error)) from None
-    try:
-        with os.fdopen(handle, "w", encoding="utf-8") as stream:
-            stream.write(text)
-            stream.flush()
-            os.fsync(stream.fileno())
-        try:
-            os.link(temporary, target)
-        except FileExistsError:
-            raise SuppressionError(
-                "suppression file %s exists, the migration never writes over a file" % target
-            ) from None
-    except OSError as error:
-        raise SuppressionError("cannot write suppression file %s: %s" % (target, error)) from None
-    finally:
-        try:
-            os.unlink(temporary)
-        except OSError:
-            pass
-
-
-def migrate_file(source, destination, tenant) -> int:
-    origin, target = Path(source), Path(destination)
-    _checked_tenant(tenant)
-    try:
-        if origin.resolve() == target.resolve():
-            raise SuppressionError("the migration never writes back into %s" % origin)
-        if target.is_symlink():
-            raise SuppressionError(
-                "suppression file %s is a symbolic link, the migration writes only a plain file"
-                % target
-            )
-        if target.exists():
-            raise SuppressionError(
-                "suppression file %s exists, the migration never writes over a file" % target
-            )
-    except (OSError, RuntimeError, ValueError) as error:
-        raise SuppressionError("suppression file %s cannot be used: %s" % (target, error)) from None
-    document = _read(origin)
-    version = document["version"]
-    if isinstance(version, bool) or version != PREVIOUS_FILE_VERSION:
-        raise SuppressionError(
-            "suppression file %s: the migration reads version %d, found %r"
-            % (origin, PREVIOUS_FILE_VERSION, version)
-        )
-    unknown = sorted(set(document) - set(DOCUMENT_FIELDS))
-    if unknown:
-        raise SuppressionError("suppression file %s: unknown document fields: %s" % (origin, ", ".join(unknown)))
-    if "suppressions" not in document or not isinstance(document["suppressions"], list):
-        raise SuppressionError("suppression file %s: suppressions must be a list" % origin)
-    bound = document.get("tenant")
-    if bound is not None and bound != tenant:
-        raise SuppressionError(
-            "suppression file %s is bound to tenant %r, the migration was asked for tenant %r"
-            % (origin, bound, tenant)
-        )
-    items, seen = [], {}
-    for index, item in enumerate(document["suppressions"]):
-        migrated = _migrated_item(index, item, tenant)
-        if migrated["fingerprint"] in seen:
-            raise SuppressionError(
-                "suppression %d: duplicate fingerprint, already used by suppression %d"
-                % (index, seen[migrated["fingerprint"]])
-            )
-        seen[migrated["fingerprint"]] = index
-        items.append(migrated)
-    written = {"version": FILE_VERSION, "tenant": tenant, "suppressions": items}
-    _published(target, json.dumps(written, ensure_ascii=False, indent=2) + "\n")
-    return len(items)
 
 
 def active_fingerprints(suppressions, now) -> frozenset:

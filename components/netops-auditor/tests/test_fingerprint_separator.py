@@ -10,8 +10,7 @@ from netops_core import schema
 
 from netops_auditor import cli, engine, inventory, scoped_fortios, suppressions
 from netops_auditor.engine import CATALOG_DIR, CatalogError, load_catalog
-from netops_auditor.findings import Finding, fingerprint_of, fingerprint_v1
-from netops_auditor.store import Store
+from netops_auditor.findings import Finding, fingerprint_of
 
 COMPONENT = Path(__file__).resolve().parents[1]
 FIXTURES = COMPONENT / "tests" / "fixtures"
@@ -25,7 +24,6 @@ DEVICE = "fw-a.example.invalid"
 RULE = "fortios.mgmt.wan-admin-access"
 OBJECT = "system interface/port1"
 COMPONENTS = ("rule_id", "rule_version", "tenant", "device", "object_key")
-VERSION_ONE_COMPONENTS = ("rule_id", "rule_version", "device", "object_key")
 SCOPED = json.dumps([None, "system interface/wan" + SEPARATOR + "1"], ensure_ascii=True, separators=(",", ":"))
 VECTORS = (
     ((RULE, 1, TENANT, DEVICE, OBJECT), "2aa12a59e584e7c28ed33cf55508fa350f8415652984bdaa18dc7ddc072a80d6"),
@@ -35,7 +33,6 @@ VECTORS = (
      "c93c8b3c63f711483c7941b70b24d76eaa6cb17348275a13c742bd0941f99565"),
     ((RULE, 1, TENANT, DEVICE, SCOPED), "77d2396dd88670b0c7d6c3ce272c4bf0607c407e2ed6515e44c2cb90562bb8e6"),
 )
-VERSION_ONE = ((RULE, 1, DEVICE, OBJECT), "33ada9e38cd292f102d92833ae24ae3366f45eb5462f307b9edd31f6993034a1")
 SCOPED_TEXT = """config global
  config system global
   set strong-crypto enable
@@ -170,9 +167,6 @@ def world(tmp_path, capsys):
         directory=tmp_path,
         store=store,
         inventory=_written(tmp_path / "inventory.json", {"version": 2, "devices": [_device(DEVICE, CLEAN)]}),
-        old=_written(tmp_path / "old.json", {"version": 1, "suppressions": [
-            dict(_waiver(), fingerprint=_joined(RULE, "1", DEVICE, OBJECT))]}),
-        new=tmp_path / "new.json",
     )
 
 
@@ -184,9 +178,7 @@ def _argv(command, world, tenant, device):
                 "--store", world.store)
     if command == "status":
         return ("status", "--tenant", tenant, "--device", device, "--store", world.store)
-    if command == "schema-check":
-        return _schema_check(world.directory, SCOPED_TEXT.replace(SEPARATOR, ""), tenant, device)
-    return ("migrate-suppressions", "--input", world.old, "--output", world.new, "--tenant", tenant)
+    return _schema_check(world.directory, SCOPED_TEXT.replace(SEPARATOR, ""), tenant, device)
 
 
 @pytest.mark.parametrize("components,expected", VECTORS)
@@ -201,10 +193,6 @@ def test_the_fingerprint_of_a_finding_keeps_its_bytes():
     assert finding.as_dict()["fingerprint"] == VECTORS[0][1]
 
 
-def test_a_version_one_fingerprint_keeps_its_bytes():
-    assert fingerprint_v1(*VERSION_ONE[0]) == VERSION_ONE[1]
-
-
 @pytest.mark.parametrize("position", range(len(COMPONENTS)))
 def test_fingerprint_of_refuses_the_separator_in_every_component(position):
     components = [RULE, "1", TENANT, DEVICE, OBJECT]
@@ -213,23 +201,14 @@ def test_fingerprint_of_refuses_the_separator_in_every_component(position):
         fingerprint_of(*components)
 
 
-@pytest.mark.parametrize("position", range(len(VERSION_ONE_COMPONENTS)))
-def test_fingerprint_v1_refuses_the_separator_in_every_component(position):
-    components = [RULE, "1", DEVICE, OBJECT]
-    components[position] = SEPARATOR + components[position]
-    with pytest.raises(ValueError, match=_refused(VERSION_ONE_COMPONENTS[position])):
-        fingerprint_v1(*components)
-
-
 @pytest.mark.parametrize("command,name", [(command, name) for command in ("run", "collect", "status", "schema-check")
-                                          for name in ("tenant", "device")] + [("migrate-suppressions", "tenant")])
+                                          for name in ("tenant", "device")])
 def test_every_command_refuses_the_separator_in_tenant_and_device_before_the_store(world, capsys, command, name):
     values = {"tenant": TENANT, "device": DEVICE, name: ODD}
     before = _digest(world.store)
     code, out, err = _cli(capsys, *_argv(command, world, values["tenant"], values["device"]))
     assert (code, out, err) == (2, "", "error: argument %s %s\n" % (name, REFUSAL))
     assert _digest(world.store) == before
-    assert not world.new.exists()
 
 
 @pytest.mark.parametrize("command", ("run", "collect"))
@@ -286,14 +265,6 @@ def test_run_refuses_a_suppression_with_the_separator_before_the_store(world, ca
     code, out, err = _cli(capsys, *_run(CLEAN, world.store, "--suppressions", path))
     assert (code, out, err) == (2, "", "error: suppressions: suppression 0: device %s\n" % REFUSAL)
     assert _digest(world.store) == before
-
-
-def test_migrate_suppressions_refuses_an_item_with_the_separator(world, capsys):
-    item = dict(_waiver(device=DEVICE + SEPARATOR), fingerprint=_joined(RULE, "1", DEVICE + SEPARATOR, OBJECT))
-    old = _written(world.directory / "old-separator.json", {"version": 1, "suppressions": [item]})
-    code, out, err = _cli(capsys, "migrate-suppressions", "--input", old, "--output", world.new, "--tenant", TENANT)
-    assert (code, out, err) == (2, "", "error: suppressions: suppression 0: device %s\n" % REFUSAL)
-    assert not world.new.exists()
 
 
 def test_collect_refuses_an_inventory_whose_auditor_device_name_holds_the_separator(world, capsys):
@@ -383,27 +354,3 @@ def test_a_scoped_object_carries_the_separator_escaped(world, capsys):
     keys = [item["object_key"] for item in json.loads(out)["findings"] if item["rule_id"] == "fortios.ref.dangling"]
     assert keys == [json.dumps(["root", "firewall policy/1/srcaddr/lan" + SEPARATOR + "net"], ensure_ascii=True,
                                separators=(",", ":"))]
-
-
-def test_migrate_store_refuses_a_version_one_finding_with_the_separator(tmp_path, capsys):
-    path = tmp_path / "v1.sqlite"
-    with Store(path):
-        pass
-    connection = sqlite3.connect(str(path), isolation_level=None)
-    run_id = connection.execute(
-        "INSERT INTO runs (tenant, device, started_at, snapshot_sha256, snapshot_source, rules_version)"
-        " VALUES (?, ?, ?, ?, ?, ?)",
-        (ODD, DEVICE, "2026-01-01T00:00:00Z", "0" * 64, "fw.conf", "fortios:1:x"),
-    ).lastrowid
-    connection.execute(
-        'INSERT INTO findings (run_id, fingerprint, rule_id, rule_version, device, object_key, severity, "class",'
-        " section, line, evidence) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-        (run_id, _joined(RULE, "1", DEVICE, OBJECT), RULE, 1, DEVICE, OBJECT, "high", "fakt", "system interface", 10,
-         "{}"),
-    )
-    connection.execute("PRAGMA user_version = 0")
-    connection.close()
-    before = _digest(path)
-    code, out, err = _cli(capsys, "migrate-store", "--store", path)
-    assert (code, out, err) == (2, "", "error: store: finding 1 cannot be migrated: tenant %s\n" % REFUSAL)
-    assert _digest(path) == before

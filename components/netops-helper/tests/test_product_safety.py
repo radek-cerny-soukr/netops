@@ -212,26 +212,56 @@ def test_schema_snapshot_gate_is_narrow_and_rejects_missing_controls(tmp_path: P
         assert any("configuration export pattern" in error for error in errors)
     engine.write_text(original)
 
-def _release_constant(module: str, name: str) -> set[str]:
-    tree = ast.parse((ROOT / "tests" / "support" / (module + ".py")).read_text(encoding="utf-8"))
-    values = [
-        ast.literal_eval(node.value)
-        for node in tree.body
-        if isinstance(node, ast.Assign)
-        and any(isinstance(target, ast.Name) and target.id == name for target in node.targets)
-    ]
-    assert len(values) == 1, name
-    return values[0]
-
-
-def test_release_test_lists_name_existing_test_files() -> None:
-    for name, paths in (
-        ("REQUIRED_RELEASE_PATHS", _release_constant("check_public_release", "REQUIRED_RELEASE_PATHS")),
-        ("TESTS", _release_constant("create_release_artifacts", "TESTS")),
-    ):
-        tests = sorted(path for path in paths if path.startswith("tests/"))
-        assert tests, name
-        assert [path for path in tests if not (ROOT / path).is_file()] == [], name
+def test_required_regression_files_exist() -> None:
+    required = (
+        'tests/_sandbox_guard.py',
+        'tests/_test_guard.py',
+        'tests/conftest.py',
+        'tests/test_apply_egress_rules.py',
+        'tests/test_audit_rotation.py',
+        'tests/test_check_operator_config.py',
+        'tests/test_cli_closed_output.py',
+        'tests/test_cli_errors.py',
+        'tests/test_connection_pacing.py',
+        'tests/test_egress_scripts.py',
+        'tests/test_engine_contracts.py',
+        'tests/test_engine_safety.py',
+        'tests/test_error_branches_helper_engine.py',
+        'tests/test_error_branches_helper_proxy.py',
+        'tests/test_fortios_diagnostics.py',
+        'tests/test_ftp_wire_safety.py',
+        'tests/test_malformed_inputs.py',
+        'tests/test_mutation_helper_engine.py',
+        'tests/test_mutation_helper_proxy_arguments.py',
+        'tests/test_mutation_helper_proxy_messages.py',
+        'tests/test_mutation_helper_proxy_sanitize.py',
+        'tests/test_phase1_surface.py',
+        'tests/test_plain_ftp_acknowledgement.py',
+        'tests/test_policy_parity.py',
+        'tests/test_proxy.py',
+        'tests/test_proxy_contracts.py',
+        'tests/test_proxy_vault_size.py',
+        'tests/test_query_catalog_arista.py',
+        'tests/test_query_catalog_cisco.py',
+        'tests/test_query_catalog_docs.py',
+        'tests/test_query_catalog_extreme.py',
+        'tests/test_query_catalog_fortinet.py',
+        'tests/test_query_catalog_junos.py',
+        'tests/test_query_catalog_ruckus.py',
+        'tests/test_redaction_and_marking_contracts.py',
+        'tests/test_resource_limits.py',
+        'tests/test_runtime_tar_safety.py',
+        'tests/test_sandbox_guard.py',
+        'tests/test_sanitize.py',
+        'tests/test_schema_read.py',
+        'tests/test_secret_canaries.py',
+        'tests/test_security.py',
+        'tests/test_sftp_safety.py',
+        'tests/test_ssh_wire_safety.py',
+        'tests/test_triage_slb.py',
+        'tests/test_vendor_references.py',
+    )
+    assert [path for path in required if not (ROOT / path).is_file()] == []
 
 
 def test_release_license_is_mit() -> None:

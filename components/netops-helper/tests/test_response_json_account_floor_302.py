@@ -64,14 +64,14 @@ def _previous(text, secrets=()):
     def watched_proxy(value, proxy_secrets):
         changes = []
         result = P._sanitize_object(value, proxy_secrets, typed_changes=changes)
-        if changes and not differs and not S._same_coverage(S._proxy_1_0_8(value, proxy_secrets), result):
+        if changes and not differs and not S._same_coverage(FLOOR.PROXY_1_0_8._sanitize_object(value, proxy_secrets), result):
             differs.append(True)
         return result
 
     result = S._response_chain(text, secrets, watched, watched_proxy)
     if not differs:
         return result
-    floor = S._hidden_ranges(text, lambda marked: S._response_chain(marked, secrets, S._redact_1_0_8, S._proxy_1_0_8))
+    floor = S._hidden_ranges(text, lambda marked: S._response_chain(marked, secrets, S._redact_1_0_8, FLOOR.PROXY_1_0_8._sanitize_object))
     if not floor:
         return result
     if floor == [(0, len(text))]:

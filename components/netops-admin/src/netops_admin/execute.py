@@ -227,6 +227,46 @@ def _firing_slack(adapter) -> int:
     return getattr(adapter, "FIRING_SLACK_SECONDS", EXPIRY_WAIT_SLACK_SECONDS)
 
 
+# Adapter hook contract (module attributes; absent means the default below).
+# Readers are functions in this module unless qualified; callables run only on their named path.
+# Flags must be bool, seconds int/float (not bool), and functions callable.
+#
+# Attribute                         Type       Default / meaning and reader
+# TIMER_WATCH                       bool       False: _watched selects a monotonic timer instead of the device clock.
+# FIRING_SLACK_SECONDS              seconds    EXPIRY_WAIT_SLACK_SECONDS (60): extra return time, _firing_slack.
+# COMPENSATING                      bool       False: _compensating selects an inverse write without a device timer.
+# AUDIT_RULES                       bool       True: _audited_rules enables the auditor rules; readiness._doctor
+#                                             checks audit policy (False reports AUDIT_NOT_RUN[2] as unverified).
+# REVERT_NOW_KEEPS_SAFEGUARD          bool       False: _keeps_safeguard requires cleanup after an immediate return.
+# REVERT_AFTER_EXPIRY                bool       False: _settle_after_expiry may return a mismatching object again.
+# INSTALL_JOURNAL                   bool       False: _execute supplies install_safeguard with a journal save callback.
+# REFUSED_REASON_CODE               str        "rollback_timer_pending": _execute reports a refused installation.
+# REVERT_NOW_SECONDS                seconds    None (no budget check): _settle_after_expiry reserves return time.
+# revert_now(access, record, spec)   callable   None (wait for expiry): _revert_now returns the change; bool result.
+# adopt_change_head(access, record)  callable   None (skip): _adopt_change_head records the timer head; bool result;
+#                                             _settle_after_expiry calls it only with REVERT_NOW_SECONDS available.
+# revoke_token(access, record, spec) callable   None (skip): _settle_after_expiry revokes an unproven safeguard's
+#                                             token; bool result (None means no revocation to report).
+# discard_installation(access, record, spec)
+#                                  callable   None (normal cleanup): _execute/recover select _discard_installation
+#                                             to remove a partial installation; returns (cleaned: bool, detail).
+# safeguard_rearmed(access, record)  callable   None (no restart): _execute verifies/records a restarted timer;
+#                                             returns a list of problems (empty means verified).
+# safeguard_preflight(access, device, snapshot_text, firmware)
+#                                  callable   None (skip webhook check): readiness._doctor checks webhook readiness
+#                                             when firmware is known; returns str, raises Rejected on refusal.
+# line_guard_for(steps, left)        callable   None (use line_allowed): _execute builds a per-line callable returning
+#                                             bool; left() gives seconds left on Admin's monotonic clock.
+#
+# TIMER_WATCH=True additionally requires these attributes (no default):
+# FIRE_AT_TEXT                      str        _execute records this description as safeguard.fire_at.
+# timer_seconds(device) -> seconds: _timer_end/_restarted_end compute the timer duration.
+# before_write(access, record, left, device) -> str | None: _execute refuses with a reason or permits the write.
+# line_allowed(left) -> bool: _execute's per-line fallback when line_guard_for is absent.
+# `line_guard` belongs to access, not the adapter: _execute installs the guard for access.apply and clears it in finally.
+# COMPENSATING=True also requires RETURN_MECHANISM (str) and AUDIT_NOT_RUN (rule, state, detail), consumed by
+# _execute_compensating and _preview/_prepared. Common mandatory adapter methods are outside this optional contract.
+
 def _watched(adapter) -> bool:
     """The adapter watches its on-device timer on the monotonic clock of Admin and by reading the timer, never by
     the device clock (TIMER_WATCH: IOS, IOS XE, NX-OS and Junos). The other adapters with an on-device safeguard

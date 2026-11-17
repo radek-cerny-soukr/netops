@@ -103,7 +103,7 @@ def _helper_chain(text):
 def _old_helper_chain(text):
     """The redact() path in 1.0.8: Helper 1.0.8 credential rules, proxy 1.0.8, product."""
     helper = FLOOR.RULES_1_0_8._redact_credentials(text, ())
-    return _shown(product_redact(S._proxy_1_0_8(str.__str__(helper), ()))[0])
+    return _shown(product_redact(FLOOR.PROXY_1_0_8._sanitize_object(str.__str__(helper), ()))[0])
 
 
 def _old_helper_chain_1_0_6(text):
@@ -113,7 +113,7 @@ def _old_helper_chain_1_0_6(text):
 
 def _old_proxy_worker(value):
     """The proxy path in 1.0.8: proxy 1.0.8, product."""
-    return _shown(product_redact(S._proxy_1_0_8(value, ()))[0])
+    return _shown(product_redact(FLOOR.PROXY_1_0_8._sanitize_object(value, ()))[0])
 
 
 def _old_proxy_worker_1_0_6(value):

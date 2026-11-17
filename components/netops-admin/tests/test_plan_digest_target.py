@@ -114,7 +114,7 @@ def test_a_stored_plan_of_an_earlier_version_stays_readable(monkeypatch):
         engine.verify(document, SNAPSHOT, expect="before")
 
 
-@pytest.mark.parametrize("version", ["1.0.10", "1.1.0", "dev"])
+@pytest.mark.parametrize("version", ["0.2.12", "1.0.10", "1.1.0", "dev"])
 def test_the_content_only_hash_is_refused_from_this_version_on(monkeypatch, version):
     monkeypatch.setattr(engine, "__version__", "1.0.10")
     document = legacy(engine.build_plan("fortios", SNAPSHOT, body(), device="fw-a"), version)

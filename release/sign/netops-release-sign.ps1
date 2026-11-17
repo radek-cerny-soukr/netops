@@ -19,13 +19,13 @@ $RequiredRows = New-Object System.Collections.ArrayList
 foreach ($arch in $Arches) { foreach ($suite in $Suites) { [void]$RequiredRows.Add("actions-$arch-$suite") } }
 foreach ($arch in $Arches) { foreach ($role in @("core", "helper", "auditor", "admin")) { [void]$RequiredRows.Add("actions-$arch-engine-$role") } }
 $RequiredChecks = New-Object System.Collections.Hashtable ([StringComparer]::Ordinal)
-$MinimumVersion = [version]"1.0.10"
+$MinimumVersion = [version]"1.0.11"
 $BlindInstallChecks = @("cosign-verify-blob", "sha256sum-check", "container-healthy", "health-ready", "version-is-candidate", "unauthenticated-401", "mcp-tools-list", "audit-without-token")
 $BlindUpgradeChecks = @("upgrade-steps-from-docs", "health-ready", "version-is-candidate", "data-preserved", "token-preserved", "ca-preserved")
 $BlindRows = @("blind-install-fedora-amd64", "blind-install-debian-amd64", "blind-upgrade-amd64")
 $UpgradeRow = "blind-upgrade-amd64"
-$UpgradeFromVersion = "1.0.9"
-$UpgradeFromImage = "ghcr.io/radek-cerny-soukr/netops@sha256:94cec4ff7ec7d83710e0acf3e39ba5209212a01ec7d17ba3fbc610d89af7ce51"
+$UpgradeFromVersion = "1.0.10"
+$UpgradeFromImage = "ghcr.io/radek-cerny-soukr/netops@sha256:1635727983f1d000ad9ec424e8339846e6b700f919cd77406c074ef18efbc8f4"
 foreach ($row in $BlindRows) {
     [void]$RequiredRows.Add($row)
     if ($row -clike "blind-install-*") { $RequiredChecks[$row] = $BlindInstallChecks } else { $RequiredChecks[$row] = $BlindUpgradeChecks }
@@ -81,6 +81,22 @@ function Get-JsonString([byte[]]$Bytes, [string[]]$Names) {
 
 function Has-Property($Object, [string]$Name) {
     return ($null -ne $Object) -and ($Object -is [System.Management.Automation.PSCustomObject]) -and ($null -ne $Object.PSObject.Properties[$Name])
+}
+
+# Value at a JSON property path or $null when any level is missing; StrictMode-safe in PS 5.1 and 7.
+# Only looks the value up: every caller still checks its type and content.
+function Get-ManifestValue($Object, [string[]]$Path) {
+    foreach ($key in $Path) {
+        if (-not (Has-Property $Object $key)) { return $null }
+        $Object = $Object.PSObject.Properties[$key].Value
+    }
+    return , $Object
+}
+
+# Checks of one independent area: an unexpected error is a FAIL row of that area, the other areas still run.
+function Invoke-Area([string]$Area, [scriptblock]$Check) {
+    try { & $Check }
+    catch { Add-Row $Area "FAIL" ("check stopped: " + $_.Exception.Message) }
 }
 
 function Get-Http([string]$Url, [hashtable]$Headers) {
@@ -230,55 +246,82 @@ function Read-Sums([string]$Dir, [string]$SumsPath) {
     return $listed
 }
 
+function Test-SupportedVersion($Version) {
+    $parsed = $null
+    return ($Version -is [string]) -and ($Version -cmatch '^1\.0\.[0-9]+\z') -and [version]::TryParse($Version, [ref]$parsed) -and ($parsed -ge $MinimumVersion)
+}
+
+function Get-UnsupportedVersionReason($Version) {
+    return ("this signing tool signs the netops 1.0.x series from " + $MinimumVersion + " on, not " + $Version + "; use the tool from the commit of that release")
+}
+
+# $null when the platform descriptor and its sbom/scan/gate files are complete and each file is in the
+# checksum list with the same SHA-256; otherwise the reason. Reads no file.
+function Get-PlatformProblem($Manifest, $Listed, [string]$Arch) {
+    $digest = Get-ManifestValue $Manifest @("image", "platforms", $Arch, "digest")
+    if ($digest -isnot [string] -or $digest -cnotmatch '^sha256:[0-9a-f]{64}\z') { return ("platform " + $Arch + " missing or malformed") }
+    foreach ($kind in @("sbom", "scan", "gate")) {
+        $file = Get-ManifestValue $Manifest @("image", "platforms", $Arch, "files", $kind, "file")
+        $hash = Get-ManifestValue $Manifest @("image", "platforms", $Arch, "files", $kind, "sha256")
+        if ($file -isnot [string] -or $hash -isnot [string]) { return ("platform " + $Arch + " files." + $kind + " file or sha256 missing or malformed") }
+        if (-not $Listed.ContainsKey($file) -or $Listed[$file] -cne $hash) { return ($file + " differs from the checksum list") }
+    }
+    return $null
+}
+
 function Test-Manifest($Manifest, $Listed, [string]$ManifestName) {
-    if ($Manifest.schema -isnot [string] -or $Manifest.product -isnot [string] -or $Manifest.version -isnot [string] -or $Manifest.schema -cne "netops-release-candidate/1" -or $Manifest.product -cne "netops" -or $Manifest.version -cnotmatch '^[0-9]+\.[0-9]+\.[0-9]+\z') {
+    $schema = Get-ManifestValue $Manifest @("schema")
+    $product = Get-ManifestValue $Manifest @("product")
+    $version = Get-ManifestValue $Manifest @("version")
+    if ($schema -isnot [string] -or $product -isnot [string] -or $version -isnot [string] -or $schema -cne "netops-release-candidate/1" -or $product -cne "netops" -or $version -cnotmatch '^1\.0\.[0-9]+\z') {
         Add-Row "manifest" "FAIL" "unknown schema, product or version"; return $false
     }
-    $parsedVersion = $null
-    if (-not [version]::TryParse($Manifest.version, [ref]$parsedVersion) -or $parsedVersion -lt $MinimumVersion) {
-        Add-Row "manifest" "FAIL" ("this signing tool signs netops " + $MinimumVersion + " and later, not " + $Manifest.version + "; use the tool from the commit of that release"); return $false
-    }
-    if ($Manifest.source.repository -isnot [string] -or $Manifest.source.commit -isnot [string] -or $Manifest.source.repository -cne $Repository -or $Manifest.source.commit -cnotmatch '^[0-9a-f]{40}\z') {
+    if (-not (Test-SupportedVersion $version)) { Add-Row "manifest" "FAIL" (Get-UnsupportedVersionReason $version); return $false }
+    $sourceRepository = Get-ManifestValue $Manifest @("source", "repository")
+    $commit = Get-ManifestValue $Manifest @("source", "commit")
+    if ($sourceRepository -isnot [string] -or $commit -isnot [string] -or $sourceRepository -cne $Repository -or $commit -cnotmatch '^[0-9a-f]{40}\z') {
         Add-Row "manifest" "FAIL" "repository or commit invalid"; return $false
     }
-    if ($Manifest.image.index_digest -isnot [string] -or $Manifest.image.index_digest -cnotmatch '^sha256:[0-9a-f]{64}\z') { Add-Row "manifest" "FAIL" "index digest invalid"; return $false }
+    $index = Get-ManifestValue $Manifest @("image", "index_digest")
+    if ($index -isnot [string] -or $index -cnotmatch '^sha256:[0-9a-f]{64}\z') { Add-Row "manifest" "FAIL" "index digest invalid"; return $false }
     foreach ($required in @($ManifestName, "compose.yaml", "env.example")) {
         if (-not $Listed.ContainsKey($required)) { Add-Row "manifest" "FAIL" ($required + " not covered by the checksum list"); return $false }
     }
     foreach ($name in @("compose.yaml", "env.example")) {
-        if ($Manifest.release_files.$name -isnot [string] -or $Manifest.release_files.$name -cne $Listed[$name]) { Add-Row "manifest" "FAIL" ("release_files." + $name + " differs from the checksum list"); return $false }
+        $hash = Get-ManifestValue $Manifest @("release_files", $name)
+        if ($hash -isnot [string] -or $hash -cne $Listed[$name]) { Add-Row "manifest" "FAIL" ("release_files." + $name + " differs from the checksum list"); return $false }
     }
-    foreach ($arch in $Arches) {
-        $platform = $Manifest.image.platforms.$arch
-        if ($null -eq $platform -or $platform.digest -isnot [string] -or $platform.digest -cnotmatch '^sha256:[0-9a-f]{64}\z') { Add-Row "manifest" "FAIL" ("platform " + $arch + " missing or malformed"); return $false }
-        foreach ($kind in @("sbom", "scan", "gate")) {
-            $file = $platform.files.$kind
-            if (-not $Listed.ContainsKey($file.file) -or $Listed[$file.file] -cne $file.sha256) { Add-Row "manifest" "FAIL" ($file.file + " differs from the checksum list"); return $false }
-        }
-    }
-    Add-Row "manifest" "PASS" ("netops " + $Manifest.version + ", commit " + $Manifest.source.commit + ", index " + $Manifest.image.index_digest)
+    $problems = @($Arches | ForEach-Object { Get-PlatformProblem $Manifest $Listed $_ } | Where-Object { $null -ne $_ })
+    if ($problems.Count -gt 0) { Add-Row "manifest" "FAIL" ($problems -join "; "); return $false }
+    Add-Row "manifest" "PASS" ("netops " + $version + ", commit " + $commit + ", index " + $index)
     return $true
 }
 
-function Test-PinnedEnv([string]$Dir, $Manifest) {
-    $expected = "NETOPS_IMAGE=" + $Manifest.image.name + "@" + $Manifest.image.index_digest
+function Test-PinnedEnv([string]$Dir, $Manifest, $Listed) {
+    $name = Get-ManifestValue $Manifest @("image", "name")
+    $index = Get-ManifestValue $Manifest @("image", "index_digest")
+    if ($name -isnot [string] -or $index -isnot [string] -or $index -cnotmatch '^sha256:[0-9a-f]{64}\z') { Add-Row "pinned image" "FAIL" "the release manifest has no valid image.name and image.index_digest"; return }
+    if (-not $Listed.ContainsKey("env.example")) { Add-Row "pinned image" "FAIL" "env.example not covered by the checksum list"; return }
+    $expected = "NETOPS_IMAGE=" + $name + "@" + $index
     $lines = @(Get-Content -LiteralPath (Join-Path $Dir "env.example") | Where-Object { $_ -like "NETOPS_IMAGE=*" })
     if ($lines.Count -eq 1 -and $lines[0] -ceq $expected) { Add-Row "pinned image" "PASS" $expected }
     else { Add-Row "pinned image" "FAIL" ("env.example does not pin " + $expected) }
 }
 
 function Test-Registry($Manifest) {
-    $name = $Manifest.image.name
+    $name = Get-ManifestValue $Manifest @("image", "name")
     if ($name -isnot [string] -or $name -cne ("ghcr.io/" + $Repository)) { Add-Row "registry" "FAIL" ("image " + $name + " is not ghcr.io/" + $Repository); return }
+    $indexDigest = Get-ManifestValue $Manifest @("image", "index_digest")
+    if ($indexDigest -isnot [string] -or $indexDigest -cnotmatch '^sha256:[0-9a-f]{64}\z') { Add-Row "registry" "FAIL" "index digest invalid"; return }
     $path = $Repository
     $token = Get-Http ($Registry + "/token?scope=repository:" + $path + ":pull") @{}
     if ($token.Status -ne 200) { Add-Row "registry" "FAIL" ("anonymous pull token refused: HTTP " + $token.Status); return }
     $bearer = (ConvertFrom-Json ([Text.Encoding]::UTF8.GetString($token.Bytes))).token
     $accept = "application/vnd.oci.image.index.v1+json, application/vnd.docker.distribution.manifest.list.v2+json"
-    $index = Get-Http ($Registry + "/v2/" + $path + "/manifests/" + $Manifest.image.index_digest) @{ Accept = $accept; Authorization = ("Bearer " + $bearer) }
+    $index = Get-Http ($Registry + "/v2/" + $path + "/manifests/" + $indexDigest) @{ Accept = $accept; Authorization = ("Bearer " + $bearer) }
     if ($index.Status -ne 200) { Add-Row "registry" "FAIL" ("index not readable anonymously: HTTP " + $index.Status + " (is the package public?)"); return }
     $digest = "sha256:" + (Get-Sha256Hex $index.Bytes)
-    if ($digest -cne $Manifest.image.index_digest) { Add-Row "registry" "FAIL" ("index bytes hash to " + $digest); return }
+    if ($digest -cne $indexDigest) { Add-Row "registry" "FAIL" ("index bytes hash to " + $digest); return }
     $parsed = ConvertFrom-Json ([Text.Encoding]::UTF8.GetString($index.Bytes))
     $found = New-Object System.Collections.Hashtable ([StringComparer]::Ordinal)
     foreach ($entry in $parsed.manifests) {
@@ -286,7 +329,9 @@ function Test-Registry($Manifest) {
         if ($found.ContainsKey($entry.platform.architecture)) { Add-Row "registry" "FAIL" "index repeats an architecture"; return }
         $found[$entry.platform.architecture] = $entry.digest
     }
-    if ($found.Count -ne 2 -or $found["amd64"] -cne $Manifest.image.platforms.amd64.digest -or $found["arm64"] -cne $Manifest.image.platforms.arm64.digest) {
+    $missing = @($Arches | Where-Object { (Get-ManifestValue $Manifest @("image", "platforms", $_, "digest")) -isnot [string] })
+    if ($missing.Count -gt 0) { Add-Row "registry" "FAIL" ("index platforms differ from the candidate manifest: no " + (@($missing | ForEach-Object { "image.platforms." + $_ + ".digest" }) -join ", ")); return }
+    if ($found.Count -ne 2 -or $found["amd64"] -cne (Get-ManifestValue $Manifest @("image", "platforms", "amd64", "digest")) -or $found["arm64"] -cne (Get-ManifestValue $Manifest @("image", "platforms", "arm64", "digest"))) {
         Add-Row "registry" "FAIL" "index platforms differ from the candidate manifest"; return
     }
     Add-Row "registry" "PASS" ("public index " + $digest + " binds amd64 and arm64")
@@ -328,7 +373,8 @@ function Test-UnavailableFix($Assessment, $Finding) {
 }
 
 function Test-Vulnerabilities([string]$Dir, $Manifest, $Listed) {
-    $assessmentName = "netops-" + $Manifest.version + "-vulnerability-assessments.json"
+    $imageName = Get-ManifestValue $Manifest @("image", "name")
+    $assessmentName = "netops-" + (Get-ManifestValue $Manifest @("version")) + "-vulnerability-assessments.json"
     $assessed = New-Object System.Collections.Hashtable ([StringComparer]::Ordinal)
     if ($Listed.ContainsKey($assessmentName)) {
         foreach ($item in (Read-Json (Join-Path $Dir $assessmentName))) {
@@ -340,81 +386,93 @@ function Test-Vulnerabilities([string]$Dir, $Manifest, $Listed) {
         }
     }
     foreach ($arch in $Arches) {
-        $platform = $Manifest.image.platforms.$arch
-        $gate = Read-Json (Join-Path $Dir $platform.files.gate.file)
-        if (@("pass", "needs-assessment") -cnotcontains $gate.status) { Add-Row ("vulnerabilities " + $arch) "FAIL" ("gate status " + $gate.status); continue }
-        $scan = Read-Json (Join-Path $Dir $platform.files.scan.file)
-        if (-not (Has-Property $scan "matches") -or -not ($scan.PSObject.Properties["matches"].Value -is [System.Array])) {
-            Add-Row ("vulnerabilities " + $arch) "FAIL" "raw scan matches is not a JSON array"; continue
-        }
-        $built = $null
-        $builtNames = $null
-        if ((Has-Property $scan "descriptor") -and (Has-Property $scan.descriptor "db")) {
-            $holders = New-Object System.Collections.ArrayList
-            if (Has-Property $scan.descriptor.db "status") { [void]$holders.Add([pscustomobject]@{ Holder = $scan.descriptor.db.status; Names = [string[]]@("descriptor", "db", "status", "built") }) }
-            [void]$holders.Add([pscustomobject]@{ Holder = $scan.descriptor.db; Names = [string[]]@("descriptor", "db", "built") })
-            foreach ($entry in $holders) {
-                $holder = $entry.Holder
-                if ($null -cne $holder -and (Has-Property $holder "built") -and $holder.built) { $built = $holder.built; $builtNames = $entry.Names; break }
+        $problem = Get-PlatformProblem $Manifest $Listed $arch
+        if ($null -ne $problem) { Add-Row ("vulnerabilities " + $arch) "FAIL" $problem; continue }
+        if ($imageName -isnot [string]) { Add-Row ("vulnerabilities " + $arch) "FAIL" "the release manifest has no valid image.name"; continue }
+        try {
+            $platform = Get-ManifestValue $Manifest @("image", "platforms", $arch)
+            $gate = Read-Json (Join-Path $Dir $platform.files.gate.file)
+            if (@("pass", "needs-assessment") -cnotcontains $gate.status) { Add-Row ("vulnerabilities " + $arch) "FAIL" ("gate status " + $gate.status); continue }
+            $scan = Read-Json (Join-Path $Dir $platform.files.scan.file)
+            if (-not (Has-Property $scan "matches") -or -not ($scan.PSObject.Properties["matches"].Value -is [System.Array])) {
+                Add-Row ("vulnerabilities " + $arch) "FAIL" "raw scan matches is not a JSON array"; continue
             }
-        }
-        $gateBuilt = $null
-        if (Has-Property $gate "database_built") { $gateBuilt = $gate.database_built }
-        if ($PSVersionTable.PSVersion.Major -ge 6) {
-            $scanBytes = [IO.File]::ReadAllBytes((Join-Path $Dir $platform.files.scan.file))
-            $gateBytes = [IO.File]::ReadAllBytes((Join-Path $Dir $platform.files.gate.file))
-            if ((Get-Sha256Hex $scanBytes) -cne $Listed[$platform.files.scan.file] -or (Get-Sha256Hex $gateBytes) -cne $Listed[$platform.files.gate.file]) { Add-Row ("vulnerabilities " + $arch) "FAIL" "raw scan or gate result differs from the checksum list"; continue }
-            if ($null -ne $builtNames) { $built = Get-JsonString $scanBytes $builtNames }
-            if ($null -ne $gateBuilt) { $gateBuilt = Get-JsonString $gateBytes ([string[]]@("database_built")) }
-        }
-        $builtTime = [DateTimeOffset]::MinValue
-        if ($built -isnot [string] -or -not [DateTimeOffset]::TryParseExact($built, $BuildTimeFormats, [Globalization.CultureInfo]::InvariantCulture, [Globalization.DateTimeStyles]::AssumeUniversal, [ref]$builtTime)) { Add-Row ("vulnerabilities " + $arch) "FAIL" "raw scan does not name a parseable database build time"; continue }
-        if (-not (Has-Property $gate "database_built") -or $gateBuilt -isnot [string] -or $built -cne $gateBuilt -or -not (Has-Property $gate "database_age_hours") -or [double]$gate.database_age_hours -gt 48 -or [double]$gate.database_age_hours -lt -1) {
-            Add-Row ("vulnerabilities " + $arch) "FAIL" ("database build " + $built + " does not match a fresh gate result (age at scan must be 0..48 h)"); continue
-        }
-        if ($builtTime -gt [DateTimeOffset]::UtcNow.AddHours(1)) { Add-Row ("vulnerabilities " + $arch) "FAIL" "database build time lies in the future"; continue }
-        $target = $scan.source.target
-        $expectedRef = $Manifest.image.name + "@" + $platform.digest
-        if ($target.userInput -isnot [string] -or $target.userInput -cne $expectedRef -or @($target.repoDigests | Where-Object { $_ -isnot [string] }).Count -ne 0 -or @($target.repoDigests) -cnotcontains $expectedRef) {
-            Add-Row ("vulnerabilities " + $arch) "FAIL" ("raw scan is not of " + $expectedRef); continue
-        }
-        $fixable = New-Object System.Collections.ArrayList
-        $missing = New-Object System.Collections.ArrayList
-        $exceptions = New-Object System.Collections.ArrayList
-        $count = 0
-        $malformed = $false
-        foreach ($match in $scan.matches) {
-            $severity = [string]$match.vulnerability.severity
-            if ($KnownSeverities -cnotcontains $severity -or -not $match.vulnerability.id -or -not $match.artifact.name -or -not $match.artifact.version -or -not $match.artifact.type) { $malformed = $true; break }
-            $count++
-            $key = [string]::Join("|", @($match.vulnerability.id, $match.artifact.name, $match.artifact.version, $match.artifact.type))
-            if ($BlockingSeverities -ccontains $severity -and $match.vulnerability.fix.state -ceq "fixed") {
-                $exception = $null
-                if ($assessed.ContainsKey($key)) {
-                    foreach ($assessment in $assessed[$key]) {
-                        if (Test-UnavailableFix $assessment $match) { $exception = $assessment; break }
+            $built = $null
+            $builtNames = $null
+            if ((Has-Property $scan "descriptor") -and (Has-Property $scan.descriptor "db")) {
+                $holders = New-Object System.Collections.ArrayList
+                if (Has-Property $scan.descriptor.db "status") { [void]$holders.Add([pscustomobject]@{ Holder = $scan.descriptor.db.status; Names = [string[]]@("descriptor", "db", "status", "built") }) }
+                [void]$holders.Add([pscustomobject]@{ Holder = $scan.descriptor.db; Names = [string[]]@("descriptor", "db", "built") })
+                foreach ($entry in $holders) {
+                    $holder = $entry.Holder
+                    if ($null -cne $holder -and (Has-Property $holder "built") -and $holder.built) { $built = $holder.built; $builtNames = $entry.Names; break }
+                }
+            }
+            $gateBuilt = $null
+            if (Has-Property $gate "database_built") { $gateBuilt = $gate.database_built }
+            if ($PSVersionTable.PSVersion.Major -ge 6) {
+                $scanBytes = [IO.File]::ReadAllBytes((Join-Path $Dir $platform.files.scan.file))
+                $gateBytes = [IO.File]::ReadAllBytes((Join-Path $Dir $platform.files.gate.file))
+                if ((Get-Sha256Hex $scanBytes) -cne $Listed[$platform.files.scan.file] -or (Get-Sha256Hex $gateBytes) -cne $Listed[$platform.files.gate.file]) { Add-Row ("vulnerabilities " + $arch) "FAIL" "raw scan or gate result differs from the checksum list"; continue }
+                if ($null -ne $builtNames) { $built = Get-JsonString $scanBytes $builtNames }
+                if ($null -ne $gateBuilt) { $gateBuilt = Get-JsonString $gateBytes ([string[]]@("database_built")) }
+            }
+            $builtTime = [DateTimeOffset]::MinValue
+            if ($built -isnot [string] -or -not [DateTimeOffset]::TryParseExact($built, $BuildTimeFormats, [Globalization.CultureInfo]::InvariantCulture, [Globalization.DateTimeStyles]::AssumeUniversal, [ref]$builtTime)) { Add-Row ("vulnerabilities " + $arch) "FAIL" "raw scan does not name a parseable database build time"; continue }
+            if (-not (Has-Property $gate "database_built") -or $gateBuilt -isnot [string] -or $built -cne $gateBuilt -or -not (Has-Property $gate "database_age_hours") -or [double]$gate.database_age_hours -gt 48 -or [double]$gate.database_age_hours -lt -1) {
+                Add-Row ("vulnerabilities " + $arch) "FAIL" ("database build " + $built + " does not match a fresh gate result (age at scan must be 0..48 h)"); continue
+            }
+            if ($builtTime -gt [DateTimeOffset]::UtcNow.AddHours(1)) { Add-Row ("vulnerabilities " + $arch) "FAIL" "database build time lies in the future"; continue }
+            $target = $scan.source.target
+            $expectedRef = $imageName + "@" + $platform.digest
+            if ($target.userInput -isnot [string] -or $target.userInput -cne $expectedRef -or @($target.repoDigests | Where-Object { $_ -isnot [string] }).Count -ne 0 -or @($target.repoDigests) -cnotcontains $expectedRef) {
+                Add-Row ("vulnerabilities " + $arch) "FAIL" ("raw scan is not of " + $expectedRef); continue
+            }
+            $fixable = New-Object System.Collections.ArrayList
+            $missing = New-Object System.Collections.ArrayList
+            $exceptions = New-Object System.Collections.ArrayList
+            $count = 0
+            $malformed = $false
+            foreach ($match in $scan.matches) {
+                $severity = [string]$match.vulnerability.severity
+                if ($KnownSeverities -cnotcontains $severity -or -not $match.vulnerability.id -or -not $match.artifact.name -or -not $match.artifact.version -or -not $match.artifact.type) { $malformed = $true; break }
+                $count++
+                $key = [string]::Join("|", @($match.vulnerability.id, $match.artifact.name, $match.artifact.version, $match.artifact.type))
+                if ($BlockingSeverities -ccontains $severity -and $match.vulnerability.fix.state -ceq "fixed") {
+                    $exception = $null
+                    if ($assessed.ContainsKey($key)) {
+                        foreach ($assessment in $assessed[$key]) {
+                            if (Test-UnavailableFix $assessment $match) { $exception = $assessment; break }
+                        }
                     }
+                    if ($null -eq $exception) {
+                        if (-not $fixable.Contains($key)) { [void]$fixable.Add($key) }; continue
+                    }
+                    [void]$exceptions.Add(($exception.id + " " + $exception.package + "@" + $exception.version +
+                        " fix_unavailable_checked=" + $exception.fix_unavailable_checked + " " + $exception.fix_unavailable_evidence))
                 }
-                if ($null -eq $exception) {
-                    if (-not $fixable.Contains($key)) { [void]$fixable.Add($key) }; continue
-                }
-                [void]$exceptions.Add(($exception.id + " " + $exception.package + "@" + $exception.version +
-                    " fix_unavailable_checked=" + $exception.fix_unavailable_checked + " " + $exception.fix_unavailable_evidence))
+                if (-not $assessed.ContainsKey($key) -and -not $missing.Contains($key)) { [void]$missing.Add($key) }
             }
-            if (-not $assessed.ContainsKey($key) -and -not $missing.Contains($key)) { [void]$missing.Add($key) }
+            if ($malformed) { Add-Row ("vulnerabilities " + $arch) "FAIL" "raw scan has a finding with unknown severity or missing id, package, version or type" }
+            elseif ($fixable.Count -gt 0) { Add-Row ("vulnerabilities " + $arch) "FAIL" ("fixable High/Critical: " + ($fixable -join ", ")) }
+            elseif ($missing.Count -gt 0) { Add-Row ("vulnerabilities " + $arch) "FAIL" ("not assessed for this exact package version: " + ($missing -join ", ")) }
+            else { Add-Row ("vulnerabilities " + $arch) "PASS" ([string]$count + " findings in the raw scan of " + $platform.digest + " (database " + $built + "), each with a non-exploitability assessment for its exact version; fix not yet released exceptions: " + $exceptions.Count + $(if ($exceptions.Count -gt 0) { "; " + ($exceptions -join "; ") })) }
         }
-        if ($malformed) { Add-Row ("vulnerabilities " + $arch) "FAIL" "raw scan has a finding with unknown severity or missing id, package, version or type" }
-        elseif ($fixable.Count -gt 0) { Add-Row ("vulnerabilities " + $arch) "FAIL" ("fixable High/Critical: " + ($fixable -join ", ")) }
-        elseif ($missing.Count -gt 0) { Add-Row ("vulnerabilities " + $arch) "FAIL" ("not assessed for this exact package version: " + ($missing -join ", ")) }
-        else { Add-Row ("vulnerabilities " + $arch) "PASS" ([string]$count + " findings in the raw scan of " + $platform.digest + " (database " + $built + "), each with a non-exploitability assessment for its exact version; fix not yet released exceptions: " + $exceptions.Count + $(if ($exceptions.Count -gt 0) { "; " + ($exceptions -join "; ") })) }
+        catch { Add-Row ("vulnerabilities " + $arch) "FAIL" ("check stopped: " + $_.Exception.Message) }
     }
 }
 
 function Test-Acceptance([string]$Dir, $Manifest, $Listed) {
-    $acceptanceName = "netops-" + $Manifest.version + "-acceptance-manifest.json"
+    $version = Get-ManifestValue $Manifest @("version")
+    $commit = Get-ManifestValue $Manifest @("source", "commit")
+    $index = Get-ManifestValue $Manifest @("image", "index_digest")
+    if (-not (Test-SupportedVersion $version) -or $commit -isnot [string] -or $commit -cnotmatch '^[0-9a-f]{40}\z' -or $index -isnot [string] -or $index -cnotmatch '^sha256:[0-9a-f]{64}\z') {
+        Add-Row "acceptance" "FAIL" "the release manifest has no valid version, source.commit and image.index_digest to check the reports against"; return
+    }
+    $acceptanceName = "netops-" + $version + "-acceptance-manifest.json"
     if (-not $Listed.ContainsKey($acceptanceName)) { Add-Row "acceptance" "FAIL" ("missing signed " + $acceptanceName); return }
     $acceptance = Read-Json (Join-Path $Dir $acceptanceName)
-    if ($acceptance.schema -isnot [string] -or $acceptance.candidate_commit -isnot [string] -or $acceptance.candidate_image -isnot [string] -or $acceptance.schema -cne "netops-acceptance-manifest/1" -or $acceptance.candidate_commit -cne $Manifest.source.commit -or $acceptance.candidate_image -cne $Manifest.image.index_digest) {
+    if ($acceptance.schema -isnot [string] -or $acceptance.candidate_commit -isnot [string] -or $acceptance.candidate_image -isnot [string] -or $acceptance.schema -cne "netops-acceptance-manifest/1" -or $acceptance.candidate_commit -cne $commit -or $acceptance.candidate_image -cne $index) {
         Add-Row "acceptance" "FAIL" "acceptance manifest is for another candidate or has an unknown schema"; return
     }
     $declared = New-Object System.Collections.Hashtable ([StringComparer]::Ordinal)
@@ -430,10 +488,10 @@ function Test-Acceptance([string]$Dir, $Manifest, $Listed) {
             Add-Row $label "FAIL" "report file is not the signed one"; continue
         }
         $report = Read-Json (Join-Path $Dir $entry.file)
-        if (-not (Has-Property $report "candidate_commit") -or $report.candidate_commit -isnot [string] -or $report.candidate_commit -cne $Manifest.source.commit) { Add-Row $label "FAIL" "report is not for this commit"; continue }
-        if (-not (Has-Property $report "candidate_image") -or $report.candidate_image -isnot [string] -or $report.candidate_image -cne $Manifest.image.index_digest) { Add-Row $label "FAIL" "report is not for this image index"; continue }
+        if (-not (Has-Property $report "candidate_commit") -or $report.candidate_commit -isnot [string] -or $report.candidate_commit -cne $commit) { Add-Row $label "FAIL" "report is not for this commit"; continue }
+        if (-not (Has-Property $report "candidate_image") -or $report.candidate_image -isnot [string] -or $report.candidate_image -cne $index) { Add-Row $label "FAIL" "report is not for this image index"; continue }
         if ($BlindRows -ccontains $row -and (-not (Has-Property $report "rehearsal") -or $report.rehearsal -isnot [bool] -or $report.rehearsal)) { Add-Row $label "FAIL" "rehearsal report: rehearsal must be JSON false"; continue }
-        if ($BlindRows -ccontains $row -and (-not (Has-Property $report "version") -or $report.version -isnot [string] -or $report.version -cne $Manifest.version)) { Add-Row $label "FAIL" ("report does not name version " + $Manifest.version); continue }
+        if ($BlindRows -ccontains $row -and (-not (Has-Property $report "version") -or $report.version -isnot [string] -or $report.version -cne $version)) { Add-Row $label "FAIL" ("report does not name version " + $version); continue }
         if ($row -ceq $UpgradeRow -and (-not (Has-Property $report "from_version") -or $report.from_version -isnot [string] -or $report.from_version -cne $UpgradeFromVersion -or -not (Has-Property $report "from_image") -or $report.from_image -isnot [string] -or $report.from_image -cne $UpgradeFromImage)) { Add-Row $label "FAIL" ("upgrade report does not start from NetOps " + $UpgradeFromVersion + " (" + $UpgradeFromImage + ")"); continue }
         $checks = @($report.checks)
         if ($checks.Count -eq 0) { Add-Row $label "FAIL" "report has no checks"; continue }
@@ -469,28 +527,56 @@ try {
         exit 1
     }
     $CandidateDir = $Snapshot
+    $manifest = $null
+    $version = $null
+    $sumsPath = $null
+    $listed = $null
     $manifestFiles = @(Get-ChildItem -LiteralPath $CandidateDir -Filter "netops-*-manifest.json" -File | Where-Object { $_.Name -notlike "*-acceptance-manifest.json" })
-    if ($manifestFiles.Count -ne 1) { Write-Host "Expected exactly one release manifest netops-X.Y.Z-manifest.json in the candidate directory."; exit 1 }
-    $manifestPath = $manifestFiles[0].FullName
-    $manifest = Read-Json $manifestPath
-    if (-not (Has-Property $manifest "version") -or $manifest.version -isnot [string] -or $manifest.version -cnotmatch '^[0-9]+\.[0-9]+\.[0-9]+\z') { Write-Host "The release manifest has no valid version."; exit 1 }
-    $sumsPath = Join-Path $CandidateDir ("netops-" + $manifest.version + "-SHA256SUMS")
-    if (-not (Test-Path -LiteralPath $sumsPath -PathType Leaf)) { Write-Host ("Missing " + $sumsPath); exit 1 }
-    $listed = Read-Sums $CandidateDir $sumsPath
-    if ($null -cne $listed -and (Test-Manifest $manifest $listed $manifestFiles[0].Name)) {
-        Test-PinnedEnv $CandidateDir $manifest
-        Test-Registry $manifest
-        Test-Vulnerabilities $CandidateDir $manifest $listed
-        Test-Acceptance $CandidateDir $manifest $listed
+    if ($manifestFiles.Count -ne 1) { Add-Row "manifest" "FAIL" "expected exactly one release manifest netops-X.Y.Z-manifest.json in the candidate directory" }
+    else {
+        $readable = $true
+        try { $manifest = Read-Json $manifestFiles[0].FullName }
+        catch { $readable = $false; Add-Row "manifest" "FAIL" ("the release manifest is not readable JSON: " + $_.Exception.Message) }
+        if ($readable) {
+            $manifestVersion = Get-ManifestValue $manifest @("version")
+            if ($manifestVersion -isnot [string] -or $manifestVersion -cnotmatch '^[0-9]+\.[0-9]+\.[0-9]+\z') { Add-Row "manifest" "FAIL" "the release manifest has no valid version" }
+            elseif (-not (Test-SupportedVersion $manifestVersion)) { Add-Row "manifest" "FAIL" (Get-UnsupportedVersionReason $manifestVersion) }
+            else { $version = $manifestVersion }
+        }
     }
-    Test-ReleaseDocs $SourceDir $manifest.version
+    if ($null -ne $version) {
+        $sumsName = "netops-" + $version + "-SHA256SUMS"
+        if (Test-Path -LiteralPath (Join-Path $CandidateDir $sumsName) -PathType Leaf) {
+            $sumsPath = Join-Path $CandidateDir $sumsName
+            try { $listed = Read-Sums $CandidateDir $sumsPath }
+            catch { $listed = $null; Add-Row "checksums" "FAIL" ("check stopped: " + $_.Exception.Message) }
+        }
+        else { Add-Row "checksums" "FAIL" ("missing " + $sumsName) }
+    }
+    else { Add-Row "checksums" "FAIL" "not checked: the release manifest has no valid supported version" }
+    if ($null -cne $listed) {
+        Invoke-Area "manifest" { [void](Test-Manifest $manifest $listed $manifestFiles[0].Name) }
+        Invoke-Area "pinned image" { Test-PinnedEnv $CandidateDir $manifest $listed }
+        Invoke-Area "registry" { Test-Registry $manifest }
+        Invoke-Area "vulnerabilities" { Test-Vulnerabilities $CandidateDir $manifest $listed }
+        Invoke-Area "acceptance" { Test-Acceptance $CandidateDir $manifest $listed }
+    }
+    else {
+        # Nothing of the candidate is verified: no further file is read and nothing is reported as checked.
+        $why = "not checked: no verified checksum list"
+        if (@($script:Rows | Where-Object { $_.Area -ceq "manifest" }).Count -eq 0) { Add-Row "manifest" "FAIL" $why }
+        foreach ($area in @("pinned image", "registry", "vulnerabilities amd64", "vulnerabilities arm64", "acceptance")) { Add-Row $area "FAIL" $why }
+    }
+    if ($null -ne $version) { Invoke-Area "release documentation" { Test-ReleaseDocs $SourceDir $version } }
+    else { Add-Row "release documentation" "FAIL" "not checked: the release manifest has no valid supported version" }
 
     $script:Rows | Format-Table Area, Status, Detail -AutoSize -Wrap | Out-String -Width 220 | Write-Host
     $failed = @($script:Rows | Where-Object { $_.Status -ceq "FAIL" -or @("PASS", "NOT RUN") -cnotcontains $_.Status })
     $notRun = @($script:Rows | Where-Object { $_.Status -ceq "NOT RUN" -and -not $_.Optional })
     $overall = "PASS"
     if ($failed.Count -gt 0 -or $script:Rows.Count -eq 0) { $overall = "FAIL" } elseif ($notRun.Count -gt 0) { $overall = "NOT RUN" }
-    Write-Host ("OVERALL: " + $overall + "   checksum list SHA-256 " + (Get-FileSha256 $sumsPath))
+    if ($null -eq $sumsPath) { $overall = "FAIL"; Write-Host "OVERALL: FAIL" }
+    else { Write-Host ("OVERALL: " + $overall + "   checksum list SHA-256 " + (Get-FileSha256 $sumsPath)) }
     if ($overall -ne "PASS") { Write-Host "Signing refused: every row must be PASS."; exit 1 }
     if ($CheckOnly) { exit 0 }
 

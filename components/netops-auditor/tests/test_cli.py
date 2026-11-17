@@ -15,7 +15,7 @@ from netops_auditor.collect import ChannelEvent, CollectError, Snapshot
 from netops_auditor import l1_exos, l1_fortios
 from netops_auditor.engine import CATALOG_DIR, load_catalog
 from netops_auditor.store import Store
-from netops_auditor.findings import fingerprint_of, fingerprint_v1
+from netops_auditor.findings import fingerprint_of
 from netops_auditor.suppressions import FILE_VERSION as SUPPRESSION_FILE_VERSION
 from netops_auditor.suppressions import SuppressionError, load_for_tenant
 from netops_core.ssh import SshError, UNKNOWN_REASON, reason
@@ -314,19 +314,9 @@ def write_v1_suppressions(directory, items, name="v1.json"):
     return path
 
 
-def v1_suppression(rule_id, object_key, expires, reason="ticket NET-1", author="operator", device=DEVICE):
-    version = rule_version(rule_id)
-    return {
-        "fingerprint": fingerprint_v1(rule_id, version, device, object_key),
-        "rule_id": rule_id,
-        "rule_version": version,
-        "device": device,
-        "object_key": object_key,
-        "reason": reason,
-        "author": author,
-        "created": CREATED,
-        "expires": expires,
-    }
+def v1_suppression(rule_id, object_key, expires):
+    # Refusal fixture: the loader refuses version 1 before it reads an item.
+    return dict(suppression(rule_id, object_key, expires), fingerprint="0" * 64)
 
 
 def full_args(path, store=None, as_json=False, suppressions=None, accept=None, tenant=TENANT, device=DEVICE):
@@ -557,7 +547,7 @@ def test_a_suppression_file_bound_to_another_tenant_is_refused_naming_both(tmp_p
     assert "tenant-b" in err
 
 
-def test_a_suppression_file_without_a_tenant_is_refused_and_names_the_migration(tmp_path, capsys):
+def test_a_suppression_file_without_a_tenant_is_refused(tmp_path, capsys):
     path = write_config(tmp_path, dirty_text())
     waivers = write_suppressions(
         tmp_path, [suppression(WAN_RULE, WAN_OBJECT, FUTURE)], tenant=None,
@@ -566,17 +556,17 @@ def test_a_suppression_file_without_a_tenant_is_refused_and_names_the_migration(
     assert code == 2
     assert out == ""
     assert "missing document fields: tenant" in err
-    assert "migrate-suppressions" in err
+    assert "migrat" not in err
 
 
-def test_a_version_1_suppression_file_is_refused_and_names_the_migration(tmp_path, capsys):
+def test_a_version_1_suppression_file_is_refused(tmp_path, capsys):
     path = write_config(tmp_path, dirty_text())
     waivers = write_v1_suppressions(tmp_path, [v1_suppression(WAN_RULE, WAN_OBJECT, FUTURE)])
     code, out, err = invoke(capsys, full_args(path, as_json=True, suppressions=waivers))
     assert code == 2
     assert out == ""
-    assert "version 1 is refused" in err
-    assert "migrate-suppressions" in err
+    assert "unknown suppression file version 1" in err
+    assert "migrat" not in err
 
 
 def test_a_suppression_file_bound_to_the_running_tenant_works_with_no_notice(tmp_path, capsys):
@@ -1849,68 +1839,15 @@ def test_collect_refuses_fortiadc_before_it_loads_the_credential(tmp_path, capsy
     assert "run --platform fortiadc" in err
 
 
-def test_migrate_suppressions_writes_a_bound_file_and_leaves_the_input_alone(tmp_path, capsys):
-    source = write_v1_suppressions(tmp_path, [v1_suppression(WAN_RULE, WAN_OBJECT, FUTURE)])
-    before = source.read_bytes()
-    target = tmp_path / "waivers-v2.json"
-    code, out, err = invoke(
-        capsys,
-        [
-            "migrate-suppressions",
-            "--input",
-            str(source),
-            "--output",
-            str(target),
-            "--tenant",
-            TENANT,
-        ],
-    )
-    assert code == 0
-    assert err == ""
-    assert out == "migrated 1 suppressions of tenant %s into %s\n" % (TENANT, target)
-    assert source.read_bytes() == before
-    document = json.loads(target.read_text(encoding="utf-8"))
-    assert document["version"] == SUPPRESSION_FILE_VERSION
-    assert document["tenant"] == TENANT
-    assert document["suppressions"][0]["fingerprint"] == fingerprint_of(
-        WAN_RULE, rule_version(WAN_RULE), TENANT, DEVICE, WAN_OBJECT
-    )
-
-
-def test_migrate_suppressions_prints_nothing_of_the_document_it_reads(tmp_path, capsys):
-    item = v1_suppression(WAN_RULE, WAN_OBJECT, FUTURE, reason=CANARY)
-    item["created"] = "not a moment"
-    source = write_v1_suppressions(tmp_path, [item])
-    code, out, err = invoke(
-        capsys,
-        [
-            "migrate-suppressions",
-            "--input",
-            str(source),
-            "--output",
-            str(tmp_path / "waivers-v2.json"),
-            "--tenant",
-            TENANT,
-        ],
-    )
-    assert code == 2
-    assert out == ""
-    assert CANARY not in err
-    assert not (tmp_path / "waivers-v2.json").exists()
-
-
-def test_the_migrated_file_silences_the_finding_it_was_written_for(tmp_path, capsys):
-    source = write_v1_suppressions(tmp_path, [v1_suppression(WAN_RULE, WAN_OBJECT, FUTURE)])
-    target = tmp_path / "waivers-v2.json"
-    invoke(
-        capsys,
-        ["migrate-suppressions", "--input", str(source), "--output", str(target), "--tenant", TENANT],
-    )
-    path = write_config(tmp_path, dirty_text())
-    code, out, err = invoke(capsys, full_args(path, as_json=True, suppressions=target))
-    assert code == 0
-    assert err == ""
-    assert states_by_rule(json.loads(out))[WAN_RULE] == "suppressed"
+@pytest.mark.parametrize("command", ["migrate-store", "migrate-suppressions"])
+def test_the_removed_migration_commands_are_not_offered(tmp_path, capsys, command):
+    with pytest.raises(SystemExit) as caught:
+        cli.main([command, "--store", str(tmp_path / "audit.sqlite")])
+    assert caught.value.code == 2
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "invalid choice" in captured.err
+    assert command in captured.err
 
 
 def old_store(tmp_path, capsys, name="audit.sqlite"):
@@ -1924,25 +1861,36 @@ def old_store(tmp_path, capsys, name="audit.sqlite"):
     return path, database
 
 
-def test_an_unmigrated_store_stops_the_run_and_names_the_migration(tmp_path, capsys):
+def test_an_unlabeled_store_stops_the_run_without_changing_it(tmp_path, capsys):
     path, database = old_store(tmp_path, capsys)
+    before = database.read_bytes()
     code, out, err = invoke(capsys, full_args(path, store=database))
     assert code == 2
     assert out == ""
-    assert "schema version 1" in err
-    assert "migrate-store" in err
+    assert "without a schema version" in err
+    assert "not supported" in err
+    assert "migrat" not in err
+    assert database.read_bytes() == before
 
 
-def test_migrate_store_lets_the_cli_open_the_store_again(tmp_path, capsys):
-    path, database = old_store(tmp_path, capsys)
-    code, out, err = invoke(capsys, ["migrate-store", "--store", str(database)])
-    assert code == 0
-    assert err == ""
-    assert out.startswith("migrated ")
-    assert "baseline entries" in out
-    code, out, err = invoke(capsys, full_args(path, as_json=True, store=database))
-    assert code == 0
-    assert json.loads(out)["states"]["gone"] == 0
+def test_collect_refuses_an_unlabeled_store_without_changing_it(tmp_path, capsys, monkeypatch):
+    _, database = old_store(tmp_path, capsys)
+    before = database.read_bytes()
+    inventory_path = write_inventory(tmp_path, [rest_item()])
+    vault_path = write_vault(tmp_path)
+
+    def fake(device, host, credential, profile, tls_fingerprint=None, **rest):
+        snapshot = snapshot_of(dirty_text(), "fortios-rest", host, profile)
+        return snapshot, event_of(snapshot, "POST %s/api/v2/monitor" % host)
+
+    monkeypatch.setattr(cli.collect, "collect_fortios_rest", fake)
+    code, out, err = gather(capsys, inventory_path, as_json=True, store=database, vault_path=vault_path)
+    assert code == 2
+    assert out == ""
+    assert err.startswith("error: store: ")
+    assert "without a schema version" in err
+    assert "not supported" in err
+    assert database.read_bytes() == before
 
 
 def test_text_output_labels_not_evaluated_findings_not_gone(tmp_path, capsys):
@@ -1965,13 +1913,6 @@ def test_text_output_labels_not_evaluated_findings_not_gone(tmp_path, capsys):
     section = out.split("state not-evaluated: ")[1]
     assert "[low] fortios.logging.single-cpu-high (not-evaluated)" in section
     assert "(gone)" not in out and "state gone: 0" in out
-
-
-def test_migrate_store_needs_a_store_that_exists(tmp_path, capsys):
-    code, out, err = invoke(capsys, ["migrate-store", "--store", str(tmp_path / "nowhere.sqlite")])
-    assert code == 2
-    assert out == ""
-    assert err.startswith("error: ")
 
 
 def test_the_cli_and_the_read_only_surface_refuse_the_same_file_alike(tmp_path):
